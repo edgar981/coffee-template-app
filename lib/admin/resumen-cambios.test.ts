@@ -11,7 +11,7 @@ function heroBase(): Record<string, unknown> {
     puntoFocal: 'centro', eyebrow: '', titulo: 'Productos que cuentan', tituloEnfasis: '',
     subtitulo: 'Subtítulo de fábrica', ctaPrimarioLabel: 'Ver café', ctaSecundarioLabel: '',
     fraseAlPie: '', veloIntensidad: 'media', tickerVelocidad: 'normal', alto: 'justo',
-    veloCombo: 'nada', texto: '', productoSlug: '',
+    veloNivel: null, texto: '', productoSlug: '',
     variante: 'curtina', titularVisible: true, subtituloVisible: true, ctasVisibles: true,
     cueDesliza: true, alturaLlena: false, veloVisible: false,
     imagen: '/images/hero.webp', imagenMovil: '', imagenMovilPoster: '',
@@ -103,6 +103,32 @@ test('composición: una sección sin `composiciones` (p. ej. marquesina) nunca r
   const item = cambios.find((c) => c.elemento === 'Tipo de fondo');
   assert.ok(item);
   assert.equal(item!.etiqueta, 'Marquesina · Tipo de fondo «Video»');
+});
+
+// ── 2b · EL DESLIZADOR (campo `numero`, § EDITOR-PANEL-DESLIZADORES-1) ─────────────────────────────
+
+test('deslizador: cambiar hero.veloNivel se resume EN PALABRAS (la marca más cercana), no "cambiado" a secas', () => {
+  const publicado = heroBase();
+  const borrador = { ...heroBase(), veloNivel: 65 };
+  const cambios = resumenCambios(['hero'], { hero: borrador }, { hero: publicado });
+  const item = cambios.find((c) => c.elemento === 'Fondo: oscurecer para leer mejor');
+  assert.ok(item);
+  assert.equal(item!.etiqueta, 'Hero de la home · Fondo: oscurecer para leer mejor «Medio (65%)»');
+});
+
+test('deslizador: un nivel que no cae exacto en una marca usa la etiqueta de la MÁS CERCANA', () => {
+  const publicado = heroBase();
+  const borrador = { ...heroBase(), veloNivel: 70 };
+  const cambios = resumenCambios(['hero'], { hero: borrador }, { hero: publicado });
+  const item = cambios.find((c) => c.elemento === 'Fondo: oscurecer para leer mejor');
+  assert.ok(item);
+  assert.equal(item!.etiqueta, 'Hero de la home · Fondo: oscurecer para leer mejor «Medio (70%)»');
+});
+
+test('deslizador: sin cambio en veloNivel no aparece en la lista', () => {
+  const contenido = heroBase();
+  const cambios = resumenCambios(['hero'], { hero: contenido }, { hero: { ...contenido } });
+  assert.equal(cambios.some((c) => c.elemento === 'Fondo: oscurecer para leer mejor'), false);
 });
 
 // ── 3 · ESTILO ──────────────────────────────────────────────────────────────────────────────────

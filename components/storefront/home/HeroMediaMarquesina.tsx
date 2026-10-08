@@ -11,12 +11,14 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable, { useRutaEnEdicion } from "@/components/storefront/CampoEditable";
-import { HERO_HREFS, objectPositionDePuntoFocal, productoMarquesina, veloComboDeCampos } from "@/lib/config/site-content-defaults";
+import { HERO_HREFS, objectPositionDePuntoFocal, productoMarquesina, nivelEfectivoDeVelo, MARCAS_VELO } from "@/lib/config/site-content-defaults";
 import { HERO_VIDEO_MOVIL_MEDIA, HERO_VIDEO_ESCRITORIO_MEDIA, tieneVideoMovil, fuentesVideoHero, posterVideoMovil } from "@/lib/config/hero-video";
 import {
-  useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad,
+  useProgresoScrollDesdeTope, veloOpacidad, rangoVeloDeIntensidad, rangoVeloDeNivel,
   claseAlturaAncestroMarquesina, UMBRAL_ENTRADA_TARJETA_MARQUESINA,
 } from "@/lib/animation";
+import { clampDeslizador, pasoTeclado as pasoTecladoDeslizador, atraerAMarca, etiquetaCercana } from "@/lib/admin/deslizador";
+import { mensajesDeZonaHero } from "@/lib/storefront/editor-puente";
 import { getCatalog } from "@/lib/api/products";
 import type { Product } from "@/types/product";
 import { MarquesinaFraseMotor, MarquesinaTarjetaMotor } from "@/components/storefront/home/MarquesinaMotor";
@@ -622,39 +624,82 @@ function ZonaChip({ onClic, children }: { onClic: { campo: string; valor: string
   );
 }
 
-// EL SEGMENTADO COMPACTO de «Oscurecer para leer mejor» (§ EDITOR-VISUAL-LIENZO-1) — ver el
-// docstring completo en `HeroCurtina.tsx` (misma pieza, duplicada; acá con CUATRO pasos en vez de
-// tres, porque esta composición escribe `veloVisible`+`veloIntensidad`, no `alto`).
-function SegmentoZona({
-  onClic, activo, children,
-}: { onClic: { campo: string; valor: string; campo2?: string; valor2?: string }; activo: boolean; children: React.ReactNode }) {
+// EL DESLIZADOR DE «Oscurecer para leer mejor» (§ EDITOR-PANEL-DESLIZADORES-1) — REEMPLAZA al
+// segmentado de cuatro botones (`SegmentoZona`/`TRACK_SEGMENTADO`, retirados; la pieza gemela de
+// `HeroCurtina.tsx` para "Alto" NO se tocó — es local a esa variante, § el criterio de "duplicada a
+// propósito" de siempre en este archivo). El pedido del owner: un deslizador continuo, no cuatro
+// botones — "el panel debería sentirse más interactivo".
+//
+// POR QUÉ ESTE CONTROL NO ES EL `Deslizador` DEL PANEL (`components/admin/editor/Deslizador.tsx`):
+// este documento es el STOREFRONT PÚBLICO — no puede traer Tailwind/el design-system del panel
+// (§ EstiloElementoControles.tsx, la MISMA razón). La aritmética (clamp/paso/atracción/etiqueta) SÍ
+// se comparte, vía `lib/admin/deslizador.ts` (puro, sin React, sin peso de framer-motion).
+//
+// EL CANAL: NO pasa por la delegación de clics de `EditorPuenteVivo.tsx`/`editor-puente.ts` (fuera
+// de `touches:` de este slice) — esa delegación lee atributos ESTÁTICOS (`data-editor-zona-valor`)
+// fijados en el JSX, pensados para un botón de valor FIJO; un arrastre continuo no tiene un valor
+// fijo que declarar de antemano. En su lugar, este componente llama a `mensajesDeZonaHero` —la MISMA
+// función pura que la delegación ya usaba para armar el mensaje— con el valor que el arrastre
+// calculó, y lo posta DIRECTO a `window.parent` (como cualquier mensaje iframe→panel de este
+// documento). `editor-puente.ts` no cambia: sigue sin saber de dónde salió el mensaje.
+//
+// INPUT vs. CHANGE, el mismo contrato que `Deslizador.tsx` del panel: `onInput` (cada píxel del
+// arrastre) sólo actualiza el ESTADO LOCAL del padre, para la vista previa en vivo; `onChange`
+// (al soltar) es la ÚNICA vez que se posta el mensaje — "el autoguardado escribe al soltar, no en
+// cada píxel" (el spec).
+function DeslizadorVeloFlotante({
+  valor, onCambiarLocal, onComprometer,
+}: { valor: number; onCambiarLocal: (v: number) => void; onComprometer: (v: number) => void }) {
+  const normalizar = (crudo: number) => clampDeslizador(atraerAMarca(crudo, MARCAS_VELO.map((m) => m.valor), 3), 0, 100);
+  const onInput = (e: React.FormEvent<HTMLInputElement>) => onCambiarLocal(normalizar(Number(e.currentTarget.value)));
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => onComprometer(normalizar(Number(e.target.value)));
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const direccion = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : null;
+    if (direccion === null) return;
+    e.preventDefault();
+    const siguiente = pasoTecladoDeslizador(valor, direccion, 5, 0, 100);
+    onCambiarLocal(siguiente);
+    onComprometer(siguiente);
+  };
   return (
-    <button
-      type="button"
-      data-editor-zona-campo={onClic.campo}
-      data-editor-zona-valor={onClic.valor}
-      {...(onClic.campo2 ? { 'data-editor-zona-campo2': onClic.campo2 } : {})}
-      {...(onClic.valor2 !== undefined ? { 'data-editor-zona-valor2': onClic.valor2 } : {})}
+    <div
       style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        height: 30, minWidth: 36, padding: '0 10px', borderRadius: 8, border: 'none',
-        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
-        lineHeight: 1, whiteSpace: 'nowrap', cursor: 'pointer',
-        color: activo ? '#141311' : 'rgba(244,243,239,.72)',
-        background: activo ? '#ffffff' : 'transparent',
-        boxShadow: activo ? '0 1px 2px rgba(20,19,17,.08)' : 'none',
+        display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderRadius: 11,
+        background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
       }}
     >
-      {children}
-    </button>
+      <style>{`
+        .hmm-deslizador-velo { -webkit-appearance: none; appearance: none; width: 120px; height: 4px;
+          border-radius: 999px; background: rgba(244,243,239,.28); outline: none; }
+        .hmm-deslizador-velo::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px;
+          border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(20,19,17,.4); cursor: pointer; }
+        .hmm-deslizador-velo::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%;
+          background: #ffffff; border: none; box-shadow: 0 1px 2px rgba(20,19,17,.4); cursor: pointer; }
+      `}</style>
+      <input
+        type="range"
+        role="slider"
+        min={0}
+        max={100}
+        step={1}
+        value={valor}
+        aria-valuetext={`${etiquetaCercana(valor, MARCAS_VELO)} · ${valor}%`}
+        aria-label="Fondo: oscurecer para leer mejor"
+        onInput={onInput}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        className="hmm-deslizador-velo"
+      />
+      <span style={{
+        fontFamily: "'Hanken Grotesk', system-ui, sans-serif", fontSize: 12.5, fontWeight: 500,
+        lineHeight: 1, whiteSpace: 'nowrap', color: '#ffffff', minWidth: '7ch',
+      }}>
+        {etiquetaCercana(valor, MARCAS_VELO)} · {valor}%
+      </span>
+    </div>
   );
 }
-
-const TRACK_SEGMENTADO: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 11,
-  background: 'rgba(20,19,17,.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-  boxShadow: '0 8px 22px -6px rgba(0,0,0,.45)',
-};
 
 export default function HeroMediaMarquesina({ style }: { style?: React.CSSProperties } = {}) {
   const { hero, marquesina, tema, paginas } = useSiteContent();
@@ -704,11 +749,46 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
   // nunca la `<section>` pineada.
   const wrapperRef = useRef<HTMLDivElement>(null);
   const progreso = useProgresoScrollDesdeTope(wrapperRef);
-  // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): `rangoVeloDeIntensidad` traduce
-  // `hero.veloIntensidad` ('media', el rango de siempre, o 'suave', la preferencia de CORTE) al
-  // par piso/techo que `veloOpacidad` ya sabía usar con su DEFAULT — acá se lo pasamos explícito.
-  const rangoVelo = rangoVeloDeIntensidad(hero.veloIntensidad);
+  // EL DESLIZADOR (§ EDITOR-PANEL-DESLIZADORES-1) — `nivelArrastre` es el valor EN VIVO mientras el
+  // dueño arrastra la perilla de la barra flotante; `null` = no se está arrastrando, sigue al
+  // contenido publicado. Queda siempre en `null` fuera de `activoEditor` — un visitante real nunca
+  // arrastra nada.
+  const [nivelArrastre, setNivelArrastre] = useState<number | null>(null);
+  const veloNivelGuardado = typeof hero.veloNivel === 'number' && Number.isFinite(hero.veloNivel) ? hero.veloNivel : null;
+  // El override (arrastre o `veloNivel` ya guardado) GOBIERNA; su ausencia usa la rama de SIEMPRE,
+  // más abajo. Una vez que lo publicado alcanza al arrastre (el mensaje hizo el viaje iframe→panel→
+  // iframe), se deja de "seguir" el arrastre — evita que, si el publicado terminara divergiendo por
+  // cualquier razón, el override quedara pegado para siempre a un valor viejo.
+  const nivelOverride = nivelArrastre ?? veloNivelGuardado;
+  useEffect(() => {
+    // "soltar" el arrastre una vez que lo publicado ya lo alcanzó no encadena renders: sólo corre
+    // cuando `veloNivelGuardado` cambia de verdad (el mensaje volvió), y deja a `nivelOverride` en
+    // el MISMO valor que ya tenía — es higiene (un cambio externo futuro puede volver a gobernar).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver el comentario de arriba
+    if (nivelArrastre !== null && veloNivelGuardado === nivelArrastre) setNivelArrastre(null);
+  }, [veloNivelGuardado, nivelArrastre]);
+
+  // EL VELO (§ RONDA 4, "EL VELO VUELVE, PERO SUAVE"): CON override, la aritmética NUEVA
+  // (`rangoVeloDeNivel`) gobierna; SIN override, la rama de SIEMPRE — `rangoVeloDeIntensidad`
+  // leyendo `hero.veloIntensidad` tal cual, LA MISMA llamada que corría antes de este slice. "Sin
+  // `veloNivel` guardado, la tienda usa los dos campos de hoy, byte-idéntica" (el spec) es LITERAL:
+  // esta rama no pasa por ninguna aritmética nueva cuando no hay override.
+  const rangoVelo = nivelOverride !== null ? rangoVeloDeNivel(nivelOverride) : rangoVeloDeIntensidad(hero.veloIntensidad);
   const opacidadVelo = useTransform(progreso, (p) => veloOpacidad(p, estatico, rangoVelo));
+  // EL MONTAJE del velo (§ el docstring de cabecera, "EL VELO ES OPT-IN"): mismo criterio — con
+  // override, 0 = sin velo (no se monta); sin override, `hero.veloVisible` tal cual, byte-idéntico.
+  const mostrarVelo = nivelOverride !== null ? nivelOverride > 0 : hero.veloVisible;
+  // EL VALOR MOSTRADO en la barra flotante: el override si existe, o DERIVADO de los dos campos de
+  // siempre — nunca 0 por default (§ `nivelEfectivoDeVelo`, site-content-defaults.ts).
+  const nivelMostrado = nivelOverride ?? nivelEfectivoDeVelo(hero.veloVisible, hero.veloIntensidad, hero.veloNivel);
+  // AL SOLTAR (§ el docstring de `DeslizadorVeloFlotante`, más abajo en este archivo) — el ÚNICO
+  // punto que posta el mensaje iframe→panel. `window.parent` existe siempre que este documento corra
+  // dentro del iframe del panel (`activoEditor` sólo es `true` ahí).
+  const comprometerVelo = (v: number) => {
+    setNivelArrastre(v);
+    const mensaje = mensajesDeZonaHero('veloNivel', String(v), null, null);
+    if (mensaje) window.parent.postMessage(mensaje, window.location.origin);
+  };
 
   // PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): mismo mecanismo que HeroMedia.tsx, aplicado a los DOS
   // medios. `undefined` para la canónica ('centro') o basura — no se emite ningún `style`.
@@ -847,38 +927,32 @@ export default function HeroMediaMarquesina({ style }: { style?: React.CSSProper
           )}
 
           {/* EL VELO — OPT-IN DESDE RONDA 3 (§ el docstring de cabecera, "EL VELO ES OPT-IN"):
-              `hero.veloVisible` decide si este nodo se MONTA. Cuando se monta, mismo `bg-[var(
-              --sf-velo)]` de siempre (el color sigue del TOKEN, sin tocar) con su `opacity` siguiendo
-              el scroll — casi transparente en reposo, densa al final del recorrido.
-              `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-IMAGEN-1, MEDIDO por ejecución):
-              sin esto el navegador le entrega el clic a ESTE velo, no al `<CampoEditable>` que
-              envuelve el medio de abajo — mismo defecto que HeroCurtina/HeroMedia. */}
-          {hero.veloVisible && (
+              `mostrarVelo` decide si este nodo se MONTA (§ EDITOR-PANEL-DESLIZADORES-1: con
+              override gobierna 0 = sin velo; sin override, `hero.veloVisible` tal cual, byte-
+              idéntico). Cuando se monta, mismo `bg-[var(--sf-velo)]` de siempre (el color sigue del
+              TOKEN, sin tocar) con su `opacity` siguiendo el scroll — casi transparente en reposo,
+              densa al final del recorrido. `pointer-events-none` (§ EDITOR-TIENDA-CAMPO-EDITABLE-
+              IMAGEN-1, MEDIDO por ejecución): sin esto el navegador le entrega el clic a ESTE velo,
+              no al `<CampoEditable>` que envuelve el medio de abajo — mismo defecto que
+              HeroCurtina/HeroMedia. */}
+          {mostrarVelo && (
             <motion.div className="absolute inset-0 bg-[var(--sf-velo)] pointer-events-none" style={{ opacity: opacidadVelo }} />
           )}
         </div>
 
-        {/* LA ZONA «FONDO» — EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1, § EDITOR-VISUAL-LIENZO-1):
-            «Oscurecer para leer mejor» — Nada · Suave · Medio · Fuerte, ahora un control compacto
-            anclado al pie del hero en vez de cuatro pastillas azules sueltas arriba a la izquierda.
-            Escribe `veloVisible`+`veloIntensidad` juntos — el MISMO par que decide `PaletaSeccion`/
-            el select del panel, nunca una tercera fuente. El paso ACTIVO se deriva con
-            `veloComboDeCampos` (site-content-defaults.ts) — la MISMA función que ya traduce estos
-            dos campos al paso combinado en el panel, para que los dos lados nunca puedan discrepar
-            sobre qué paso está encendido. SÓLO esta composición lee estos dos campos (§ el
-            docstring de cabecera, "EL VELO ES OPT-IN"), así que el control vive SÓLO acá, no en
+        {/* LA ZONA «FONDO» — EL DESLIZADOR (§ EDITOR-PANEL-DESLIZADORES-1, reemplaza al combo de
+            cuatro botones "Nada·Suave·Medio·Fuerte"): «Oscurecer para leer mejor», un control
+            compacto anclado al pie del hero. Escribe `veloNivel` DIRECTO (ver el docstring de
+            `DeslizadorVeloFlotante` para el canal) — ya no decompone en `veloVisible`+
+            `veloIntensidad`: ésos quedan sin tocar desde este control, y la lectura los usa sólo
+            como FALLBACK (§ `rangoVelo`/`mostrarVelo`/`nivelMostrado`, arriba). SÓLO esta
+            composición lee el velo del hero, así que el control vive SÓLO acá, no en
             `HeroMedia.tsx`. */}
-        {activoEditor && (() => {
-          const paso = veloComboDeCampos(hero.veloVisible, hero.veloIntensidad);
-          return (
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2" style={TRACK_SEGMENTADO}>
-              <SegmentoZona activo={paso === 'nada'} onClic={{ campo: 'veloVisible', valor: 'false' }}>Nada</SegmentoZona>
-              <SegmentoZona activo={paso === 'suave'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'suave' }}>Suave</SegmentoZona>
-              <SegmentoZona activo={paso === 'medio'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'intermedia' }}>Medio</SegmentoZona>
-              <SegmentoZona activo={paso === 'fuerte'} onClic={{ campo: 'veloVisible', valor: 'true', campo2: 'veloIntensidad', valor2: 'media' }}>Fuerte</SegmentoZona>
-            </div>
-          );
-        })()}
+        {activoEditor && (
+          <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
+            <DeslizadorVeloFlotante valor={nivelMostrado} onCambiarLocal={setNivelArrastre} onComprometer={comprometerVelo} />
+          </div>
+        )}
 
         {/* EL LOOP DE TEXTO — EXTRAÍDO a `MarquesinaMotor.tsx` (`MarquesinaFraseMotor`), §
             EDITOR-TIENDA-MARQUESINA-SECCION-1. Mismo JSX de siempre (máscara + motor + ticker, tres

@@ -9,6 +9,20 @@ import {
 import { PARES_FUENTES } from "@/lib/config/fuentes";
 import { ROLES_COLOR_ELEMENTO } from "@/lib/config/palette-derive";
 import { MuestraColor } from "@/components/admin/editor/MuestraColor";
+import Deslizador from "@/components/admin/editor/Deslizador";
+
+// EL DESLIZADOR POR PASOS del tamaño (§ EDITOR-PANEL-DESLIZADORES-1, el spec: "el tamaño de un
+// elemento también se elige con un deslizador por pasos") — MISMO componente que el velo continuo
+// del hero (`TiendaSeccionEditor.tsx`), parametrizado para dar SEIS posiciones discretas en vez de
+// un rango: "Por defecto" + las CINCO de `TAMANOS_ELEMENTO`, una por ÍNDICE 0-5. `OPCIONES_TAMANO`
+// antepone `''` ("Por defecto", la canónica — § `EstiloElementoResuelto.tamano === null`) a
+// `TAMANOS_ELEMENTO`, nunca al revés: es la MISMA fuente que el `<select>` que reemplaza, no una
+// segunda lista de valores. SIN marcas visuales (a diferencia del velo): acá CADA posición ya es un
+// paso con nombre —"por pasos" es la forma entera del control, no cuatro hitos sobre un continuo—,
+// y seis etiquetas superpuestas en la columna angosta del panel serían ruido que `formatoValor`
+// (arriba del riel) ya resuelve con una sola palabra por vez.
+const OPCIONES_TAMANO: readonly string[] = ['', ...TAMANOS_ELEMENTO];
+const LABEL_OPCION_TAMANO: Record<string, string> = { '': 'Por defecto', ...LABEL_TAMANO_ELEMENTO };
 
 // EL CONTROL GEMELO DE LA BARRA FLOTANTE, del lado del PANEL (§ EDITOR-TIENDA-BARRA-FLOTANTE-1,
 // docs/editor-tienda/REDISENO.md § 3: "el panel muestra lo mismo con más espacio"). Se monta DENTRO
@@ -78,20 +92,16 @@ export default function EstiloElementoControles({
           </select>
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 2, flex: "1 1 140px" }}>
-          <span style={{ fontSize: 11, color: "var(--duna-muted)" }}>Tamaño</span>
-          <select
-            className="duna-input duna-select"
-            value={valor.tamano ?? ""}
-            onChange={(e) => onCambiar("tamano", e.target.value)}
-          >
-            <option value="">Por defecto</option>
-            {TAMANOS_ELEMENTO.map((t) => (
-              <option key={t} value={t}>{LABEL_TAMANO_ELEMENTO[t]}</option>
-            ))}
-          </select>
-        </label>
       </div>
+
+      <Deslizador
+        etiqueta="Tamaño"
+        valor={Math.max(0, OPCIONES_TAMANO.indexOf(valor.tamano ?? ""))}
+        min={0}
+        max={OPCIONES_TAMANO.length - 1}
+        formatoValor={(i) => LABEL_OPCION_TAMANO[OPCIONES_TAMANO[i]]}
+        onCambiar={(i) => onCambiar("tamano", OPCIONES_TAMANO[i])}
+      />
 
       {/* § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — SE OMITE con `sinAlinear`: un control sin
           efecto visible es peor que no ofrecerlo. */}

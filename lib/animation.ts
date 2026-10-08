@@ -562,6 +562,35 @@ export function rangoVeloDeIntensidad(intensidad: string): VeloRango {
   return (VELO_RANGOS as Record<string, VeloRango | undefined>)[intensidad] ?? VELO_RANGO_MEDIA;
 }
 
+// ── EL DESLIZADOR CONTINUO (§ EDITOR-PANEL-DESLIZADORES-1) ─────────────────────────────────────────
+//
+// El pedido del owner, revisando el editor (2026-10-05): «"Fondo: oscurecer para leer mejor" en vez
+// de seleccionar 4 opciones debería haber... creo que es slider». `hero.veloNivel` (§ su docstring en
+// site-content-defaults.ts) es el campo NUEVO, OPCIONAL, que guarda ese nivel 0-100; estas DOS
+// funciones son la aritmética que lo traduce a lo que `veloOpacidad` ya sabe consumir (un `VeloRango`)
+// — EL CAMINO VIEJO (`rangoVeloDeIntensidad`, arriba) NO SE TOCA Y SIGUE SIENDO EL QUE CORRE cuando
+// `veloNivel` está ausente: la byte-identidad de "sin este campo, la tienda se ve exactamente como
+// hoy" es LITERAL (la misma llamada de siempre), no una equivalencia numérica que alguien tendría que
+// volver a demostrar cada vez que cambie algo acá.
+//
+// `rangoVeloDeNivel`: el TECHO es `nivel/100`; el PISO es ese techo menos 0.25 (nunca negativo) — el
+// MISMO ancho de 0.25 que ya separan `VELO_RANGO_MEDIA`/`VELO_RANGO_SUAVE`/`VELO_RANGO_INTERMEDIA`
+// (arriba: 1-0.75, 0.55-0.30, 0.65-0.40). En los TRES anclajes de siempre (55/65/100) coincide EXACTO
+// con `VELO_RANGOS.suave`/`.intermedia`/`.media` — las cuatro posiciones de hoy (Nada·Suave·Medio·
+// Fuerte) caen en 0/55/65/100, sin aproximación.
+export function rangoVeloDeNivel(nivel: number): VeloRango {
+  const techo = Math.max(0, Math.min(1, nivel / 100));
+  return { piso: Math.max(0, techo - 0.25), techo };
+}
+
+// `nivelEfectivoDeVelo`/`MARCAS_VELO` viven en `site-content-defaults.ts`, no acá — son VOCABULARIO
+// de contenido (derivan un nivel de los campos del hero, o nombran sus anclajes), consumidos por el
+// PANEL (`TiendaSeccionEditor.tsx`) además de por este componente. Ese archivo es PURO (sin
+// framer-motion, sin React) y ya es el import compartido panel↔storefront para todo lo demás del
+// hero; `lib/animation.ts` es 'use client' con media docena de hooks de framer-motion — importarlo
+// desde el panel sólo para dos funciones arrastraría ese peso al bundle del dueño editando, el
+// mismo costo que el repo ya evita en otros lados (§ CLAUDE.md, "el peso es un costo real").
+
 // ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por CORTE-HERO-REVELADO-MASCARA-1 ─
 //
 // EL PEDIDO ORIGINAL, LITERAL, sobre el muestrario de RONDA 2 (arriba) ya aplicado: «el marquee no

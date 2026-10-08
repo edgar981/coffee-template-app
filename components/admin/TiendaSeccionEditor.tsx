@@ -27,6 +27,8 @@ import { Migas } from '@/components/admin/editor/Migas';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
 import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 import EstiloElementoControles from '@/components/admin/editor/EstiloElementoControles';
+import Deslizador from '@/components/admin/editor/Deslizador';
+import { etiquetaCercana } from '@/lib/admin/deslizador';
 import { metaElementoEstilo, resolverEstiloElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
@@ -40,7 +42,7 @@ import {
 } from '@/lib/storefront/editor-puente';
 import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight, parcialAlCambiarPinSpotlight } from '@/lib/config/spotlight';
-import { DEFAULTS, veloComboDeCampos, camposDeVeloCombo, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, MARCAS_VELO, nivelEfectivoDeVelo, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import {
@@ -953,6 +955,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // compuesto existe para cerrar.
   const parcialDeCampoRemoto = (campo: string, valor: string, base: Datos = (formRef.current ?? {}) as Datos): Datos | null => {
     if (config.booleanos?.some((b) => b.name === campo)) return { [campo]: valor === 'true' };
+    // § EDITOR-PANEL-DESLIZADORES-1 — GEMELO de la coerción booleana de arriba, para el SEGUNDO tipo
+    // no-string que cruza este canal: el deslizador de la barra flotante (`HeroMediaMarquesina.tsx`)
+    // posta `veloNivel` como string (el mensaje nunca cambia de forma, § el comentario de arriba);
+    // sin coercionar, `cambiar()` guardaría `veloNivel:'65'` y el PUT (`z.number()`, site-content-
+    // schema.ts) lo rechazaría. Detectado por `CampoTexto.numero` —la misma declaración que ya le
+    // dice a `renderCampo` que no es un `<select>`/`<input>` de texto—, no una segunda lista.
+    const campoNumerico = config.campos.find((c) => c.name === campo)?.numero;
+    if (campoNumerico) {
+      const n = Number(valor);
+      return Number.isFinite(n) ? { [campo]: n } : null;
+    }
     return fusionCampoEditable(base, campo, valor);
   };
 
@@ -1315,15 +1328,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // falta repetir el `if (seccion === 'hero')` acá.
     const metaEstilo = metaElementoEstilo(seccion, campo.name);
     const estiloActual = (form.estilos as Record<string, EstiloElementoResuelto> | undefined)?.[campo.name] ?? ESTILO_ELEMENTO_VACIO;
-    // `veloCombo` (§ EDITOR-TIENDA-ZONAS-1) NO es un campo real: su VALOR se COMPONE de
-    // `veloVisible`+`veloIntensidad` (`veloComboDeCampos`) para mostrar «Nada·Suave·Medio·Fuerte» en
-    // vez de los dos controles viejos. Detectado por NOMBRE, mismo criterio que
-    // `opcionesDinamicas:'destaquePlanes'` de abajo — un literal, no un mecanismo genérico, porque es
-    // el único campo compuesto que existe hoy.
-    const esVeloCombo = campo.name === 'veloCombo';
-    const value = esVeloCombo
-      ? veloComboDeCampos(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'))
-      : String(form[campo.name] ?? '');
+    const value = String(form[campo.name] ?? '');
     // Aviso: el destino elegido ya no está en el catálogo (sólo si el catálogo YA cargó).
     const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
     // Gemelo de `destinoInexistente`, para un PIN de producto (§ `campo.producto`, arriba): el slug
@@ -1386,15 +1391,13 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           />
         ) : opciones ? (
           // SELECT NATIVO (§ Controles de formulario) — `destacadoSlot`, con opciones derivadas.
-          // `alto`/`veloCombo` (§ EDITOR-TIENDA-ZONAS-1) escriben MÁS de un campo real a la vez —
-          // ver el `esVeloCombo` de arriba — nunca el `set(campo.name)` genérico, que pisaría un
-          // solo campo y dejaría al otro desincronizado.
+          // `alto` (§ EDITOR-TIENDA-ZONAS-1) escribe DOS campos reales a la vez — nunca el
+          // `set(campo.name)` genérico, que pisaría uno y dejaría al otro desincronizado.
           <select
             id={id} className="duna-input duna-select" value={value} aria-describedby={`${id}-hint`}
             onChange={(e) => {
               const v = e.target.value;
               if (campo.name === 'alto') cambiar({ alto: v, alturaLlena: v === 'pantalla' });
-              else if (esVeloCombo) cambiar(camposDeVeloCombo(v));
               else cambiar({ [campo.name]: v });
             }}
           >
@@ -1525,9 +1528,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // Y se abre a la vez, para que el dueño pueda escribir de inmediato.
   //
   // `alturaLlena`/`veloVisible` NO entran a esta lista — § el pedido del spec los REEMPLAZA por el
-  // segmentado de `alto` ("Justo·Alto·Pantalla completa") y el de `veloCombo` ("Nada·Suave·Medio·
-  // Fuerte"), § `renderAltoYFondo` más abajo. `config.booleanos` SIGUE declarando los seis nombres
-  // (bookkeeping de `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
+  // segmentado de `alto` ("Justo·Alto·Pantalla completa") y, desde § EDITOR-PANEL-DESLIZADORES-1,
+  // el DESLIZADOR de `veloNivel` ("Fondo: oscurecer para leer mejor"), § `renderAltoYFondo` más
+  // abajo. `config.booleanos` SIGUE declarando los seis nombres (bookkeeping de
+  // `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
   const ZONA_HERO_ORDEN: { key: ZonaHeroKey; gl: string }[] = [
     { key: 'titular', gl: 'T' },
     { key: 'subtitulo', gl: '¶' },
@@ -1641,12 +1645,15 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   );
   const renderAltoYFondo = () => {
     const campoAlto = config.campos.find((c) => c.name === 'alto');
-    const campoVeloCombo = config.campos.find((c) => c.name === 'veloCombo');
+    const campoVeloNivel = config.campos.find((c) => c.name === 'veloNivel');
     const campoPuntoFocal = config.campos.find((c) => c.name === 'puntoFocal');
     const campoImagen = config.imagenes.find((i) => i.name === 'imagen');
     const campoImagenMovil = config.imagenes.find((i) => i.name === 'imagenMovil');
     const valorAlto = String(form.alto ?? campoAlto?.opciones?.[0]?.value ?? 'justo');
-    const valorVelo = veloComboDeCampos(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'));
+    // EL NIVEL del velo (§ EDITOR-PANEL-DESLIZADORES-1): `nivelEfectivoDeVelo` deriva de los DOS
+    // campos de siempre cuando `veloNivel` nunca se tocó, para que el deslizador nazca en la
+    // posición que YA representa el tema — nunca en 0 por default.
+    const valorVelo = nivelEfectivoDeVelo(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'), form.veloNivel);
     return (
       <>
         {campoAlto?.opciones && (
@@ -1659,9 +1666,21 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
           {campoImagen && renderMiniatura(campoImagen)}
           {campoImagenMovil && renderMiniatura(campoImagenMovil)}
           {campoPuntoFocal && <div className="duna-form" style={{ marginTop: 'var(--duna-space-3)' }}>{renderCampo(campoPuntoFocal)}</div>}
-          {campoVeloCombo?.opciones && (
+          {campoVeloNivel && (
             <div style={{ marginTop: 'var(--duna-space-3)' }}>
-              {renderSegmentadoHero(campoVeloCombo.label, campoVeloCombo.hint, campoVeloCombo.opciones, valorVelo, (v) => cambiar(camposDeVeloCombo(v)))}
+              <Deslizador
+                id={`${seccion}-veloNivel`}
+                etiqueta={campoVeloNivel.label}
+                hint={campoVeloNivel.hint}
+                valor={valorVelo}
+                min={0}
+                max={100}
+                marcas={MARCAS_VELO}
+                pasoTeclado={5}
+                formatoValor={(v) => `${etiquetaCercana(v, MARCAS_VELO)} · ${v}%`}
+                onCambiar={(v) => cambiar({ veloNivel: v })}
+                onCommit={(v) => { cambiar({ veloNivel: v }); auto.flush(); }}
+              />
             </div>
           )}
         </div>
@@ -2090,7 +2109,16 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // este filtro, `titulo`/`alto`/`imagen`… se pintarían DOS VECES (una en su bloque propio, otra en
   // el `.duna-form` genérico de abajo). Las demás secciones no declaran ninguno de estos nombres
   // (son propios de `HERO.campos`/`HERO.imagenes`), así que el filtro es un no-op para ellas.
-  const CAMPOS_HERO_YA_DIBUJADOS = new Set(['titulo', 'tituloEnfasis', 'subtitulo', 'ctaPrimarioLabel', 'ctaSecundarioLabel', 'alto', 'veloCombo', 'puntoFocal']);
+  // `veloNivel` entra por la MISMA razón que `veloCombo` entraba: lo dibuja `renderAltoYFondo`, con
+  // el deslizador. `veloIntensidad` ENTRA DE NUEVO (§ EDITOR-PANEL-DESLIZADORES-1): antes de este
+  // slice NO estaba en este set, así que su `<select>` SE PINTABA — duplicado con el combo, que
+  // escribía el MISMO campo por otro camino. El deslizador reemplaza esa escritura (vía `veloNivel`,
+  // sin tocar `veloIntensidad`), así que dejar su select visible ahora sería un control que el dueño
+  // puede tocar sin que haga nada una vez que el deslizador ya se movió — la confusión que el spec
+  // pidió verificar y, de confirmarse, quitar. `veloIntensidad` SIGUE declarado en `HERO.campos`
+  // (§ panel-hero-toggles.test.ts: "el config nunca lo retira por el estado del gate") — sólo deja
+  // de pintarse dos veces.
+  const CAMPOS_HERO_YA_DIBUJADOS = new Set(['titulo', 'tituloEnfasis', 'subtitulo', 'ctaPrimarioLabel', 'ctaSecundarioLabel', 'alto', 'veloNivel', 'veloIntensidad', 'puntoFocal']);
   const IMAGENES_HERO_YA_DIBUJADAS = new Set(['imagen', 'imagenMovil', 'imagenMovilPoster']);
   const bloques = bloquesResueltos(config).map((b) => {
     if (b.tipo !== 'seccion') return b;

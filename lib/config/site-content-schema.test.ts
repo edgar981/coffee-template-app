@@ -76,6 +76,31 @@ test('hero: el mensaje del rechazo nombra el póster, no un "invalid input" gen�
   if (!r.success) assert.match(r.error.issues[0].message, /póster/i);
 });
 
+// ─── EL DESLIZADOR CONTINUO (§ EDITOR-PANEL-DESLIZADORES-1): `hero.veloNivel` SOBREVIVE al parse ──
+test('hero: `veloNivel` (un número 0-100) SOBREVIVE al parse (si no, zod lo descartaría al guardar, § #65-B)', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { veloNivel: 65 } });
+  assert.equal(parsed.hero!.veloNivel, 65);
+});
+
+test('hero: `veloNivel: 0` SOBREVIVE al parse — cero (sin velo) no es "ausente"', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { veloNivel: 0 } });
+  assert.equal(parsed.hero!.veloNivel, 0);
+});
+
+test('hero: `veloNivel: null` SOBREVIVE al parse — el deslizador nunca se movió es un valor explícito', () => {
+  const parsed = siteContentEditableSchema.parse({ hero: { veloNivel: null } });
+  assert.equal(parsed.hero!.veloNivel, null);
+});
+
+test('hero: `veloNivel` fuera de [0,100] se rechaza', () => {
+  assert.throws(() => siteContentEditableSchema.parse({ hero: { veloNivel: -1 } }));
+  assert.throws(() => siteContentEditableSchema.parse({ hero: { veloNivel: 101 } }));
+});
+
+test('hero: sin `veloNivel` en el body, pasa igual — es opcional, no exigido', () => {
+  assert.doesNotThrow(() => siteContentEditableSchema.parse({ hero: { titulo: 'X' } }));
+});
+
 // ─── EL ESTILO POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): `hero.estilos` SOBREVIVE al parse ──
 test('hero: `estilos` SOBREVIVE al parse (si no, zod lo descartaría al guardar, § #65-B)', () => {
   const parsed = siteContentEditableSchema.parse({

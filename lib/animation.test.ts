@@ -5,6 +5,7 @@ import {
   ReducedMotionProvider, valorContador, DURACION_CONTADOR_MS,
   transformMarquesinaTexto, transformMarquesinaTarjeta, transformSubscripcionParallax,
   progresoDesdeTope, veloOpacidad, VELO_OPACIDAD_PISO, rangoVeloDeIntensidad,
+  rangoVeloDeNivel,
   transformRevelaTextoDisplay, opacidadRevelaTextoDisplay, OPACIDAD_REVELADO_TECHO,
   UMBRAL_REVELADO_TEXTO, UMBRAL_ENTRADA_TARJETA_MARQUESINA, PAUSA_MARQUESINA_TARJETA_VH,
   claseAlturaAncestroMarquesina, fadeUp,
@@ -563,6 +564,45 @@ test('el rango "intermedia" MEJORA el contraste sobre "suave" en las DOS puntas 
     assert.ok(intermediaTecho < 4.5, `techo contra ${nombre} debía quedar bajo AA; dio ${intermediaTecho.toFixed(2)}`);
   }
 });
+
+// ── EL DESLIZADOR CONTINUO (§ EDITOR-PANEL-DESLIZADORES-1) ─────────────────────────────────────────
+
+// `assert.deepEqual` compararía bit a bit — `0.55 - 0.25` y el literal `0.3` son DOS dobles
+// distintos (el clásico `0.1 + 0.2 !== 0.3` de punto flotante), así que la comparación es con
+// EPSILON: lo que importa es la MAGNITUD (una opacidad CSS), no la representación binaria exacta.
+function cercaDe(a: number, b: number, epsilon = 1e-9) {
+  assert.ok(Math.abs(a - b) < epsilon, `esperaba ${a} ≈ ${b}`);
+}
+
+test('rangoVeloDeNivel: en las TRES posiciones de hoy (55/65/100) coincide con rangoVeloDeIntensidad', () => {
+  const suave = rangoVeloDeIntensidad('suave');
+  const nivel55 = rangoVeloDeNivel(55);
+  cercaDe(nivel55.piso, suave.piso); cercaDe(nivel55.techo, suave.techo);
+
+  const intermedia = rangoVeloDeIntensidad('intermedia');
+  const nivel65 = rangoVeloDeNivel(65);
+  cercaDe(nivel65.piso, intermedia.piso); cercaDe(nivel65.techo, intermedia.techo);
+
+  const media = rangoVeloDeIntensidad('media');
+  const nivel100 = rangoVeloDeNivel(100);
+  cercaDe(nivel100.piso, media.piso); cercaDe(nivel100.techo, media.techo);
+});
+
+test('rangoVeloDeNivel(0): techo 0, piso 0 — "sin velo" si algo lo llegara a montar igual', () => {
+  assert.deepEqual(rangoVeloDeNivel(0), { piso: 0, techo: 0 });
+});
+
+test('rangoVeloDeNivel: el piso nunca es negativo, aunque el nivel sea menor a 25', () => {
+  assert.deepEqual(rangoVeloDeNivel(10), { piso: 0, techo: 0.1 });
+});
+
+test('rangoVeloDeNivel: clampa fuera de [0,100] en vez de devolver un rango inválido', () => {
+  assert.deepEqual(rangoVeloDeNivel(-20), { piso: 0, techo: 0 });
+  assert.deepEqual(rangoVeloDeNivel(150), { piso: 0.75, techo: 1 });
+});
+
+// `nivelEfectivoDeVelo`/`MARCAS_VELO` se prueban en `site-content-defaults.test.ts` — viven ahí, no
+// acá (§ el docstring de arriba, "el peso es un costo real").
 
 // ── EL REVELADO DEL TEXTO — CORTE-HERO-MARQUEE-REVELA-1, REESCRITO por RONDA 4 (§ CORTE-HERO-
 // REVELADO-MASCARA-1) — sin React, sin navegador. `transformRevelaTextoDisplay` reemplaza a

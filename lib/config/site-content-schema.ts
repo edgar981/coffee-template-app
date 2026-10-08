@@ -86,6 +86,14 @@ const heroEditableSchema = z.object({
   // `REGISTRY.hero.escalares`) ya clampa a la canónica `'media'`; sin declararlos, zod los
   // STRIPPEARÍA al guardar (§ #65-B).
   veloIntensidad: z.string().optional(),
+  // `veloNivel` (§ EDITOR-PANEL-DESLIZADORES-1, ver el docstring de `HeroContent.veloNivel` en
+  // site-content-defaults.ts): el nivel 0-100 que el deslizador escribe. `z.number()` —no `z.string()`
+  // como el resto de este archivo— porque este campo NO es un escalar clampado a un set de strings:
+  // es el valor crudo que el resolver SOFT (`campos.veloNivel: 'opcional'`) deja pasar tal cual.
+  // `.nullable()` porque el default (`null`, "el deslizador nunca se movió") es un valor explícito
+  // del modelo, no sólo la ausencia de la clave — sin declararlo acá, zod lo STRIPPEARÍA al guardar
+  // (§ #65-B).
+  veloNivel: z.number().min(0).max(100).nullable().optional(),
   tickerVelocidad: z.string().optional(),
   // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1, ver el docstring de `HeroContent.estilos` en
   // site-content-defaults.ts). `z.record` acepta CUALQUIER clave de elemento —key-agnóstico, como

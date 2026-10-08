@@ -10,7 +10,7 @@
 // `PUNTOS_FOCALES` (§ HERO-PUNTO-FOCAL-1) es la MISMA clase de import: el set cerrado que
 // `REGISTRY.hero.escalares.puntoFocal` ya declara, no una segunda lista de valores que pudiera
 // divergir de la que el resolver clampa.
-import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, OPCIONES_VELO_COMBO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
+import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
@@ -141,7 +141,7 @@ const ZONAS_MARQUESINA: ZonaComposicion[] = [
   { campos: ['fraseAlPie'], label: 'Leyenda' },
   { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
   { campos: ['cueDesliza'], label: 'Indicador', textoVisible: false },
-  { campos: ['veloVisible', 'veloIntensidad'], label: 'Velo', textoVisible: false },
+  { campos: ['veloVisible', 'veloIntensidad', 'veloNivel'], label: 'Velo', textoVisible: false },
   { campos: ['imagen'], label: 'Fondo' },
 ];
 const LABEL_COMPOSICION_HERO: Record<string, string> = {
@@ -158,18 +158,11 @@ const OPCIONES_COMPOSICION_HERO: ComposicionOpcion[] = REGISTRY.hero.variantes!.
   value: v, label: LABEL_COMPOSICION_HERO[v], zonas: ZONAS_COMPOSICION_HERO[v],
 }));
 
-// EL SELECT del VELO combinado (§ EDITOR-TIENDA-ZONAS-1, `veloComboDeCampos`/`camposDeVeloCombo`,
-// site-content-defaults.ts) — «Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte, la frase
-// textual del spec. Escribe DOS campos reales (`veloVisible`+`veloIntensidad`) a la vez — ver
-// `TiendaSeccionEditor.tsx`, el único lugar que sabe decomponer el valor elegido.
-const LABEL_VELO_COMBO: Record<(typeof OPCIONES_VELO_COMBO)[number], string> = {
-  nada: 'Nada',
-  suave: 'Suave',
-  medio: 'Medio',
-  fuerte: 'Fuerte',
-};
-const OPCIONES_VELO_COMBO_HERO: { value: string; label: string }[] =
-  OPCIONES_VELO_COMBO.map((clave) => ({ value: clave, label: LABEL_VELO_COMBO[clave] }));
+// EL COMBO DE CUATRO PASOS SE RETIRÓ — § EDITOR-PANEL-DESLIZADORES-1. «Oscurecer para leer mejor»
+// pasa de `<select>` a deslizador continuo (`veloNivel` en `HERO.campos`, abajo); las marcas con
+// palabra (Nada·Suave·Medio·Fuerte) viven en `MARCAS_VELO` (`lib/animation.ts`) — no acá, porque la
+// barra flotante del storefront (`HeroMediaMarquesina.tsx`) también las necesita y ese árbol nunca
+// importa de `components/admin/`.
 
 // Las PÁGINAS del storefront que el editor agrupa. La "página" es una agrupación de CONFIG (no un
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
@@ -226,7 +219,15 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // marcador tan ESPECÍFICO como `producto`/`categoria` a propósito — hoy sólo lo usa `marquesina.
 // transicion`, y generalizarlo a "cualquier campo con tarjetas" antes de que exista un segundo caso
 // sería diseñar para un requisito que nadie pidió (§ CLAUDE.md).
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista };
+// `numero: true` (§ EDITOR-PANEL-DESLIZADORES-1) — el campo es un NÚMERO (hoy sólo `hero.veloNivel`),
+// renderizado con el deslizador (`Deslizador.tsx`) en vez del `<select>`/`<input>` de texto que
+// `renderCampo` da por defecto. Necesario además del lado del CANAL iframe→panel
+// (`TiendaSeccionEditor.tsx`, `parcialDeCampoRemoto`): el mensaje del puente siempre viaja como
+// STRING (§ `MensajeCamposCambio.valor`, `editor-puente.ts`, fuera de `touches:`), así que sin este
+// marcador `cambiar()` guardaría `veloNivel:'65'` —una cadena, que el PUT de autoguardado
+// (`z.number()`, site-content-schema.ts) rechazaría—. MISMO criterio que `config.booleanos` ya usa
+// para coercionar `'true'`/`'false'`, aplicado al segundo tipo no-string que cruza ese canal.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -464,15 +465,15 @@ const HERO: SeccionConfig = {
     // `opcional`.
     { name: 'alto', label: 'Alto', opciones: OPCIONES_ALTURA_HERO,
       hint: 'Cuánto de la pantalla ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
-    // EL VELO COMBINADO (§ EDITOR-TIENDA-ZONAS-1) — reemplaza AL MISMO TIEMPO al interruptor "Mostrar
-    // el velo sobre el video" y al select "Intensidad del velo" por UNA sola pregunta de cuatro pasos
-    // («Oscurecer para leer mejor»). `name:'veloCombo'` NO es un campo real de `REGISTRY.hero` — es
-    // presentación: `TiendaSeccionEditor.tsx` lo detecta por NOMBRE (mismo criterio que
-    // `opcionesDinamicas:'destaquePlanes'`, arriba) y decompone el valor elegido en
-    // `veloVisible`+`veloIntensidad` con `camposDeVeloCombo` (site-content-defaults.ts) al escribir,
-    // y lo recompone con `veloComboDeCampos` al leer. Sólo tiene efecto con la composición "sticky"
-    // —el hint lo dice, como `veloIntensidad`/`tickerVelocidad` arriba—.
-    { name: 'veloCombo', label: 'Fondo: oscurecer para leer mejor', opciones: OPCIONES_VELO_COMBO_HERO,
+    // EL DESLIZADOR DEL VELO (§ EDITOR-PANEL-DESLIZADORES-1) — REEMPLAZA al combo de cuatro pasos
+    // («Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte) que antes decomponía
+    // `veloVisible`+`veloIntensidad` vía `<select>`. `veloNivel` SÍ es un campo real de `REGISTRY.
+    // hero.campos` (opcional, § su docstring en site-content-defaults.ts) — a diferencia del combo
+    // retirado, no hace falta decomponerlo en dos campos: el deslizador escribe este número
+    // DIRECTO. `numero: true` (arriba) es lo que le dice a la cáscara (`TiendaSeccionEditor.tsx`)
+    // que lo renderice con `Deslizador` y que lo coerciona a número cuando llega por el canal del
+    // iframe. Sin `opciones` —el deslizador no es un `<select>`—.
+    { name: 'veloNivel', label: 'Fondo: oscurecer para leer mejor', numero: true,
       hint: 'Sólo con la composición "Marquesina". Qué tan oscuro se pone el velo sobre el video para que el texto se lea.' },
     // EL GRUPO «MARQUESINA» (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, docs/editor-tienda/REDISENO.md § 1
     // error 5): la composición "sticky" dibuja la cinta de texto + la tarjeta flotante leyendo

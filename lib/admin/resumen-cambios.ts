@@ -23,6 +23,8 @@ import { SECCIONES_TIENDA, type SeccionConfig, type SeccionVista } from '@/compo
 import { ELEMENTOS_ESTILO } from '@/lib/config/estilo-elemento';
 import { sonIguales } from '@/lib/admin/historial-editor';
 import { esSeccionInstanciaTipo, nombreInstancia } from '@/lib/config/secciones-instancias';
+import { MARCAS_VELO } from '@/lib/config/site-content-defaults';
+import { etiquetaCercana } from '@/lib/admin/deslizador';
 
 export type TipoCambio = 'nuevo' | 'cambiado' | 'quitado';
 
@@ -119,6 +121,17 @@ function cambiosDeSeccion(config: SeccionConfig, publicado: Record<string, unkno
     if (campo.opciones) {
       const opcion = campo.opciones.find((o) => o.value === d);
       const label = opcion?.label ?? String(d ?? '');
+      out.push(hecho(config.seccion, tituloSeccion, campo.label, 'cambiado', `${tituloSeccion} · ${campo.label} «${label}»`));
+      continue;
+    }
+    // § EDITOR-PANEL-DESLIZADORES-1 — un campo `numero` (hoy sólo `hero.veloNivel`, el deslizador
+    // continuo del velo) SIGUE el MISMO trato que `opciones`: SIEMPRE tiene un valor, así que
+    // cambiarlo es un REEMPLAZO, nunca "nuevo"/"quitado" — y se nombra EN PALABRAS (el spec: "nombra
+    // el cambio de oscurecer en palabras"), con las MISMAS marcas que el propio deslizador usa
+    // (`MARCAS_VELO`), nunca un número a secas. Detectado por NOMBRE —como la rama `opciones`—
+    // porque es el único campo numérico que existe hoy.
+    if (campo.numero && campo.name === 'veloNivel' && typeof d === 'number') {
+      const label = `${etiquetaCercana(d, MARCAS_VELO)} (${d}%)`;
       out.push(hecho(config.seccion, tituloSeccion, campo.label, 'cambiado', `${tituloSeccion} · ${campo.label} «${label}»`));
       continue;
     }

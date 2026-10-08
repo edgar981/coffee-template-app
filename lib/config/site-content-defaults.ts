@@ -163,6 +163,19 @@ export interface HeroContent {
   // contraste medido de las tres intensidades (bajo AA contra el proxy de fotos claras, aceptado
   // porque el video real de CORTE es oscuro) vive en el docstring de `veloOpacidad`.
   veloIntensidad: VeloIntensidad;
+  // `veloNivel` (§ EDITOR-PANEL-DESLIZADORES-1) — el nivel CONTINUO 0-100 del velo, que reemplaza en
+  // el panel y en la barra flotante al combo de cuatro pasos sobre `veloVisible`/`veloIntensidad`
+  // (arriba): un deslizador, no cuatro botones (pedido del owner, 2026-10-05: «debería haber... un
+  // slider»). OPCIONAL de verdad, no un escalar clampado — `resolverVariante` exige un SET CERRADO de
+  // strings (`claves: string[]`), y éste es un NÚMERO continuo, así que vive en `campos` como los
+  // demás opcionales, no en `escalares`. `null` = el deslizador NUNCA se movió para este tenant: la
+  // tienda sigue leyendo `veloVisible`+`veloIntensidad`, BYTE-IDÉNTICA (§ `nivelEfectivoDeVelo`/
+  // `rangoVeloDeNivel`, lib/animation.ts — la rama vieja ni se evalúa cuando este campo está ausente,
+  // no es una equivalencia numérica que haya que reverificar). Con un número: 0 = sin velo (no se
+  // monta); el resto deriva alto=veloNivel/100, bajo=max(0,alto−0.25) — en 55/65/100 esos dos caen
+  // en los mismos rangos que 'suave'/'intermedia'/'media' (`VELO_RANGOS`, lib/animation.ts), así que
+  // las cuatro posiciones de hoy (Nada·Suave·Medio·Fuerte) siguen representadas sin aproximación.
+  veloNivel: number | null;
   // `tickerVelocidad` (§ CORTE-HERO-REVELADO-MASCARA-1) — ESCALAR de sección, MISMO mecanismo: 'media'
   // (canónica) es `VELOCIDAD_TICKER_PX_S` — la velocidad MEDIDA contra el tema real (`lib/animation.
   // ts`), byte-idéntica; 'lenta' es una preferencia EXPLÍCITA del owner sobre esa misma medición («la
@@ -306,37 +319,51 @@ export function claseAlturaHero(alto: string, alturaLlena: boolean): string {
   return alturaLlena ? CLASES_ALTURA_HERO.pantalla : CLASES_ALTURA_HERO.justo;
 }
 
-// EL VELO, COMO UNA SOLA PREGUNTA — «Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte
-// (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4). Hoy son DOS campos (`veloVisible` + `veloIntensidad`,
-// § sus docstrings arriba) porque nacieron en rondas distintas; el dueño no piensa en dos preguntas
-// —"¿hay velo?" y, sólo si sí, "¿qué tan oscuro?"— piensa en UNA escala de cuatro pasos. Esto NO es
-// un campo nuevo del modelo: es la VISTA combinada de los dos que ya existen, con su propia
-// traducción en las dos direcciones — nunca una tercera fuente de verdad que pudiera divergir de
-// `veloVisible`/`veloIntensidad`.
-export const OPCIONES_VELO_COMBO = ['nada', 'suave', 'medio', 'fuerte'] as const;
-export type VeloCombo = (typeof OPCIONES_VELO_COMBO)[number];
+// EL COMBO DE CUATRO PASOS SE RETIRÓ — § EDITOR-PANEL-DESLIZADORES-1 (2026-10-08). «Oscurecer para
+// leer mejor» era una VISTA combinada de `veloVisible`+`veloIntensidad` (Nada · Suave · Medio ·
+// Fuerte, § EDITOR-TIENDA-ZONAS-1) con su propia traducción en las dos direcciones
+// (`veloComboDeCampos`/`camposDeVeloCombo`, retiradas de acá; `OPCIONES_VELO_COMBO`/`VeloCombo`,
+// también retirados). El owner, revisando el editor: «debería haber... un slider, el panel debería
+// sentirse más interactivo» — el combo de cuatro botones se REEMPLAZA por un deslizador continuo
+// (`hero.veloNivel`, arriba) en el panel y en la barra flotante; las cuatro posiciones de hoy quedan
+// como MARCAS sobre el deslizador, no como botones separados. Ningún llamador real queda: era
+// `TiendaSeccionEditor.tsx`/`tienda-secciones.ts` (el `<select>` del panel) y
+// `HeroMediaMarquesina.tsx` (el segmentado de la barra flotante), los tres migrados al deslizador en
+// el mismo slice.
+//
+// LAS MARCAS CON PALABRA — las CUATRO posiciones de hoy, en los anclajes 0/55/65/100 (§ el docstring
+// de `HeroContent.veloNivel` arriba: en esos tres números no-cero, `rangoVeloDeNivel`, lib/animation.
+// ts, coincide con `VELO_RANGOS.suave`/`.intermedia`/`.media`). Vive ACÁ —puro, sin framer-motion— y
+// no en `lib/animation.ts` (que SÍ aloja la aritmética de opacidad, consumida sólo en el render del
+// storefront) porque el PANEL (`TiendaSeccionEditor.tsx`) también necesita estas palabras para
+// etiquetar el deslizador, y ese archivo es 'use client' con media docena de hooks de framer-motion
+// — importarlo desde el panel sólo por dos constantes arrastraría ese peso al bundle del dueño
+// editando (§ CLAUDE.md, "el peso es un costo real"). Tampoco vive en `components/admin/
+// tienda-secciones.ts` (donde vivían las etiquetas del combo retirado): la barra flotante de
+// `HeroMediaMarquesina.tsx` —el STOREFRONT PÚBLICO— también la necesita, y ese árbol nunca importa
+// de `components/admin/` (verificado: cero imports de ese árbol hoy).
+export const MARCAS_VELO: { valor: number; etiqueta: string }[] = [
+  { valor: 0, etiqueta: 'Nada' },
+  { valor: 55, etiqueta: 'Suave' },
+  { valor: 65, etiqueta: 'Medio' },
+  { valor: 100, etiqueta: 'Fuerte' },
+];
 
-/** `veloVisible`+`veloIntensidad` → el paso combinado que el panel muestra. `veloVisible:false` es
- *  SIEMPRE `'nada'`, cualquiera sea `veloIntensidad` (que en ese caso no tiene efecto, § su
- *  `gatedFields`). Con el velo encendido, el orden es el MISMO de `VELO_INTENSIDADES` (claro→oscuro):
- *  'suave'→'suave', 'intermedia'→'medio', 'media'→'fuerte' (la canónica, la más oscura). */
-export function veloComboDeCampos(veloVisible: boolean, veloIntensidad: string): VeloCombo {
-  if (!veloVisible) return 'nada';
-  if (veloIntensidad === 'suave') return 'suave';
-  if (veloIntensidad === 'intermedia') return 'medio';
-  return 'fuerte';
-}
-
-/** La dirección INVERSA: el paso combinado → los DOS campos reales que hay que escribir juntos.
- *  `'nada'` escribe `veloIntensidad:'media'` (la canónica) aunque no tenga efecto con el velo
- *  apagado — nunca deja basura en ese campo. Cualquier valor que no sea uno de los cuatro (basura)
- *  cae a `'fuerte'`, la canónica de `VELO_INTENSIDADES` ('media'), por el mismo criterio que el
- *  resolver: preferir la canónica a adivinar. */
-export function camposDeVeloCombo(combo: string): { veloVisible: boolean; veloIntensidad: VeloIntensidad } {
-  if (combo === 'nada') return { veloVisible: false, veloIntensidad: 'media' };
-  if (combo === 'suave') return { veloVisible: true, veloIntensidad: 'suave' };
-  if (combo === 'medio') return { veloVisible: true, veloIntensidad: 'intermedia' };
-  return { veloVisible: true, veloIntensidad: 'media' };
+/**
+ * El NIVEL 0-100 EFECTIVO del velo del hero·sticky: `veloNivel` si es un número válido (el
+ * deslizador YA se movió alguna vez), o DERIVADO de los dos campos de siempre
+ * (`veloVisible`+`veloIntensidad`) si no — para que el deslizador nazca en la posición que YA
+ * representa el tema, nunca en 0 por default. Mismos anclajes que `MARCAS_VELO`: sin velo → 0;
+ * 'suave' → 55; 'intermedia' → 65; 'media' (la canónica) → 100.
+ */
+export function nivelEfectivoDeVelo(veloVisible: boolean, veloIntensidad: string, veloNivel: unknown): number {
+  if (typeof veloNivel === 'number' && Number.isFinite(veloNivel)) {
+    return Math.max(0, Math.min(100, veloNivel));
+  }
+  if (!veloVisible) return 0;
+  if (veloIntensidad === 'suave') return 55;
+  if (veloIntensidad === 'intermedia') return 65;
+  return 100;
 }
 
 // EL SET CERRADO de transiciones de salida de la banda MARQUESINA (§ EDITOR-TIENDA-MARQUESINA-
@@ -1932,6 +1959,9 @@ export const DEFAULTS: SiteContentData = {
     // los dos — el rango de velo y la velocidad del ticker de SIEMPRE, byte-idénticos. Sólo CORTE
     // declara 'suave'/'lenta' (§ themes.ts).
     veloIntensidad: 'media',
+    // `veloNivel` (§ EDITOR-PANEL-DESLIZADORES-1): `null` = el deslizador nunca se movió — la tienda
+    // sigue leyendo `veloVisible`/`veloIntensidad` arriba, byte-idéntica.
+    veloNivel: null,
     tickerVelocidad: 'media',
     // `estilos` (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): el default es "sin ningún override" para los
     // CINCO elementos — byte-idéntico, ningún subcampo se traduce a `style` en `null`
@@ -2618,6 +2648,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // relleno — el `.hero-caption` del prototipo es dato del tenant, nunca un default inventado
       // (misma regla que `eyebrow`/`tituloEnfasis`, § "la frontera fina de defaults-como-fallback").
       fraseAlPie: 'opcional',
+      // `veloNivel` (§ EDITOR-PANEL-DESLIZADORES-1, ver el docstring de `HeroContent.veloNivel`
+      // arriba): OPCIONAL, nunca `escalar` — ese mecanismo clampa a un SET CERRADO de strings
+      // (`resolverVariante`), y éste es un NÚMERO 0-100. `null` (el default) → `campo in storedSec`
+      // es `false` mientras nadie lo escriba, así que `sec.veloNivel` queda en `null` sin que el
+      // loop `requerido`/`opcional` lo toque — la rama `opcional` sólo entra en juego la primera vez
+      // que el deslizador escribe un número real.
+      veloNivel: 'opcional',
     },
   },
   // LA BANDA MARQUESINA (§ MARQUESINA-BANDA-1, ampliada por § EDITOR-TIENDA-MARQUESINA-SECCION-1 —

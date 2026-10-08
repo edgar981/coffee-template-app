@@ -355,6 +355,19 @@ test('calibración: hero.alto está controlado, sin exención nueva', () => {
   assert.ok(!huecos.includes('hero.alto'));
 });
 
+// § EDITOR-PANEL-DESLIZADORES-1: `hero.veloNivel` (el campo nuevo del deslizador continuo, que
+// reemplaza al combo de cuatro pasos `veloCombo` — nunca un campo real de REGISTRY, así que nunca
+// pudo aparecer en este chequeo) gana su control DE ENTRADA, en el mismo commit que lo suma a
+// `REGISTRY.hero.campos` — igual que `hero.puntoFocal`/`hero.alto` arriba.
+test('calibración: hero.veloNivel está controlado, sin exención nueva', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('hero.veloNivel'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('hero.veloNivel'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('hero.veloNivel'));
+});
+
 // § EDITOR-TIENDA-COMPOSICION-1: `hero.variante` CERRADO — ganó su control (`HERO.composiciones`
 // en tienda-secciones.ts, la vista nueva «¿Cómo se arma tu hero?») y se retiró su exención. Las
 // otras tres secciones con `variante` (`brandStory`/`presentaciones`/`subscriptionCTA`) SIGUEN sin

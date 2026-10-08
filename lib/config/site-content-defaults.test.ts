@@ -41,9 +41,8 @@ import {
   ALTURAS_HERO,
   CLASES_ALTURA_HERO,
   claseAlturaHero,
-  OPCIONES_VELO_COMBO,
-  veloComboDeCampos,
-  camposDeVeloCombo,
+  MARCAS_VELO,
+  nivelEfectivoDeVelo,
   productoSpotlight,
   productoOtraTalla,
   productoMarquesina,
@@ -1256,32 +1255,67 @@ test('CLASES_ALTURA_HERO: las dos puntas son LITERALES las clases de HOY', () =>
   assert.equal(CLASES_ALTURA_HERO.alto, 'min-h-[96svh]');
 });
 
-// ── EL VELO, COMO UNA SOLA PREGUNTA (§ EDITOR-TIENDA-ZONAS-1, `veloComboDeCampos`/`camposDeVeloCombo`) ──
+// ── EL DESLIZADOR CONTINUO (§ EDITOR-PANEL-DESLIZADORES-1) — `hero.veloNivel` ───────────────────────
+// Reemplaza al combo de cuatro pasos (`veloComboDeCampos`/`camposDeVeloCombo`, RETIRADOS —
+// § EDITOR-TIENDA-ZONAS-1 — este bloque los probaba): el nivel vive en un campo NUEVO, opcional,
+// resuelto por el loop genérico `requerido`/`opcional` de `resolverSiteContent` — no necesita su
+// propia función de traducción.
 
-test('veloComboDeCampos: velo apagado es SIEMPRE "nada", cualquiera sea la intensidad guardada', () => {
-  assert.equal(veloComboDeCampos(false, 'suave'), 'nada');
-  assert.equal(veloComboDeCampos(false, 'media'), 'nada');
+test('DEFAULTS.hero.veloNivel es null — el deslizador nunca se movió para Nayoli', () => {
+  assert.equal(DEFAULTS.hero.veloNivel, null);
 });
 
-test('veloComboDeCampos: velo encendido sigue el orden claro→oscuro de VELO_INTENSIDADES', () => {
-  assert.equal(veloComboDeCampos(true, 'suave'), 'suave');
-  assert.equal(veloComboDeCampos(true, 'intermedia'), 'medio');
-  assert.equal(veloComboDeCampos(true, 'media'), 'fuerte');
+test('hero.veloNivel: sin fila, resuelve a null — byte-idéntico, el componente debe caer a los dos campos de siempre', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.hero.veloNivel, null);
 });
 
-test('camposDeVeloCombo: la dirección INVERSA, round-trip con veloComboDeCampos para los cuatro pasos', () => {
-  for (const combo of OPCIONES_VELO_COMBO) {
-    const { veloVisible, veloIntensidad } = camposDeVeloCombo(combo);
-    assert.equal(veloComboDeCampos(veloVisible, veloIntensidad), combo);
-  }
+test('hero.veloNivel: con un número guardado, el resolver lo respeta tal cual (opcional, no string)', () => {
+  const r = resolverSiteContent({ hero: { veloNivel: 42 } });
+  assert.equal(r.hero.veloNivel, 42);
 });
 
-test('camposDeVeloCombo: "nada" no deja basura en veloIntensidad — cae a la canónica', () => {
-  assert.deepEqual(camposDeVeloCombo('nada'), { veloVisible: false, veloIntensidad: 'media' });
+test('hero.veloNivel: 0 (sin velo) sobrevive el resolver — NO es "vacío" sólo porque es falsy', () => {
+  const r = resolverSiteContent({ hero: { veloNivel: 0 } });
+  assert.equal(r.hero.veloNivel, 0);
 });
 
-test('camposDeVeloCombo: basura cae a "fuerte" (la canónica, con el velo encendido) — preferir la canónica a adivinar', () => {
-  assert.deepEqual(camposDeVeloCombo('inventado'), { veloVisible: true, veloIntensidad: 'media' });
+test('hero.veloNivel: un valor sin la clave en absoluto (otro campo guardado, veloNivel ausente) cae al default null', () => {
+  const r = resolverSiteContent({ hero: { titulo: 'Otro titular' } });
+  assert.equal(r.hero.veloNivel, null);
+  assert.equal(r.hero.titulo, 'Otro titular');
+});
+
+test('MARCAS_VELO: las CUATRO posiciones de hoy, de claro a oscuro, en los anclajes 0/55/65/100', () => {
+  assert.deepEqual(MARCAS_VELO, [
+    { valor: 0, etiqueta: 'Nada' },
+    { valor: 55, etiqueta: 'Suave' },
+    { valor: 65, etiqueta: 'Medio' },
+    { valor: 100, etiqueta: 'Fuerte' },
+  ]);
+});
+
+test('nivelEfectivoDeVelo: un número válido de veloNivel manda, ignorando los dos campos viejos', () => {
+  assert.equal(nivelEfectivoDeVelo(true, 'media', 42), 42);
+  assert.equal(nivelEfectivoDeVelo(false, 'suave', 0), 0);
+});
+
+test('nivelEfectivoDeVelo: clampa un veloNivel guardado fuera de [0,100]', () => {
+  assert.equal(nivelEfectivoDeVelo(true, 'media', 250), 100);
+  assert.equal(nivelEfectivoDeVelo(true, 'media', -5), 0);
+});
+
+test('nivelEfectivoDeVelo: sin veloNivel (ausente/null/no-número), deriva de los dos campos de siempre', () => {
+  assert.equal(nivelEfectivoDeVelo(false, 'media', undefined), 0, 'velo apagado = 0, sea cual sea la intensidad');
+  assert.equal(nivelEfectivoDeVelo(false, 'media', null), 0);
+  assert.equal(nivelEfectivoDeVelo(true, 'suave', undefined), 55);
+  assert.equal(nivelEfectivoDeVelo(true, 'intermedia', undefined), 65);
+  assert.equal(nivelEfectivoDeVelo(true, 'media', undefined), 100);
+});
+
+test('nivelEfectivoDeVelo: un veloNivel basura (string, NaN) se trata como ausente, no como 0', () => {
+  assert.equal(nivelEfectivoDeVelo(true, 'media', 'oscuro'), 100);
+  assert.equal(nivelEfectivoDeVelo(true, 'media', NaN), 100);
 });
 
 test('hero: sin fila, `imagenTipo` resuelve a la canónica "imagen" e `imagenPoster` a "" (byte-idéntico)', () => {

@@ -55386,3 +55386,157 @@ storefront en el diff). Sesión en el arnés completa, 9/9 pasos verdes. Commite
 `slice/editor-secciones-1`, sin pushear — queda a la espera del merge gateado.
 
 **Cierra `EDITOR-PANEL-CONTROLES-1`.**
+
+## 2026-10-08 — El deslizador continuo reemplaza al combo de cuatro pasos (`EDITOR-PANEL-DESLIZADORES-1`)
+
+**Pedido del owner, textual, revisando el editor (2026-10-05):** «Lo de "Fondo: oscurecer para leer
+mejor" en vez de seleccionar 4 opciones debería haber, no sé el nombre exacto, pero creo que es
+slider, a lo que voy es que el panel debería sentirse más interactivo».
+
+**Elección:** el combo "Nada·Suave·Medio·Fuerte" sobre `veloVisible`+`veloIntensidad`
+(`OPCIONES_VELO_COMBO`/`veloComboDeCampos`/`camposDeVeloCombo`, § EDITOR-TIENDA-ZONAS-1) se RETIRA
+—en el panel (`renderAltoYFondo`) y en la barra flotante (`HeroMediaMarquesina.tsx`, el
+`SegmentoZona`/`TRACK_SEGMENTADO` local)— y se reemplaza por UN deslizador continuo sobre un campo
+NUEVO, opcional, `hero.veloNivel` (número 0-100). El tamaño de un elemento de texto
+(`EstiloElementoControles.tsx`) adopta el MISMO componente (`Deslizador.tsx`), por pasos sobre
+`TAMANOS_ELEMENTO`.
+
+**Las cifras, MEDIDAS contra el modelo viejo, no elegidas a ojo:** alto=`veloNivel/100`,
+bajo=`max(0, alto−0.25)`. En 55/65/100 coincide EXACTO (hasta error de punto flotante, ~1e-17,
+irrelevante para una opacidad CSS) con `VELO_RANGOS.suave`/`.intermedia`/`.media` —
+`{piso:0.3,techo:0.55}`/`{piso:0.4,techo:0.65}`/`{piso:0.75,techo:1}`—, afirmado con epsilon en
+`lib/animation.test.ts` (`cercaDe`, 1e-9).
+
+**BYTE-IDENTIDAD POR CONSTRUCCIÓN, no por equivalencia numérica reverificada cada vez.** La rama
+que corre cuando `hero.veloNivel` es `null` (el default; nadie movió el deslizador) es LA MISMA
+llamada de siempre —`rangoVeloDeIntensidad(hero.veloIntensidad)` / `hero.veloVisible` leído
+directo, sin pasar por `rangoVeloDeNivel`/`nivelEfectivoDeVelo` en absoluto—. No se verificó con un
+diff de `renderToStaticMarkup` antes/después (hubiera exigido un checkout del commit base, que esta
+sesión evitó por el riesgo del stash compartido); la garantía es de LECTURA del código: el branch
+nuevo (`nivelOverride !== null ? … : rangoVeloDeIntensidad(...)`) deja la rama vieja intacta, y los
+~15 tests existentes que ya fijaban esa rama (`DEFAULTS.hero.veloVisible es true`, `veloVisible:
+false — el velo NO se monta`, `?tema=CORTE: … el hero·sticky vuelve a montar el velo` en
+`hero-marquesina.test.ts`/`corte-marquesina-velo.test.ts`) siguen en VERDE sin editarlos.
+
+**El canal iframe→panel para un valor CONTINUO, no una de cuatro opciones fijas:** la delegación de
+clics existente (`EditorPuenteVivo.tsx`/`editor-puente.ts`, FUERA de `touches:`) lee atributos
+ESTÁTICOS (`data-editor-zona-valor`) — pensada para un botón de valor fijo, no para un arrastre.
+Se descartó extenderla (tocaría dos archivos fuera de alcance) y en su lugar el nuevo control llama
+DIRECTO a `mensajesDeZonaHero` (la función pura ya exportada, sin cambios) + `window.parent.
+postMessage`, sólo al SOLTAR (`onChange` del `<input type="range">`, nunca `onInput`) — "el
+autoguardado escribe al soltar, no en cada píxel" queda garantizado por la semántica nativa de
+input-vs-change de un range, no por un debounce a mano.
+
+**`veloIntensidad` deja de renderizar su `<select>` crudo — era un control duplicado, confirmado por
+lectura antes de tocar nada.** El campo seguía declarado en `HERO.campos` (con `opciones`) y el
+combo viejo lo escribía por OTRO camino (`camposDeVeloCombo`) — dos controles para el mismo dato,
+uno de los cuales (el select) quedaría sin ningún efecto visible apenas el deslizador se tocara una
+vez. Se agregó a `CAMPOS_HERO_YA_DIBUJADOS` (ya excluía `alto`/`puntoFocal`/el viejo `veloCombo`);
+el campo SIGUE declarado en `REGISTRY.hero.campos`/`HERO.campos` (no se borra del modelo — sigue
+siendo el fallback de lectura), sólo deja de pintarse dos veces.
+
+**Peso del bundle: `nivelEfectivoDeVelo`/`MARCAS_VELO` NO viven en `lib/animation.ts`.** Ese
+archivo es `'use client'` con media docena de hooks de framer-motion — correcto para el STOREFRONT,
+pero el PANEL (`TiendaSeccionEditor.tsx`) también necesita esas dos piezas para etiquetar el
+deslizador, e importarlas desde `lib/animation.ts` arrastraría ese peso al bundle del dueño editando
+(primer intento, revertido en la misma sesión al notar el problema antes de medirlo en producción).
+Viven en `lib/config/site-content-defaults.ts` (puro, ya compartido panel↔storefront); SÓLO
+`rangoVeloDeNivel` (la aritmética de opacidad, consumida sólo en el render del storefront) se queda
+en `lib/animation.ts`.
+
+Regla: § El DESLIZADOR CONTINUO (en `lib/animation.ts`, y el bloque "EL VELO, COMO UNA SOLA
+PREGUNTA" retirado de `lib/config/site-content-defaults.ts`, que documenta el retiro del combo).
+
+### Lo que NO se convirtió — candidatos vistos, no tocados
+
+- **`hero.alto`** (3 pasos: Justo·Alto·Pantalla completa, hoy `renderSegmentadoHero` en el panel +
+  `SegmentoZona`/`TRACK_SEGMENTADO` LOCALES en `HeroCurtina.tsx`/`HeroFicha.tsx`/`HeroMedia.tsx`/
+  `HeroMediaMarquesina.tsx`). Convertirlo a deslizador por pasos en el PANEL es trivial (mismo
+  patrón que el tamaño de elemento, ~10 líneas en `renderAltoYFondo`); convertirlo en la BARRA
+  FLOTANTE tocaría los CUATRO archivos de hero (ninguno en `touches:` de este slice) — cada uno
+  tiene su propia copia local de `SegmentoZona`, a propósito (§ CLAUDE.md, "duplicada a propósito").
+- **`hero.tickerVelocidad`** (2 pasos: media/lenta, sólo panel, `<select>` con `opciones`). Un
+  deslizador de 2 posiciones no aporta sobre un toggle — necesitaría decidir primero si vale la
+  pena el cambio de FORMA antes del de widget.
+
+### Pre-flight
+
+| Chequeo | Resultado |
+| --- | --- |
+| Rama declarada (`slice/editor-secciones-1`) | sí — `git status` vacío al arrancar, `HEAD` ya en esa rama |
+| Base = `main` actual | sí — `git merge-base slice/editor-secciones-1 main` = `rev-parse main`, 376 commits adelante, 0 atrás |
+| `veloCombo`/`SegmentoZona` del velo existen hoy, tal como el spec describe | sí — `grep` confirmó `OPCIONES_VELO_COMBO`/`veloComboDeCampos`/`camposDeVeloCombo` en `site-content-defaults.ts`, el `<select name:'veloCombo'>` en `tienda-secciones.ts`/`TiendaSeccionEditor.tsx`, y el `SegmentoZona`×4 en `HeroMediaMarquesina.tsx` |
+| La "sospecha" del spec — `veloIntensidad` se pinta además como `<select>` crudo | CONFIRMADA por lectura: no estaba en `CAMPOS_HERO_YA_DIBUJADOS`, así que el bloque `seccion` genérico lo renderizaba junto al combo — control duplicado |
+| `VELO_RANGOS` (suave/intermedia/media) | medidos contra `lib/animation.ts`: `{0.3,0.55}`/`{0.4,0.65}`/`{0.75,1}` |
+
+### Gate
+
+| Comando | Resultado |
+| --- | --- |
+| `npx tsc --noEmit -p tsconfig.json` | 0 errores |
+| `npm test` | **3929/3929** |
+| `npm run test:integracion` | **363/363** — en PUERTO ALTERNO (`.scratch/test-integracion-altport.sh`, ya existente de un slice anterior de esta rama): el 55432 estándar estaba OCCUPIED por un Postgres de OTRA sesión/proyecto en esta misma máquina (medido: `lsof -i :55432` mostró un `postgres` corriendo desde el scratchpad de otra sesión de Claude, PID ajeno). Mismo mecanismo exacto que `PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1`/`EDITOR-PANEL-CONTROLES-1` ya documentaron, y el MISMO bug (`scripts/postgres-efimero.sh`, `exec 3<&- 2>/dev/null` que se come su propio mensaje "puerto ocupado") reproducido una vez más, por ejecución: `npm run test:integracion` murió con exit 1 y CERO salida. 363/363 reconcilia EXACTO contra el piso ya citado por esos tres slices. |
+| `npm run verificar:nayoli:visual` | **MISMA cifra exacta, dígito a dígito**, que el piso heredado: `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Esperable: Nayoli usa `hero.variante:'curtina'` (la canónica) — `HeroMediaMarquesina.tsx` (la única superficie de storefront que este slice tocó) NUNCA se monta para Nayoli, así que su diff no puede alcanzar sus rutas públicas. |
+| `npx eslint` sobre los 9 archivos de código de `touches:` | 0 errores NUEVOS. 2 falsos candidatos corregidos en la propia sesión antes de cerrar: `Deslizador.tsx` importaba `etiquetaCercana` sin usarlo (se usa en los call-sites, no adentro del componente) — retirado; `HeroMediaMarquesina.tsx` ganó un `useEffect` con `setState` síncrono (soltar el arrastre cuando lo publicado lo alcanza) — silenciado con el mismo patrón ya establecido en el repo (`eslint-disable-next-line react-hooks/set-state-in-effect` + justificación). Los 13 errores `react-hooks/refs` de `TiendaSeccionEditor.tsx` (líneas 2440-2448, repeater `subida.pedir`/`elegir`/`subir`) y los 2 warnings de `lib/animation.ts`/`HeroMediaMarquesina.tsx` (`TickerVelocidad` sin uso de tipo, `<picture aria-hidden>`) son PRE-EXISTENTES — confirmado por ubicación: ninguno cae dentro de las líneas que este diff tocó. |
+
+### El grep de doctrina, mecánico (CLAUDE.md)
+
+`veloCombo`/`OPCIONES_VELO_COMBO`/`veloComboDeCampos`/`camposDeVeloCombo`/`SegmentoZona`/
+`TRACK_SEGMENTADO`/`veloNivel`/`CAMPOS_HERO_YA_DIBUJADOS`/`renderAltoYFondo`/
+`EstiloElementoControles`/`Deslizador`/`resumen-cambios`/`editor-puente`/`HeroMediaMarquesina`/
+`veloVisible`/`veloIntensidad`/`TAMANOS_ELEMENTO`/"Oscurecer para leer mejor" → **CERO** coincidencias
+en CLAUDE.md, salvo `TiendaSeccionEditor` (6 menciones, ninguna sobre el mecanismo de render de
+`veloCombo`/`CAMPOS_HERO_YA_DIBUJADOS` que este slice tocó — son sobre el contrato de borrador, la
+cáscara por bloques, el uploader extraído y el prop `categoriasListas`, todos sin cambios de este
+slice). Ninguna sentencia de CLAUDE.md se vuelve falsa.
+
+### El grep de doctrina sobre el propio DECISIONS.md
+
+`EDITOR-TIENDA-ZONAS-1` (la entrada que introdujo el combo) y los símbolos que esa entrada acuñó
+(`veloCombo`/`SegmentoZona`/`renderSegmentadoHero`) tienen ~10 menciones posteriores en este mismo
+libro, todas HISTÓRICAS ("verdad al momento de escribirse", § la cabecera del archivo) — ninguna se
+reescribe (append-only); esta entrada es el APPEND que las sucede, no una corrección de ellas.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno de los dos. Sin migraciones, sin cambio de modelo Prisma (`hero.veloNivel` vive en el JSON
+`SiteContent.content`, no en una columna). Sin contrato cruzado — el mensaje `TIPO_MENSAJE_CAMPOS_
+CAMBIO` es interno a este repo, sin forma nueva (`mensajesDeZonaHero` no cambió su firma).
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`true`.** El dueño/operador LEE e INTERACTÚA con el deslizador en DOS superficies: el panel
+(`/admin/tienda`) y la barra flotante sobre la página en vivo (`/editor/tienda`, dentro del iframe,
+visible sólo en modo editor — nunca a un cliente real). Cero archivos bajo `app/(storefront)/`;
+`components/storefront/home/HeroMediaMarquesina.tsx` SÍ está en el diff, pero su único cambio
+VISIBLE a un cliente real sería si `hero.veloVisible:false` cambiara de comportamiento — y no
+cambia (byte-idéntico, § arriba). El criterio es "¿lee esto un cliente, un operador o el dueño?",
+no "¿es storefront?" (mismo argumento que `PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1`/
+`EDITOR-PANEL-CONTROLES-1`).
+
+### Open follow-ups
+
+- **`EDITOR-PANEL-DESLIZADORES-EDITOR-PUENTE-COMENTARIO-STALE-1`**: `lib/storefront/editor-puente.
+  ts:338-341` (fuera de `touches:` de este slice) sigue describiendo el par `_CAMPO2`/`_VALOR2`
+  como si su único motivo de ser fuera "cubrir el VELO… los DOS entran al MISMO mensaje compuesto"
+  y cita `camposDeVeloCombo`, una función RETIRADA por este slice. El mecanismo (`ATRIBUTO_EDITOR_
+  ZONA_CAMPO2`/`_VALOR2`, `mensajesDeZonaHero`) sigue vivo y sigue siendo genérico — sólo su
+  EJEMPLO motivador en el comentario quedó obsoleto. No se tocó: archivo fuera de `touches:`.
+- **`hero.alto`/`hero.tickerVelocidad` al deslizador** — ver "Lo que NO se convirtió" arriba. El de
+  `alto` en el panel es ~10 líneas si se decide hacerlo; en la barra flotante tocaría los 4 archivos
+  de variantes del hero, cada uno fuera de `touches:` de este slice.
+- Los dos follow-ups que `EDITOR-PANEL-CONTROLES-1` ya dejó abiertos (`…POSTGRES-EFIMERO-EXEC-
+  BUG-1`, `…GRUPO-FILETE-POSICION-1`) no cambiaron — no tocados por este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama: el
+panel y la barra flotante de edición son interacción del dueño/operador, y este diff reescribe esa
+interacción (combo de 4 botones → deslizador, en dos superficies). Sin schema, sin contrato
+cruzado. `npm run gate` GREEN de punta a punta (typecheck 0 · 3929/3929 · 363/363, el segundo
+reconciliado en puerto alterno 55448 por la misma contención externa ya citada por los tres slices
+anteriores); `verificar:nayoli:visual` corrido completo, drift IDÉNTICO al piso heredado de la rama
+(cero archivos de storefront PÚBLICO afectados — Nayoli no monta `HeroMediaMarquesina`). Commiteado
+en `slice/editor-secciones-1`, sin pushear — queda a la espera del merge gateado.
+
+**Cierra `EDITOR-PANEL-DESLIZADORES-1`.**
