@@ -55479,6 +55479,52 @@ PREGUNTA" retirado de `lib/config/site-content-defaults.ts`, que documenta el re
 | `npm run verificar:nayoli:visual` | **MISMA cifra exacta, dígito a dígito**, que el piso heredado: `ruta:home` 165052/4608000 px (AA) · 174711 crudo, caja `[105,862]–[1183,3581]`; las otras 5 rutas 163/361 px c/u; los 2 hovers IDÉNTICO (0px). Esperable: Nayoli usa `hero.variante:'curtina'` (la canónica) — `HeroMediaMarquesina.tsx` (la única superficie de storefront que este slice tocó) NUNCA se monta para Nayoli, así que su diff no puede alcanzar sus rutas públicas. |
 | `npx eslint` sobre los 9 archivos de código de `touches:` | 0 errores NUEVOS. 2 falsos candidatos corregidos en la propia sesión antes de cerrar: `Deslizador.tsx` importaba `etiquetaCercana` sin usarlo (se usa en los call-sites, no adentro del componente) — retirado; `HeroMediaMarquesina.tsx` ganó un `useEffect` con `setState` síncrono (soltar el arrastre cuando lo publicado lo alcanza) — silenciado con el mismo patrón ya establecido en el repo (`eslint-disable-next-line react-hooks/set-state-in-effect` + justificación). Los 13 errores `react-hooks/refs` de `TiendaSeccionEditor.tsx` (líneas 2440-2448, repeater `subida.pedir`/`elegir`/`subir`) y los 2 warnings de `lib/animation.ts`/`HeroMediaMarquesina.tsx` (`TickerVelocidad` sin uso de tipo, `<picture aria-hidden>`) son PRE-EXISTENTES — confirmado por ubicación: ninguno cae dentro de las líneas que este diff tocó. |
 
+### POR EJECUCIÓN, en el arnés (`.scratch/arnes-deslizador-velo.ts`, no comiteado) — login real, Postgres
+efímero propio (`:55453`), `next build`+`next start`, Playwright headless, contra el seed canónico de
+Nayoli. Mismo mecanismo que `.scratch/arnes-panel-controles.ts` (`EDITOR-PANEL-CONTROLES-1`): `next dev`
+no hidrata en este sandbox.
+
+- **El COMBO VIEJO ya no existe** (`VIEJO_COMBO_SEGMENTADO_PRESENTE=0`) y el deslizador nuevo SÍ
+  (`DESLIZADOR_PANEL_PRESENTE=true`), con el valor inicial correcto derivado de los dos campos de
+  siempre: `VALOR_DESLIZADOR_PANEL_ANTES=Fuerte · 100%` (Nayoli: `veloVisible:true`+
+  `veloIntensidad:'media'`, sin `veloNivel` → `nivelEfectivoDeVelo` da 100).
+- **El TECLADO mueve de a 5 exacto**: 9 flechas desde 100 dan `Suave · 55%` (100−9×5=55) —
+  `VALOR_DESLIZADOR_PANEL_DESPUES_DE_9_FLECHAS=Suave · 55%`, la etiqueta por cercanía (`etiquetaCercana`)
+  coincide con la marca más próxima (55, exacta).
+- **El DOBLE CLIC vuelve al valor "de hoy"**: `VALOR_TRAS_DOBLE_CLIC=Fuerte · 100%` — el valor que el
+  deslizador tenía al MONTAR, no el canónico del modelo a secas (para un tenant que ya trajera 'suave'
+  sería 55, no 100 — no se verificó ese caso, pero la lógica (`useState(() => valor)`) no depende del
+  valor en sí).
+- **LA ESCRITURA REAL a la base**: tras volver a bajar a 55 y esperar el autoguardado,
+  `DB_hero_veloNivel_EN_BORRADOR=55` (leído por SQL directo contra `SiteContent.borrador`, no inferido).
+- **LA BARRA FLOTANTE, tras cambiar la composición a "Marquesina"**: `DESLIZADOR_FLOTANTE_PRESENTE=true`,
+  hereda el valor YA guardado (`VALOR_INICIAL_FLOTANTE=55`) — confirma que el contenido en vivo
+  (panel→iframe) alimenta el valor inicial del control flotante, no un segundo default. Con el TECLADO
+  (medido: el primer intento con `el.value=...`+`dispatchEvent` NO disparaba el `onChange` de React de
+  forma confiable — un hallazgo de MÉTODO, no del código bajo prueba — se corrigió a flechas, el mismo
+  mecanismo que ya probó el panel): bajar a 0 → `ETIQUETA_FLOTANTE_TRAS_BAJAR=Nada · 0%` y
+  `DB_hero_veloNivel_TRAS_FLOTANTE_BAJAR=0`; subir a 100 → `ETIQUETA_FLOTANTE_EN_100=Fuerte · 100%` y
+  `DB_hero_veloNivel_TRAS_FLOTANTE_100=100` — EL CANAL DIRECTO `window.parent.postMessage` (sin pasar por
+  la delegación de clics de `editor-puente.ts`) funciona de punta a punta: iframe→panel→autoguardado→DB.
+- **LA OPACIDAD REAL DEL VELO, leída del DOM, no inferida del píxel**: a `veloNivel=100`, el div del velo
+  (`bg-[var(--sf-velo)] pointer-events-none`) tiene `opacity` inline Y computada = **0.75** — EXACTO el
+  piso de `rangoVeloDeNivel(100)` (`{piso:0.75, techo:1}`), confirmando que el cambio de `rangoVelo`
+  across renders SÍ llega a `useTransform`/`opacidadVelo` sin quedar en un closure viejo (se sospechó lo
+  contrario al ver un screenshot que no se veía obviamente más oscuro a simple vista — una muestra de
+  píxel por `elementFromPoint` dio `rgba(0,0,0,0)` en los dos extremos, que resultó ser un punto de
+  muestra equivocado, no un fallo del velo; el diagnóstico correcto fue leer `getComputedStyle(...).
+  opacity` del propio div, que SÍ reconcilia exacto contra la aritmética pura ya afirmada en
+  `lib/animation.test.ts`). **CONFIRMADO, no sólo PLAUSIBLE.**
+- **UN HALLAZGO VISUAL REAL, capturado y corregido en esta misma sesión**: a 10% de distancia entre
+  "Suave" (55) y "Medio" (65), sus etiquetas se SOLAPABAN en el ancho angosto del panel
+  (`.editor-deslizador__marca`, sin escalonar) — visible en la primera captura (`02-deslizador-panel-
+  movido.png`, antes del fix). Se corrigió escalonando por paridad de índice en DOS filas (commit
+  separado, `adf67ac`) y se RE-VERIFICÓ con una segunda corrida del mismo arnés: la captura siguiente
+  muestra "Nada"/"Fuerte" en la fila de arriba y "Suave"/"Medio" en la de abajo, sin solape.
+
+Las capturas (`.capturas/deslizador-velo/`, gitignored) y el log completo del arnés no se comitean —
+quedan como evidencia local de esta sesión, igual que el resto de los `.scratch/arnes-*` del repo.
+
 ### El grep de doctrina, mecánico (CLAUDE.md)
 
 `veloCombo`/`OPCIONES_VELO_COMBO`/`veloComboDeCampos`/`camposDeVeloCombo`/`SegmentoZona`/
@@ -55536,7 +55582,13 @@ interacción (combo de 4 botones → deslizador, en dos superficies). Sin schema
 cruzado. `npm run gate` GREEN de punta a punta (typecheck 0 · 3929/3929 · 363/363, el segundo
 reconciliado en puerto alterno 55448 por la misma contención externa ya citada por los tres slices
 anteriores); `verificar:nayoli:visual` corrido completo, drift IDÉNTICO al piso heredado de la rama
-(cero archivos de storefront PÚBLICO afectados — Nayoli no monta `HeroMediaMarquesina`). Commiteado
-en `slice/editor-secciones-1`, sin pushear — queda a la espera del merge gateado.
+(cero archivos de storefront PÚBLICO afectados — Nayoli no monta `HeroMediaMarquesina`). ADEMÁS, POR
+EJECUCIÓN en el arnés propio (login real, Postgres efímero, build+start, Playwright — § arriba): las
+DOS superficies (panel y barra flotante) confirmadas funcionando de punta a punta —valor inicial
+correcto, teclado de a 5, doble clic a "hoy", escritura real en `SiteContent.borrador` por SQL
+directo, y la opacidad REAL del velo (0.75 a nivel 100, leída del DOM) reconciliando exacto contra
+`rangoVeloDeNivel`—, y UN hallazgo visual real (marcas "Suave"/"Medio" solapadas) encontrado y
+corregido en la MISMA sesión (commit `adf67ac`), re-verificado. Dos commits en
+`slice/editor-secciones-1` (`6d05ebf`, `adf67ac`), sin pushear — queda a la espera del merge gateado.
 
 **Cierra `EDITOR-PANEL-DESLIZADORES-1`.**
