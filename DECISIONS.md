@@ -55592,3 +55592,140 @@ corregido en la MISMA sesión (commit `adf67ac`), re-verificado. Dos commits en
 `slice/editor-secciones-1` (`6d05ebf`, `adf67ac`), sin pushear — queda a la espera del merge gateado.
 
 **Cierra `EDITOR-PANEL-DESLIZADORES-1`.**
+
+## 2026-10-08 — «Pago en línea» vuelve a dejar encender/apagar cada medio, por chip (`PANEL-PAGOS-PASARELA-CHIPS-1`)
+
+Corrige una regresión de `PANEL-CONFIG-PAGOS-1` (2026-10-05, arriba): ese rediseño dejó el bloque
+«Pago en línea» de SÓLO LECTURA, perdiendo el toggle encender/apagar un método de pasarela que
+`PANEL-CONFIG-BLOQUES-1` había construido. Quedó anotado explícitamente como open-followup
+(`PANEL-CONFIG-PAGOS-PASARELA-TOGGLE-PERDIDO-1`): *"el modelo/validación siguen intactos, es sólo
+la superficie la que se retiró… si el owner lo quiere de vuelta, es una adición chica y acotada
+(reusar `cruzarMetodosPasarela`/`paraElPanel`, ya sin tocar)"*. Este slice lo repone, tocando cada
+chip del prototipo (`.scratch/prototipo-panel/captura-cfg-pag.png`: Tarjeta/PSE/Nequi sólidos,
+«Botón Bancolombia» en contorno).
+
+### Lo que se hizo
+
+- **Cada chip es un BOTÓN conmutable**: encendido = tinta sólida (el mismo par que
+  `.admin-medio-chip`), apagado = contorno con texto de tinta (el mismo par que
+  `.duna-btn--secondary`). Tocarlo GUARDA DE INMEDIATO —un `PATCH /api/site-settings` por toggle,
+  mismo endpoint/payload de siempre vía `payloadBaseDesdeSettings`—, igual que «Agregar medio» ya
+  guarda al confirmar sin una cola de cambios sin guardar; se eligió esto y no un segundo modo
+  Editar/Guardar porque un chip es binario y no tiene campos que llenar —la decisión que el spec
+  pedía explícitamente tomar y documentar.
+- **El cruce sigue siendo `cruzarMetodosPasarela`/`paraElPanel`** (`lib/pagos/metodos-pasarela.ts`,
+  SIN TOCAR — fuera de `touches:` de este slice por instrucción expresa del dispatch). Lo nuevo es
+  `chipsPasarela` (`lib/admin/medios-pago-vista.ts`, puro, capa 1), que traduce los CINCO
+  `EstadoMetodoPasarela` a cómo se ve y si responde el click:
+  - `disponible` → encendido, interactivo (tocarlo apaga).
+  - `disponible_no_ofrecido` → apagado, interactivo (tocarlo enciende).
+  - `guardado_no_disponible` → encendido pero **RANCIO** (ámbar, `--duna-sol-soft`/`-ink` — la
+    MISMA pareja que `.duna-badge--attention`): sigue guardado pero la cuenta ya no lo sostiene;
+    tocarlo lo QUITA (apaga). Es la única rama donde "tocar" no es un simple on/off.
+  - `no_implementado` / `no_cobrable` → **deshabilitado de verdad** (atributo `disabled`, no sólo
+    visual), con `title` explicando por qué (el checkout no sabe dibujarlo, o el proveedor nunca
+    cobra con ese tipo) — nada que alternar.
+- **Sin refine de "al menos uno" para `metodosPasarela`** (verificado leyendo
+  `lib/config/site-settings-schema.ts:56-62`: *"SIN el refine de 'al menos uno': la pasarela es una
+  capacidad de DESPLIEGUE que puede estar apagada, y `[]` es un estado legítimo"*) — apagar el
+  ÚLTIMO chip encendido guarda igual, sin aviso especial. El spec pedía "si apagar el último medio
+  de la pasarela tiene una regla hoy, se respeta y se dice en palabras"; la regla medida es que NO
+  existe tal restricción, y queda dicho acá.
+- **«Así lo ve tu cliente» sigue siendo en vivo**: tras cada toggle exitoso, `setCuentaPasarela`
+  actualiza `guardado` localmente (sin un segundo viaje de red) y la vista previa —que ya leía
+  `guardadoDeCuenta()`— se actualiza sola.
+- **El fallback de cuenta NO conectada ('error') recupera el aviso** que el rediseño de
+  `PANEL-CONFIG-PAGOS-1` había dejado afuera: *"No pudimos consultar tu cuenta de pasarela ahora
+  mismo. Se muestra lo que ya tenías guardado; no puedes hacer cambios aquí hasta poder leerla de
+  nuevo."* — los chips de ese estado son lectura pura (`pointer-events: none`), nunca prometen un
+  click que no hace nada.
+- **`nombreVisiblePasarela` se MOVIÓ** del componente a `lib/admin/medios-pago-vista.ts` (única
+  fuente, ahora reusada por `chipsPasarela` y por el componente para el fallback de error) — evita
+  la duplicación que el repo ya penaliza en otros lados (§ CLAUDE.md, `razonDelServidor`/
+  `cruzoMinimo`).
+- **Housekeeping de paso, porque `editor.css` ya estaba en `touches:`**: la cita de
+  `.admin-pagos-grupo` en `app/(admin)/editor/editor.css:219` —clase retirada por
+  `PANEL-CONFIG-PAGOS-1`— se corrigió a `.admin-pagos-fila + .admin-pagos-fila` (el patrón vivo
+  hoy). Cierra el open-followup `PANEL-EDITOR-CSS-MENCION-GRUPO-OBSOLETA-1`, que pedía exactamente
+  esto "cuando se toque `editor.css` por higiene".
+
+### Deviations
+
+- **"Apagar PSE" (el ejemplo del cierre del spec) no se pudo verificar porque PSE nunca es
+  interactivo HOY** — medido leyendo `lib/pagos/metodos-pasarela.ts`: `DESCRIPTORES_METODO_PASARELA`
+  sólo registra `NEQUI` (la cabecera del archivo lo dice explícito: *"PSE SIGUE EXPLÍCITAMENTE
+  AFUERA de este registro… escribirla a partir de la documentación es exactamente lo que el spike
+  existe para evitar"*), así que `checkoutSabeDibujar('PSE')` es siempre `false` y PSE cae SIEMPRE
+  en `'no_implementado'` (chip deshabilitado). Se sustituyó por NEQUI (el único tipo real,
+  no-tarjeta, togglable) y CARD (el caso especial siempre encendible) en la verificación.
+- **La sesión en el arnés (el "si se pudo" del cierre) se intentó y NO llegó a completar un ciclo
+  de toggle real**, por una causa AJENA al diff: el build de producción efímero de este arnés
+  (`.scratch/arnes-pasarela-chips.ts`, puerto 55451/4142, no comiteado) no define
+  `BETTER_AUTH_SECRET`, así que Better Auth lanza `BetterAuthError` en cada request y el login
+  nunca completa (`page.waitForURL` expira a los 20 s). La consulta de VERDAD INDEPENDIENTE
+  (`psql … SELECT "metodosPasarela" FROM "SiteSetting"`) confirma que la fila quedó sin tocar
+  (`[]`, el valor del seed) — consistente con que ningún PATCH se disparó, no con un defecto del
+  toggle. **No se pudo repetir el intento** dentro de esta sesión (una directiva del sistema forzó
+  el cierre de la tanda antes de poder fijar la variable y re-correr). La prueba viva real de esto
+  queda **UNKNOWN** y es el primer paso de cualquier re-apertura de este slice.
+  También hubo que fabricar la lectura de la cuenta de pasarela vía `page.route()` de Playwright
+  (interceptando `/api/pasarela/metodos` en el NAVEGADOR, dejando el `PATCH /api/site-settings`
+  real) porque este despliegue no tiene `WOMPI_PUBLIC_KEY` ni acceso a credenciales de Wompi
+  sandbox — explícitamente fuera de lo que esta sesión debía ir a buscar.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff cambia: `PagosCobrosBloque`, `admin-gw-chip`, `metodosPasarela`,
+`cruzarMetodosPasarela`, `paraElPanel`, `chipsPasarela`, `nombreVisiblePasarela` → CERO coincidencias
+en CLAUDE.md (ninguno se nombra ahí). `metodoIncompleto`/`CAMPOS_METODO`/`METODOS_PAGO_ORDEN` → la
+misma única coincidencia que ya citó `PANEL-CONFIG-PAGOS-1` (CLAUDE.md:2169, "Un método sin datos se
+DECLARA en el editor… Copy + estado visual, no estructura") — sigue siendo cierta, este slice no la
+toca. `admin-pagos-grupo` → la cita de `editor.css` (corregida arriba, dentro de `touches:`) era la
+única; cero quedan.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno. `metodosPasarela` ya existía en `SiteSetting` y no se tocó; `lib/pagos/metodos-pasarela.ts`,
+`lib/checkout/metodos-pago.ts` y todo `app/api/` quedaron sin editar, por instrucción expresa del
+dispatch.
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`true`** — mismo eje que `PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1`/
+`EDITOR-PANEL-CONTROLES-1`: `/admin/configuracion` lo lee el operador/dueño en cada sesión, y este
+diff cambia texto y comportamiento visibles ahí — los toasts ("Nequi activado."/"Tarjeta
+desactivado."), los tres tooltips nuevos de los chips no-encendibles, y el aviso de cuenta no
+conectada que vuelve a aparecer. Cero archivos de `app/(storefront)/`/`components/storefront/` en
+el diff.
+
+### Gate
+
+| Capa | Resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npx eslint` sobre los 3 archivos tocados con lógica (`PagosCobrosBloque.tsx`, `medios-pago-vista.ts`, `medios-pago-vista.test.ts`) | limpio, sin salida |
+| `npm test` (capa 1) | **3935/3935** — +6 sobre el piso de HEAD (3929, el mismo que ya citó `EDITOR-PANEL-DESLIZADORES-1` arriba), los 6 nuevos en `medios-pago-vista.test.ts` (17→23 `test(` — medido por grep antes/después) |
+| `npm run test:integracion` | **363/363** — en PUERTO ALTERNO 55448 (`.scratch/test-integracion-altport.sh`, ya existente de un slice anterior de esta rama): el 55432 estándar estaba OCCUPIED por una sesión CONCURRENTE en esta máquina (medido: `ps aux` mostró un `postgres … -p 55432` corriendo desde el scratchpad de OTRA sesión). Mismo mecanismo exacto y mismo número que `PANEL-CONFIG-PAGOS-1`/`PANEL-CONFIG-BLOQUES-1`/`EDITOR-PANEL-CONTROLES-1`/`EDITOR-PANEL-DESLIZADORES-1` ya documentaron. |
+| Sesión en el arnés (Playwright, login real) | **NO completada** — ver Deviations arriba (`BETTER_AUTH_SECRET` faltante en el build efímero de este arnés nuevo, no un defecto del diff). Verdad independiente por `psql` confirma que la fila de `SiteSetting` no se tocó, consistente con que el login nunca llegó a disparar ningún toggle. |
+
+### Open follow-ups
+
+- **`PANEL-PAGOS-PASARELA-CHIPS-LIVE-VERIFY-1`**: terminar la verificación por ejecución que este
+  slice dejó a medias — fijar `BETTER_AUTH_SECRET` en `.scratch/arnes-pasarela-chips.ts` (y su
+  Playwright, `.scratch/arnes-pasarela-chips-playwright.ts`, ya escritos y listos para re-correr) y
+  confirmar en navegador real: encender/apagar Nequi y Tarjeta, quitar un chip RANCIO, que «Así lo
+  ve tu cliente» lo refleje en vivo, y que sobreviva un reload. No se hizo en esta tanda porque una
+  directiva del sistema forzó el cierre antes de poder diagnosticar y corregir el gap de
+  `BETTER_AUTH_SECRET` del arnés y volver a correrlo.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Sin
+schema, sin contrato cruzado. `npm run gate` GREEN de punta a punta (typecheck 0 · 3935/3935 ·
+363/363, el segundo reconciliado en puerto alterno 55448 por la misma contención externa ya citada
+por los cuatro slices anteriores de esta rama); la verificación por ejecución en navegador quedó
+**incompleta** (ver Deviations/Open follow-ups) por un gap de entorno del arnés nuevo, no por un
+defecto medido del diff. Commit en `slice/editor-secciones-1` (`89db1e5`), sin pushear — queda a la
+espera del merge gateado.
+
+**Cierra `PANEL-PAGOS-PASARELA-CHIPS-1`.**
