@@ -50,9 +50,10 @@ export const siteSettingsEditableSchema = z.object({
   // Opcionales: '' se normaliza a null en el server. `.email()` sólo si hay valor.
   emailReplyTo:      z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
   adminEmail:        z.union([z.literal(''), z.string().trim().email('Correo inválido')]).nullable().optional(),
-  // Los métodos de pago — LISTA (§ PAGOS-METODOS-MODELO-1), SIN tipos repetidos (un elemento por
-  // tipo). Un método INCOMPLETO no bloquea el guardado (ámbar, no rojo): se guarda y simplemente
-  // no se muestra en la tienda — las dos validaciones DURAS de este bloque son los refines de abajo.
+  // Los métodos de pago — LISTA (§ PAGOS-METODOS-MODELO-1), SIN tipos repetidos salvo
+  // `transferencia`, que puede tener VARIAS cuentas (§ PAGOS-VARIAS-CUENTAS-1). Un método
+  // INCOMPLETO no bloquea el guardado (ámbar, no rojo): se guarda y simplemente no se muestra en
+  // la tienda — las validaciones DURAS de este bloque son los refines de abajo.
   metodosPago: z.array(metodoPagoSchema),
   // Los métodos de PASARELA (§ API-DIRECTA-PANEL-METODOS-1) — sólo los IDENTIFICADORES que el
   // proveedor devolvió como habilitados para la cuenta del tenant, sin `datos` (un método de
@@ -65,7 +66,18 @@ export const siteSettingsEditableSchema = z.object({
   // oculta solo sin ninguna red configurada — no hay refine de "al menos una".
   redes: z.array(redSocialSchema),
 }).refine(
-  d => new Set(d.metodosPago.map(m => m.tipo)).size === d.metodosPago.length,
+  // `transferencia` es la EXCEPCIÓN (§ PAGOS-VARIAS-CUENTAS-1): el negocio puede tener varias
+  // cuentas, así que repetirla es válido — los demás cuatro tipos siguen siendo singleton, un
+  // elemento por tipo, igual que siempre.
+  d => {
+    const vistos = new Set<string>();
+    for (const m of d.metodosPago) {
+      if (m.tipo === 'transferencia') continue;
+      if (vistos.has(m.tipo)) return false;
+      vistos.add(m.tipo);
+    }
+    return true;
+  },
   { message: 'No puedes repetir un método de pago', path: ['metodosPago'] },
 ).refine(
   // La lista no puede quedar VACÍA: sin ningún método el checkout no puede cobrar. Regla del

@@ -2,15 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { derivarCondicionPago } from '@duna/core/orders';
 import {
-  parseMetodosPago, metodosDisponibles, metodoIncompleto,
-  METODOS_PAGO_ORDEN, metodoPagoTipoSchema, CONFIRMA_EL_EQUIPO,
+  parseMetodosPago, metodosDisponibles, metodoIncompleto, claveMedioPago,
+  METODOS_PAGO_ORDEN, metodoPagoTipoSchema, CONFIRMA_EL_EQUIPO, INTRO_VARIAS_CUENTAS,
   type MetodoPagoGuardado,
 } from './metodos-pago';
 
 const nequi = (numero: string): MetodoPagoGuardado => ({ tipo: 'nequi', datos: { numero } });
 const daviplata = (numero: string): MetodoPagoGuardado => ({ tipo: 'daviplata', datos: { numero } });
 const breb = (llave: string): MetodoPagoGuardado => ({ tipo: 'breb', datos: { llave } });
-const transferencia = (over: Partial<Record<'banco' | 'tipoCuenta' | 'numeroCuenta' | 'titular', string>> = {}): MetodoPagoGuardado => ({
+const transferencia = (over: Partial<Record<'banco' | 'tipoCuenta' | 'numeroCuenta' | 'titular' | 'id', string>> = {}): MetodoPagoGuardado => ({
   tipo: 'transferencia',
   datos: { banco: 'Bancolombia', tipoCuenta: 'Ahorros', numeroCuenta: '123', titular: 'Nayoli', ...over },
 });
@@ -53,6 +53,55 @@ test('parseMetodosPago: normaliza valores no-string de `datos` a cadena', () => 
   assert.equal(out[0].datos.numero, '573155766064');
 });
 
+// ── § PAGOS-VARIAS-CUENTAS-1: parseMetodosPago conserva TODAS las transferencias ──────────────
+
+test('parseMetodosPago: VARIAS transferencias se conservan TODAS, en su orden', () => {
+  const dosCuentas = [
+    transferencia({ id: 'a', banco: 'Bancolombia' }),
+    transferencia({ id: 'b', banco: 'Davivienda' }),
+  ];
+  const out = parseMetodosPago(dosCuentas);
+  assert.deepEqual(out.map(m => m.tipo), ['transferencia', 'transferencia']);
+  assert.deepEqual(out.map(m => m.datos.banco), ['Bancolombia', 'Davivienda']);
+});
+
+test('parseMetodosPago: las transferencias conviven con el dedup de los OTROS tipos', () => {
+  const out = parseMetodosPago([
+    nequi('111'), nequi('222'), // se dedup: gana el primero
+    transferencia({ id: 'a', banco: 'Bancolombia' }),
+    transferencia({ id: 'b', banco: 'Davivienda' }),
+  ]);
+  assert.equal(out.filter(m => m.tipo === 'nequi').length, 1);
+  assert.equal(out.find(m => m.tipo === 'nequi')?.datos.numero, '111');
+  assert.equal(out.filter(m => m.tipo === 'transferencia').length, 2);
+});
+
+test('parseMetodosPago: con varias transferencias, el ORDEN CANÓNICO las agrupa todas en el slot de transferencia', () => {
+  const revuelto = [
+    efectivo,
+    transferencia({ id: 'a', banco: 'Davivienda' }),
+    nequi('1'),
+    transferencia({ id: 'b', banco: 'Bancolombia' }),
+    breb('llave@x'),
+  ];
+  const out = parseMetodosPago(revuelto);
+  assert.deepEqual(out.map(m => m.tipo), ['nequi', 'breb', 'transferencia', 'transferencia', 'efectivo']);
+  // Dentro del slot de transferencia, se conserva el orden de APARICIÓN en el input.
+  assert.deepEqual(out.filter(m => m.tipo === 'transferencia').map(m => m.datos.banco), ['Davivienda', 'Bancolombia']);
+});
+
+// ── claveMedioPago ─────────────────────────────────────────────────────────────────────────────
+
+test('claveMedioPago: los tipos singleton son su propio tipo', () => {
+  assert.equal(claveMedioPago(nequi('1')), 'nequi');
+  assert.equal(claveMedioPago(efectivo), 'efectivo');
+});
+
+test('claveMedioPago: transferencia lleva su id; sin id (legado) cae a cadena vacía', () => {
+  assert.equal(claveMedioPago(transferencia({ id: 'a' })), 'transferencia:a');
+  assert.equal(claveMedioPago({ tipo: 'transferencia', datos: {} }), 'transferencia:');
+});
+
 // ── metodosDisponibles ────────────────────────────────────────────────────────────────────────
 
 test('Nayoli en Bogotá: nequi + daviplata + efectivo (transferencia oculta sin cuenta)', () => {
@@ -91,6 +140,42 @@ test('transferencia con cuenta completa → se muestra con su línea', () => {
   const m = metodosDisponibles([transferencia()], { isBogota: true });
   assert.equal(m.length, 1);
   assert.equal(m[0].desc, 'Bancolombia · Ahorros · 123 · Nayoli');
+  assert.equal(m[0].cuentas, undefined); // byte-idéntico: con UNA cuenta no hay lista aparte
+});
+
+// ── § PAGOS-VARIAS-CUENTAS-1: transferencia con VARIAS cuentas sigue siendo UNA opción ─────────
+
+test('transferencia con DOS cuentas completas → una sola opción, con la intro + las dos líneas', () => {
+  const m = metodosDisponibles([
+    transferencia({ id: 'a', banco: 'Bancolombia' }),
+    transferencia({ id: 'b', banco: 'Davivienda', numeroCuenta: '456' }),
+  ], { isBogota: true });
+  assert.equal(m.length, 1);
+  assert.equal(m[0].id, 'transferencia');
+  assert.equal(m[0].label, 'Transferencia Bancaria');
+  assert.equal(m[0].desc, INTRO_VARIAS_CUENTAS);
+  assert.deepEqual(m[0].cuentas, [
+    'Bancolombia · Ahorros · 123 · Nayoli',
+    'Davivienda · Ahorros · 456 · Nayoli',
+  ]);
+});
+
+test('transferencia: una cuenta COMPLETA y otra INCOMPLETA → se muestra como si hubiera UNA sola (byte-idéntico)', () => {
+  const m = metodosDisponibles([
+    transferencia({ id: 'a' }),
+    transferencia({ id: 'b', banco: '' }), // incompleta: le falta el banco
+  ], { isBogota: true });
+  assert.equal(m.length, 1);
+  assert.equal(m[0].desc, 'Bancolombia · Ahorros · 123 · Nayoli');
+  assert.equal(m[0].cuentas, undefined);
+});
+
+test('transferencia: VARIAS cuentas, todas incompletas → el método no aparece', () => {
+  const m = metodosDisponibles([
+    transferencia({ id: 'a', banco: '' }),
+    transferencia({ id: 'b', numeroCuenta: '' }),
+  ], { isBogota: true });
+  assert.deepEqual(m.filter(x => x.id === 'transferencia'), []);
 });
 
 test('Bre-B con llave → se muestra; sin llave, no', () => {

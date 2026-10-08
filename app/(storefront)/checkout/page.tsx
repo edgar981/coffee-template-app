@@ -879,6 +879,18 @@ export default function Checkout() {
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
                                 <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
+                                {/* Transferencia con VARIAS cuentas (§ PAGOS-VARIAS-CUENTAS-1): la
+                                    misma opción ÚNICA, con una línea por cuenta — `opt.cuentas`
+                                    sólo existe con 2+ cuentas completas, así que con una sola
+                                    cuenta esta rama no renderiza nada y el checkout queda
+                                    byte-idéntico a como se veía antes de esta tanda. */}
+                                {opt.cuentas && (
+                                  <ul className="mt-1 space-y-0.5 list-disc pl-4">
+                                    {opt.cuentas.map((cuenta, i) => (
+                                      <li key={i} className="text-xs text-[var(--sf-texto-suave)]">{cuenta}</li>
+                                    ))}
+                                  </ul>
+                                )}
                               </div>
                             </label>
                           ))}

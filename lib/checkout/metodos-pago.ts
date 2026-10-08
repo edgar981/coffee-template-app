@@ -48,9 +48,21 @@ export interface MetodoPagoGuardado {
 export interface MetodoCheckout {
   id: MetodoPagoTipo;
   label: string;
-  /** La línea que ve el cliente ("Enviar a 315 …", "Bancolombia · Ahorros · …"). */
+  /** La línea que ve el cliente ("Enviar a 315 …", "Bancolombia · Ahorros · …"). Con VARIAS
+   *  cuentas de transferencia (§ PAGOS-VARIAS-CUENTAS-1) es la frase introductoria
+   *  (`INTRO_VARIAS_CUENTAS`) y el detalle de cada cuenta vive en `cuentas`. */
   desc: string;
+  /** SÓLO transferencia con 2+ cuentas COMPLETAS: una línea por cuenta ("Bancolombia · Ahorros
+   *  · … · Titular"). Con una sola cuenta queda `undefined` — el checkout sigue viéndose
+   *  BYTE-IDÉNTICO a como se veía con una sola cuenta posible (§ el reporte del slice). */
+  cuentas?: string[];
 }
+
+/** La frase que introduce la lista cuando hay VARIAS cuentas de transferencia completas — el
+ *  checkout sigue ofreciendo UNA sola opción "Transferencia Bancaria" (el id que viaja al
+ *  servidor no cambia), pero con más de una cuenta no puede quedarse en una sola línea de
+ *  `desc`: tiene que decir que cualquiera de las cuentas sirve. */
+export const INTRO_VARIAS_CUENTAS = 'Puedes transferir a cualquiera de estas cuentas:';
 
 function trim(v: string | undefined): string {
   return (v ?? '').trim();
@@ -146,20 +158,38 @@ export function labelMetodo(tipo: MetodoPagoTipo): string {
 }
 
 /**
+ * La CLAVE de identidad de UN medio guardado (§ PAGOS-VARIAS-CUENTAS-1) — el tipo solo, salvo
+ * `transferencia`, que puede tener VARIAS cuentas y por eso lleva además su `datos.id` (el
+ * identificador estable que el sistema genera al crear la cuenta, nunca la posición ni un nombre
+ * editable). Una cuenta LEGADO sin `id` —guardada antes de esta tanda; como mucho una, porque la
+ * validación vieja prohibía repetir `transferencia`— cae a la cadena vacía, así que sigue siendo
+ * identificable hasta que se autorrepare con un id real al guardarla de nuevo. La usan el panel
+ * (identificar qué fila se edita/quita) y `FilaMedioPago.clave` (`lib/admin/medios-pago-vista.ts`)
+ * — una sola definición para que las dos no puedan divergir.
+ */
+export function claveMedioPago(m: MetodoPagoGuardado): string {
+  return m.tipo === 'transferencia' ? `transferencia:${m.datos.id ?? ''}` : m.tipo;
+}
+
+/**
  * Lee `SiteSetting.metodosPago` (el JSON crudo de la base) SOFT — nunca lanza. Descarta lo que no
- * sea un objeto con `tipo` dentro del set cerrado, se queda con el PRIMERO de cada tipo repetido,
- * normaliza `datos` a cadenas, y devuelve la lista en el ORDEN CANÓNICO (no el de guardado). Un
- * dato raro no puede tumbar el checkout — mismo criterio SOFT que el resolver de SiteContent.
+ * sea un objeto con `tipo` dentro del set cerrado, normaliza `datos` a cadenas, y devuelve la
+ * lista en el ORDEN CANÓNICO (no el de guardado). Un dato raro no puede tumbar el checkout —
+ * mismo criterio SOFT que el resolver de SiteContent.
+ *
+ * `transferencia` es la EXCEPCIÓN del dedup (§ PAGOS-VARIAS-CUENTAS-1): el negocio puede tener
+ * varias cuentas, así que TODAS se conservan, en su orden de aparición. Los demás cuatro tipos
+ * siguen siendo singleton — el PRIMERO de un tipo repetido gana, igual que siempre.
  */
 export function parseMetodosPago(valor: unknown): MetodoPagoGuardado[] {
   if (!Array.isArray(valor)) return [];
-  const porTipo = new Map<MetodoPagoTipo, MetodoPagoGuardado>();
+  const porTipoUnico = new Map<MetodoPagoTipo, MetodoPagoGuardado>();
+  const transferencias: MetodoPagoGuardado[] = [];
   for (const item of valor) {
     if (!item || typeof item !== 'object') continue;
     const tipoRaw = (item as { tipo?: unknown }).tipo;
     if (typeof tipoRaw !== 'string' || !TIPOS_VALIDOS.has(tipoRaw)) continue;
     const tipo = tipoRaw as MetodoPagoTipo;
-    if (porTipo.has(tipo)) continue; // el PRIMERO de un tipo repetido gana
     const datosRaw = (item as { datos?: unknown }).datos;
     const datos: Record<string, string> = {};
     if (datosRaw && typeof datosRaw === 'object') {
@@ -167,19 +197,51 @@ export function parseMetodosPago(valor: unknown): MetodoPagoGuardado[] {
         datos[k] = typeof v === 'string' ? v : String(v ?? '');
       }
     }
-    porTipo.set(tipo, { tipo, datos });
+    if (tipo === 'transferencia') {
+      transferencias.push({ tipo, datos });
+      continue;
+    }
+    if (porTipoUnico.has(tipo)) continue; // el PRIMERO de un tipo repetido gana
+    porTipoUnico.set(tipo, { tipo, datos });
   }
-  return METODOS_PAGO_ORDEN.filter(t => porTipo.has(t)).map(t => porTipo.get(t)!);
+  const out: MetodoPagoGuardado[] = [];
+  for (const tipo of METODOS_PAGO_ORDEN) {
+    if (tipo === 'transferencia') { out.push(...transferencias); continue; }
+    const m = porTipoUnico.get(tipo);
+    if (m) out.push(m);
+  }
+  return out;
 }
 
 /**
  * Los métodos que el checkout MUESTRA, en orden CANÓNICO. Un método aparece si está EN LA LISTA
  * *y* tiene sus datos completos; `efectivo` además sólo en Bogotá (`isBogota`, regla de ENVÍO, no
  * de config). Puede devolver VACÍO — el checkout lo maneja con su guarda defensiva.
+ *
+ * `transferencia` sigue siendo UNA sola opción (§ PAGOS-VARIAS-CUENTAS-1: el id que viaja al
+ * servidor sigue siendo `'transferencia'`, la ruta del checkout no cambia) aunque el negocio
+ * tenga varias cuentas — cada cuenta INCOMPLETA se descarta por su cuenta (misma regla de
+ * siempre, por cuenta), y entre las que quedan completas: CERO → el método no aparece (igual que
+ * hoy); UNA → `desc` es su línea, byte-idéntico a como se veía con una sola cuenta posible; DOS O
+ * MÁS → `desc` pasa a ser la frase introductoria y `cuentas` lleva una línea por cuenta.
  */
 export function metodosDisponibles(metodos: MetodoPagoGuardado[], opts: { isBogota: boolean }): MetodoCheckout[] {
   const out: MetodoCheckout[] = [];
   for (const tipo of METODOS_PAGO_ORDEN) {
+    if (tipo === 'transferencia') {
+      const cuentasGuardadas = metodos.filter(x => x.tipo === tipo);
+      if (cuentasGuardadas.length === 0) continue;
+      const descs = cuentasGuardadas
+        .map(m => TIPOS[tipo].descripcion(m.datos))
+        .filter((d): d is string => d !== null);
+      if (descs.length === 0) continue;
+      out.push(
+        descs.length === 1
+          ? { id: tipo, label: TIPOS[tipo].label, desc: descs[0] }
+          : { id: tipo, label: TIPOS[tipo].label, desc: INTRO_VARIAS_CUENTAS, cuentas: descs },
+      );
+      continue;
+    }
     const m = metodos.find(x => x.tipo === tipo);
     if (!m) continue;
     if (tipo === 'efectivo' && !opts.isBogota) continue;

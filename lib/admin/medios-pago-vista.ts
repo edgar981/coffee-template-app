@@ -1,5 +1,6 @@
 import {
   METODOS_PAGO_ORDEN, CAMPOS_METODO, labelMetodo, metodoIncompleto, metodosDisponibles,
+  claveMedioPago,
   type MetodoPagoGuardado, type MetodoPagoTipo, type MetodoCheckout,
 } from '@/lib/checkout/metodos-pago';
 import {
@@ -83,6 +84,11 @@ export function datoClaveMedioPago(m: MetodoPagoGuardado): string | null {
 export interface FilaMedioPago {
   medio:      MetodoPagoGuardado;
   tipo:       MetodoPagoTipo;
+  /** La identidad ESTABLE de la fila (`claveMedioPago`, `lib/checkout/metodos-pago.ts`) — el
+   *  tipo solo, salvo `transferencia`, que puede repetirse (§ PAGOS-VARIAS-CUENTAS-1) y por eso
+   *  lleva además el id de la cuenta. Es la React key y lo que identifica qué fila se
+   *  edita/quita — NUNCA la posición. */
+  clave:      string;
   iniciales:  string;
   nombre:     string;
   datoClave:  string | null;
@@ -98,6 +104,7 @@ export function filaMedioPago(m: MetodoPagoGuardado): FilaMedioPago {
   return {
     medio:     m,
     tipo:      m.tipo,
+    clave:     claveMedioPago(m),
     iniciales: INICIALES_MEDIO[m.tipo],
     nombre:    nombreMedioPago(m),
     datoClave: datoClaveMedioPago(m),
@@ -108,13 +115,22 @@ export function filaMedioPago(m: MetodoPagoGuardado): FilaMedioPago {
 
 /** La lista completa, en el orden CANÓNICO del checkout (`METODOS_PAGO_ORDEN`) — nunca el
  *  orden de guardado, que es justamente lo que esta tanda deja de ofrecer reordenar (§ el
- *  reporte del slice: sin asa de arrastre, por falta de un campo de orden propio). */
+ *  reporte del slice: sin asa de arrastre, por falta de un campo de orden propio).
+ *
+ * `transferencia` puede aportar VARIAS filas (§ PAGOS-VARIAS-CUENTAS-1, una por cuenta
+ * guardada, en su orden de aparición dentro de `metodos`); los demás cuatro tipos siguen
+ * aportando como mucho una. */
 export function filasMediosPago(metodos: MetodoPagoGuardado[]): FilaMedioPago[] {
-  const porTipo = new Map(metodos.map(m => [m.tipo, m] as const));
-  return METODOS_PAGO_ORDEN
-    .map(t => porTipo.get(t))
-    .filter((m): m is MetodoPagoGuardado => m !== undefined)
-    .map(filaMedioPago);
+  const porTipo = new Map<MetodoPagoTipo, MetodoPagoGuardado[]>();
+  for (const m of metodos) {
+    const lista = porTipo.get(m.tipo);
+    if (lista) lista.push(m); else porTipo.set(m.tipo, [m]);
+  }
+  const out: FilaMedioPago[] = [];
+  for (const tipo of METODOS_PAGO_ORDEN) {
+    for (const m of porTipo.get(tipo) ?? []) out.push(filaMedioPago(m));
+  }
+  return out;
 }
 
 /** Los campos que el editor pide para un tipo — re-exportado desde `metodos-pago.ts` para que

@@ -103,6 +103,34 @@ test('filasMediosPago: omite lo que no está guardado, sin inventar filas', () =
   assert.deepEqual(filasMediosPago(metodos).map(f => f.tipo), ['nequi']);
 });
 
+// ── § PAGOS-VARIAS-CUENTAS-1: VARIAS cuentas de transferencia → VARIAS filas ──────────────────
+
+test('filasMediosPago: transferencia aporta UNA fila por cuenta, en su orden de aparición', () => {
+  const metodos: MetodoPagoGuardado[] = [
+    { tipo: 'nequi', datos: { numero: '1' } },
+    { tipo: 'transferencia', datos: { id: 'a', banco: 'Bancolombia' } },
+    { tipo: 'transferencia', datos: { id: 'b', banco: 'Davivienda' } },
+  ];
+  const filas = filasMediosPago(metodos);
+  assert.deepEqual(filas.map(f => f.tipo), ['nequi', 'transferencia', 'transferencia']);
+  assert.deepEqual(filas.filter(f => f.tipo === 'transferencia').map(f => f.nombre), [
+    'Transferencia Bancaria · Bancolombia',
+    'Transferencia Bancaria · Davivienda',
+  ]);
+});
+
+test('filasMediosPago: la `clave` de cada fila es ESTABLE y distingue las cuentas de transferencia', () => {
+  const metodos: MetodoPagoGuardado[] = [
+    { tipo: 'transferencia', datos: { id: 'a', banco: 'Bancolombia' } },
+    { tipo: 'transferencia', datos: { id: 'b', banco: 'Davivienda' } },
+    { tipo: 'nequi', datos: { numero: '1' } },
+  ];
+  const filas = filasMediosPago(metodos);
+  const claves = filas.map(f => f.clave);
+  assert.deepEqual(new Set(claves).size, claves.length); // todas distintas, sin colisión
+  assert.deepEqual(claves, ['nequi', 'transferencia:a', 'transferencia:b']);
+});
+
 test('vistaClienteMetodos: reusa metodosDisponibles — un método incompleto no aparece', () => {
   const metodos: MetodoPagoGuardado[] = [
     { tipo: 'nequi', datos: { numero: '3105550142' } },

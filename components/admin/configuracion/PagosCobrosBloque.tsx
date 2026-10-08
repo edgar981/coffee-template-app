@@ -8,12 +8,12 @@ import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { siteSettingsEditableSchema } from '@/lib/config/site-settings-schema';
 import { payloadBaseDesdeSettings, repartirErroresBloque } from '@/lib/admin/configuracion-partes';
 import {
-  METODOS_PAGO_ORDEN, labelMetodo,
+  METODOS_PAGO_ORDEN, labelMetodo, claveMedioPago,
   type MetodoPagoTipo, type MetodoPagoGuardado,
 } from '@/lib/checkout/metodos-pago';
 import {
   CAMPOS_METODO, NOTA_CONTRAENTREGA, filasMediosPago, vistaClienteMetodos, vistaClientePasarela,
-  chipsPasarela, nombreVisiblePasarela, type FilaMedioPago, type ChipPasarela,
+  chipsPasarela, nombreVisiblePasarela, nombreMedioPago, type FilaMedioPago, type ChipPasarela,
 } from '@/lib/admin/medios-pago-vista';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import {
@@ -70,15 +70,41 @@ function medioTieneDatos(m: MetodoPagoGuardado): boolean {
   return CAMPOS_METODO[m.tipo].some(c => (m.datos[c.name] ?? '').trim().length > 0);
 }
 
-/** La lista con UN tipo reemplazado/agregado — la base para "¿cómo queda el payload si guardo
- *  esto?" tanto al editar una fila existente como al agregar una nueva. */
-function conMedio(lista: MetodoPagoGuardado[], tipo: MetodoPagoTipo, datos: MetodoPagoDatos): MetodoPagoGuardado[] {
+/**
+ * La lista con UN medio reemplazado/agregado — la base para "¿cómo queda el payload si guardo
+ * esto?" tanto al editar una fila existente como al agregar una nueva.
+ *
+ * `transferencia` puede tener VARIAS cuentas (§ PAGOS-VARIAS-CUENTAS-1): `claveOriginal` dice
+ * CUÁL fila se está tocando —su `claveMedioPago`— o `null` si es una cuenta NUEVA (agregada por
+ * «Agregar medio» o «+ Otra cuenta»). El id de la cuenta se asigna (o se conserva) AQUÍ, nunca
+ * antes: así una cuenta LEGADO sin id se autorrepara con uno real la próxima vez que se guarda,
+ * en vez de quedar duplicada. Los demás cuatro tipos siguen siendo singleton, por tipo.
+ */
+function conMedio(
+  lista: MetodoPagoGuardado[],
+  tipo: MetodoPagoTipo,
+  datos: MetodoPagoDatos,
+  claveOriginal: string | null = null,
+): MetodoPagoGuardado[] {
+  if (tipo === 'transferencia') {
+    const datosConId = { ...datos, id: datos.id || crypto.randomUUID() };
+    const nuevo: MetodoPagoGuardado = { tipo, datos: datosConId };
+    return claveOriginal === null
+      ? [...lista, nuevo]
+      : lista.map(m => (claveMedioPago(m) === claveOriginal ? nuevo : m));
+  }
   const existe = lista.some(m => m.tipo === tipo);
   return existe ? lista.map(m => (m.tipo === tipo ? { tipo, datos } : m)) : [...lista, { tipo, datos }];
 }
 
-function sinMedio(lista: MetodoPagoGuardado[], tipo: MetodoPagoTipo): MetodoPagoGuardado[] {
-  return lista.filter(m => m.tipo !== tipo);
+/** Quita UN medio guardado. `transferencia` se identifica por su `claveMedioPago` —puede haber
+ *  varias cuentas, y sólo UNA se va—; los demás cuatro tipos, por tipo, como siempre. */
+function sinMedio(lista: MetodoPagoGuardado[], medio: MetodoPagoGuardado): MetodoPagoGuardado[] {
+  if (medio.tipo === 'transferencia') {
+    const clave = claveMedioPago(medio);
+    return lista.filter(m => claveMedioPago(m) !== clave);
+  }
+  return lista.filter(m => m.tipo !== medio.tipo);
 }
 
 function estadoConexion(estado: CuentaPasarelaEstado['tipo']): { label: string; clase: string } {
@@ -150,7 +176,10 @@ export default function PagosCobrosBloque() {
   };
 
   // ─── Edición de UNA fila de «Cómo te pueden pagar» ──────────────────────────────────────────
-  const [editandoTipo, setEditandoTipo]   = useState<MetodoPagoTipo | null>(null);
+  // `editandoClave` identifica la fila por su `claveMedioPago` (§ PAGOS-VARIAS-CUENTAS-1), no
+  // por tipo: con varias cuentas de transferencia, el tipo solo no basta para saber CUÁL se
+  // está editando.
+  const [editandoClave, setEditandoClave] = useState<string | null>(null);
   const [valoresFila, setValoresFila]     = useState<MetodoPagoDatos>({});
   const [errorFila, setErrorFila]         = useState<string | null>(null);
   const [errorServidor, setErrorServidor] = useState<string | null>(null);
@@ -160,7 +189,7 @@ export default function PagosCobrosBloque() {
   const guardaQuitar = useAccionGuardada();
 
   const salirEdicionFila = () => {
-    setEditandoTipo(null);
+    setEditandoClave(null);
     setValoresFila({});
     setErrorFila(null);
     setErrorServidor(null);
@@ -170,14 +199,17 @@ export default function PagosCobrosBloque() {
     onCerrar: salirEdicionFila,
   });
 
-  const medioEditando = editandoTipo ? settings.metodosPago.find(m => m.tipo === editandoTipo) : undefined;
-  const suciaFila = editandoTipo !== null
+  const medioEditando = editandoClave
+    ? settings.metodosPago.find(m => claveMedioPago(m) === editandoClave)
+    : undefined;
+  const editandoTipo = medioEditando?.tipo ?? null;
+  const suciaFila = editandoClave !== null
     && JSON.stringify(valoresFila) !== JSON.stringify(medioEditando?.datos ?? {});
   useEffect(() => { descarteFila.marcarCambios(suciaFila); }, [suciaFila, descarteFila]);
 
   const abrirEdicionFila = (fila: FilaMedioPago) => {
-    if (editandoTipo !== null || sheetAbierto) return; // una edición a la vez
-    setEditandoTipo(fila.tipo);
+    if (editandoClave !== null || sheetAbierto) return; // una edición a la vez
+    setEditandoClave(fila.clave);
     setValoresFila({ ...fila.medio.datos });
     setErrorFila(null);
     setErrorServidor(null);
@@ -193,10 +225,10 @@ export default function PagosCobrosBloque() {
   });
 
   const guardarFila = () => {
-    if (!editandoTipo) return;
+    if (!editandoClave || !medioEditando) return;
     setErrorServidor(null);
 
-    const parsed = guardarPayload(conMedio(settings.metodosPago, editandoTipo, valoresFila));
+    const parsed = guardarPayload(conMedio(settings.metodosPago, medioEditando.tipo, valoresFila, editandoClave));
     if (!parsed.success) {
       const { propios, errorAjeno } = repartirErroresBloque(
         parsed.error.issues,
@@ -219,14 +251,16 @@ export default function PagosCobrosBloque() {
         setErrorServidor(data?.error ?? 'No se pudo guardar. Intenta de nuevo.');
         return;
       }
-      toast.success(`${labelMetodo(editandoTipo)} guardado.`);
+      // `nombreMedioPago`, no `labelMetodo`: con varias cuentas de transferencia (§
+      // PAGOS-VARIAS-CUENTAS-1), el toast tiene que decir CUÁL —lleva el banco pegado.
+      toast.success(`${nombreMedioPago(medioEditando)} guardado.`);
       salirEdicionFila();
       router.refresh();
     });
   };
 
   const quitarMedio = (m: MetodoPagoGuardado) => {
-    const parsed = guardarPayload(sinMedio(settings.metodosPago, m.tipo));
+    const parsed = guardarPayload(sinMedio(settings.metodosPago, m));
     if (!parsed.success) {
       // El botón ya está deshabilitado cuando queda uno solo (§ abajo), así que esta rama es
       // sólo la red: nunca falla en silencio si de todos modos llega acá.
@@ -244,7 +278,7 @@ export default function PagosCobrosBloque() {
         toast.error(data?.error ?? 'No se pudo quitar el método.');
         return;
       }
-      toast.success(`${labelMetodo(m.tipo)} quitado.`);
+      toast.success(`${nombreMedioPago(m)} quitado.`);
       setConfirmarQuitar(null);
       salirEdicionFila();
       router.refresh();
@@ -252,11 +286,9 @@ export default function PagosCobrosBloque() {
   };
 
   const onQuitarFilaClick = () => {
-    if (!editandoTipo || settings.metodosPago.length <= 1) return;
-    const medio = settings.metodosPago.find(m => m.tipo === editandoTipo);
-    if (!medio) return;
-    if (medioTieneDatos(medio)) { setConfirmarQuitar(medio); return; }
-    quitarMedio(medio);
+    if (!medioEditando || settings.metodosPago.length <= 1) return;
+    if (medioTieneDatos(medioEditando)) { setConfirmarQuitar(medioEditando); return; }
+    quitarMedio(medioEditando);
   };
 
   // ─── «Agregar medio» ─────────────────────────────────────────────────────────────────────────
@@ -278,9 +310,20 @@ export default function PagosCobrosBloque() {
   useEffect(() => { descarteAgregar.marcarCambios(suciaAgregar); }, [suciaAgregar, descarteAgregar]);
 
   const abrirSheet = () => {
-    if (editandoTipo !== null) return;
+    if (editandoClave !== null) return;
     setSheetAbierto(true);
     setAgregarTipo(null);
+    setValoresAgregar({});
+    setErrorAgregar(null);
+  };
+
+  // «+ Otra cuenta» (§ PAGOS-VARIAS-CUENTAS-1) — la MISMA hoja que «Agregar medio», pero entra
+  // directo al formulario de `transferencia` (sin pasar por `ListaTiposAgregar`, donde ya
+  // aparecería marcada "Ya lo tienes"): es la puerta para una cuenta ADICIONAL, no la primera.
+  const abrirAgregarCuenta = () => {
+    if (editandoClave !== null) return;
+    setSheetAbierto(true);
+    setAgregarTipo('transferencia');
     setValoresAgregar({});
     setErrorAgregar(null);
   };
@@ -299,7 +342,9 @@ export default function PagosCobrosBloque() {
     if (!agregarTipo) return;
     setErrorAgregar(null);
 
-    const parsed = guardarPayload(conMedio(settings.metodosPago, agregarTipo, valoresAgregar));
+    // `claveOriginal: null` — «Agregar medio»/«+ Otra cuenta» siempre crean una entrada NUEVA,
+    // nunca reemplazan una existente (eso es lo que hace `guardarFila`, arriba).
+    const parsed = guardarPayload(conMedio(settings.metodosPago, agregarTipo, valoresAgregar, null));
     if (!parsed.success) {
       const { propios, errorAjeno } = repartirErroresBloque(
         parsed.error.issues,
@@ -320,7 +365,7 @@ export default function PagosCobrosBloque() {
         setErrorAgregar(data?.error ?? 'No se pudo agregar. Intenta de nuevo.');
         return;
       }
-      toast.success(`${labelMetodo(agregarTipo)} agregado.`);
+      toast.success(`${nombreMedioPago({ tipo: agregarTipo, datos: valoresAgregar })} agregado.`);
       descarteAgregar.marcarCambios(false);
       cerrarSheet();
       router.refresh();
@@ -328,10 +373,10 @@ export default function PagosCobrosBloque() {
   };
 
   // ─── La fuente de la vista previa — lo guardado, salvo que haya una edición en vuelo ──────────
-  const metodosParaVista: MetodoPagoGuardado[] = editandoTipo
-    ? conMedio(settings.metodosPago, editandoTipo, valoresFila)
+  const metodosParaVista: MetodoPagoGuardado[] = (editandoClave && medioEditando)
+    ? conMedio(settings.metodosPago, medioEditando.tipo, valoresFila, editandoClave)
     : (sheetAbierto && agregarTipo)
-      ? conMedio(settings.metodosPago, agregarTipo, valoresAgregar)
+      ? conMedio(settings.metodosPago, agregarTipo, valoresAgregar, null)
       : settings.metodosPago;
 
   const vistaMetodos = vistaClienteMetodos(metodosParaVista);
@@ -363,7 +408,7 @@ export default function PagosCobrosBloque() {
               type="button"
               className="duna-btn duna-btn--secondary duna-btn--sm"
               onClick={abrirSheet}
-              disabled={editandoTipo !== null || algoEnVuelo}
+              disabled={editandoClave !== null || algoEnVuelo}
             >
               <Plus /> Agregar medio
             </button>
@@ -374,29 +419,47 @@ export default function PagosCobrosBloque() {
           )}
 
           <div style={{ marginTop: 'var(--duna-space-4)' }}>
-            {filas.map(fila => (
-              <div className="admin-medio-fila" key={fila.tipo}>
-                {editandoTipo === fila.tipo ? (
-                  <EdicionFila
-                    fila={fila}
-                    valores={valoresFila}
-                    setValor={setValorFila}
-                    error={errorFila}
-                    enVuelo={guardaFila.enVuelo || guardaQuitar.enVuelo}
-                    puedeQuitar={settings.metodosPago.length > 1}
-                    onGuardar={guardarFila}
-                    onCancelar={descarteFila.intentarCerrar}
-                    onQuitar={onQuitarFilaClick}
-                  />
-                ) : (
-                  <LecturaFila
-                    fila={fila}
-                    onEditar={() => abrirEdicionFila(fila)}
-                    disabled={(editandoTipo !== null) || sheetAbierto || algoEnVuelo}
-                  />
-                )}
-              </div>
-            ))}
+            {filas.map((fila, i) => {
+              // «+ Otra cuenta» (§ PAGOS-VARIAS-CUENTAS-1) va después de la ÚLTIMA fila de
+              // transferencia — el negocio puede tener varias cuentas, y ésta es la puerta para
+              // agregar una más (distinta de «Agregar medio», que ofrece los OTROS tipos).
+              const esUltimaTransferencia = fila.tipo === 'transferencia'
+                && !filas.slice(i + 1).some(f => f.tipo === 'transferencia');
+              return (
+                <div className="admin-medio-fila" key={fila.clave}>
+                  {editandoClave === fila.clave ? (
+                    <EdicionFila
+                      fila={fila}
+                      valores={valoresFila}
+                      setValor={setValorFila}
+                      error={errorFila}
+                      enVuelo={guardaFila.enVuelo || guardaQuitar.enVuelo}
+                      puedeQuitar={settings.metodosPago.length > 1}
+                      onGuardar={guardarFila}
+                      onCancelar={descarteFila.intentarCerrar}
+                      onQuitar={onQuitarFilaClick}
+                    />
+                  ) : (
+                    <LecturaFila
+                      fila={fila}
+                      onEditar={() => abrirEdicionFila(fila)}
+                      disabled={(editandoClave !== null) || sheetAbierto || algoEnVuelo}
+                    />
+                  )}
+                  {esUltimaTransferencia && editandoClave === null && (
+                    <button
+                      type="button"
+                      className="duna-btn duna-btn--ghost duna-btn--sm"
+                      style={{ marginTop: 'var(--duna-space-2)' }}
+                      onClick={abrirAgregarCuenta}
+                      disabled={sheetAbierto || algoEnVuelo}
+                    >
+                      <Plus /> Otra cuenta
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -511,6 +574,13 @@ export default function PagosCobrosBloque() {
               <div className="admin-ck-opcion" key={op.id}>
                 <p className="duna-field__label" style={{ margin: 0 }}>{op.label}</p>
                 <p className="duna-field__hint" style={{ margin: 0 }}>{op.desc}</p>
+                {op.cuentas && (
+                  <ul style={{ margin: 'var(--duna-space-2) 0 0', paddingLeft: '1.1em' }}>
+                    {op.cuentas.map((cuenta, i) => (
+                      <li key={i} className="duna-field__hint" style={{ margin: 0 }}>{cuenta}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -569,10 +639,10 @@ export default function PagosCobrosBloque() {
       <ConfirmDeleteDialog
         open={!!confirmarQuitar}
         onOpenChange={(o) => { if (!o) setConfirmarQuitar(null); }}
-        title={confirmarQuitar ? `Quitar ${labelMetodo(confirmarQuitar.tipo)}` : 'Quitar método de pago'}
-        entityLabel={confirmarQuitar ? labelMetodo(confirmarQuitar.tipo) : ''}
+        title={confirmarQuitar ? `Quitar ${nombreMedioPago(confirmarQuitar)}` : 'Quitar método de pago'}
+        entityLabel={confirmarQuitar ? nombreMedioPago(confirmarQuitar) : ''}
         consequence="Se borran sus datos y deja de aparecer en tu checkout. Si lo vuelves a agregar, tienes que escribirlos otra vez."
-        confirmLabel={confirmarQuitar ? `Quitar ${labelMetodo(confirmarQuitar.tipo)}` : 'Quitar'}
+        confirmLabel={confirmarQuitar ? `Quitar ${nombreMedioPago(confirmarQuitar)}` : 'Quitar'}
         busyLabel="Quitando…"
         onConfirm={async () => { if (confirmarQuitar) await quitarMedio(confirmarQuitar); }}
       />
