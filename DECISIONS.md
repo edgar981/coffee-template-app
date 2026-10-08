@@ -56039,7 +56039,7 @@ declarada con el trabajo de Carlos.
 | --- | --- |
 | `npm run typecheck` | 0 errores |
 | `npx eslint` sobre los 5 archivos con lógica tocados (`PagosCobrosBloque.tsx`, `metodos-pago.ts`, `medios-pago-vista.ts`, `site-settings-schema.ts`, `app/(storefront)/checkout/page.tsx`) | limpio, sin salida nueva (las 4 advertencias preexistentes de `checkout/page.tsx` no están cerca de las líneas tocadas) |
-| `npm test` (capa 1) | **3967/3967** — nuevos: 7 en `lib/checkout/metodos-pago.test.ts` (parseMetodosPago×3, claveMedioPago×2, metodosDisponibles×3), 2 en `lib/admin/medios-pago-vista.test.ts`, 8 en `lib/config/site-settings-schema.test.ts` (archivo nuevo) |
+| `npm test` (capa 1) | **3967/3967** — nuevos: 8 en `lib/checkout/metodos-pago.test.ts` (24→32: parseMetodosPago×3, claveMedioPago×2, metodosDisponibles×3), 2 en `lib/admin/medios-pago-vista.test.ts` (23→25), 8 en `lib/config/site-settings-schema.test.ts` (archivo nuevo) — 18 tests nuevos en total |
 | `npm run test:integracion` | **363/363**, sin cambio — este slice no tocó ninguna cadena que ese carril cubra (sin escritura de base nueva) |
 | Reproducción contra la lógica VIEJA | `.scratch/verificar-regresion-pagos.mjs` reconstruye `parseMetodosPago`/`metodosDisponibles` tal como estaban antes de este slice y confirma que los tests nuevos los ven FALLAR (1 cuenta en vez de 2, sin campo `cuentas`) — no comiteado |
 | `renderToStaticMarkup` (byte-identidad, 1 cuenta) | idéntico en checkout y panel; con 2 cuentas, la lista aparece — ver arriba |
