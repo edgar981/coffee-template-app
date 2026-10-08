@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { MetodoPagoGuardado } from '@/lib/checkout/metodos-pago';
+import type { MetodoPasarelaCruzado } from '@/lib/pagos/metodos-pasarela';
 import {
   INICIALES_MEDIO, NOTA_CONTRAENTREGA, nombreMedioPago, datoClaveMedioPago, filaMedioPago,
-  filasMediosPago, vistaClienteMetodos, vistaClientePasarela,
+  filasMediosPago, vistaClienteMetodos, vistaClientePasarela, nombreVisiblePasarela, chipsPasarela,
 } from './medios-pago-vista';
 
 // Capa 1 — puro. Afirma el FORMATO de la lista «Cómo te pueden pagar», no la regla de "¿se
@@ -115,4 +116,56 @@ test('vistaClientePasarela: usa el copy real del checkout (subtituloPagoPasarela
   const op = vistaClientePasarela([]);
   assert.equal(op.label, 'Pago en línea');
   assert.equal(op.desc, 'Tarjeta · se confirma al instante');
+});
+
+test('nombreVisiblePasarela: CARD es "Tarjeta", el resto sale del registro de descriptores', () => {
+  assert.equal(nombreVisiblePasarela('CARD'), 'Tarjeta');
+  assert.equal(nombreVisiblePasarela('NEQUI'), 'Nequi');
+});
+
+test('nombreVisiblePasarela: un tipo sin descriptor cae al tipo crudo', () => {
+  assert.equal(nombreVisiblePasarela('PSE'), 'PSE');
+});
+
+test('chipsPasarela: disponible → encendido, interactivo, sin advertencia', () => {
+  const cruzado: MetodoPasarelaCruzado[] = [{ tipo: 'NEQUI', estado: 'disponible' }];
+  const [chip] = chipsPasarela(cruzado);
+  assert.equal(chip.tipo, 'NEQUI');
+  assert.equal(chip.nombre, 'Nequi');
+  assert.equal(chip.on, true);
+  assert.equal(chip.interactivo, true);
+  assert.equal(chip.rancio, false);
+  assert.equal(chip.titulo, undefined);
+});
+
+test('chipsPasarela: disponible_no_ofrecido → apagado, interactivo (tocarlo lo encendería)', () => {
+  const cruzado: MetodoPasarelaCruzado[] = [{ tipo: 'CARD', estado: 'disponible_no_ofrecido' }];
+  const [chip] = chipsPasarela(cruzado);
+  assert.equal(chip.on, false);
+  assert.equal(chip.interactivo, true);
+  assert.equal(chip.rancio, false);
+  assert.equal(chip.titulo, undefined);
+});
+
+test('chipsPasarela: guardado_no_disponible → encendido pero RANCIO, interactivo (tocarlo lo quita)', () => {
+  const cruzado: MetodoPasarelaCruzado[] = [{ tipo: 'NEQUI', estado: 'guardado_no_disponible' }];
+  const [chip] = chipsPasarela(cruzado);
+  assert.equal(chip.on, true);
+  assert.equal(chip.interactivo, true);
+  assert.equal(chip.rancio, true);
+  assert.ok(chip.titulo && chip.titulo.length > 0);
+});
+
+test('chipsPasarela: no_implementado y no_cobrable → apagado, NO interactivo, con tooltip', () => {
+  const cruzado: MetodoPasarelaCruzado[] = [
+    { tipo: 'PSE', estado: 'no_implementado' },
+    { tipo: 'BANCOLOMBIA', estado: 'no_cobrable' },
+  ];
+  const chips = chipsPasarela(cruzado);
+  for (const chip of chips) {
+    assert.equal(chip.on, false);
+    assert.equal(chip.interactivo, false);
+    assert.equal(chip.rancio, false);
+    assert.ok(chip.titulo && chip.titulo.length > 0);
+  }
 });

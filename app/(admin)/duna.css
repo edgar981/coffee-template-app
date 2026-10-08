@@ -819,13 +819,39 @@ html.admin {
   font-size: var(--duna-text-caption); font-weight: var(--duna-w-semi); letter-spacing: 0.02em;
 }
 
-/* Los chips de «Pago en línea» (lectura) — un pill neutro, el mismo rol que una categoría
-   (Amber Minimal: "categorías van neutras, nunca color semántico"). No es un badge de ESTADO
-   (eso ya lo dice "Conectado"/"No se pudo conectar" arriba del bloque). */
+/* Los chips de «Pago en línea» — BOTONES conmutables (§ PANEL-PAGOS-PASARELA-CHIPS-1, revierte
+   el regresivo de § PANEL-CONFIG-PAGOS-1: ese rediseño los dejó de SÓLO LECTURA; el modelo
+   —`metodosPasarela`, `cruzarMetodosPasarela`/`paraElPanel`— nunca cambió, sólo perdió su
+   superficie, open-followup `PANEL-CONFIG-PAGOS-PASARELA-TOGGLE-PERDIDO-1`). Base = APAGADO
+   (contorno + texto de TINTA, el mismo par que `.duna-btn--secondary`): no es un badge de ESTADO
+   ni una categoría muted —es la MITAD "no ofrecido todavía" de un control de dos estados—, así
+   que lleva `--duna-ink`, no `--duna-muted`. `.is-on` = ENCENDIDO: tinta SÓLIDA (el mismo par que
+   `.admin-medio-chip`, arriba). NO es `.duna-btn--primary` —reservado a la ÚNICA acción principal
+   de la vista (Amber Minimal, "un solo primario sólido por vista")—: este es un widget de
+   SELECCIÓN MÚLTIPLE, clase propia, para que nunca compita por ese presupuesto. */
 .admin-gw-chip {
   display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--duna-r-full);
   font-size: var(--duna-text-caption); font-weight: var(--duna-w-medium);
-  background: var(--duna-surface-2); box-shadow: inset 0 0 0 1px var(--duna-border); color: var(--duna-ink-2);
+  background: none; box-shadow: inset 0 0 0 1px var(--duna-border-2); color: var(--duna-ink);
+  cursor: pointer;
+  transition: background var(--duna-dur-fast) var(--duna-ease), box-shadow var(--duna-dur-fast) var(--duna-ease),
+              color var(--duna-dur-fast) var(--duna-ease), opacity var(--duna-dur-fast) var(--duna-ease);
+}
+.admin-gw-chip:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--duna-faint); }
+.admin-gw-chip.is-on { background: var(--duna-ink); box-shadow: none; color: var(--duna-paper); }
+.admin-gw-chip.is-on:hover:not(:disabled) { opacity: .88; }
+.admin-gw-chip:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: inset 0 0 0 1px var(--duna-border-2), var(--duna-ring); }
+.admin-gw-chip.is-on:focus-visible { box-shadow: var(--duna-ring); }
+/* El tercer estado — GUARDADO pero la cuenta ya NO lo sostiene (`'guardado_no_disponible'`,
+   `EstadoMetodoPasarela`, `lib/pagos/metodos-pasarela.ts`). Ni encendido limpio ni apagado limpio:
+   es la advertencia que ya usa `.duna-badge--attention` en el resto del panel (Amber Minimal, el
+   ámbar es ATENCIÓN) — sigue clickeable, para QUITARLO de lo guardado. */
+.admin-gw-chip.is-rancio { background: var(--duna-sol-soft); box-shadow: none; color: var(--duna-sol-ink); }
+/* "Disponible pronto" / no cobrable — el checkout no puede ni dibujarlo ni cobrarlo, así que no
+   hay nada que alternar: puramente informativo, deshabilitado de VERDAD (no sólo visual). */
+.admin-gw-chip:disabled { cursor: default; color: var(--duna-ink-2); background: var(--duna-surface-2); box-shadow: inset 0 0 0 1px var(--duna-border); }
+@media (prefers-reduced-motion: reduce) {
+  .admin-gw-chip { transition: none; }
 }
 
 /* Una opción inerte de «Así lo ve tu cliente» (y, reusada, cada tarjeta de tipo de la hoja

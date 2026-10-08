@@ -2,7 +2,10 @@ import {
   METODOS_PAGO_ORDEN, CAMPOS_METODO, labelMetodo, metodoIncompleto, metodosDisponibles,
   type MetodoPagoGuardado, type MetodoPagoTipo, type MetodoCheckout,
 } from '@/lib/checkout/metodos-pago';
-import { ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela } from '@/lib/pagos/metodos-pasarela';
+import {
+  ETIQUETA_PAGO_PASARELA, subtituloPagoPasarela, DESCRIPTORES_METODO_PASARELA,
+  type MetodoPasarelaCruzado, type EstadoMetodoPasarela,
+} from '@/lib/pagos/metodos-pasarela';
 
 // ─── La PRESENTACIÓN de «Cómo te pueden pagar» (§ PANEL-CONFIG-PAGOS-1) ──────────────────────
 //
@@ -143,4 +146,79 @@ export interface OpcionPasarelaVista {
  *  checkout real (`subtituloPagoPasarela`), nunca un texto inventado acá. */
 export function vistaClientePasarela(metodosOtros: string[]): OpcionPasarelaVista {
   return { label: ETIQUETA_PAGO_PASARELA, desc: subtituloPagoPasarela(metodosOtros) };
+}
+
+// ─── «Pago en línea» — los chips TOGGLABLES (§ PANEL-PAGOS-PASARELA-CHIPS-1) ─────────────────
+//
+// Repone la capacidad que `PANEL-CONFIG-PAGOS-1` dejó de SÓLO LECTURA (open-followup
+// `PANEL-CONFIG-PAGOS-PASARELA-TOGGLE-PERDIDO-1`, DECISIONS.md 2026-10-05): el dueño vuelve a
+// encender/apagar cada medio de la pasarela, ahora como CHIP en vez del checkbox+fila de
+// `PANEL-CONFIG-BLOQUES-1`. NINGUNA regla de "¿se puede encender?" se redefine acá — eso sigue
+// siendo `cruzarMetodosPasarela`/`paraElPanel` (`lib/pagos/metodos-pasarela.ts`, sin tocar); lo
+// que este archivo agrega es sólo CÓMO SE VE y SI RESPONDE AL CLICK cada chip, mismo criterio que
+// el resto de este archivo con «Cómo te pueden pagar».
+
+/** El nombre visible de un tipo de pasarela — 'CARD' es la única excepción: tarjeta NO vive en
+ *  `DESCRIPTORES_METODO_PASARELA` (su flujo es bespoke, § la cabecera de ese archivo), así que no
+ *  tiene un `nombreVisible` propio ahí. Sin descriptor (un tipo que el registro todavía no
+ *  conoce), cae al tipo crudo del proveedor — nunca debería llegar a pantalla sin traducir, pero
+ *  es mejor que nada. */
+export function nombreVisiblePasarela(tipo: string): string {
+  if (tipo === 'CARD') return 'Tarjeta';
+  return DESCRIPTORES_METODO_PASARELA[tipo]?.nombreVisible ?? tipo;
+}
+
+/** Por qué un chip NO es un simple on/off — los tres estados de `EstadoMetodoPasarela` que no
+ *  son "encendido"/"apagado" limpios (§ `lib/pagos/metodos-pasarela.ts`, la cabecera de
+ *  `EstadoMetodoPasarela`). TEXTO PROVISIONAL, mismo criterio que el resto del copy de pasarela. */
+const EXPLICACION_CHIP_PASARELA: Record<
+  Exclude<EstadoMetodoPasarela, 'disponible' | 'disponible_no_ofrecido'>,
+  string
+> = {
+  guardado_no_disponible: 'Ya no está disponible en tu cuenta de pasarela. Tócalo para quitarlo.',
+  no_implementado:        'Tu cuenta lo tiene, pero el checkout todavía no sabe mostrarlo.',
+  no_cobrable:            'Es una etiqueta agregadora del proveedor, no un método que se pueda cobrar.',
+};
+
+export interface ChipPasarela {
+  tipo:        string;
+  nombre:      string;
+  /** `true` → el chip se pinta ENCENDIDO (tinta sólida). Para `guardado_no_disponible` también es
+   *  `true` —sigue guardado, aunque la cuenta ya lo abandonó— y tocarlo lo APAGA (lo quita de lo
+   *  guardado); no hay un tercer valor visual para "encendido a medias". */
+  on:          boolean;
+  /** `true` → el chip responde al click. `false` SÓLO para lo que el checkout nunca puede
+   *  encender (`no_implementado`/`no_cobrable`): ahí no hay nada que alternar, es puramente
+   *  informativo. */
+  interactivo: boolean;
+  /** `true` → la advertencia ÁMBAR (`guardado_no_disponible`): ni un encendido limpio ni un
+   *  apagado limpio, sigue ofreciéndose pero la cuenta ya lo dejó de sostener. */
+  rancio:      boolean;
+  /** El tooltip de por qué — ausente en los dos estados normales (encendido/apagado limpios). */
+  titulo?:     string;
+}
+
+/**
+ * Los chips de «Pago en línea», a partir del cruce YA REFINADO del panel (`paraElPanel` sobre
+ * `cruzarMetodosPasarela`) — puro, no decide guardar nada, sólo cómo se ve y si responde al click
+ * cada chip. Mismo criterio que `filasMediosPago` con «Cómo te pueden pagar»: el componente
+ * dibuja lo que esta función devuelve, nunca reimplementa el criterio de encendido/apagado.
+ */
+export function chipsPasarela(cruzado: MetodoPasarelaCruzado[]): ChipPasarela[] {
+  return cruzado.map(({ tipo, estado }) => {
+    const nombre = nombreVisiblePasarela(tipo);
+    if (estado === 'disponible' || estado === 'disponible_no_ofrecido') {
+      return { tipo, nombre, on: estado === 'disponible', interactivo: true, rancio: false };
+    }
+    if (estado === 'guardado_no_disponible') {
+      return {
+        tipo, nombre, on: true, interactivo: true, rancio: true,
+        titulo: EXPLICACION_CHIP_PASARELA[estado],
+      };
+    }
+    return {
+      tipo, nombre, on: false, interactivo: false, rancio: false,
+      titulo: EXPLICACION_CHIP_PASARELA[estado],
+    };
+  });
 }

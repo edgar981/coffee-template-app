@@ -13,11 +13,11 @@ import {
 } from '@/lib/checkout/metodos-pago';
 import {
   CAMPOS_METODO, NOTA_CONTRAENTREGA, filasMediosPago, vistaClienteMetodos, vistaClientePasarela,
-  type FilaMedioPago,
+  chipsPasarela, nombreVisiblePasarela, type FilaMedioPago, type ChipPasarela,
 } from '@/lib/admin/medios-pago-vista';
 import { pasarelaDisponibleEnEsteDespliegue } from '@/services/checkout.service';
 import {
-  metodosPasarelaParaComprador, DESCRIPTORES_METODO_PASARELA,
+  metodosPasarelaParaComprador, cruzarMetodosPasarela, paraElPanel,
 } from '@/lib/pagos/metodos-pasarela';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 import { useDescarteDeDrawer } from '@/hooks/useDescarteDeDrawer';
@@ -36,13 +36,14 @@ import { useCuentaPasarela, guardadoDe, type CuentaPasarelaEstado } from './useC
 //      no hay un campo de orden propio, § docs/panel/REDISENO.md §5), cada fila con su Editar
 //      INLINE (edita sólo ESA fila, no el array entero) y «Agregar medio» (una hoja con los
 //      tipos del set cerrado).
-//   2. «Pago en línea» — LECTURA (estado de conexión + los medios guardados en chips +
-//      «Abrir Wompi ↗»). El spec de este slice no describe edición para este bloque ("Sin tocar
-//      llaves ni la conexión"), a diferencia del paso 1 que sí detalla Editar/Quitar/Guardar —
-//      así que el toggle encender/apagar un método de pasarela que `PANEL-CONFIG-BLOQUES-1`
-//      había construido (dentro del form único) NO sobrevive a este rediseño. El modelo/validación
-//      no cambia: `metodosPasarela` se reenvía tal cual en cada escritura de este bloque
-//      (`payloadBaseDesdeSettings`), nunca se vacía. Ver el reporte del slice (deviations).
+//   2. «Pago en línea» — estado de conexión + los medios guardados en CHIPS TOGGLABLES (vuelta a
+//      poner por `PANEL-PAGOS-PASARELA-CHIPS-1`, que cierra el open-followup
+//      `PANEL-CONFIG-PAGOS-PASARELA-TOGGLE-PERDIDO-1`: ese toggle lo había construido
+//      `PANEL-CONFIG-BLOQUES-1` dentro del form único, y este rediseño lo había dejado de SÓLO
+//      LECTURA) + «Abrir Wompi ↗». El cruce guardado×cuenta sigue siendo
+//      `cruzarMetodosPasarela`/`paraElPanel` (`lib/pagos/metodos-pasarela.ts`, sin tocar); lo
+//      nuevo es que cada chip es un botón — tocarlo guarda de inmediato (un PATCH por toggle,
+//      igual que «Agregar medio» guarda al confirmar, nunca una cola de cambios sin guardar).
 //   3. «Así lo ve tu cliente» — vista fiel (no el componente real del checkout: su selector vive
 //      inline dentro de `app/(storefront)/checkout/page.tsx`, sin extraer a un componente propio,
 //      y extraerlo es tocar storefront — fuera de `touches`). Se arma con las MISMAS funciones
@@ -86,17 +87,67 @@ function estadoConexion(estado: CuentaPasarelaEstado['tipo']): { label: string; 
   return { label: 'Consultando…', clase: 'duna-badge--neutral' };
 }
 
-function nombreVisiblePasarela(tipo: string): string {
-  if (tipo === 'CARD') return 'Tarjeta';
-  return DESCRIPTORES_METODO_PASARELA[tipo]?.nombreVisible ?? tipo;
-}
-
 export default function PagosCobrosBloque() {
   const settings = useSiteSettings();
   const router   = useRouter();
 
-  const { estado: cuentaPasarela } = useCuentaPasarela();
+  // Acá la cuenta de pasarela SÍ se EDITA (a diferencia de los otros tres bloques, que sólo la
+  // reenvían sin tocar vía `payloadBaseDesdeSettings`) — por eso usa `setCuentaPasarela` para
+  // reflejar lo recién guardado sin un segundo viaje de red (§ PANEL-PAGOS-PASARELA-CHIPS-1,
+  // el mismo patrón que `PANEL-CONFIG-BLOQUES-1` ya había construido antes de que
+  // `PANEL-CONFIG-PAGOS-1` dejara el bloque de sólo lectura).
+  const { estado: cuentaPasarela, setEstado: setCuentaPasarela } = useCuentaPasarela();
   const guardadoDeCuenta = () => guardadoDe(cuentaPasarela);
+
+  // ─── «Pago en línea» — cada chip guarda de inmediato (un PATCH por toggle) ──────────────────
+  const [errorPasarela, setErrorPasarela] = useState<string | null>(null);
+  const guardaPasarela = useAccionGuardada();
+
+  const guardarPayloadPasarela = (metodosPasarela: string[]) => siteSettingsEditableSchema.safeParse(
+    payloadBaseDesdeSettings(settings, metodosPasarela),
+  );
+
+  /**
+   * Alterna un tipo de pasarela — PRENDE lo agrega a `metodosPasarela`, APAGA lo quita. Sirve a
+   * los TRES casos que un chip puede representar (§ `chipsPasarela`,
+   * `lib/admin/medios-pago-vista.ts`): 'disponible' (apagarlo), 'disponible_no_ofrecido'
+   * (prenderlo) y 'guardado_no_disponible' (el chip RANCIO — tocarlo también apaga, que es cómo
+   * se quita un tipo que la cuenta ya no sostiene). No hay un refine de "al menos uno" para
+   * `metodosPasarela` (§ `siteSettingsEditableSchema`: "la pasarela es una capacidad de
+   * DESPLIEGUE que puede estar apagada, y `[]` es un estado legítimo"), así que apagar el ÚLTIMO
+   * chip encendido guarda igual, sin aviso especial.
+   */
+  const alternarMetodoPasarela = (tipo: string, prender: boolean) => {
+    if (editandoTipo !== null || sheetAbierto || guardaPasarela.enVuelo) return;
+    setErrorPasarela(null);
+
+    const actual    = guardadoDeCuenta();
+    const siguiente = prender ? [...actual, tipo] : actual.filter(t => t !== tipo);
+
+    const parsed = guardarPayloadPasarela(siguiente);
+    if (!parsed.success) {
+      setErrorPasarela(parsed.error.issues[0]?.message ?? 'No se pudo guardar.');
+      return;
+    }
+
+    guardaPasarela.ejecutar(async () => {
+      const res = await fetch('/api/site-settings', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(parsed.data),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setErrorPasarela(data?.error ?? 'No se pudo guardar. Intenta de nuevo.');
+        return;
+      }
+      toast.success(`${nombreVisiblePasarela(tipo)} ${prender ? 'activado' : 'desactivado'}.`);
+      // Refleja lo recién guardado sin un segundo viaje de red — el mismo patrón que
+      // `PANEL-CONFIG-BLOQUES-1` ya usaba para este hook.
+      setCuentaPasarela(c => (c.tipo === 'cargando' ? c : { ...c, guardado: siguiente }));
+      router.refresh();
+    });
+  };
 
   // ─── Edición de UNA fila de «Cómo te pueden pagar» ──────────────────────────────────────────
   const [editandoTipo, setEditandoTipo]   = useState<MetodoPagoTipo | null>(null);
@@ -293,8 +344,11 @@ export default function PagosCobrosBloque() {
 
   const filas       = filasMediosPago(settings.metodosPago);
   const faltantes   = METODOS_PAGO_ORDEN.filter(t => !settings.metodosPago.some(m => m.tipo === t));
-  const algoEnVuelo = guardaFila.enVuelo || guardaQuitar.enVuelo || guardaAgregar.enVuelo;
+  const algoEnVuelo = guardaFila.enVuelo || guardaQuitar.enVuelo || guardaAgregar.enVuelo || guardaPasarela.enVuelo;
   const conexion    = estadoConexion(cuentaPasarela.tipo);
+  const chipsDePasarela: ChipPasarela[] = cuentaPasarela.tipo === 'ok'
+    ? chipsPasarela(paraElPanel(cruzarMetodosPasarela(guardadoDeCuenta(), cuentaPasarela.metodos)))
+    : [];
 
   return (
     <div className="admin-medios-layout">
@@ -360,17 +414,60 @@ export default function PagosCobrosBloque() {
               </span>
             </div>
 
+            {errorPasarela && (
+              <p className="duna-field__error" role="alert" style={{ marginTop: 'var(--duna-space-3)' }}>{errorPasarela}</p>
+            )}
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginTop: 'var(--duna-space-4)' }}>
-              {guardadoDeCuenta().length === 0 ? (
-                <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>
-                  No ofreces ningún método de pasarela todavía.
-                </p>
+              {cuentaPasarela.tipo === 'ok' ? (
+                chipsDePasarela.length === 0 ? (
+                  <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>
+                    Tu cuenta de pasarela no tiene métodos habilitados.
+                  </p>
+                ) : (
+                  chipsDePasarela.map(chip => (
+                    <button
+                      key={chip.tipo}
+                      type="button"
+                      className={`admin-gw-chip${chip.on ? ' is-on' : ''}${chip.rancio ? ' is-rancio' : ''}`}
+                      aria-pressed={chip.interactivo ? chip.on : undefined}
+                      disabled={!chip.interactivo || editandoTipo !== null || sheetAbierto || algoEnVuelo}
+                      title={chip.titulo}
+                      onClick={() => alternarMetodoPasarela(chip.tipo, !chip.on)}
+                    >
+                      {chip.nombre}
+                    </button>
+                  ))
+                )
+              ) : cuentaPasarela.tipo === 'error' ? (
+                guardadoDeCuenta().length === 0 ? (
+                  <p className="duna-body" style={{ margin: 0, color: 'var(--duna-muted)' }}>
+                    No ofreces ningún método de pasarela todavía.
+                  </p>
+                ) : (
+                  guardadoDeCuenta().map(tipo => (
+                    <span
+                      key={tipo}
+                      className="admin-gw-chip is-on"
+                      style={{ cursor: 'default', pointerEvents: 'none' }}
+                    >
+                      {nombreVisiblePasarela(tipo)}
+                    </span>
+                  ))
+                )
               ) : (
-                guardadoDeCuenta().map(tipo => (
-                  <span key={tipo} className="admin-gw-chip">{nombreVisiblePasarela(tipo)}</span>
-                ))
+                <p className="duna-field__hint" style={{ margin: 0, fontStyle: 'italic' }}>
+                  Consultando tu cuenta de pasarela…
+                </p>
               )}
             </div>
+
+            {cuentaPasarela.tipo === 'error' && (
+              <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-3)' }}>
+                No pudimos consultar tu cuenta de pasarela ahora mismo. Se muestra lo que ya
+                tenías guardado; no puedes hacer cambios aquí hasta poder leerla de nuevo.
+              </p>
+            )}
 
             <div style={{
               display: 'flex', alignItems: 'center', gap: 'var(--duna-space-3)', flexWrap: 'wrap',

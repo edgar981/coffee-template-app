@@ -216,7 +216,10 @@
    (`--duna-bg`) con piezas elevadas (`--duna-surface`) encima — exactamente lo que el panel dejó de
    ser arriba. Scoped a `.editor-panel`: en cualquier otra pantalla del admin (Configuración, el
    editor de una sección fuera de este árbol) esas clases siguen intactas. El spread `+` apila la
-   línea sólo ENTRE piezas (la primera no la lleva), como ya hace `.admin-pagos-grupo` en duna.css. */
+   línea sólo ENTRE piezas (la primera no la lleva), como ya hace `.admin-pagos-fila + .admin-pagos-fila`
+   en duna.css (§ PANEL-PAGOS-PASARELA-CHIPS-1 — corrige la cita de `.admin-pagos-grupo`, retirada
+   por § PANEL-CONFIG-PAGOS-1; el open-followup `PANEL-EDITOR-CSS-MENCION-GRUPO-OBSOLETA-1` pedía
+   corregirla "cuando se toque editor.css por higiene" — este slice ya lo toca). */
 .editor-panel .duna-card {
   background: none;
   border: 0;
