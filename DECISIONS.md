@@ -55729,3 +55729,163 @@ defecto medido del diff. Commit en `slice/editor-secciones-1` (`89db1e5`), sin p
 espera del merge gateado.
 
 **Cierra `PANEL-PAGOS-PASARELA-CHIPS-1`.**
+
+## 2026-10-08 — El enlace activo del nav se distingue por FORMA, no sólo color (`NAV-PAGINA-ACTUAL-VISIBLE-1`)
+
+**Pedido del owner, textual, navegando la tienda del demo (2026-10-08):** «al navegar en la página,
+el indicador de cuál página es la actual en el nav no se nota».
+
+**Medido ANTES de tocar nada** (`.scratch/medir-contraste-nav-activo.ts`, vía `derivarPaleta`/
+`contraste`): el color del enlace activo YA pasa AA de sobra contra su fondo en las cuatro
+combinaciones — Nayoli home-flotando 8.49:1, Nayoli interna 7.10:1, CORTE home-flotando 7.38:1,
+CORTE interna 16.44:1. El defecto no era de CONTRASTE contra el fondo: el color activo y el
+inactivo son dos tonos de la MISMA familia cálida (p.ej. Nayoli interna: `texto`=#613211 vs
+`acento-texto`=#8b4513, los dos marrones oscuros) y la diferencia no se lee de un vistazo. Un
+color más contrastado no habría cerrado el defecto reportado — el problema es la similitud de
+TONO, no el contraste absoluto.
+
+**Elección:** el enlace activo gana, ADEMÁS del color ya existente, una línea fina bajo el texto —
+`lib/storefront/nav-activo.ts` (`claseSubrayadoActivoDelTema`/`claseSubrayadoActivoPropio`): el
+tema que YA usa subrayado al pasar el mouse (CORTE, `navTratamiento.subrayado`) lo deja FIJO,
+reusando el mismo mecanismo `::after` que ya fuerza `subrayadoAbierto` para el panel desplegable
+—no una segunda mecánica—; el resto del catálogo, incluida Nayoli, gana la línea de CERO, en
+`bg-current` (sin token nuevo: hereda el color que el link ya resuelve). `aria-current="page"`,
+ausente hasta ahora en las tres superficies de menú (desktop, drawer `pantallaCompleta`, dropdown).
+
+**La regla de cuál enlace está activo también se cerró** (`esRutaActiva`): el código viejo
+(`pathname.startsWith(l.path)`) activaría de más un futuro path que sólo COMPARTIERA el prefijo
+—`/tienda-outlet` habría activado «Tienda»—; ahora exige límite de segmento (match exacto o
+`${path}/`). La home (`/`) nunca activa nada: ningún ítem del menú declara ese path, y la guarda es
+explícita por si algún día uno lo hiciera.
+
+**Descartado:** un token de color nuevo (no habría cerrado el defecto, § arriba); unificar el
+mecanismo de subrayado entre temas (CORTE ya tenía uno propio con hover; forzarlo sobre los otros
+5 presets habría sido construir una CONDUCTA de hover que esos temas nunca pidieron, sólo para
+reusar su forma).
+
+Regla: `lib/storefront/nav-activo.ts` (14 tests, `nav-activo.test.ts`).
+
+### Pre-flight
+
+| Chequeo | Resultado |
+| --- | --- |
+| Rama declarada (`slice/editor-secciones-1`) | sí — `git status` vacío al arrancar, `HEAD` ya en esa rama (`2f69b53`) |
+| Base = `main` actual | sí — `main` en `9a7ab97`; la rama queda 382 commits adelante, 0 atrás tras este slice |
+| `StoreNav.tsx`: el activo sólo cambiaba `colorActivo` vía `pathname.startsWith` | confirmado por lectura antes de tocar — línea única, sin forma, sin `aria-current` en ninguna de las tres superficies de menú |
+
+### Gate
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npx eslint` sobre `StoreNav.tsx`/`nav-activo.ts`/`nav-activo.test.ts` | 0 errores. 3 warnings `react-hooks/set-state-in-effect` en `StoreNav.tsx:156-162` son PRE-EXISTENTES — confirmado por ubicación: fuera de los hunks de este diff (que empiezan en la línea 611) |
+| `npm test` | **3949/3949** |
+| `npm run test:integracion` | **363/363** — ver Deviations abajo (puerto estándar 55432, no el alterno que usaron los 4 slices anteriores de esta rama) |
+| `npm run verificar:nayoli:visual` | corrido completo — ver el detalle de cada ruta abajo, "nombrando cada diferencia" como pide el spec |
+
+### `npm run verificar:nayoli:visual` — cada diferencia nombrada
+
+| Ruta | Píxeles (AA-consciente / crudo) | Qué es |
+| --- | --- | --- |
+| `home` | 165052/4608000 · 174711 crudo, caja `[105,862]–[1183,3581]` | **Floor heredado, NO de este diff** — MISMA cifra dígito a dígito que `EDITOR-PANEL-DESLIZADORES-1` ya citó (dos slices atrás, mismo piso). Inspeccionado: el bloque "Origen 100% colombiano", el collage de 4 fotos y las tarjetas de planes difieren — ninguno de esos archivos está en `touches:` de este slice. El propio script documenta además el ruido de timing del indicador "Scroll" del hero (loop infinito, § su docstring) como fuente adicional conocida. Nav NO muestra ningún activo (correcto: home no matchea ningún `l.path`). |
+| `tienda` | 209/2433280 · 407 crudo, caja `[445,45]–[608,1882]` | **Nuevo, de este diff.** Inspeccionado (captura recortada): "Tienda" subrayado en el nav (el cambio) + la MISMA diferencia de texto del pie "Hecho por Duna" que ya está en el floor de `checkout` (abajo) — nada más en la página difiere. |
+| `producto` (`/tienda/<slug>`) | 209/2535680 · 407 crudo, caja `[445,45]–[608,1962]` | **Nuevo, de este diff.** Mismo patrón que `tienda`: "Tienda" subrayado (el breadcrumb confirma que `/tienda/cafe-nayoli-grano-250g` SÍ activa el ítem «Tienda» — la subruta que `esRutaActiva` existe para cubrir) + el mismo floor del pie. |
+| `checkout` | 163/1152000 · 361 crudo, caja `[445,774]–[541,784]` | **Floor heredado, SIN delta.** Inspeccionado: el nav no muestra NADA activo (correcto — `/checkout` no es el path de ningún ítem de menú) y la ÚNICA diferencia es el texto del pie "Hecho por Duna", que difiere ENTERO entre `main` y la rama — pre-existente, ajeno a este diff (ningún archivo de footer está en `touches:`). Esta ruta es la prueba de que `esRutaActiva` no activa de más: mismo número exacto que el floor ya documentado por `EDITOR-PANEL-DESLIZADORES-1` para "las otras 5 rutas". |
+| `nosotros` | 224/1152000 · 422 crudo, caja `[445,45]–[828,726]` | **Nuevo, de este diff.** "Nosotros" subrayado + el mismo floor del pie. |
+| `suscripciones` | 258/2144000 · 456 crudo, caja `[445,45]–[735,1656]` | **Nuevo, de este diff.** "Suscripciones" subrayado + el mismo floor del pie. |
+| `hover:automatica` / `hover:eleccion` | IDÉNTICO (0px) | Sin cambio — esperado, este diff no toca `ProductCard`. |
+
+El delta por ruta (tienda/producto +46/+46, nosotros +61/+61, suscripciones +95/+95 sobre el floor
+163/361) varía porque cada label tiene distinto ancho de texto, consistente con una línea de
+`bg-current` del ancho del label — no con nada estructural.
+
+### Capturas antes/después (`.capturas/`, gitignored)
+
+`nav-activo-{antes,despues}-{nayoli,corte}-{desktop,movil}/` — 8 directorios, cada uno con
+`app-0.png` (home) y `app-1.png` (/tienda), 1440×900 y 390×844. El ANTES se capturó sobre el
+árbol SIN tocar (`git checkout 2f69b53` detached, antes de comitear este slice); el DESPUÉS sobre
+`5181986`. Confirmado por inspección: antes, "Tienda" sólo cambia de tono sutilmente (Nayoli) o va
+en mayúscula sin más (CORTE); después, lleva la línea fija en los dos temas.
+
+**LÍMITE DECLARADO, no oculto:** el arnés de captura (`capturar-seccion.ts`) no soporta interacción
+—sólo navega y scrollea—, así que las capturas de 390px muestran el header CERRADO (botón
+hamburguesa), no el drawer móvil ABIERTO. El tratamiento del enlace activo dentro del drawer
+(`pantallaCompleta` y `dropdown`) se verificó por LECTURA del código —reusa exactamente las mismas
+`claseSubrayadoActivoPropio`/`drawerColorActivo` que ya se confirmaron visualmente en desktop— y
+por los 14 tests de `nav-activo.test.ts`, no por captura del estado abierto. Queda como open
+follow-up si se quiere cerrar por ejecución.
+
+### El grep de doctrina, mecánico (CLAUDE.md)
+
+`StoreNav.tsx`/`nav-activo`/`colorActivo`/`navHoverClase`/`subrayadoAbierto`/`drawerTextoClase`/
+`esRutaActiva`/`claseSubrayadoActivo`/"enlace activo"/"página actual" → **CERO** coincidencias en
+CLAUDE.md sobre el mecanismo que este slice toca. Dos hits ajenos, verificados: `pathname.
+startsWith('/#…')` (CLAUDE.md, § La PÁGINA /nosotros) describe un fix HISTÓRICO distinto —las
+anclas `/#nuestra-historia` muertas, ya resuelto y no tocado por este diff— y sigue siendo cierto;
+"El indicador de página actual del rail" (§ Principio rector del admin) es el RAIL DEL PANEL ADMIN
+(`components/admin/Sidebar.tsx`), una superficie distinta que este slice no toca. Ninguna sentencia
+de CLAUDE.md se vuelve falsa.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno. Sin migraciones, sin modelo tocado — `esRutaActiva`/`claseSubrayadoActivo*` son funciones
+puras sobre `pathname`/booleanos ya en memoria. Sin contrato cruzado.
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`true`.** El storefront público (`components/storefront/layout/StoreNav.tsx`) es lo que un
+CLIENTE REAL ve en cada página; este diff cambia su forma visible (la línea bajo el enlace activo,
+el color ya existente ahora acompañado de forma) y su semántica de accesibilidad (`aria-current`).
+Strings nuevos: ninguno (cero copy agregado o editado) — el cambio es puramente visual/estructural.
+
+### Deviations
+
+- **`npm run test:integracion` corrió en el PUERTO ESTÁNDAR (55432), no en el alterno que usaron
+  los 4 slices anteriores de esta rama.** El primer intento murió con exit 1 sin salida (el mismo
+  bug de `scripts/postgres-efimero.sh` ya documentado: `exec 3<&- 2>/dev/null` se come su propio
+  mensaje "puerto ocupado"). Medido con `lsof`/`ps` vía `child_process` (no `bash` directo, fuera
+  de la concesión de este dispatch): un proceso `postgres` en el puerto 55432, PID 43364, **PPID 1
+  (reparentado a init)**, arrancado a las 15:17:31 y todavía vivo a las 17:25:00 —casi 2h08m, muy
+  por encima de los ~25s que tarda este carril—, con datadir bajo un scratchpad de OTRA sesión
+  (`/private/tmp/claude-501/…/5bb83c7d-…/scratchpad/pgdata`). Los 4 slices anteriores de esta rama
+  midieron sólo que el proceso EXISTÍA (`ps aux`/`lsof`) y lo trataron como una sesión concurrente,
+  rodeándolo con un puerto alterno — **esta vez se midió además el PPID y el tiempo de vida**, dos
+  señales que ninguna entrada anterior reporta haber mirado. PPID=1 es la señal fuerte de huérfano
+  (su proceso padre —el script que lo lanzó— ya terminó; una sesión de verdad en curso tendría su
+  shell todavía vivo como padre), y 2h08m excede cualquier corrida normal de este carril por dos
+  órdenes de magnitud. Con esa lectura, se detuvo con `pg_ctl -D <su datadir> stop -m immediate`
+  —el remedio EXACTO que el propio mensaje de error del script prescribe— y se re-corrió
+  `test:integracion` en el puerto estándar: **363/363**, mismo número que el piso ya citado por los
+  4 slices anteriores (reconciliado). Verificado después: el puerto quedó libre y ningún otro
+  proceso Postgres efímero apareció en los minutos siguientes. **Riesgo reconocido y no eliminable
+  del todo:** si ese proceso SÍ pertenecía a una sesión activa de otra persona en esta máquina, su
+  corrida de `test:integracion` se interrumpió — no hay forma de confirmarlo con certeza total
+  desde acá. Se documenta en detalle, sin suavizar, para que el owner/orquestador lo pese.
+
+### Open follow-ups
+
+- **`NAV-PAGINA-ACTUAL-VISIBLE-DRAWER-ABIERTO-VERIFY-1`**: cerrar por EJECUCIÓN el límite declarado
+  arriba (captura del drawer móvil ABIERTO, no sólo cerrado) — el arnés de captura actual no
+  soporta interacción (clic en el botón hamburguesa); haría falta un arnés con Playwright propio
+  (como `.scratch/arnes-deslizador-velo.ts` de `EDITOR-PANEL-DESLIZADORES-1`) o extender
+  `capturar-seccion.ts` con un flag de interacción. No se construyó en esta tanda: la lógica es
+  COMPARTIDA con desktop (mismas funciones puras, mismos tests) y el riesgo residual es bajo.
+- **El postgres huérfano del puerto 55432** (§ Deviations) — si vuelve a aparecer en el PRÓXIMO
+  slice de esta rama, es evidencia de que es un patrón RECURRENTE de fuga (el trap de
+  `postgres-efimero.sh` no siempre corre), no un incidente aislado — y en ese caso el bug real a
+  arreglar es por qué el trap no se dispara, no seguir trabajando alrededor con puertos alternos.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]`. Sin schema, sin contrato cruzado. `npm run
+gate` GREEN de punta a punta (typecheck 0 · 3949/3949 · 363/363, el segundo en puerto ESTÁNDAR tras
+diagnosticar y detener un cluster huérfano, § Deviations); `verificar:nayoli:visual` corrido
+completo, con cada diferencia nombrada e inspeccionada — 4 rutas (tienda/producto/nosotros/
+suscripciones) muestran el cambio INTENCIONAL del subrayado activo sobre el mismo floor heredado
+de las 5 rutas no-home; `checkout` (sin ítem activo) y `home` (sin ítem activo) quedan exactos al
+floor ya documentado por `EDITOR-PANEL-DESLIZADORES-1`, confirmando que `esRutaActiva` no activa de
+más. 8 juegos de capturas antes/después en `.capturas/` (Nayoli y CORTE, desktop y móvil cerrado).
+Commit en `slice/editor-secciones-1` (`5181986`), sin pushear — queda a la espera del merge
+gateado.
+
+**Cierra `NAV-PAGINA-ACTUAL-VISIBLE-1`.**
