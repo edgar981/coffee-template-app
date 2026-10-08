@@ -121,11 +121,19 @@ export default function Deslizador({
           onDoubleClick={onDoubleClick}
           className="editor-deslizador__input"
         />
-        {marcas.map((m) => (
+        {/* MEDIDO en el gate de este slice (captura real, § EDITOR-PANEL-DESLIZADORES-1): con las
+            marcas del velo (0/55/65/100) "Suave" y "Medio" quedan a sólo 10% de distancia — en el
+            ancho angosto del panel (~270px) sus etiquetas se SOLAPAN ("SuaveMedio" ilegible). Se
+            escalonan en DOS filas por PARIDAD de índice (par arriba, impar abajo) — el mismo truco
+            que cualquier eje con marcas densas: nunca cambia la POSICIÓN horizontal (`left`, la
+            fuente de verdad), sólo separa el texto en el eje vertical para que dos vecinas cercanas
+            no choquen. Con 2 marcas (el caso futuro que no existe hoy) el escalonado es un no-op
+            visual — siguen en la misma fila. */}
+        {marcas.map((m, i) => (
           <span
             key={m.valor}
             aria-hidden
-            className="editor-deslizador__marca"
+            className={`editor-deslizador__marca${i % 2 === 1 ? ' editor-deslizador__marca--par2' : ''}`}
             style={{ left: `${((m.valor - min) / (max - min)) * 100}%` }}
           >
             {m.etiqueta}
