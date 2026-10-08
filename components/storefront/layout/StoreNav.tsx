@@ -16,6 +16,7 @@ import { useModoEditorActivo } from '@/components/storefront/ModoEditor';
 import { tratamientoNav } from '@/lib/config/esquema-style';
 import { varianteDeBanda, itemsDeMenu, menuCtaHref, type MenuItemId, type BandaId } from '@/lib/config/site-content-defaults';
 import { esInstanciaId } from '@/lib/config/secciones-instancias';
+import { esRutaActiva, claseSubrayadoActivoDelTema, claseSubrayadoActivoPropio } from '@/lib/storefront/nav-activo';
 import {
   direccionScroll, navOculto, debeActualizarTratamientoNav, type DireccionScroll,
   DRAWER_MOVIL_DISTANCIA_PX, DRAWER_MOVIL_DURACION_S, DRAWER_MOVIL_EASE,
@@ -610,6 +611,16 @@ export default function StoreNav() {
   // sobre superficie clara — en vez de un tercer literal que pudiera divergir de ese par.
   const drawerTextoClase = 'text-[var(--sf-texto)] hover:text-[var(--sf-tinta)]';
 
+  // § NAV-PAGINA-ACTUAL-VISIBLE-1 — el color del enlace ACTIVO en los DOS menús de teléfono (el
+  // drawer `pantallaCompleta` de abajo y el `'dropdown'`, más abajo): los dos pintan su panel
+  // SIEMPRE sobre una superficie CLARA (`--sf-fondo`/`--sf-tarjeta`, nunca la banda tinta ni el
+  // hero), igual que `drawerTextoClase` arriba — así que usan SIEMPRE la rama `navClaro:false` de
+  // `colorActivo` (arriba), FIJO, nunca la rama `--sf-tostado` (pensada para texto claro sobre
+  // fondo oscuro, que ningún panel de teléfono pinta). Ninguno de los dos drawers usa el mecanismo
+  // de subrayado-al-hover (`navHoverClase` no se referencia en ninguno) — por eso acá se usa
+  // SIEMPRE `claseSubrayadoActivoPropio` con `subrayadoDelTema:false`, sin branch por tema.
+  const drawerColorActivo = 'text-[var(--sf-acento-texto)]!';
+
   // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1), extraído a una función: el ítem CON PANEL
   // (§ MUESTRARIO-MEGA-MENU-1) también puede llevar badge, así que la misma pieza tiene que colgar
   // tanto de un `<Link>` como del `<button>` que abre el panel — sin extraerla, el markup se
@@ -752,7 +763,19 @@ export default function StoreNav() {
                 ya existe (sin wrapper nuevo). */}
             <nav className="relative hidden lg:flex items-center gap-8" data-editor-seccion={enModoEditor ? 'menu' : undefined}>
               {links.map(l => {
-                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${navHoverClase} ${pathname.startsWith(l.path) ? colorActivo : ''}`;
+                // § NAV-PAGINA-ACTUAL-VISIBLE-1 — `esRutaActiva` reemplaza al `pathname.startsWith(l.path)`
+                // crudo de antes (§ el docstring de `lib/storefront/nav-activo.ts`: ese prefijo literal
+                // activaría de más un futuro path que sólo COMENZARA igual, sin ser una subruta real).
+                // El activo gana, además del color de siempre (`colorActivo`), una línea bajo el LABEL
+                // —`claseSubrayadoActivoDelTema` fuerza fijo el mismo `::after` que el tema YA usa al
+                // pasar el mouse (CORTE); `claseSubrayadoActivoPropio` la agrega de cero para el resto
+                // del catálogo (incluida Nayoli), que no tiene ese mecanismo—. Las dos son mutuamente
+                // excluyentes (afirmado en `nav-activo.test.ts`), así que nunca se pintan dos líneas.
+                const activo = esRutaActiva(pathname, l.path);
+                const linkClassName = `text-sm ${navLinkTratamiento} transition-colors ${linkColor} ${navHoverClase} ${activo ? colorActivo : ''} ${claseSubrayadoActivoDelTema(activo, navTratamiento.subrayado)}`;
+                const label = (
+                  <span className={claseSubrayadoActivoPropio(activo, navTratamiento.subrayado)}>{l.label}</span>
+                );
                 // EL PANEL DESPLEGABLE (mega-menu, § MUESTRARIO-MEGA-MENU-1): un ítem CON panel es un
                 // BOTÓN que abre/cierra el desplegable — nunca navega directo. Medido contra el
                 // prototipo (`docs/prototipos/cafeone/index.html:28-31`): `.nav-link` de "Nuestro café"
@@ -764,7 +787,9 @@ export default function StoreNav() {
                   // EL SUBRAYADO QUEDA VISIBLE MIENTRAS EL PANEL ESTÁ ABIERTO (§ CROMO-NAV-EXACTO-
                   // PROTOTIPO-1) — `.nav-item.is-open .nav-link::after{transform:scaleX(1)}` del
                   // prototipo (`app.css:224`): el trigger del mega-menú es el `.nav-item` que puede
-                  // estar `is-open`, así que fuerza el subrayado en vez de esperar el hover.
+                  // estar `is-open`, así que fuerza el subrayado en vez de esperar el hover. Sin
+                  // `aria-current`: un botón que abre un desplegable no ES la página actual, sólo un
+                  // disparador — el `l.panel` no tiene destino propio (§ el comentario de arriba).
                   const subrayadoAbierto = navTratamiento.subrayado && abierto ? 'after:scale-x-100' : '';
                   const trigger = (
                     <button
@@ -775,7 +800,7 @@ export default function StoreNav() {
                       onClick={() => setPanelAbierto(abierto ? null : l.id)}
                       className={`${linkClassName} inline-flex items-center gap-1 cursor-pointer ${subrayadoAbierto}`}
                     >
-                      {l.label}
+                      {label}
                       <ChevronDown aria-hidden className={`w-4 h-4 transition-transform ${abierto ? 'rotate-180' : ''}`} />
                     </button>
                   );
@@ -788,7 +813,11 @@ export default function StoreNav() {
                   );
                 }
                 if (!l.badge) {
-                  return <Link key={l.path} href={l.path} className={linkClassName}>{l.label}</Link>;
+                  return (
+                    <Link key={l.path} href={l.path} className={linkClassName} aria-current={activo ? 'page' : undefined}>
+                      {label}
+                    </Link>
+                  );
                 }
                 // El BADGE de cosecha (§ CORTE-BADGE-COSECHA-EN-MENU-1) va JUNTO al link de SU ítem,
                 // como el `.nav-item .badge` del prototipo (`index.html:27-32`) — sibling del link,
@@ -807,7 +836,7 @@ export default function StoreNav() {
                 // valor arbitrario es el único camino a los 2px medidos.
                 return (
                   <span key={l.path} className="inline-flex items-center gap-2">
-                    <Link href={l.path} className={linkClassName}>{l.label}</Link>
+                    <Link href={l.path} className={linkClassName} aria-current={activo ? 'page' : undefined}>{label}</Link>
                     {badgeSpan(l.badge)}
                   </span>
                 );
@@ -1207,7 +1236,14 @@ export default function StoreNav() {
                   de escritorio. */}
               <nav className="flex flex-col" data-editor-seccion={enModoEditor ? 'menu' : undefined}>
                 {links.map((l, i) => {
-                  const filaClase = `flex w-full items-center justify-between gap-2 px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase}`;
+                  // § NAV-PAGINA-ACTUAL-VISIBLE-1 — mismo criterio que el nav de escritorio (arriba):
+                  // `esRutaActiva` (no el `startsWith` crudo), color fijo (`drawerColorActivo`, § su
+                  // docstring — este panel es siempre claro, nunca la rama `--sf-tostado`) + una línea
+                  // bajo el LABEL (`claseSubrayadoActivoPropio`, SIEMPRE con `subrayadoDelTema:false`:
+                  // este drawer no usa el mecanismo de hover de `navHoverClase`, con o sin CORTE).
+                  const activo = esRutaActiva(pathname, l.path);
+                  const filaClase = `flex w-full items-center justify-between gap-2 px-6 py-4 text-sm ${navLinkTratamiento} transition-colors ${drawerTextoClase} ${activo ? drawerColorActivo : ''}`;
+                  const label = <span className={claseSubrayadoActivoPropio(activo, false)}>{l.label}</span>;
                   if (l.panel) {
                     const abierto = mobileSubAbierto === l.id;
                     const enlaces = l.panel.columnas.flatMap((col) => col.enlaces);
@@ -1221,7 +1257,7 @@ export default function StoreNav() {
                           className={`${filaClase} cursor-pointer text-left`}
                         >
                           <span className="inline-flex items-center gap-2">
-                            {l.label}
+                            {label}
                             {l.badge && badgeSpan(l.badge)}
                           </span>
                           <ChevronDown
@@ -1261,9 +1297,9 @@ export default function StoreNav() {
                   }
                   return (
                     <motion.div key={l.path} custom={{ i, total: totalEntradasDrawerMovil }} variants={ENTRADA_ESCALONADA_DRAWER} initial="hidden" animate="visible" exit="exit">
-                      <Link href={l.path} onClick={() => setMobileOpen(false)} className={filaClase}>
+                      <Link href={l.path} onClick={() => setMobileOpen(false)} className={filaClase} aria-current={activo ? 'page' : undefined}>
                         <span className="inline-flex items-center gap-2">
-                          {l.label}
+                          {label}
                           {l.badge && badgeSpan(l.badge)}
                         </span>
                       </Link>
@@ -1309,9 +1345,27 @@ export default function StoreNav() {
           {mobileOpen && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="fixed top-16 left-0 right-0 z-40 bg-[var(--sf-tarjeta)] shadow-lg sf-divisor-b border-[var(--sf-linea)]">
               <nav className="relative flex flex-col px-4 py-4 gap-4">
-                {links.map(l => (
-                  <Link key={l.path} href={l.path} onClick={() => setMobileOpen(false)} className="text-[var(--sf-acento-2)] font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0">{l.label}</Link>
-                ))}
+                {links.map(l => {
+                  // § NAV-PAGINA-ACTUAL-VISIBLE-1 — mismo criterio que los otros dos menús (desktop y
+                  // el drawer `pantallaCompleta`, arriba): color fijo (`drawerColorActivo`, este panel
+                  // también es siempre claro) + línea bajo el LABEL (`subrayadoDelTema:false`, este
+                  // dropdown nunca usó el mecanismo de hover de `navHoverClase`). La línea va en un
+                  // `<span>` interno, no en el `<Link>` (que `flex flex-col` estira al ancho completo
+                  // de la fila) — así mide el ancho del TEXTO, no el de toda la fila, y no se confunde
+                  // con el divisor `sf-divisor-b` que ya separa cada ítem.
+                  const activo = esRutaActiva(pathname, l.path);
+                  return (
+                    <Link
+                      key={l.path}
+                      href={l.path}
+                      onClick={() => setMobileOpen(false)}
+                      aria-current={activo ? 'page' : undefined}
+                      className={`font-medium py-2 sf-divisor-b border-[var(--sf-superficie)] last:border-0 ${activo ? drawerColorActivo : 'text-[var(--sf-acento-2)]'}`}
+                    >
+                      <span className={claseSubrayadoActivoPropio(activo, false)}>{l.label}</span>
+                    </Link>
+                  );
+                })}
                 {/* El CTA del menú (§ CROMO-MENU-COMO-DATO-1), la misma pieza que el desktop nav —
                     pintada como acción, no como link plano—. */}
                 {ctaHref && (
