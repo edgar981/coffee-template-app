@@ -55889,3 +55889,188 @@ Commit en `slice/editor-secciones-1` (`5181986`), sin pushear — queda a la esp
 gateado.
 
 **Cierra `NAV-PAGINA-ACTUAL-VISIBLE-1`.**
+
+## 2026-10-08 — El negocio puede tener VARIAS cuentas de transferencia (`PAGOS-VARIAS-CUENTAS-1`)
+
+Cierra, para transferencia, el pendiente que `PANEL-CONFIG-PAGOS-1` (arriba, 2026-10-05) había
+dejado anotado en sus Open follow-ups citando `docs/panel/REDISENO.md §5`: *"varias cuentas de
+transferencia… cada una es un campo nuevo, gate del owner"*. Base: el censo
+`PAGOS-VARIAS-CUENTAS-CENSO-1` — un slice OBSERVED anterior (sin commits, por diseño: un
+`writes: no` no deja rastro en el repo) que midió tres sitios que asumían una sola transferencia
+(el refine de tipos repetidos de `siteSettingsEditableSchema`, `parseMetodosPago` colapsando
+duplicados al primero, y la hoja «Agregar medio» ofreciendo sólo tipos faltantes) y dos funciones
+de una sola cuenta (`opcionTransferencia`, y el checkout mandando el TIPO como id). Decisión del
+owner (2026-10-08): **opción 1** — una sola opción «Transferencia» en el checkout que lista todas
+las cuentas, sin que el pedido guarde cuál eligió el cliente (eso queda pendiente para el trabajo
+multi-tenant, anotado como open follow-up abajo).
+
+### Lo que se hizo
+
+- **Cada cuenta de transferencia es un elemento `{tipo:'transferencia', datos:{…}}` más de la
+  LISTA**, no un campo nuevo del modelo — `SiteSetting.metodosPago` no cambió de forma. Lo que
+  cambió es que `transferencia` dejó de ser singleton: puede repetirse, los otros cuatro tipos
+  siguen sin poder.
+- **El identificador de cada cuenta vive DENTRO de `datos` (`datos.id`), generado por el sistema
+  (`crypto.randomUUID()`, el mismo mecanismo que `NewOrderModal.tsx` ya usaba para su idempotency
+  key) — nunca la posición, nunca un nombre que el dueño edite.** `claveMedioPago`
+  (`lib/checkout/metodos-pago.ts`, nueva, puro) es la ÚNICA definición de esa identidad: el tipo
+  solo para los cuatro singleton, `transferencia:<id>` para cada cuenta. La consume el panel
+  (`PagosCobrosBloque`, para saber CUÁL fila se edita/quita) y `FilaMedioPago.clave`
+  (`lib/admin/medios-pago-vista.ts`, el React key de la lista) — una sola fuente para que las dos
+  no puedan divergir.
+- **`parseMetodosPago` deja de deduplicar `transferencia`**: conserva TODAS las cuentas, en su
+  orden de aparición; los otros cuatro tipos siguen quedándose con el PRIMERO de un repetido,
+  sin cambio. El refine de `siteSettingsEditableSchema` que rechazaba cualquier tipo repetido pasó
+  a excluir `transferencia` de esa prohibición — es la ÚNICA pieza fuera de
+  `lib/checkout/metodos-pago.ts`/`lib/admin/` que este slice tocó, por la excepción que el
+  dispatch declaró explícitamente (la frontera con el trabajo de Carlos).
+- **`metodosDisponibles` sigue devolviendo UNA sola opción `id:'transferencia'`** —el checkout no
+  cambia de ruta, el id que viaja al servidor es el mismo de siempre—, pero ahora la arma a partir
+  de TODAS las cuentas guardadas: filtra las incompletas (misma regla de hoy, por cuenta, vía
+  `opcionTransferencia` sin tocar), y entre las que quedan completas, **CERO → el método no
+  aparece (igual que hoy); UNA → `desc` es exactamente su línea, BYTE-IDÉNTICO al checkout de
+  antes de este slice; DOS O MÁS → `desc` pasa a ser la frase introductoria
+  (`INTRO_VARIAS_CUENTAS`, "Puedes transferir a cualquiera de estas cuentas:") y el nuevo campo
+  `cuentas: string[]` (opcional, `undefined` con una sola cuenta) lleva una línea por cuenta.**
+  `app/(storefront)/checkout/page.tsx` sólo agrega una `<ul>` condicional (`opt.cuentas &&`) tras
+  la línea de siempre — con una cuenta esa rama no renderiza nada, así que el árbol DOM queda
+  igual.
+- **El panel gana «+ Otra cuenta»**, el texto exacto del spec: un botón que aparece después de la
+  ÚLTIMA fila de transferencia (sólo si ya hay al menos una) y abre la MISMA hoja «Agregar medio»,
+  saltando directo al formulario de `transferencia` — no un mecanismo nuevo, el mismo
+  `DunaSheet`/`FormularioAgregar` que ya guardaba al confirmar. «Agregar medio» (el botón de
+  cabecera) sigue ofreciendo los OTROS cuatro tipos una sola vez, sin cambio — transferencia
+  deja de estar en `faltantes` en cuanto tiene su primera cuenta, y de ahí en más SÓLO se agrega
+  por «+ Otra cuenta».
+- **Editar/Quitar operan por CUENTA, no por tipo.** `editandoClave` (antes `editandoTipo`)
+  identifica la fila por su `claveMedioPago`; `conMedio`/`sinMedio` (`PagosCobrosBloque.tsx`)
+  ganaron un cuarto parámetro (`claveOriginal`) que sólo importa para `transferencia` — reemplaza
+  la cuenta exacta en vez de "la del tipo". El id se asigna (o se conserva) EN `conMedio`, nunca
+  antes: una cuenta LEGADO sin id —guardada antes de este slice; como mucho UNA, porque la
+  validación vieja prohibía repetir `transferencia`— se autorrepara con un id real la primera vez
+  que se guarda, en vez de duplicarse.
+- **Disambiguación de toasts y del diálogo de confirmación**: `nombreMedioPago` (ya existía, pega
+  el banco al label para transferencia) reemplazó a `labelMetodo` en los tres toasts
+  (guardar/quitar/agregar) y en el `ConfirmDeleteDialog` de «Quitar» — con una sola cuenta el
+  texto es idéntico a antes ("Transferencia Bancaria guardado."); con varias, dice CUÁL
+  ("Transferencia Bancaria · Davivienda guardado."). Sin este cambio, guardar o quitar cualquiera
+  de dos cuentas habría mostrado el mismo toast ambiguo.
+- **Sin cambio de CSS.** `app/(admin)/duna.css` estaba en `touches:` por si hacía falta una clase
+  nueva; no hizo falta — «+ Otra cuenta» reusa `duna-btn`/`duna-btn--ghost`/`duna-btn--sm`, y la
+  lista de cuentas del checkout/panel reusa `duna-field__hint`/utilidades Tailwind ya en uso. El
+  archivo queda SIN TOCAR.
+
+### Verificación de byte-identidad (con UNA cuenta)
+
+Pedida explícitamente por el spec, "por `renderToStaticMarkup` con datos en memoria, sin `.env` ni
+base" — se aisló el fragmento JSX exacto de la opción de pago (checkout) y de «Así lo ve tu
+cliente» (panel) en dos variantes, la de ANTES de este slice (sin el bloque `opt.cuentas`) y la de
+AHORA con `opt.cuentas === undefined` (el caso de una cuenta), y se comparó el HTML byte a byte:
+**idéntico en los dos sitios** (`.scratch/byte-identidad-checkout.mjs`,
+`.scratch/byte-identidad-panel.mjs`, no comiteados — `.scratch/` está gitignoreado). El mismo
+arnés confirma que con DOS cuentas la lista aparece (`cuentas.includes('Davivienda')`).
+
+### `verificar:nayoli:visual` — corrido, su drift NO es de este slice
+
+Corrido completo (main vs. la rama, 383 commits de diferencia — ninguno de este slice pusheado a
+`main` todavía). Reporta diferencias en 6 de 8 rutas, incluida `checkout`. **Medido, no
+asumido, que la diferencia de `checkout` es AJENA**: la captura corre con el carrito VACÍO (la
+ruta por defecto del arnés, sin ítems), así que la sección de métodos de pago —donde vive TODO lo
+que este slice toca— **nunca se renderiza**; el diff real (`.scratch/verificar-nayoli-visual/
+diffs/ruta-checkout.png`) está en el pie de página ("Hecho por Duna"), texto de marca de una
+tanda anterior ya en esta rama, sin relación con pagos. Las otras 5 rutas (home/tienda/producto/
+nosotros/suscripciones) tampoco tocan `lib/checkout/metodos-pago.ts` ni `PagosCobrosBloque.tsx` —
+es el mismo piso de drift acumulado que `PANEL-CONFIG-PAGOS-1`/`PANEL-PAGOS-PASARELA-CHIPS-1` ya
+documentaron arriba para esta misma rama, no una regresión de este commit.
+
+### Deviations
+
+- **No se construyó una captura en vivo (sesión de navegador) con DOS cuentas reales**, el "si se
+  pudo" del cierre. Habría exigido un arnés propio: sesión autenticada en `/admin/configuracion` +
+  un carrito poblado en `/checkout` + una base efímera sembrada con dos cuentas de transferencia —
+  bastante más que adaptar `verificar:nayoli:visual` (que compara contra un prototipo de
+  storefront, no monta el admin con sesión) o `capturar-seccion.ts` (que no pobla carrito ni
+  siembra `SiteSetting.metodosPago`). Se sustituyó por la verificación de
+  `renderToStaticMarkup` (arriba) sobre el fragmento JSX EXACTO que el componente real monta —
+  misma fidelidad de bytes, sin el costo de construir un arnés nuevo para un ask explícitamente
+  condicional.
+- **El chequeo mecánico contra CLAUDE.md encontró DOS sentencias que este diff vuelve imprecisas**
+  (no las toqué — `CLAUDE.md` no está en `touches:`):
+  - `CLAUDE.md:2121` — *"hoy la cuenta vive como los `datos` (…) del elemento `transferencia`
+    dentro de `SiteSetting.metodosPago`"*: el singular ("el elemento") describía un modelo de UNA
+    cuenta; después de este slice puede haber varios elementos `transferencia`, cada uno con su
+    propia cuenta.
+  - `CLAUDE.md:2152` — *"[los cinco tipos], cada uno dueño de sus propios `datos`"*: misma
+    asunción 1-tipo→1-`datos`, ahora falsa para `transferencia`.
+  Ninguna de las dos queda LITERALMENTE falsa como afirmación aislada (nada dice "a lo sumo una
+  cuenta"), pero las dos describen el modelo viejo de forma que ya no cubre el caso nuevo. Se
+  reportan como open follow-up, no se corrigen acá.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff cambia: `PagosCobrosBloque`, `claveMedioPago`,
+`FilaMedioPago`, `MetodoCheckout`, `conMedio`, `sinMedio`, `nombreMedioPago`,
+`filasMediosPago` → CERO coincidencias en CLAUDE.md. `metodosDisponibles` (2 coincidencias),
+`opcionTransferencia` (3), `metodoIncompleto` (1), `siteSettingsEditableSchema` (2) → revisadas una
+por una; todas siguen siendo ciertas tal como están escritas (ninguna afirma "una sola cuenta" de
+forma que este diff contradiga). Las dos excepciones —imprecisas, no falsas en el sentido estricto—
+están en Deviations, arriba.
+
+### `schema`/`cross-repo-contract`
+
+Ninguno. `SiteSetting.metodosPago` sigue siendo `Json` — sin migración, sin columna nueva. El id de
+checkout que viaja a `app/api/checkout/route.ts` sigue siendo la cadena `'transferencia'`
+(`metodoPagoTipoSchema`, sin tocar); `app/api/` entero quedó fuera de este diff, por la frontera
+declarada con el trabajo de Carlos.
+
+### `changed` (bytes de cliente/operador/dueño)
+
+**`true`.** Dos superficies, las dos de cliente/dueño reales:
+- **Storefront** (`app/(storefront)/checkout/page.tsx`): con 2+ cuentas de transferencia, el
+  comprador ve "Puedes transferir a cualquiera de estas cuentas:" + una línea por cuenta, en vez
+  de una sola línea de banco. Con 1 cuenta (el caso de Nayoli hoy), BYTE-IDÉNTICO — verificado
+  arriba.
+- **Admin** (`PagosCobrosBloque.tsx`, `/admin/configuracion`): el botón nuevo «+ Otra cuenta», y
+  los toasts/diálogo de confirmación ahora nombran el banco de la cuenta tocada.
+
+### Gate
+
+| Capa | Resultado |
+| --- | --- |
+| `npm run typecheck` | 0 errores |
+| `npx eslint` sobre los 5 archivos con lógica tocados (`PagosCobrosBloque.tsx`, `metodos-pago.ts`, `medios-pago-vista.ts`, `site-settings-schema.ts`, `app/(storefront)/checkout/page.tsx`) | limpio, sin salida nueva (las 4 advertencias preexistentes de `checkout/page.tsx` no están cerca de las líneas tocadas) |
+| `npm test` (capa 1) | **3967/3967** — nuevos: 7 en `lib/checkout/metodos-pago.test.ts` (parseMetodosPago×3, claveMedioPago×2, metodosDisponibles×3), 2 en `lib/admin/medios-pago-vista.test.ts`, 8 en `lib/config/site-settings-schema.test.ts` (archivo nuevo) |
+| `npm run test:integracion` | **363/363**, sin cambio — este slice no tocó ninguna cadena que ese carril cubra (sin escritura de base nueva) |
+| Reproducción contra la lógica VIEJA | `.scratch/verificar-regresion-pagos.mjs` reconstruye `parseMetodosPago`/`metodosDisponibles` tal como estaban antes de este slice y confirma que los tests nuevos los ven FALLAR (1 cuenta en vez de 2, sin campo `cuentas`) — no comiteado |
+| `renderToStaticMarkup` (byte-identidad, 1 cuenta) | idéntico en checkout y panel; con 2 cuentas, la lista aparece — ver arriba |
+| `npm run verificar:nayoli:visual` | corrido completo; diferencias en 6/8 rutas, NINGUNA atribuible a este diff (ver arriba) |
+
+### Open follow-ups
+
+- **`PAGOS-VARIAS-CUENTAS-PEDIDO-SIN-CUENTA-1`**: el pedido NO guarda cuál cuenta de transferencia
+  eligió el cliente (decisión explícita del owner, § arriba) — `Order`/`OrderItem` no ganan
+  columna. Si algún día hace falta saber cuál cuenta recibió una transferencia específica, es su
+  propia decisión, y probablemente espera al trabajo multi-tenant (mismo criterio que el resto de
+  "qué configura a un tenant", CLAUDE.md § "LO QUE CONFIGURA A UN TENANT PREFIERE DATO…").
+- **`CLAUDE-MD-TRANSFERENCIA-SINGULAR-DESC-1`**: `CLAUDE.md:2121` y `CLAUDE.md:2152` describen el
+  modelo de `metodosPago`/`transferencia` en términos que asumen una cuenta por tipo (§
+  Deviations, arriba). Fuera de `touches:` de este slice; se corrige cuando se toque esa sección
+  de CLAUDE.md por otra razón, o en una tanda de higiene de doctrina.
+- **`PAGOS-VARIAS-CUENTAS-LIVE-VERIFY-1`**: la sesión de navegador con dos cuentas reales (el "si
+  se pudo" del cierre) no se construyó — ver Deviations. Si el owner la quiere antes de aprobar el
+  merge, es un arnés nuevo (sesión admin autenticada + carrito poblado + `SiteSetting.metodosPago`
+  sembrado con 2 cuentas), no una adaptación barata de lo que ya existe.
+
+### Verdict
+
+**AWAITING_APPROVAL**, `stopped_on: [customer-bytes]` — mismo eje que el resto de esta rama. Sin
+schema, sin contrato cruzado. `npm run gate` GREEN de punta a punta (typecheck 0 · 3967/3967 ·
+363/363, los dos corridos en el puerto estándar sin contención esta vez). Byte-identidad del
+checkout y del panel con una sola cuenta verificada por `renderToStaticMarkup`, en memoria, sin
+`.env` ni base. `verificar:nayoli:visual` corrido completo; su drift es heredado de la rama (383
+commits sin mergear a `main`), no de este commit — medido, no asumido, mirando el PNG del diff de
+`checkout`. La captura en vivo con dos cuentas reales (el "si se pudo") no se completó (ver
+Deviations/Open follow-ups). Commit pendiente en `slice/editor-secciones-1` — queda a la espera
+del merge gateado.
+
+**Cierra `PAGOS-VARIAS-CUENTAS-1`.**
