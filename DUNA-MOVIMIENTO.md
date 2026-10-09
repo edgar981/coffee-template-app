@@ -117,3 +117,62 @@ elemento, corré el censo, y traé la clase (`ticker`/`scrub`/`revelado`) con su
 (velocidad, ventana de scroll, o desplazamiento y duración) — eso es lo que un spec necesita para
 implementar la transición sin adivinar, y es lo que las tres rondas del marquee tuvieron que
 reconstruir a mano, una por una, porque nadie lo había medido antes de escribir el spec.
+
+## El marco de movimiento sobre GSAP (§ MOVIMIENTO-MARCO-GSAP-1)
+
+Construido el 2026-10-08, sobre el prototipo aprobado por el owner (`docs/movimiento/
+catalogo-movimiento.html` — «Me gustaron todas las animaciones») y el censo `GSAP-MARCO-CENSO-1`
+(`docs/movimiento/GSAP-MARCO-CENSO-1.md`, copiado del mismo `.scratch/` que lo produjo).
+
+### Dónde vive cada pieza
+
+- **El registro** — `lib/movimiento/catalogo.ts` (puro, sin DOM, con test en `catalogo.test.ts`).
+  Las 19 animaciones del prototipo, cada una con su id (`T01`…, el MISMO del prototipo), su
+  `nombre` en palabras llanas, su `nivel` (esencial/editorial/firma), a qué `aplicaA` (texto,
+  imagen, tarjetas, cifras, sección, hero), sus `clases` en el vocabulario interno de este mismo
+  documento (`ticker`/`scrub`/`revelado`), y si `implementada` (si el motor de abajo la construye
+  hoy). `MOVIMIENTO_NINGUNA` (`''`) es «Ninguna» — la ausencia, nunca una entrada del catálogo.
+- **El motor** — `components/storefront/movimiento/`: `Movimiento.tsx` (el componente genérico,
+  `<Movimiento id="T01" as="h2">…`), `useMovimiento.ts` (el hook: decide SI corre — gates de
+  editor/preview, `prefers-reduced-motion`, y si el motor implementa el id — y arma `useGSAP`), y
+  `animaciones.ts` (las once funciones ESENCIALES, una por id, traducción directa del `<script>`
+  del prototipo). `id` ausente/«Ninguna» no monta NINGÚN nodo propio — devuelve los children tal
+  cual, por eso «Ninguna» es byte-idéntico a no usar el componente.
+- **El eje por sección** — hoy SÓLO en `secciones-instancias.ts`, tipo `texto` (la demostración de
+  este slice: `escalares.animacion`, un escalar clampado al catálogo, igual mecanismo que
+  `alineacion`). Sumarlo a las otras ocho instancias y a las bandas del home (`site-content-
+  defaults.ts`) es la extensión que necesita exponerlo en el editor — explícitamente deferida, no
+  construida en este slice.
+
+### La convivencia con framer-motion — un elemento, una librería
+
+**GSAP es para SCROLL y NARRATIVA; Motion (framer-motion) es para lo que APARECE y DESAPARECE**
+(decisión del owner sobre el censo, aceptando su recomendación B — convivencia, no reemplazo total
+ni un tercer sistema en paralelo). En la práctica, hoy:
+
+- Los `whileInView`/`useScroll`/`AnimatePresence` de framer-motion que YA existen (`lib/
+  animation.ts`, `RevelarBloque.tsx`, `TextoEnCascada.tsx`, el checkout, los drawers) **no se
+  tocan** — este slice no migra nada existente, sólo abre el camino para lo nuevo.
+- Lo nuevo que declare un eje `animacion` de este catálogo usa el motor de GSAP de este archivo —
+  nunca framer-motion para una animación nueva del catálogo, y nunca GSAP para un
+  aparece/desaparece de estado de React que framer-motion ya resuelve bien (un modal, un
+  `AnimatePresence`).
+- **Un mismo elemento nunca lleva las dos.** Si una sección necesita GSAP para su scroll Y Motion
+  para un modal propio, son dos NODOS distintos del árbol, cada uno con su librería — nunca el
+  mismo nodo animado por las dos a la vez (§ el censo, "convivencia-tercera-clase-sin-bucket-y-
+  ausencia-de-doble-driver": es un riesgo de MANTENIMIENTO, no un conflicto técnico real, pero se
+  evita igual).
+
+### Cómo se agrega una animación al catálogo
+
+1. Midela contra el prototipo aprobado (`docs/movimiento/catalogo-movimiento.html`) o, si es
+   enteramente nueva, contra `npm run censar:movimiento` (para que su CLASE interna sea medida, no
+   inventada).
+2. Agregá su entrada a `CATALOGO_MOVIMIENTO` (`lib/movimiento/catalogo.ts`) con `implementada:
+   false` si todavía no tiene motor — el catálogo puede nombrar una animación antes de construirla.
+3. Si la construís, agregá su función a `ANIMACIONES_ESENCIALES` (`components/storefront/
+   movimiento/animaciones.ts`) y marcá `implementada: true` — `motorDisponible(id)` es lo único que
+   decide si `useMovimiento` la corre; un id `implementada:false` queda visible en el catálogo pero
+   el motor nunca la invoca.
+4. Verificá SIEMPRE contra `verificar:nayoli:visual` (§ arriba) antes de cerrar — ninguna animación
+   nueva, con «Ninguna» como default, debe mover un píxel de Nayoli.

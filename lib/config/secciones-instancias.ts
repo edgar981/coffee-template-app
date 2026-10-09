@@ -33,6 +33,11 @@
 // mecanismo cada uno — mismo patrón que `BrandStory.tsx` leyendo `brandStory` antes de elegir su
 // variante, en vez de cada variante leyendo el contexto por su cuenta.
 
+// `lib/movimiento/catalogo.ts` es un módulo HOJA independiente (§ MOVIMIENTO-MARCO-GSAP-1,
+// ANIMACION_SECCION más abajo) — no crea el ciclo que el docstring de arriba previene, porque ese
+// catálogo no importa NADA de vuelta de este archivo ni de `site-content-defaults.ts`.
+import { CLAVES_ANIMACION, MOVIMIENTO_NINGUNA } from '../movimiento/catalogo';
+
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
@@ -119,6 +124,22 @@ export interface InstanciaDescriptor {
 }
 
 const ALINEACIONES_TEXTO = { claves: ['izquierda', 'centro', 'derecha'], canonica: 'centro' } as const;
+// EL EJE `animacion` (§ MOVIMIENTO-MARCO-GSAP-1) — ESCALAR clampado, MISMA forma que
+// `ALINEACIONES_TEXTO` arriba: `claves` es «Ninguna» (`MOVIMIENTO_NINGUNA`, la canónica) más cada
+// id del catálogo de `lib/movimiento/catalogo.ts` — un módulo tan HOJA como éste (cero imports de
+// vuelta a `secciones-instancias.ts` ni a `site-content-defaults.ts`), así que importarlo acá NO
+// abre el ciclo que el docstring de cabecera existe para evitar. Elegir un id SIN motor todavía
+// (`implementada:false`) no es basura — `CLAVES_ANIMACION` los incluye a propósito (§ su
+// docstring) — así que esta línea no necesita saber cuáles tienen motor; eso lo decide
+// `motorDisponible` en tiempo de RENDER, no en tiempo de VALIDACIÓN.
+//
+// SÓLO EN "texto" POR AHORA — la demostración de este slice (§ el spec, punto 4: "este slice NO
+// cablea el ajuste en cada sección… lo demuestra cableándolo en UNA sección de prueba"). Sumar el
+// eje a los otros ocho tipos (y a las bandas del home, en `site-content-defaults.ts`) es la
+// extensión que la exposición en el editor necesita, y no antes — mismo criterio que cualquier
+// escalar nuevo del REGISTRY: se declara donde se demuestra, se extiende cuando hay un segundo uso
+// real que lo pida.
+const ANIMACION_SECCION = { claves: CLAVES_ANIMACION, canonica: MOVIMIENTO_NINGUNA } as const;
 const LADOS_IMAGEN_TEXTO = { claves: ['izquierda', 'derecha'], canonica: 'izquierda' } as const;
 // Gemelo de `ALTURAS_HERO`/`CLASES_ALTURA_HERO` (`site-content-defaults.ts`) — mismos TRES pasos,
 // misma canónica 'justo'; duplicado acá por el módulo-hoja de arriba. El COMPONENTE (no este
@@ -145,7 +166,7 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
     },
-    escalares: { alineacion: ALINEACIONES_TEXTO },
+    escalares: { alineacion: ALINEACIONES_TEXTO, animacion: ANIMACION_SECCION },
   },
   imagenTexto: {
     campos: {
@@ -295,6 +316,10 @@ export interface InstanciaTextoContent {
   ctaLabel: string;
   ctaDestino: string;
   alineacion: string;
+  // § MOVIMIENTO-MARCO-GSAP-1 — id del catálogo de `lib/movimiento/catalogo.ts`, o
+  // `MOVIMIENTO_NINGUNA` ('', la canónica). Escalar clampado como `alineacion` — nunca un string
+  // libre: `resolverInstancia` lo normaliza a un id real del catálogo o a «Ninguna».
+  animacion: string;
   visible: boolean;
 }
 
@@ -450,6 +475,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaLabel: '',
     ctaDestino: '',
     alineacion: ALINEACIONES_TEXTO.canonica,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   imagenTexto: {

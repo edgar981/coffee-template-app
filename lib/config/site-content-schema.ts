@@ -468,6 +468,12 @@ const instanciaTextoEditableSchema = z.object({
   // resolver SOFT (`resolverInstancia`, vía `DESCRIPTOR_INSTANCIA.texto.escalares.alineacion`) ya
   // clampa al set cerrado o a la canónica.
   alineacion: z.string().optional(),
+  // § MOVIMIENTO-MARCO-GSAP-1 — MISMO motivo que `alineacion`: `z.string()`, no `z.enum`; el
+  // resolver (vía `DESCRIPTOR_INSTANCIA.texto.escalares.animacion`) clampa al catálogo de
+  // `lib/movimiento/catalogo.ts` o a «Ninguna». SIN esto, `z.object` lo STRIPPEARÍA en silencio
+  // (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado") — exactamente la clase de defecto
+  // que ya mordió a `presentaciones.categoria1/2` (§ 65-B).
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 const instanciaImagenTextoEditableSchema = z.object({

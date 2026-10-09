@@ -1,0 +1,543 @@
+<title>Catálogo de movimiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Serif:ital,opsz,wght@0,8..144,300..700;1,8..144,300..500&family=Figtree:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una tienda real (paleta y letras del tema CORTE de Las Chamisas) recorrida de arriba abajo;
+   cada animación es un bloque con su ficha (id, nombre, para qué sirve). Una sola apariencia, clara, a propósito:
+   la tienda es de tema claro. */
+:root{
+  --fondo:#fdfbf7; --tinta:#102407; --acento:#a70004; --tostado:#c79a55;
+  --texto:color-mix(in oklab,var(--tinta) 84%,var(--fondo));
+  --suave:color-mix(in oklab,var(--tinta) 56%,var(--fondo));
+  --linea:color-mix(in oklab,var(--tinta) 14%,var(--fondo));
+  --sup:color-mix(in oklab,var(--tinta) 5%,var(--fondo));
+  --cereza:#b3261e; --verde-grano:#9aa86a;
+  --ff-d:'Roboto Serif',Georgia,serif; --ff-b:'Figtree',system-ui,sans-serif; --ff-m:'Spline Sans Mono',ui-monospace,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{background:var(--fondo);color:var(--texto)}
+body{font:400 16px/1.6 var(--ff-b);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{font-family:var(--ff-d);color:var(--tinta);font-weight:400;text-wrap:balance;margin:0;letter-spacing:-.01em}
+p{margin:0}
+.wrap{padding-inline:clamp(16px,4vw,56px)}
+.mono{font-family:var(--ff-m)}
+
+/* barra */
+.barra{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding-block:10px;background:color-mix(in oklab,var(--fondo) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--linea)}
+.barra b{font:500 13px var(--ff-m);letter-spacing:.08em;text-transform:uppercase;color:var(--tinta)}
+.barra nav{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.barra nav a{font:500 13px var(--ff-b);color:var(--suave);text-decoration:none;padding:6px 10px;border-radius:999px}
+.barra nav a:hover,.barra nav a:focus-visible{color:var(--tinta);background:var(--sup)}
+.quieto{display:flex;align-items:center;gap:8px;font:500 13px var(--ff-b);color:var(--tinta);background:none;border:1px solid var(--linea);border-radius:999px;padding:6px 12px;cursor:pointer}
+.quieto[aria-pressed="true"]{background:var(--tinta);color:var(--fondo);border-color:var(--tinta)}
+:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+
+/* ficha de cada animación */
+.ficha{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-block:28px 14px;border-top:1px solid var(--linea)}
+.ficha .id{font:500 12px var(--ff-m);color:var(--acento);letter-spacing:.06em}
+.ficha h2{font-size:clamp(20px,2.4vw,26px)}
+.ficha .para{font-size:14px;color:var(--suave);flex-basis:100%;max-width:70ch}
+.ficha .nivel{font:500 11px var(--ff-m);letter-spacing:.08em;text-transform:uppercase;color:var(--suave);border:1px solid var(--linea);border-radius:999px;padding:2px 8px}
+.repetir{margin-left:auto;font:500 13px var(--ff-b);color:var(--tinta);background:var(--sup);border:0;border-radius:999px;padding:6px 12px;cursor:pointer}
+.escena{padding-block:24px 56px}
+.grupo-t{font:500 12px var(--ff-m);letter-spacing:.12em;text-transform:uppercase;color:var(--tostado);padding-block:72px 0}
+.grupo-t + h2.titulo-grupo{font-size:clamp(32px,5vw,56px);padding-block:8px 24px}
+
+/* "fotos": ilustraciones con gradientes, no imágenes reales */
+.foto{position:relative;overflow:hidden;border-radius:4px;aspect-ratio:16/9;max-width:100%;background:var(--sup)}
+.foto .capa{position:absolute;inset:-12% 0;background:
+  radial-gradient(120% 70% at 70% 15%,#f2d9a6 0%,transparent 55%),
+  linear-gradient(180deg,#cfd8b8 0%,#7f9a5e 38%,#3d5a2a 62%,#1f3514 100%)}
+.foto .capa::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(60% 30% at 20% 72%,#2c4a1c 0%,transparent 70%),radial-gradient(50% 25% at 85% 80%,#24401a 0%,transparent 70%)}
+.foto .pie{position:absolute;left:12px;bottom:10px;font:500 11px var(--ff-m);letter-spacing:.06em;color:#fff;opacity:.85;text-transform:uppercase}
+.foto.cerezas .capa{background:radial-gradient(18% 18% at 30% 40%,#c4302b 0 40%,transparent 41%),radial-gradient(14% 14% at 52% 55%,#a3211c 0 40%,transparent 41%),radial-gradient(16% 16% at 70% 35%,#d24a2e 0 40%,transparent 41%),radial-gradient(12% 12% at 44% 28%,#8f1d18 0 40%,transparent 41%),linear-gradient(160deg,#5c7a3a,#2b4719)}
+.foto.secado .capa{background:repeating-linear-gradient(90deg,#b9895a 0 6px,#a7764a 6px 12px),linear-gradient(#c89a64,#9b6c3e)}
+.foto.secado .capa::after{background:linear-gradient(180deg,rgba(255,240,200,.35),transparent 60%)}
+.foto.tostion .capa{background:radial-gradient(70% 60% at 50% 60%,#5a3418 0%,#2a170b 70%)}
+.foto.taza .capa{background:radial-gradient(30% 30% at 50% 55%,#3a2210 0 55%,#f4efe6 56% 72%,transparent 73%),linear-gradient(#e9e0d0,#d7cbb6)}
+
+/* T: texto */
+.frase{font-family:var(--ff-d);color:var(--tinta);font-size:clamp(34px,6vw,76px);line-height:1.05;max-width:16ch}
+.frase em{font-style:italic;color:var(--acento)}
+.parrafo{font-size:clamp(17px,1.6vw,20px);max-width:60ch;color:var(--texto)}
+.resaltada{position:relative;white-space:nowrap}
+.resaltada::after{content:"";position:absolute;left:0;right:0;bottom:.06em;height:.12em;background:var(--tostado);transform:scaleX(var(--s,1));transform-origin:left}
+.gigante-zona{position:relative;overflow:hidden;border-radius:4px}
+.gigante{position:absolute;inset:auto 0 8% 0;font-family:var(--ff-d);font-size:clamp(90px,22vw,320px);line-height:.8;color:var(--fondo);white-space:nowrap;mix-blend-mode:normal;text-shadow:0 2px 30px rgba(0,0,0,.2);pointer-events:none}
+.split-linea{display:block;overflow:hidden}
+.split-pieza{display:inline-block;will-change:transform}
+
+/* I: imagen */
+.doble{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:24px;align-items:center}
+
+/* C: tarjetas */
+.tarjetas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:20px}
+.tarjeta{background:var(--sup);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.bolsa{aspect-ratio:3/4;border-radius:3px;display:grid;place-items:center;font:500 13px var(--ff-m);letter-spacing:.1em;color:var(--fondo);text-transform:uppercase}
+.tarjeta h3{font-size:20px}
+.tarjeta .precio{font:600 15px var(--ff-b);color:var(--tinta)}
+.tarjeta.elevar{transition:none}
+
+/* N: cifras */
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:32px}
+.cifra b{display:block;font:300 clamp(44px,6vw,72px)/1 var(--ff-d);color:var(--tinta);font-variant-numeric:tabular-nums}
+.cifra i{display:block;height:2px;background:var(--tostado);margin-block:12px 8px;transform-origin:left}
+.cifra span{font:500 12px var(--ff-m);letter-spacing:.1em;text-transform:uppercase;color:var(--suave)}
+
+/* S01 capítulos */
+.capitulos{border-radius:4px;overflow:hidden;background:var(--fondo);transition:none}
+.capitulo{min-height:70vh;display:grid;place-items:center;padding:48px 24px;text-align:center}
+.capitulo h3{font-size:clamp(36px,6vw,72px);color:inherit}
+.capitulo p{max-width:42ch;margin-top:12px;color:inherit;opacity:.8}
+
+/* S02 del fruto a la taza */
+.proceso{position:relative;height:100vh;min-height:520px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:32px;align-items:center;background:var(--fondo)}
+.pasos-texto{position:relative;min-height:200px}
+.paso{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.paso .n{font:500 13px var(--ff-m);color:var(--acento);letter-spacing:.08em}
+.paso h3{font-size:clamp(30px,4vw,52px)}
+.paso p{max-width:38ch;color:var(--suave)}
+.proceso .lienzo{position:relative;aspect-ratio:1;max-height:76vh;max-width:100%;justify-self:center;width:100%}
+.proceso svg{width:100%;height:100%}
+.barra-pasos{position:absolute;left:0;bottom:24px;display:flex;gap:6px}
+.barra-pasos i{width:28px;height:3px;background:var(--linea)}
+.barra-pasos i.on{background:var(--tinta)}
+
+/* S03 galería horizontal */
+.horizontal{height:100vh;min-height:480px;display:flex;align-items:center;overflow:hidden}
+.tira{display:flex;gap:24px;padding-inline:clamp(16px,4vw,56px);will-change:transform}
+.tira .foto{flex:0 0 min(70vw,560px);aspect-ratio:4/5}
+
+/* Heroes */
+.hero{position:relative;height:100vh;min-height:560px;overflow:hidden;background:var(--fondo)}
+.hero svg{position:absolute;inset:0;width:100%;height:100%}
+.hero .titulo-hero{position:absolute;left:clamp(16px,6vw,96px);top:16vh;max-width:min(620px,90vw);z-index:2}
+.hero .titulo-hero h1{font-size:clamp(40px,6.4vw,92px);line-height:1}
+.hero .titulo-hero p{margin-top:16px;font-size:18px;color:var(--suave);max-width:40ch}
+.hero .indica{position:absolute;right:clamp(16px,4vw,48px);bottom:24px;font:500 12px var(--ff-m);letter-spacing:.1em;text-transform:uppercase;color:var(--suave)}
+.hero-cereza{background:var(--fondo)}
+.hero-cereza .siguiente{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--fondo);z-index:3;opacity:0;padding:24px}
+.hero-cereza .siguiente h2{color:var(--fondo);font-size:clamp(34px,5vw,64px)}
+.hero-paisaje .texto-paisaje{position:absolute;inset:0;display:grid;place-items:center;text-align:center;z-index:2;padding:24px}
+.hero-paisaje h1{color:var(--fondo);font-size:clamp(44px,8vw,120px);line-height:.95;text-shadow:0 2px 40px rgba(0,0,0,.25)}
+.hero-paisaje .alt{font:500 13px var(--ff-m);letter-spacing:.12em;color:var(--fondo);opacity:.9;margin-top:14px}
+
+/* CTA vapor */
+.cta{position:relative;min-height:90vh;display:grid;place-items:center;text-align:center;background:var(--tinta);color:var(--fondo);border-radius:4px;overflow:hidden;padding:48px 24px}
+.cta svg{width:min(320px,70vw);height:auto}
+.cta h2{color:var(--fondo);font-size:clamp(30px,4.6vw,56px);margin-top:8px}
+.cta .boton{display:inline-block;margin-top:24px;font:600 15px var(--ff-b);color:var(--tinta);background:var(--fondo);padding:14px 26px;border-radius:2px;text-decoration:none}
+
+.intro{padding-block:56px 24px;display:grid;gap:14px;max-width:72ch}
+.intro h1{font-size:clamp(36px,5vw,60px)}
+.intro p{color:var(--suave)}
+.niveles{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+footer{padding-block:48px;color:var(--suave);font-size:14px;border-top:1px solid var(--linea);margin-top:72px}
+
+@media (max-width:760px){
+  .proceso{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:100vh;padding-block:72px 24px}
+  .pasos-texto{min-height:170px}
+  .proceso .lienzo{max-height:46vh}
+}
+</style>
+
+<header class="barra wrap">
+  <b>Catálogo de movimiento</b>
+  <nav aria-label="Secciones del catálogo">
+    <a href="#heroes">Héroes</a><a href="#texto">Texto</a><a href="#imagen">Imagen</a><a href="#tarjetas">Tarjetas y cifras</a><a href="#secciones">Secciones</a><a href="#cierre">Cierre</a>
+  </nav>
+  <button class="quieto" id="quieto" type="button" aria-pressed="false">Ver sin animación («Ninguna»)</button>
+</header>
+
+<main>
+<section class="wrap intro">
+  <span class="mono" style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--tostado)">Duna · marco de animaciones para tiendas de café</span>
+  <h1>Cada sección elige su movimiento</h1>
+  <p>Esto es un prototipo para elegir. Cada bloque es una animación del catálogo, con su código y su uso, sobre la paleta y las letras del tema de Las Chamisas. Baja despacio: casi todo responde al scroll. Las fotos son ilustraciones de relleno. El botón de arriba muestra la página como quedaría con «Ninguna».</p>
+  <div class="niveles"><span class="ficha nivel" style="border-top:0;padding:2px 8px">Esencial</span><span class="ficha nivel" style="border-top:0;padding:2px 8px">Editorial</span><span class="ficha nivel" style="border-top:0;padding:2px 8px">Firma</span></div>
+</section>
+
+<!-- ================= HÉROES ================= -->
+<div id="heroes" class="wrap"><p class="grupo-t">Héroes · variantes de firma</p><h2 class="titulo-grupo">Tres formas de abrir la tienda</h2></div>
+
+<div class="wrap"><div class="ficha"><span class="id">H01</span><h2>El grano cae en la taza</h2><span class="nivel">Firma</span>
+<p class="para">El grano baja con el scroll, cambia de verde a tostado mientras cae y, al llegar a la taza, la superficie se mueve y aparece la marca. La sección se queda fija mientras dura.</p></div></div>
+<section class="hero" id="h01" aria-label="Hero: el grano cae en la taza">
+  <div class="titulo-hero"><h1>Café que viaja de la montaña a tu taza</h1><p>Cosechado a mano en San Adolfo, Huila.</p></div>
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><clipPath id="boca"><ellipse cx="1040" cy="640" rx="150" ry="34"/></clipPath></defs>
+    <g id="taza">
+      <path d="M880 640 Q880 820 1040 840 Q1200 820 1200 640 Z" fill="#f4efe6" stroke="#102407" stroke-width="3"/>
+      <path d="M1200 680 q70 0 70 50 q0 50 -76 54" fill="none" stroke="#102407" stroke-width="3"/>
+      <ellipse cx="1040" cy="640" rx="160" ry="38" fill="#f4efe6" stroke="#102407" stroke-width="3"/>
+      <ellipse cx="1040" cy="644" rx="146" ry="30" fill="#3a2210"/>
+      <g clip-path="url(#boca)"><ellipse id="onda1" cx="1040" cy="644" rx="10" ry="3" fill="none" stroke="#c79a55" stroke-width="3" opacity="0"/><ellipse id="onda2" cx="1040" cy="644" rx="10" ry="3" fill="none" stroke="#c79a55" stroke-width="2" opacity="0"/></g>
+      <ellipse cx="1040" cy="860" rx="210" ry="18" fill="#102407" opacity=".08"/>
+    </g>
+    <g id="grano" transform="translate(1040 120)">
+      <ellipse id="grano-cuerpo" rx="34" ry="46" fill="#9aa86a" stroke="#102407" stroke-width="2.5"/>
+      <path d="M0 -40 C-12 -14 12 14 0 40" fill="none" stroke="#102407" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <text id="marca-taza" x="1040" y="560" text-anchor="middle" font-family="Roboto Serif, Georgia, serif" font-size="44" fill="#102407" opacity="0">Las Chamisas</text>
+  </svg>
+  <span class="indica">Baja para que caiga</span>
+</section>
+
+<div class="wrap"><div class="ficha"><span class="id">H02</span><h2>La cereza se expande</h2><span class="nivel">Firma</span>
+<p class="para">Una cereza de café flota en el centro; con el scroll se acerca, crece hasta cubrir la pantalla y su color se vuelve el fondo de la siguiente sección. Sirve como transición del hero al resto de la página.</p></div></div>
+<section class="hero hero-cereza" id="h02" aria-label="Hero: la cereza se expande">
+  <div class="titulo-hero"><h1>Del fruto rojo nace todo</h1><p>Cada cereza se recoge madura, una por una.</p></div>
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g id="cereza" transform="translate(1000 470)">
+      <path d="M0 -70 C10 -120 50 -150 90 -160" fill="none" stroke="#3d5a2a" stroke-width="7" stroke-linecap="round"/>
+      <path d="M60 -150 C110 -190 170 -170 180 -130 C130 -120 90 -130 60 -150 Z" fill="#5c7a3a"/>
+      <circle id="cereza-fruto" r="80" fill="#b3261e"/>
+      <ellipse cx="-26" cy="-28" rx="18" ry="12" fill="#fff" opacity=".28"/>
+    </g>
+  </svg>
+  <div class="siguiente"><div><h2>Nuestra finca</h2><p style="margin-top:10px;opacity:.85">1.650 metros sobre el nivel del mar</p></div></div>
+</section>
+
+<div class="wrap"><div class="ficha"><span class="id">H03</span><h2>Paisaje en capas</h2><span class="nivel">Editorial</span>
+<p class="para">Para tiendas con buenas fotos de la finca: las montañas, el cafetal y el primer plano se mueven a velocidades distintas al bajar, y el título queda sobre ellas. Con foto o video real, en vez de la ilustración.</p></div></div>
+<section class="hero hero-paisaje" id="h03" aria-label="Hero: paisaje en capas">
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="1440" height="900" fill="#e9d7ad"/>
+    <circle cx="1080" cy="230" r="90" fill="#f6e6bf"/>
+    <path class="capa-p" data-v="0.15" d="M0 520 L180 380 L360 470 L560 300 L760 450 L980 330 L1200 440 L1440 340 L1440 900 L0 900Z" fill="#9db08a"/>
+    <path class="capa-p" data-v="0.35" d="M0 600 L220 480 L420 560 L640 440 L900 560 L1120 470 L1440 560 L1440 900 L0 900Z" fill="#6f8a55"/>
+    <path class="capa-p" data-v="0.6" d="M0 700 Q200 620 420 680 T860 670 T1440 650 L1440 900 L0 900Z" fill="#3d5a2a"/>
+    <g class="capa-p" data-v="0.95" fill="#1f3514">
+      <path d="M0 820 Q240 760 520 800 T1080 790 T1440 780 L1440 900 L0 900Z"/>
+      <circle cx="160" cy="780" r="38"/><circle cx="220" cy="770" r="30"/><circle cx="1260" cy="760" r="42"/><circle cx="1330" cy="772" r="30"/>
+    </g>
+  </svg>
+  <div class="texto-paisaje"><div><h1>Finca Las Chamisas</h1><p class="alt">San Adolfo, Huila · 1.650 m</p></div></div>
+</section>
+
+<!-- ================= TEXTO ================= -->
+<div id="texto" class="wrap"><p class="grupo-t">Texto</p><h2 class="titulo-grupo">Cómo aparece lo que se lee</h2></div>
+
+<div class="wrap">
+  <div class="ficha"><span class="id">T01</span><h2>Aparece por líneas</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="t01" type="button">▶ Repetir</button>
+  <p class="para">Cada línea sube desde abajo de una máscara. La animación por defecto para títulos.</p></div>
+  <div class="escena"><h2 class="frase" id="t01">Café cultivado con <em>paciencia</em>, cosechado a mano.</h2></div>
+
+  <div class="ficha"><span class="id">T02</span><h2>Palabra por palabra</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="t02" type="button">▶ Repetir</button>
+  <p class="para">Las palabras entran una tras otra. Para frases de historia. El lector de pantalla oye la frase entera.</p></div>
+  <div class="escena"><p class="frase" id="t02" style="max-width:20ch">El café empieza mucho antes de la taza.</p></div>
+
+  <div class="ficha"><span class="id">T03</span><h2>Letra a letra</h2><span class="nivel">Editorial</span><button class="repetir" data-repite="t03" type="button">▶ Repetir</button>
+  <p class="para">Para títulos cortos y momentos dramáticos; en un párrafo cansa.</p></div>
+  <div class="escena"><h2 class="frase" id="t03">Origen</h2></div>
+
+  <div class="ficha"><span class="id">T04</span><h2>Palabra resaltada</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="t04" type="button">▶ Repetir</button>
+  <p class="para">La frase aparece y una palabra clave se subraya con el color de la paleta. La palabra la elige quien diseña la tienda.</p></div>
+  <div class="escena"><p class="parrafo" id="t04" style="font-size:clamp(22px,2.6vw,32px);font-family:var(--ff-d);color:var(--tinta)">Cultivamos café en las montañas de <span class="resaltada">San Adolfo, Huila</span>, a la sombra de guamos y plátanos.</p></div>
+
+  <div class="ficha"><span class="id">T05</span><h2>Por bloque</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="t05" type="button">▶ Repetir</button>
+  <p class="para">El párrafo entero aparece de una vez, subiendo un poco. La opción más tranquila para textos largos (la que usa hoy la sección Origen).</p></div>
+  <div class="escena"><p class="parrafo" id="t05">Somos tres generaciones de caficultores. Recogemos sólo los frutos maduros, los despulpamos el mismo día y los secamos al sol en marquesinas, removiéndolos cada hora. Tostamos en pequeños lotes para que llegue a tu casa con el sabor que tiene en la finca.</p></div>
+
+  <div class="ficha"><span class="id">T06</span><h2>Tipografía gigante que cruza</h2><span class="nivel">Editorial</span>
+  <p class="para">Una palabra enorme se desliza de lado sobre una foto mientras bajas. Para abrir capítulos: Origen, Proceso, Tostión.</p></div>
+  <div class="escena"><div class="gigante-zona foto" style="aspect-ratio:21/9"><div class="capa"></div><div class="gigante" id="t06">ORIGEN · ORIGEN</div></div></div>
+</div>
+
+<!-- ================= IMAGEN ================= -->
+<div id="imagen" class="wrap"><p class="grupo-t">Imagen</p><h2 class="titulo-grupo">Cómo entran las fotos</h2></div>
+<div class="wrap">
+  <div class="ficha"><span class="id">I01</span><h2>Máscara que se abre</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="i01" type="button">▶ Repetir</button>
+  <p class="para">La foto se descubre de abajo hacia arriba. Limpia, para fotos de finca, cerezas o retratos.</p></div>
+  <div class="escena"><div class="foto cerezas" id="i01"><div class="capa"></div><span class="pie">Cerezas maduras</span></div></div>
+
+  <div class="ficha"><span class="id">I02</span><h2>Escala suave</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="i02" type="button">▶ Repetir</button>
+  <p class="para">La foto entra un poco más grande y se asienta. Tan sutil que no cansa: buena opción por defecto.</p></div>
+  <div class="escena doble">
+    <div class="foto secado" id="i02"><div class="capa"></div><span class="pie">Secado en marquesina</span></div>
+    <p class="parrafo">El secado toma entre doce y quince días. Movemos el grano a mano para que seque parejo y no fermente de más.</p>
+  </div>
+
+  <div class="ficha"><span class="id">I03</span><h2>Parallax</h2><span class="nivel">Esencial</span>
+  <p class="para">La foto se mueve más despacio que la página dentro de su marco. Para paisajes anchos.</p></div>
+  <div class="escena"><div class="foto" id="i03" style="aspect-ratio:21/9"><div class="capa"></div><span class="pie">El cafetal al amanecer</span></div></div>
+</div>
+
+<!-- ================= TARJETAS Y CIFRAS ================= -->
+<div id="tarjetas" class="wrap"><p class="grupo-t">Tarjetas y cifras</p><h2 class="titulo-grupo">Productos y datos de la finca</h2></div>
+<div class="wrap">
+  <div class="ficha"><span class="id">C01</span><h2>Tarjetas escalonadas</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="c01" type="button">▶ Repetir</button>
+  <p class="para">Los productos entran uno tras otro. Al pasar el mouse, la bolsa se eleva un poco (C02).</p></div>
+  <div class="escena tarjetas" id="c01">
+    <article class="tarjeta"><div class="bolsa" style="background:#102407">Tostión media</div><h3>Caturra lavado</h3><span class="precio">$ 38.000 · 340 g</span></article>
+    <article class="tarjeta"><div class="bolsa" style="background:#5a3418">Tostión alta</div><h3>Castillo honey</h3><span class="precio">$ 42.000 · 340 g</span></article>
+    <article class="tarjeta"><div class="bolsa" style="background:#a70004">Edición limitada</div><h3>Geisha natural</h3><span class="precio">$ 68.000 · 250 g</span></article>
+    <article class="tarjeta"><div class="bolsa" style="background:#c79a55">Tostión clara</div><h3>Pink bourbon</h3><span class="precio">$ 54.000 · 250 g</span></article>
+  </div>
+
+  <div class="ficha"><span class="id">N01</span><h2>Cifras que cuentan</h2><span class="nivel">Esencial</span><button class="repetir" data-repite="n01" type="button">▶ Repetir</button>
+  <p class="para">Los números suben desde cero al entrar y una línea crece debajo. Altitud, hectáreas, años.</p></div>
+  <div class="escena cifras" id="n01">
+    <div class="cifra"><b data-hasta="1650" data-sufijo=" m">1.650 m</b><i></i><span>Altitud</span></div>
+    <div class="cifra"><b data-hasta="25" data-sufijo=" ha">25 ha</b><i></i><span>Cultivadas</span></div>
+    <div class="cifra"><b data-hasta="18" data-sufijo=" años">18 años</b><i></i><span>Produciendo café</span></div>
+  </div>
+</div>
+
+<!-- ================= SECCIONES ================= -->
+<div id="secciones" class="wrap"><p class="grupo-t">Secciones</p><h2 class="titulo-grupo">Movimiento que cuenta una historia</h2></div>
+
+<div class="wrap"><div class="ficha"><span class="id">S01</span><h2>Capítulos de color</h2><span class="nivel">Editorial</span>
+<p class="para">El fondo cambia de color entre capítulos, siempre con los colores de la paleta de la tienda (fondo, tinta, tostado), nunca colores fijos.</p></div></div>
+<div class="wrap"><div class="capitulos" id="s01">
+  <div class="capitulo" data-bg="#fdfbf7" data-fg="#102407"><div><h3>La tierra</h3><p>Suelos volcánicos y lluvias de dos temporadas.</p></div></div>
+  <div class="capitulo" data-bg="#102407" data-fg="#fdfbf7"><div><h3>La cosecha</h3><p>De octubre a diciembre, a mano y por pases.</p></div></div>
+  <div class="capitulo" data-bg="#c79a55" data-fg="#102407"><div><h3>La tostión</h3><p>Lotes de doce kilos, curva a curva.</p></div></div>
+</div></div>
+
+<div class="wrap"><div class="ficha"><span class="id">S02</span><h2>Del fruto a la taza</h2><span class="nivel">Editorial</span>
+<p class="para">La sección se queda fija mientras pasan los pasos; un mismo grano los recorre y cambia de color: cereza, grano verde, pergamino, tostado, taza. Los pasos (foto, título, texto) los llena cada tienda.</p></div></div>
+<section class="wrap proceso" id="s02" aria-label="Del fruto a la taza">
+  <div class="pasos-texto">
+    <div class="paso"><span class="n">01 · Cosecha</span><h3>Sólo frutos maduros</h3><p>Recogemos a mano, pase por pase, las cerezas que ya están rojas.</p></div>
+    <div class="paso"><span class="n">02 · Despulpado</span><h3>El mismo día</h3><p>Quitamos la pulpa en la tarde para que el grano no fermente de más.</p></div>
+    <div class="paso"><span class="n">03 · Secado</span><h3>Al sol, quince días</h3><p>En marquesinas, moviendo el grano cada hora.</p></div>
+    <div class="paso"><span class="n">04 · Tostión</span><h3>Lotes pequeños</h3><p>Doce kilos por tanda, con la curva que pide cada variedad.</p></div>
+    <div class="paso"><span class="n">05 · Tu taza</span><h3>Recién tostado</h3><p>Sale de la finca la semana en que se tuesta.</p></div>
+    <div class="barra-pasos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="lienzo" aria-hidden="true">
+    <svg viewBox="0 0 600 600">
+      <circle cx="300" cy="300" r="250" fill="var(--sup)"/>
+      <g id="s02-objeto" transform="translate(300 300)">
+        <circle id="s02-cereza" r="90" fill="#b3261e"/>
+        <ellipse id="s02-grano" rx="70" ry="94" fill="#9aa86a" stroke="#102407" stroke-width="3" opacity="0"/>
+        <path id="s02-surco" d="M0 -80 C-22 -26 22 26 0 80" fill="none" stroke="#102407" stroke-width="5" stroke-linecap="round" opacity="0"/>
+        <g id="s02-taza" opacity="0">
+          <path d="M-130 -10 Q-130 150 0 160 Q130 150 130 -10 Z" fill="#f4efe6" stroke="#102407" stroke-width="4"/>
+          <ellipse cx="0" cy="-10" rx="130" ry="30" fill="#3a2210" stroke="#102407" stroke-width="4"/>
+          <path d="M130 30 q60 0 60 40 q0 40 -66 44" fill="none" stroke="#102407" stroke-width="4"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<div class="wrap"><div class="ficha"><span class="id">S03</span><h2>Galería horizontal</h2><span class="nivel">Editorial</span>
+<p class="para">Bajas y las fotos pasan de lado; al terminar, la página sigue normal. Para fotografía de la finca.</p></div></div>
+<section class="horizontal" id="s03" aria-label="Galería horizontal">
+  <div class="tira">
+    <div class="foto" style="aspect-ratio:4/5"><div class="capa"></div><span class="pie">El cafetal</span></div>
+    <div class="foto cerezas" style="aspect-ratio:4/5"><div class="capa"></div><span class="pie">La cosecha</span></div>
+    <div class="foto secado" style="aspect-ratio:4/5"><div class="capa"></div><span class="pie">El secado</span></div>
+    <div class="foto tostion" style="aspect-ratio:4/5"><div class="capa"></div><span class="pie">La tostión</span></div>
+    <div class="foto taza" style="aspect-ratio:4/5"><div class="capa"></div><span class="pie">La taza</span></div>
+  </div>
+</section>
+
+<!-- ================= CIERRE ================= -->
+<div id="cierre" class="wrap"><p class="grupo-t">Cierre</p><h2 class="titulo-grupo">El llamado final</h2>
+<div class="ficha"><span class="id">CTA01</span><h2>Vapor que forma el llamado</h2><span class="nivel">Firma</span>
+<p class="para">Una taza en el centro; al bajar sube el vapor y, cuando termina de subir, aparecen la frase y el botón.</p></div>
+<section class="cta" id="cta01" aria-label="Lleva nuestra historia a tu taza">
+  <div>
+    <svg viewBox="0 0 320 300" aria-hidden="true">
+      <path class="vapor" d="M120 140 C100 110 140 90 120 60 C105 40 125 20 120 6" fill="none" stroke="#fdfbf7" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+      <path class="vapor" d="M160 140 C140 105 180 85 160 52 C145 30 168 14 160 0" fill="none" stroke="#fdfbf7" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+      <path class="vapor" d="M200 140 C180 110 220 90 200 60 C185 40 205 20 200 6" fill="none" stroke="#fdfbf7" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+      <path d="M70 160 Q70 280 160 290 Q250 280 250 160 Z" fill="#fdfbf7"/>
+      <ellipse cx="160" cy="160" rx="90" ry="20" fill="#5a3418" stroke="#fdfbf7" stroke-width="4"/>
+      <path d="M250 185 q44 0 44 32 q0 32 -48 34" fill="none" stroke="#fdfbf7" stroke-width="5"/>
+    </svg>
+    <h2 id="cta-frase">Lleva nuestra historia a tu taza</h2>
+    <a class="boton" id="cta-boton" href="#heroes">Comprar café</a>
+  </div>
+</section>
+</div>
+</main>
+
+<footer class="wrap">
+  <p>Prototipo de Duna para elegir el catálogo. Ilustraciones de relleno; en cada tienda van sus fotos, videos y textos. Lo que veas aquí se construye sobre GSAP con «Ninguna» como opción por defecto y la página quieta dentro del editor.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/SplitText.min.js"></script>
+<script>
+(function(){
+  if(!window.gsap || !window.ScrollTrigger){ return; } // sin GSAP la página queda quieta y completa
+  gsap.registerPlugin(ScrollTrigger);
+  var tieneSplit = !!window.SplitText; if(tieneSplit) gsap.registerPlugin(SplitText);
+  var reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var quietoBtn = document.getElementById('quieto');
+  var quieto = false;
+  try { quieto = localStorage.getItem('catalogo-quieto') === '1'; } catch(e){}
+  quietoBtn.setAttribute('aria-pressed', quieto ? 'true':'false');
+  quietoBtn.addEventListener('click', function(){
+    try { localStorage.setItem('catalogo-quieto', quieto ? '0':'1'); } catch(e){}
+    location.reload();
+  });
+  if(quieto || reducir){ return; }
+
+  var animaciones = {}; // id -> función que crea la animación (para «Repetir»)
+
+  // --- partir texto (accesible: el contenedor guarda la frase entera)
+  function partirPalabras(el){
+    el.setAttribute('aria-label', el.textContent.trim());
+    var html = '';
+    el.childNodes.forEach(function(n){
+      if(n.nodeType===3){ html += n.textContent.split(/(\s+)/).map(function(w){ return /^\s+$/.test(w)||!w ? w : '<span class="split-pieza" aria-hidden="true">'+w+'</span>'; }).join(''); }
+      else { var o=n.cloneNode(true); o.setAttribute('aria-hidden','true'); o.classList.add('split-pieza'); html += o.outerHTML; }
+    });
+    el.innerHTML = html; return el.querySelectorAll('.split-pieza');
+  }
+  function partirLetras(el){
+    el.setAttribute('aria-label', el.textContent.trim());
+    el.innerHTML = el.textContent.split('').map(function(c){ return '<span class="split-pieza" aria-hidden="true">'+(c===' '?'&nbsp;':c)+'</span>'; }).join('');
+    return el.querySelectorAll('.split-pieza');
+  }
+  function alEntrar(el){ return { trigger: el, start: 'top 82%', toggleActions: 'play none none none' }; }
+
+  // T01 por líneas
+  animaciones.t01 = function(){
+    var el = document.getElementById('t01');
+    if(tieneSplit){
+      if(el._split) el._split.revert();
+      el._split = SplitText.create(el, { type:'lines', mask:'lines', aria:'auto' });
+      return gsap.from(el._split.lines, { yPercent:110, duration:.9, ease:'power3.out', stagger:.12, scrollTrigger: alEntrar(el) });
+    }
+    return gsap.from(el, { y:40, autoAlpha:0, duration:.9, ease:'power3.out', scrollTrigger: alEntrar(el) });
+  };
+  // T02 palabras
+  var t02p = partirPalabras(document.getElementById('t02'));
+  animaciones.t02 = function(){ return gsap.from(t02p, { y:'0.6em', autoAlpha:0, duration:.6, ease:'power2.out', stagger:.07, scrollTrigger: alEntrar(t02p[0].parentNode) }); };
+  // T03 letras
+  var t03p = partirLetras(document.getElementById('t03'));
+  animaciones.t03 = function(){ return gsap.from(t03p, { yPercent:80, rotate:6, autoAlpha:0, duration:.7, ease:'back.out(1.6)', stagger:.05, scrollTrigger: alEntrar(t03p[0].parentNode) }); };
+  // T04 resaltada
+  animaciones.t04 = function(){
+    var el=document.getElementById('t04'), r=el.querySelector('.resaltada');
+    var tl = gsap.timeline({ scrollTrigger: alEntrar(el) });
+    tl.from(el, { y:24, autoAlpha:0, duration:.7, ease:'power2.out' })
+      .fromTo(r, { '--s':0 }, { '--s':1, duration:.8, ease:'power2.inOut' }, '-=.15');
+    return tl;
+  };
+  // T05 bloque
+  animaciones.t05 = function(){ var el=document.getElementById('t05'); return gsap.from(el, { y:28, autoAlpha:0, duration:.9, ease:'power2.out', scrollTrigger: alEntrar(el) }); };
+  // T06 gigante (scrub)
+  gsap.fromTo('#t06', { xPercent:10 }, { xPercent:-40, ease:'none', scrollTrigger:{ trigger:'#t06', start:'top bottom', end:'bottom top', scrub:true } });
+
+  // I01 máscara
+  animaciones.i01 = function(){ var el=document.getElementById('i01'); return gsap.fromTo(el, { clipPath:'inset(100% 0% 0% 0%)' }, { clipPath:'inset(0% 0% 0% 0%)', duration:1.2, ease:'power3.inOut', scrollTrigger: alEntrar(el) }); };
+  // I02 escala
+  animaciones.i02 = function(){ var c=document.querySelector('#i02 .capa'); return gsap.fromTo(c, { scale:1.18 }, { scale:1, duration:1.6, ease:'power2.out', scrollTrigger: alEntrar(c.parentNode) }); };
+  // I03 parallax
+  gsap.fromTo('#i03 .capa', { yPercent:-8 }, { yPercent:8, ease:'none', scrollTrigger:{ trigger:'#i03', start:'top bottom', end:'bottom top', scrub:true } });
+
+  // C01 tarjetas + C02 hover
+  animaciones.c01 = function(){ var t=document.querySelectorAll('#c01 .tarjeta'); return gsap.from(t, { y:40, autoAlpha:0, duration:.7, ease:'power2.out', stagger:.12, scrollTrigger: alEntrar(t[0].parentNode) }); };
+  document.querySelectorAll('#c01 .bolsa').forEach(function(b){
+    b.parentNode.addEventListener('mouseenter', function(){ gsap.to(b, { y:-8, rotate:-1, duration:.35, ease:'power2.out' }); });
+    b.parentNode.addEventListener('mouseleave', function(){ gsap.to(b, { y:0, rotate:0, duration:.4, ease:'power2.out' }); });
+  });
+
+  // N01 cifras
+  animaciones.n01 = function(){
+    var cont=document.getElementById('n01');
+    var tl=gsap.timeline({ scrollTrigger: alEntrar(cont) });
+    cont.querySelectorAll('.cifra').forEach(function(c,i){
+      var b=c.querySelector('b'), hasta=+b.dataset.hasta, suf=b.dataset.sufijo, o={v:0};
+      tl.to(o, { v:hasta, duration:1.4, ease:'power2.out', onUpdate:function(){ b.textContent = Math.round(o.v).toLocaleString('es-CO') + suf; } }, i*.15)
+        .from(c.querySelector('i'), { scaleX:0, duration:1.2, ease:'power2.out' }, i*.15);
+    });
+    return tl;
+  };
+
+  // S01 capítulos de color
+  document.querySelectorAll('#s01 .capitulo').forEach(function(cap){
+    ScrollTrigger.create({ trigger:cap, start:'top 55%', end:'bottom 55%',
+      onToggle:function(self){ if(self.isActive) gsap.to('#s01', { backgroundColor:cap.dataset.bg, color:cap.dataset.fg, duration:.6, ease:'power1.out' }); } });
+  });
+
+  // S02 del fruto a la taza (pin)
+  (function(){
+    var pasos=gsap.utils.toArray('#s02 .paso'), marcas=document.querySelectorAll('#s02 .barra-pasos i');
+    gsap.set(pasos, { autoAlpha:0, y:20 }); gsap.set(pasos[0], { autoAlpha:1, y:0 }); marcas[0].classList.add('on');
+    var tl=gsap.timeline({ scrollTrigger:{ trigger:'#s02', start:'top top', end:'+=300%', pin:true, scrub:.6,
+      onUpdate:function(self){ var i=Math.min(4,Math.floor(self.progress*5)); marcas.forEach(function(m,k){ m.classList.toggle('on', k<=i); }); } } });
+    function cambia(a,b,pos){ tl.to(pasos[a], { autoAlpha:0, y:-20, duration:.3 }, pos).to(pasos[b], { autoAlpha:1, y:0, duration:.3 }, pos+.15); }
+    // cereza -> grano verde
+    cambia(0,1,1);
+    tl.to('#s02-cereza', { attr:{ r:0 }, duration:.5 }, 1).to(['#s02-grano','#s02-surco'], { opacity:1, duration:.4 }, 1.1);
+    // verde -> pergamino (secado)
+    cambia(1,2,2); tl.to('#s02-grano', { attr:{ fill:'#d9c08c' }, duration:.6 }, 2).to('#s02-objeto', { rotate:20, duration:.6 }, 2);
+    // tostado
+    cambia(2,3,3); tl.to('#s02-grano', { attr:{ fill:'#5a3418' }, duration:.6 }, 3).to('#s02-objeto', { rotate:-10, scale:.9, duration:.6 }, 3);
+    // taza
+    cambia(3,4,4); tl.to(['#s02-grano','#s02-surco'], { opacity:0, y:120, duration:.5 }, 4).to('#s02-taza', { opacity:1, duration:.5 }, 4.2).to('#s02-objeto', { rotate:0, scale:1, duration:.4 }, 4.2);
+    tl.to({}, { duration:.6 });
+  })();
+
+  // S03 galería horizontal (pin + scrub)
+  (function(){
+    var tira=document.querySelector('#s03 .tira');
+    function distancia(){ return Math.max(0, tira.scrollWidth - window.innerWidth); }
+    gsap.to(tira, { x:function(){ return -distancia(); }, ease:'none',
+      scrollTrigger:{ trigger:'#s03', start:'top top', end:function(){ return '+='+distancia(); }, pin:true, scrub:.5, invalidateOnRefresh:true } });
+  })();
+
+  // H01 grano a la taza
+  (function(){
+    var tl=gsap.timeline({ scrollTrigger:{ trigger:'#h01', start:'top top', end:'+=170%', pin:true, scrub:.7 } });
+    tl.to('#grano', { y:500, rotate:200, svgOrigin:'1040 120', ease:'power1.in', duration:1 }, 0)
+      .to('#grano-cuerpo', { attr:{ fill:'#c79a55' }, duration:.45 }, .15)
+      .to('#grano-cuerpo', { attr:{ fill:'#5a3418' }, duration:.4 }, .55)
+      .to('#grano', { opacity:0, duration:.05 }, .98)
+      .fromTo('#onda1', { attr:{ rx:10, ry:3 }, opacity:.9 }, { attr:{ rx:140, ry:26 }, opacity:0, duration:.5 }, 1)
+      .fromTo('#onda2', { attr:{ rx:10, ry:3 }, opacity:.9 }, { attr:{ rx:110, ry:20 }, opacity:0, duration:.5 }, 1.12)
+      .to('#marca-taza', { opacity:1, y:-20, duration:.4 }, 1.15)
+      .to('#h01 .titulo-hero', { y:-40, opacity:.25, duration:1 }, 0);
+  })();
+
+  // H02 cereza se expande
+  (function(){
+    var tl=gsap.timeline({ scrollTrigger:{ trigger:'#h02', start:'top top', end:'+=160%', pin:true, scrub:.7 } });
+    tl.to('#h02 .titulo-hero', { opacity:0, y:-30, duration:.3 }, 0)
+      .to('#cereza', { x:-280, y:-20, duration:.4 }, 0)
+      .to('#cereza-fruto', { attr:{ r:1100 }, ease:'power2.in', duration:.8 }, .3)
+      .to('#cereza path, #cereza ellipse', { opacity:0, duration:.2 }, .35)
+      .to('#h02 .siguiente', { opacity:1, duration:.3 }, .95);
+  })();
+
+  // H03 paisaje en capas
+  document.querySelectorAll('#h03 .capa-p').forEach(function(c){
+    gsap.to(c, { y:function(){ return +c.dataset.v * 260; }, ease:'none', scrollTrigger:{ trigger:'#h03', start:'top top', end:'bottom top', scrub:true } });
+  });
+  gsap.to('#h03 .texto-paisaje', { y:-120, opacity:0, ease:'none', scrollTrigger:{ trigger:'#h03', start:'top top', end:'bottom top', scrub:true } });
+
+  // CTA01 vapor
+  (function(){
+    var v=document.querySelectorAll('#cta01 .vapor');
+    v.forEach(function(p){ var L=p.getTotalLength(); p.style.strokeDasharray=L; p.style.strokeDashoffset=L; });
+    var tl=gsap.timeline({ scrollTrigger:{ trigger:'#cta01', start:'top 70%', end:'center 45%', scrub:.6 } });
+    tl.to(v, { strokeDashoffset:0, stagger:.15, duration:1, ease:'none' })
+      .from('#cta-frase', { y:20, autoAlpha:0, duration:.5 }, '-=.2')
+      .from('#cta-boton', { y:12, autoAlpha:0, duration:.4 }, '-=.2');
+  })();
+
+  // arrancar las animaciones con «Repetir»
+  var vivas={};
+  Object.keys(animaciones).forEach(function(k){ vivas[k]=animaciones[k](); });
+  document.querySelectorAll('.repetir').forEach(function(b){
+    b.addEventListener('click', function(){
+      var k=b.dataset.repite, a=vivas[k]; if(!a) return;
+      if(a.scrollTrigger) a.scrollTrigger.disable(false);
+      a.restart();
+    });
+  });
+  window.addEventListener('load', function(){ ScrollTrigger.refresh(); });
+})();
+</script>

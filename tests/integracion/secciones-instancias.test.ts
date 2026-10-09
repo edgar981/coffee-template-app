@@ -43,6 +43,11 @@ test('crear una instancia, guardar y publicar: el storefront la ve resuelta, y s
     ctaLabel: '',
     ctaDestino: '',
     alineacion: 'centro',
+    // § MOVIMIENTO-MARCO-GSAP-1 — DEVIATION (fuera de `touches:`): este fixture literal quedó
+    // desactualizado por el eje `animacion` nuevo de "texto" (§ lib/config/secciones-instancias.ts),
+    // igual que el equivalente en capa 1 (lib/config/secciones-instancias.test.ts). Se corrige acá
+    // porque es la MISMA clase de actualización mecánica, no una decisión de producto.
+    animacion: '',
     visible: true,
   });
   // Nunca se publicó `orden` explícitamente -> el resolver la agrega AL FINAL de las 9 bandas.

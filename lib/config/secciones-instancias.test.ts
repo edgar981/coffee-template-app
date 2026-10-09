@@ -84,6 +84,7 @@ test('resolverInstancia: "texto" — requerido vacío cae al default, opcional p
     ctaLabel: '',
     ctaDestino: '',
     alineacion: 'centro',
+    animacion: '',
     visible: true,
   });
 });
@@ -130,6 +131,29 @@ test('resolverInstancia: "texto" — alineación basura cae a la canónica', () 
   assert.equal((r as { alineacion: string }).alineacion, 'centro');
   const ok = resolverInstancia({ tipo: 'texto', titulo: 'T', alineacion: 'derecha' });
   assert.equal((ok as { alineacion: string }).alineacion, 'derecha');
+});
+
+// § MOVIMIENTO-MARCO-GSAP-1 — el eje `animacion` de "texto": ESCALAR clampado, mismo contrato que
+// `alineacion` arriba, pero contra el catálogo de `lib/movimiento/catalogo.ts` en vez de un set de
+// tres palabras propio.
+test('resolverInstancia: "texto" — animacion ausente cae a «Ninguna» (vacío)', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T' });
+  assert.equal((r as { animacion: string }).animacion, '');
+});
+
+test('resolverInstancia: "texto" — animacion con un id REAL del catálogo se respeta', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T', animacion: 'T05' });
+  assert.equal((r as { animacion: string }).animacion, 'T05');
+});
+
+test('resolverInstancia: "texto" — animacion con basura (id inexistente) cae a «Ninguna», nunca pasa texto libre', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T', animacion: 'no-existe' });
+  assert.equal((r as { animacion: string }).animacion, '');
+});
+
+test('resolverInstancia: "texto" — animacion explícitamente «Ninguna» (string vacío) se respeta tal cual', () => {
+  const r = resolverInstancia({ tipo: 'texto', titulo: 'T', animacion: '' });
+  assert.equal((r as { animacion: string }).animacion, '');
 });
 
 test('resolverInstancia: "imagenTexto" — imagen es OPCIONAL, sin default (nunca inventa una foto)', () => {

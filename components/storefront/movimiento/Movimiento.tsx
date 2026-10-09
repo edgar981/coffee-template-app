@@ -1,0 +1,42 @@
+'use client';
+
+// EL COMPONENTE (§ MOVIMIENTO-MARCO-GSAP-1) — la cáscara genérica que cualquier sección del
+// storefront puede envolver alrededor de SU contenido para pedir una animación del catálogo
+// (`lib/movimiento/catalogo.ts`) por id. Toda la decisión (¿corre?, ¿cuál?, ¿con qué gates?) vive
+// en `useMovimiento.ts`; este archivo es sólo el JSX.
+//
+// `id` AUSENTE (`undefined`/`''`, = «Ninguna») es el caso que PROTEGE la byte-identidad: sin un id,
+// este componente NO renderiza ningún nodo propio — devuelve `children` DIRECTO, sin wrapper, sin
+// ref, sin clase. Es lo que hace cierto "ausente → el HTML de la tienda no cambia ni un byte": una
+// sección que nunca declara `animacion` nunca ve un elemento de más en su árbol.
+//
+// `id` PRESENTE (aunque el motor todavía no lo implemente, o esté apagado por el editor/reduced-
+// motion, § `useMovimiento.ts`) SIEMPRE monta la `Etiqueta` — el contenido queda visible igual
+// (nada se oculta por CSS estático; lo que T04 oculta, lo pone y lo quita GSAP por estilo inline,
+// § `animaciones.ts` — este componente no importa NINGÚN `.css`, a propósito: nada en este árbol
+// debe depender de que un consumidor recuerde cargar una hoja de estilos aparte).
+import type { ReactNode, Ref } from 'react';
+import { useMovimiento } from './useMovimiento';
+
+/** El set de etiquetas que una sección del storefront necesita para envolver su contenido — MISMO
+ *  criterio acotado que `EtiquetaRevelo` de `RevelarBloque.tsx` (un wrapper genérico no necesita
+ *  aceptar cualquier tag HTML, sólo las que un bloque de contenido real usa). */
+export type EtiquetaMovimiento = 'div' | 'span' | 'p' | 'h1' | 'h2' | 'h3' | 'section' | 'article' | 'li';
+
+export interface MovimientoProps {
+  /** El id del catálogo (`lib/movimiento/catalogo.ts`, p. ej. `'T01'`), o ausente/`''` = «Ninguna». */
+  id?: string;
+  as?: EtiquetaMovimiento;
+  className?: string;
+  children: ReactNode;
+}
+
+export default function Movimiento({ id, as: Etiqueta = 'div', className, children }: MovimientoProps) {
+  const { ref } = useMovimiento(id);
+  if (!id) return <>{children}</>;
+  return (
+    <Etiqueta ref={ref as Ref<never>} className={className}>
+      {children}
+    </Etiqueta>
+  );
+}
