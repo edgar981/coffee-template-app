@@ -218,7 +218,11 @@ export const CATALOGO_MOVIMIENTO: readonly MovimientoDef[] = [
   {
     id: 'CTA01', nombre: 'Vapor que forma el llamado', nivel: 'firma', aplicaA: 'seccion',
     clases: ['scrub', 'revelado'],
-    descripcion: 'El trazo del vapor se dibuja atado al scroll (scrub) y, al completar, la frase y el botón revelan (una sola vez). Nace incorporado en el tipo "cierre", como S02 en "proceso".',
+    // § MOVIMIENTO-CIERRE-BOTON-1 — la frase y el botón ya NO esperan a que el vapor COMPLETE su
+    // trazo: revelan al entrar en vista, en un disparador propio, para que nunca queden invisibles
+    // si "cierre" es la última sección y el documento no alcanza el scroll que el scrub del vapor
+    // pedía (ver `cta01()`, `animaciones.ts`).
+    descripcion: 'El trazo del vapor se dibuja atado al scroll (scrub); la frase y el botón revelan al entrar en vista (una sola vez), sin depender de que el vapor complete su trazo. Nace incorporado en el tipo "cierre", como S02 en "proceso".',
     implementada: true,
   },
 ] as const;

@@ -8,13 +8,23 @@ import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
 import type { InstanciaCierreContent } from "@/lib/config/secciones-instancias";
 
 // LA SECCIÓN "CIERRE" (CTA01, "Vapor que forma el llamado" — § MOVIMIENTO-NIVEL-FIRMA-1): una
-// frase + un botón, con el vapor de una taza dibujándose atado al scroll; al completar el trazo, la
-// frase y el botón revelan. Nace CON su animación incorporada — igual que "proceso" con S02 — así
-// que no declara `animacionElemento` ni el ajuste «Animación» (§ `DESCRIPTOR_INSTANCIA.cierre`,
-// secciones-instancias.ts).
+// frase + un botón, con el vapor de una taza dibujándose atado al scroll. Nace CON su animación
+// incorporada — igual que "proceso" con S02 — así que no declara `animacionElemento` ni el ajuste
+// «Animación» (§ `DESCRIPTOR_INSTANCIA.cierre`, secciones-instancias.ts).
 //
 // SIN PIN: a diferencia de S02/S03, el vapor se dibuja mientras la sección ENTRA al viewport
 // (`start:'top 70%'`), nunca fija la página — mismo criterio que el prototipo.
+//
+// § MOVIMIENTO-CIERRE-BOTON-1 — la frase y el botón NO esperan a que el vapor COMPLETE su trazo:
+// revelan al entrar en vista, en un disparador propio, independiente del `end` del scrub del vapor
+// (que puede quedar fuera del scroll máximo real cuando "cierre" es la última sección de la
+// página). Ver `cta01()` en `animaciones.ts` para el porqué completo — y para la causa REAL,
+// confirmada por ejecución, del botón invisible: el CTA llevaba `transition-all`, que competía con
+// el `.from({autoAlpha:0})` de GSAP sobre la MISMA propiedad (`opacity`/`visibility`). Es
+// `transition-transform` (sólo lo que el hover `-translate-y-0.5` necesita) a propósito — no
+// `transition-all` como el resto de la familia de CTAs (§ CTA-PRIMARIO-COLOR-Y-HOVER-1, abajo):
+// éste es el ÚNICO CTA del storefront que GSAP anima directamente, así que es el único que no
+// puede llevar una transición CSS sobre `opacity`.
 export default function SeccionCierre({
   id,
   instancia,
@@ -55,7 +65,7 @@ export default function SeccionCierre({
           <Link
             data-cta01-boton
             href={ctaHref}
-            className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-all hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 sf-pildora bg-[var(--sf-accion,var(--sf-tostado))] px-8 py-4 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-transform hover:-translate-y-0.5"
           >
             <CampoEditable campo={`${id}.ctaLabel`}>{instancia.ctaLabel}</CampoEditable>
           </Link>

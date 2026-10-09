@@ -57178,3 +57178,222 @@ declarados arriba. Commiteado en `slice/editor-secciones-1`; el merge, cuando el
 rama completa, lo hace el orquestador — no este slice.
 
 **Cierra `MOVIMIENTO-NIVEL-FIRMA-1`.**
+
+## MOVIMIENTO-CIERRE-BOTON-1 — el botón de "cierre" no se veía: la causa medida NO era la hipótesis del slice anterior
+
+**Fecha:** 2026-10-09. **Rama:** `slice/editor-secciones-1` (continúa), HEAD `257d8dc` al arrancar,
+0 commits de diferencia con `origin/slice/editor-secciones-1`. **Tier:** 1, segunda etapa de
+escritura (`approved: yes`, `observed-report: GSAP-MARCO-CENSO-1`, `approval-reason`: defecto
+medido por `MOVIMIENTO-NIVEL-FIRMA-1` (follow-up `CTA01-BOTON-SCROLL-TOPE-1`) en el cierre aprobado
+por el owner el 2026-10-08).
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `slice/editor-secciones-1` — verificado (`git status`, `git log`).
+- `main` local: 0 adelante / 0 atrás de `origin/main` (ambos en `9a7ab97`).
+- `npx tsc --noEmit` corrido ANTES de tocar nada: 0 errores (línea base).
+- Migraciones hoy: 57 (sin cambio frente a `MOVIMIENTO-NIVEL-FIRMA-1`) — medido, no citado como
+  doctrina.
+
+### LA CAUSA — confirmada por ejecución, y NO es la hipótesis del slice anterior
+
+El spec de este slice pedía "confirmá la causa" antes de arreglarla, y la verificación destapó que
+la hipótesis de `CTA01-BOTON-SCROLL-TOPE-1` —"el `end:'center 45%'` del scrub, sin `pin`, puede
+exigir más distancia de scroll de la que el documento tiene"— **no era la causa real** en el
+escenario que de verdad importa (una página completa, con footer). Se reconstruyó el defecto con
+un arnés descartable (`.scratch/verificar-cierre-boton.mjs`, no comiteado — mismo mecanismo que
+`.scratch/driver-nivel-firma.mjs` del slice anterior: Postgres efímero propio, `next build`/`next
+start` reales, Chromium headless vía `.arnes-tooling/playwright`), sembrando "cierre" como ÚLTIMA
+sección del home completo (`orden = [...BANDA_IDS, 'inst:cta']`) y midiendo en Chromium real a
+**1440×900** y **390×844**.
+
+**Primero se REPRODUJO el defecto tal cual el slice anterior lo describió**: con el código viejo
+(timeline único, vapor+frase+botón juntos), el botón (`[data-cta01-boton]`) quedaba en
+`opacity:"0"`/`visibility:"hidden"` al fondo de la página en los dos viewports, mientras la frase
+revelaba bien (`opacity:1`) — la MISMA firma que `MOVIMIENTO-NIVEL-FIRMA-1` midió.
+
+**Se instrumentó el motor con logs temporales** (`onStart`/`onComplete` de cada tween, lectura de
+`getComputedStyle` antes/después de cada creación — revertidos antes de cerrar el slice, cero
+rastro en el diff final) y se vio algo que la hipótesis original no explicaba: el tween del botón
+**SÍ disparaba su propio `onComplete`** (había corrido su duración entera), y aun así
+`getComputedStyle(boton).opacity` seguía leyendo `"0"` en ese mismo instante. Eso descarta
+"el scrub nunca llega a progreso 1" como explicación — el tween de revelado (que no depende del
+scrub del vapor) SÍ terminaba, y el DOM seguía mintiendo.
+
+**La causa real: `transition-all` en el `<Link data-cta01-boton>` (`Cierre.tsx`) competía con el
+`.from(boton, {autoAlpha:0})` de GSAP sobre la MISMA propiedad** (`opacity`/`visibility`). Cada
+frame que GSAP escribe (~60/s) reinicia una transición CSS sobre esa propiedad —`transition-all`
+cubre TODAS, incluida `opacity`—, así que el valor RENDERIZADO queda persiguiendo un objetivo que
+nunca se queda quieto; al completar, GSAP consulta su caché interno (no el DOM) para decidir si
+`visibility` debe quedar en `hidden`, y esa consulta queda atrapada a mitad de la persecución.
+**Confirmado por ejecución en las DOS direcciones**, con el mismo arnés:
+
+| timeline | `transition-all` puesto | `transition-all` quitado (→ `transition-transform`) |
+| --- | --- | --- |
+| ÚNICO (código viejo, vapor+frase+botón juntos) | ✗ botón invisible (repro del defecto original) | ✔ botón visible |
+| SEPARADO (vapor scrub ≠ revelado enter-view, el fix de abajo) | ✗ botón **SIGUE** invisible | ✔ botón visible |
+
+La fila 2 es la que cierra la discusión: con el fix de reachability YA puesto (timeline separado,
+sin `end` que alcanzar), el botón **seguía** invisible mientras `transition-all` estuviera — o sea
+que la hipótesis de reachability, aun siendo cierta como ESTRUCTURA, no era lo que estaba rompiendo
+esta prueba. Y la frase (`<h2 data-cta01-frase>`) nunca lo sufrió porque su `className` no lleva
+ninguna transición CSS — es la asimetría que delataba el mecanismo.
+
+### El fix — dos capas, por razones DISTINTAS
+
+1. **La causa real: `Cierre.tsx`, `transition-all` → `transition-transform` en el CTA.** Acota la
+   transición CSS a lo que el hover (`-translate-y-0.5`) de verdad necesita (`transform`), dejando
+   `opacity`/`visibility` SIN una transición CSS que compita con GSAP. Es el ÚNICO CTA del
+   storefront que GSAP anima directamente (los demás —`HeroFirmaContenido.tsx`, `Banner.tsx`,
+   `ImagenTexto.tsx`— llevan `transition-all` y están bien así, porque nada los anima por JS); se
+   deja escrito en el comentario de cabecera para que nadie "unifique" este CTA con la familia.
+2. **El principio general que el spec pide, DEFENSIVO (no la causa medida, pero vale igual):** el
+   vapor se queda en SU propio timeline (`tlVapor`), atado al scroll (scrub, SIN CAMBIOS de
+   comportamiento — mismo `start:'top 70%'`/`end:'center 45%'`/`scrub:0.6` de siempre); la frase y
+   el botón revelan en un SEGUNDO timeline (`tlRevelado`) con el disparador de ENTRADA EN VISTA de
+   siempre (`alEntrar`, play-una-vez, SIN `end` — alcanzable con sólo scrollear HASTA la sección,
+   nunca depende de cuánto scroll queda DESPUÉS). `alEntrar` ganó un tercer parámetro opcional
+   (`umbral`, default 82 — sin cambio para los otros diez ids que la usan) para que CTA01 dispare a
+   `top 70%`, el mismo punto en que el vapor ya empieza a dibujarse, y no invierta el orden
+   narrativo (texto antes de que el vapor arranque).
+3. **El fix #2 abre un hueco que el código viejo no tenía, y se cierra en el mismo commit:**
+   `useMovimiento.ts` (§ MOVIMIENTO-SCROLL-UMBRAL-1) sólo rastrea y recrea el timeline que `cta01()`
+   DEVUELVE (ahora `tlRevelado`); si el `ResizeObserver` de esa corrección dispara ANTES del primer
+   scroll (medido: pasa 2-4 veces en el arnés, por el FOUT de las fuentes vía `@import` — la MISMA
+   causa que ya documenta esa sección), cada recreación llama a `cta01()` de nuevo, que armaría un
+   `tlVapor` NUEVO sin que nadie matara el VIEJO — dos `ScrollTrigger` escuchando scroll para
+   siempre por el mismo vapor. Se cierra con un `id` fijo (`'cta01-vapor'`) + `ScrollTrigger.
+   getById('cta01-vapor')?.kill()` al tope de `cta01()`, así la función es segura de invocar más de
+   una vez sobre la misma `raiz` sin acumular huérfanos. `tlRevelado` no necesita el mismo
+   tratamiento: lo sigue rastreando `estado.tween` de siempre.
+
+### El audit de las demás animaciones con scrub (punto del spec) — NINGUNA comparte la clase del bug
+
+El spec pedía revisar T06, S01, S02, S03, H01–H03 por el mismo riesgo y decir cuáles podían dejar
+contenido oculto. El riesgo tiene DOS ejes independientes, y hay que pasar los DOS para que algo se
+pueda quedar invisible:
+
+- **Eje A — ¿el `ScrollTrigger` tiene `pin`?** Con `pin:true` (S02, S03, H01, H02), GSAP INSERTA su
+  propio `pin-spacer` que reserva exactamente la distancia de scroll que su `end` necesita —el
+  `end` es matemáticamente SIEMPRE alcanzable, sin importar qué haya después en el documento—. Sin
+  pin (T06, S01, H03, el vapor de CTA01), el `end` depende de cuánto documento queda debajo, y
+  PODRÍA no alcanzarse.
+- **Eje B — ¿el contenido arranca OCULTO (`.from(el,{autoAlpha:0})`) o arranca VISIBLE y se oculta
+  (`.to(el,{autoAlpha:0})`)?** Si arranca oculto y el progreso nunca avanza, el contenido se queda
+  INVISIBLE (el modo de falla real). Si arranca visible y el `.to()` lo apaga, un progreso que no
+  avanza lo deja MÁS VISIBLE de lo previsto — nunca invisible. Esa dirección es segura por
+  construcción.
+
+| id | ¿sin pin? (eje A) | ¿`.from(…,{autoAlpha:0})`? (eje B) | ¿puede dejar contenido oculto? |
+| --- | --- | --- | --- |
+| T06 | sí | no — mueve `xPercent` (posición), nunca opacidad | NO: el título gigante queda en algún punto entre 10% y -40%, siempre a vista |
+| S01 | sí | no — transiciona el `backgroundColor` de la SECCIÓN, nunca su opacidad/la del texto | NO: el fondo queda en un color intermedio de la paleta, el texto sigue legible |
+| S02 | no (pin) | — | NO: el `end` siempre es alcanzable |
+| S03 | no (pin) | — | NO: idem |
+| H01 | no (pin) | — | NO: idem (el título sólo atenúa a 0.25, nunca a 0) |
+| H02 | no (pin) | sí, el título a `autoAlpha:0` — pero DENTRO del pin | NO: el `end` siempre es alcanzable; el título invisible es la transición A la sección siguiente, el efecto pedido |
+| H03 | **sí** | no — el título usa `.to(titulo,{autoAlpha:0})` (apaga, no revela) | NO para el modo de falla real: si el `end:'bottom top'` no se alcanza, el título queda MÁS VISIBLE de lo previsto (autoAlpha más cerca de 1), nunca invisible. Las capas de parallax (`y: v*260`) tampoco ocultan nada — sólo desplazan |
+| **CTA01 (vapor)** | sí | — (el vapor mismo no usa autoAlpha, dibuja con `strokeDashoffset`) | el TRAZO puede quedar incompleto si el `end` no se alcanza, pero un trazo a medio dibujar sigue siendo VISIBLE (opacity .8 fija del SVG), no invisible |
+| **CTA01 (frase/botón, ANTES de este fix)** | sí (vivían en el timeline del vapor) | **sí** | **SÍ — el único caso real del catálogo** |
+
+**Conclusión del audit: CTA01 era el ÚNICO id de las 19 del catálogo que combinaba los dos ejes** —
+`.from(…,{autoAlpha:0})` sin pin—, y ahora que la frase/el botón viven en su propio timeline con
+disparador de entrada (sin `end`), deja de combinarlos. Ninguna otra animación necesita el mismo
+fix. `H03` queda anotado por compartir el EJE A con CTA01 (sin pin), pero su EJE B (fade-OUT, no
+fade-IN) lo pone del lado seguro — no se toca.
+
+### Tests — uno falla sin el arreglo, el OTRO falla sin la causa real
+
+**`lib/movimiento/demo-byte-identidad.test.ts`** gana el test que de verdad hubiera atrapado el
+defecto MEDIDO: renderiza "cierre" con destino y afirma que el `className` del botón NO lleva
+`transition-all` y SÍ lleva `transition-transform`. **Visto fallar** con `transition-all` puesto
+(restaurado a mano, confirmado el fallo, vuelto a quitar). Es la ÚNICA red dentro de `npm test`
+contra la causa real — la ejecución completa (Chromium) vive en el gate visual.
+
+**`lib/movimiento/cierre-revelado-independiente.test.ts`** (nuevo) afirma la ESTRUCTURA del
+principio defensivo (eje A): que el vapor y el revelado viven en DOS timelines, que frase/botón
+nunca se encadenan sobre el del vapor, que `alEntrar` acepta un umbral configurable (default 82,
+sin cambio para los demás 10 ids), y que el vapor se auto-limpia por `id` antes de crearse. No
+puede ejecutar `cta01()` de verdad (`ScrollTrigger.create` exige `window`/`document` reales — este
+repo no tiene jsdom) así que es SOURCE-GREP, mismo criterio que `pin-overflow-ancestro.test.ts`/
+`hero-marquesina.test.ts` ya usan para lo que la ejecución no puede cubrir. **Visto fallar** contra
+el código viejo (combinado): 3 de 4 assertions caían.
+
+### Verificado en EJECUCIÓN (Postgres efímero + `next build`/`next start` real + Chromium headless)
+
+Arnés descartable (`.scratch/verificar-cierre-boton.mjs`, no comiteado). Siembra "cierre" como
+ÚLTIMA sección del home completo (hero + todas las bandas default + cierre), construye y sirve la
+app, scrollea al FONDO real (`scrollHeight`) en los dos viewports, espera 2000ms, y mide la
+opacidad computada de `[data-cta01-boton]`/`[data-cta01-frase]`:
+
+| viewport | scrollY alcanzado | boton.opacity | frase.opacity | vapor.opacity |
+| --- | --- | --- | --- | --- |
+| 1440×900 | 2788 (= max) | **1** | 1 | 0.8 |
+| 390×844 | 4652 (= max) | **1** | 1 | 0.8 |
+
+Capturas en `.scratch/capturas-cierre-boton/cierre-{1440x900,390x844}.png` — el botón "Comprar
+café" visible al fondo de la página, footer debajo, en los dos tamaños.
+
+**Límite declarado:** este arnés siembra el home COMPLETO con todas sus bandas default + cierre al
+final — una página más larga que la del repro de `MOVIMIENTO-NIVEL-FIRMA-1` (una sola instancia).
+No se midió el caso de "cierre" como ÚNICA sección (sin ninguna banda default antes); dado que el
+fix #1 (la causa real) no depende en absoluto de cuánto documento hay, y el fix #2 es puramente
+defensivo contra esa configuración más corta, no se considera necesario para cerrar este slice —
+pero si algún día "cierre" se usa como única sección de una página, ESE es el escenario que
+ejercitaría el eje A que el fix #2 protege.
+
+### Byte-identidad y gate
+
+`npx tsc --noEmit`: 0 errores. `npm run gate` completo en el árbol final: **typecheck 0 errores ·
+`npm test` 4064/4064 (4058 + 6 nuevos) · `npm run test:integracion` 371/371** (sin cambio — este
+slice no toca nada de su alcance).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff toca (`alEntrar`, `cta01`, `CTA01`, `tlVapor`,
+`tlRevelado`, `transition-all`, `transition-transform`, `ScrollTrigger`, `Cierre.tsx`,
+`animaciones.ts`, `MOVIMIENTO-NIVEL-FIRMA`, `CTA01-BOTON-SCROLL-TOPE`) contra `CLAUDE.md`: **CERO
+apariciones** — nada en `CLAUDE.md` nombra lo que este diff cambió. No hay sentencia que revisar.
+
+**El chequeo de puntero sobre `DECISIONS.md`:** `CTA01-BOTON-SCROLL-TOPE-1` (abierto por
+`MOVIMIENTO-NIVEL-FIRMA-1`, arriba) sólo lo citan, además de su propia entrada, este slice (acá) y
+los dos archivos nuevos de test — ningún otro lugar del repo lo mencionaba, así que cerrarlo no
+deja un puntero stale en ningún otro sitio.
+
+### Deviations
+
+- **La causa que el spec traía como "lo medido" (el `end` inalcanzable del scrub) NO se confirmó
+  como la causa real** — se RE-MIDIÓ en ejecución y resultó ser otra cosa (§ arriba, "LA CAUSA").
+  El spec pedía explícitamente "confirmá la causa", y la medición la contradijo: se reporta en vez
+  de asumirla. El fix que la hipótesis original sugiere (decouplar frase/botón del scrub) SÍ se
+  implementó igual, por ser el principio GENERAL que el spec pide independientemente de la causa
+  puntual — pero el fix que realmente cierra el defecto MEDIDO es el de `transition-all` →
+  `transition-transform`, que el spec no anticipaba.
+- **`lib/movimiento/catalogo.ts`** (dentro de `touches:`) ganó un ajuste de la `descripcion` de
+  CTA01 ("al completar, la frase y el botón revelan" → "revelan al entrar en vista… sin depender de
+  que el vapor complete su trazo"): es el vocabulario INTERNO que el catálogo declara sobre su
+  propio comportamiento, y había dejado de ser cierto con el fix. No afecta ningún test existente
+  (no hay aserción sobre ese string literal).
+
+### Open follow-ups
+
+- **`CTA01-BOTON-SCROLL-TOPE-1`** — **CERRADO.** La causa quedó confirmada (no era la hipótesis
+  original) y el defecto medido no se reproduce más (§ arriba, los dos fixes).
+- **`CIERRE-COMO-UNICA-SECCION-SIN-MEDIR-1`** (nuevo, bajo): el fix #2 (defensivo, eje A) nunca se
+  ejerció con "cierre" como ÚNICA sección de una página (sin bandas antes) — el escenario más corto
+  donde el `end` del vapor podría de verdad no alcanzarse. No bloquea nada hoy (el fix no depende
+  de medirlo para funcionar); si alguna vez se construye una página así, es el momento de verificar
+  en el gate visual que el vapor se comporta bien (dibujo parcial, nunca oculta nada — ya es su
+  comportamiento por diseño, sólo falta el "visto" en ejecución).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes de cliente reales: el `className`
+del CTA de "cierre" (`transition-all` → `transition-transform`, cambia qué propiedades CSS
+transicionan en el hover) y el comportamiento observable del botón (deja de poder quedar
+invisible). `npm run gate` GREEN de punta a punta en el árbol final. Verificado en ejecución
+(Postgres + build real + Chromium, dos viewports, capturas adjuntas). Commiteado en
+`slice/editor-secciones-1`; el merge, cuando el owner revise la rama completa, lo hace el
+orquestador — no este slice.
+
+**Cierra `MOVIMIENTO-CIERRE-BOTON-1`.**

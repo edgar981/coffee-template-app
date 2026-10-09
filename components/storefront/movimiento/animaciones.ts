@@ -27,19 +27,28 @@
 // la REVERSIÓN la hace `useGSAP`/`gsap.context` solo, sin que este archivo lo sepa.
 
 import { gsap } from 'gsap';
+// `ScrollTrigger` se importa SOLO por su `.getById()` estático (§ MOVIMIENTO-CIERRE-BOTON-1, abajo
+// en `cta01`) — el REGISTRO del plugin sigue viviendo únicamente en `useMovimiento.ts` (§ el
+// docstring de cabecera): este archivo nunca llama `gsap.registerPlugin`.
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
 
 /** El disparador compartido por todo `revelado` de este motor — EXACTO al `alEntrar` del
- *  prototipo: dispara al entrar al 82% del viewport, una sola vez, nunca se revierte con el
- *  scroll (`toggleActions:'play none none none'`).
+ *  prototipo: dispara al entrar al 82% del viewport (o al `umbral` que el llamador declare — hoy
+ *  SÓLO CTA01 lo cambia, § MOVIMIENTO-CIERRE-BOTON-1, para alinear su revelado con el `top 70%` en
+ *  que el vapor ya empieza a dibujarse, en vez del 82% genérico), una sola vez, nunca se revierte
+ *  con el scroll (`toggleActions:'play none none none'`). **Nunca lleva `end`**: a diferencia de un
+ *  `scrub`, el disparo de un «play» no necesita que el documento tenga distancia de scroll DESPUÉS
+ *  del elemento — sólo que el visitante scrollee HASTA él —, así que es alcanzable aunque el
+ *  elemento sea la ÚLTIMA cosa de la página.
  *
  *  `forzar` (§ MOVIMIENTO-EDITOR-EXPOSICION-1, el botón «Ver animación» del editor) OMITE el
  *  `scrollTrigger` por completo: sin él, GSAP reproduce el tween INMEDIATAMENTE al crearlo, sin
  *  depender de la posición de scroll — necesario porque la vista previa del editor es una cajita
- *  chica que puede estar fuera del 82% del viewport, o directamente no scrollear nunca. */
-function alEntrar(el: Element, forzar = false) {
+ *  chica que puede estar fuera del umbral del viewport, o directamente no scrollear nunca. */
+function alEntrar(el: Element, forzar = false, umbral = 82) {
   if (forzar) return undefined;
-  return { trigger: el, start: 'top 82%', toggleActions: 'play none none none' } as const;
+  return { trigger: el, start: `top ${umbral}%`, toggleActions: 'play none none none' } as const;
 }
 
 // § MOVIMIENTO-NIVEL-EDITORIAL-1 — EL COLOR SIEMPRE SALE DE LA PALETA, NUNCA FIJO. `getPropertyValue`
@@ -409,9 +418,37 @@ function h03(raiz: HTMLElement, forzar = false) {
  *  (`Cierre.tsx` la envuelve con `<Movimiento id="CTA01" as="section">`). Lee `[data-cta01-vapor]`
  *  (cada trazo de vapor, dibujado con `stroke-dasharray`/`stroke-dashoffset` — EXACTO al prototipo:
  *  `getTotalLength()` sobre el PATH real, no un valor inventado), `[data-cta01-frase]` y
- *  `[data-cta01-boton]` (revelan una vez, al completar el trazo). SIN PIN: el vapor se dibuja atado
- *  al scroll (scrub) mientras la sección entra al viewport, como el prototipo — nunca fija la
- *  página. */
+ *  `[data-cta01-boton]`. SIN PIN: el vapor se dibuja atado al scroll (scrub) mientras la sección
+ *  entra al viewport, como el prototipo — nunca fija la página.
+ *
+ *  § MOVIMIENTO-CIERRE-BOTON-1 — LA CAUSA CONFIRMADA, MEDIDA EN EJECUCIÓN (no la hipótesis de
+ *  MOVIMIENTO-NIVEL-FIRMA-1/`CTA01-BOTON-SCROLL-TOPE-1`, que quedaba sin confirmar por cálculo y
+ *  resultó ser OTRA cosa): el botón (`<Link data-cta01-boton>`, `Cierre.tsx`) llevaba
+ *  `transition-all` en Tailwind — una transición CSS sobre TODAS sus propiedades, incluidas
+ *  `opacity`/`visibility`, las MISMAS que el `.from(boton, {autoAlpha:0})` de abajo escribe cuadro
+ *  a cuadro. Cada escritura de GSAP reinicia esa transición CSS, así que el valor RENDERIZADO
+ *  queda persiguiendo un objetivo que nunca para de moverse; al completar el tween, GSAP consulta
+ *  el valor vigente (vía su caché interno) para decidir si `visibility` debe quedar en `hidden` —
+ *  y, atrapado a mitad de esa persecución, lo deja en `hidden` para siempre, aunque la posición
+ *  FINAL de GSAP sea `opacity:1`. Confirmado por ejecución (Chromium real) en DOS configuraciones:
+ *  con `transition-all` puesto, el botón queda invisible tanto en el timeline COMPARTIDO original
+ *  como en el SEPARADO de abajo; quitando sólo `transition-all` (→ `transition-transform`, el fix
+ *  real, en `Cierre.tsx`), el botón revela bien en AMBAS formas. La frase (`<h2 data-cta01-frase>`)
+ *  nunca lo sufrió porque su className no tiene ninguna transición CSS.
+ *
+ *  SEPARADO EN DOS TIMELINES, A PESAR DE QUE ÉSA NO ERA LA CAUSA: la frase y el botón revelan en
+ *  un SEGUNDO timeline con el disparador de ENTRADA EN VISTA de siempre (`alEntrar`, play-una-vez,
+ *  SIN `end`) en vez de vivir DENTRO del scrub del vapor — por el principio general que el spec de
+ *  este slice pide, no por el defecto medido: un `ScrollTrigger` scrub SIN `pin` (a diferencia de
+ *  S02/S03/H01/H02, que SÍ pinean y por tanto RESERVAN su propio espacio de scroll) puede, en una
+ *  página mucho más corta que la de este arnés, necesitar más distancia de scroll de la que el
+ *  documento tiene — y un disparador de ENTRADA no depende de eso. El vapor se queda en SU propio
+ *  timeline, SIN CAMBIOS de comportamiento (mismo `start`/`end`/`scrub` de siempre), con `id`
+ *  FIJO: `useMovimiento.ts` (§ MOVIMIENTO-SCROLL-UMBRAL-1) sólo rastrea y recrea el timeline de
+ *  REVELADO que esta función devuelve, así que si recrea por un resize-antes-del-primer-scroll,
+ *  una llamada nueva a `cta01()` mataría-y-crearía el vapor SIN que nadie matara la instancia
+ *  vieja — el `ScrollTrigger.getById` de abajo es ese auto-limpiado, para que `cta01()` sea segura
+ *  de invocar más de una vez sobre la misma `raiz`. */
 function cta01(raiz: HTMLElement, forzar = false) {
   const vapor = Array.from(raiz.querySelectorAll<SVGPathElement>('[data-cta01-vapor]'));
   const frase = raiz.querySelector<HTMLElement>('[data-cta01-frase]');
@@ -421,13 +458,17 @@ function cta01(raiz: HTMLElement, forzar = false) {
     const largo = p.getTotalLength();
     gsap.set(p, { strokeDasharray: largo, strokeDashoffset: largo });
   }
-  const tl = gsap.timeline({
-    scrollTrigger: forzar ? undefined : { trigger: raiz, start: 'top 70%', end: 'center 45%', scrub: 0.6 },
+  ScrollTrigger.getById('cta01-vapor')?.kill();
+  const tlVapor = gsap.timeline({
+    scrollTrigger: forzar ? undefined : { id: 'cta01-vapor', trigger: raiz, start: 'top 70%', end: 'center 45%', scrub: 0.6 },
   });
-  tl.to(vapor, { strokeDashoffset: 0, stagger: 0.15, duration: 1, ease: 'none' });
-  if (frase) tl.from(frase, { y: 20, autoAlpha: 0, duration: 0.5 }, '-=0.2');
-  if (boton) tl.from(boton, { y: 12, autoAlpha: 0, duration: 0.4 }, '-=0.2');
-  return tl;
+  tlVapor.to(vapor, { strokeDashoffset: 0, stagger: 0.15, duration: 1, ease: 'none' });
+
+  if (!frase && !boton) return tlVapor;
+  const tlRevelado = gsap.timeline({ scrollTrigger: alEntrar(raiz, forzar, 70) });
+  if (frase) tlRevelado.from(frase, { y: 20, autoAlpha: 0, duration: 0.5 });
+  if (boton) tlRevelado.from(boton, { y: 12, autoAlpha: 0, duration: 0.4 }, frase ? '-=0.2' : 0);
+  return tlRevelado;
 }
 
 // ─── EL DESPACHADOR ──────────────────────────────────────────────────────────────────────────────

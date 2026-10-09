@@ -235,6 +235,24 @@ test('"cierre": CON ctaLabel y un destino del set cerrado, el botón SÍ se mont
   assert.match(html, /data-cta01-boton/);
 });
 
+// § MOVIMIENTO-CIERRE-BOTON-1 — LA CAUSA REAL, confirmada por ejecución (Chromium real): el botón
+// quedaba invisible porque su className llevaba `transition-all`, una transición CSS sobre TODAS
+// sus propiedades que competía con el `.from(boton, {autoAlpha:0})` de GSAP sobre la MISMA
+// propiedad (`opacity`/`visibility`, § `cta01()` en `animaciones.ts`). Medido en las DOS
+// direcciones: con `transition-all` puesto, el botón quedaba en `opacity:0` aun completando su
+// tween (en Chromium real); quitándolo (→ `transition-transform`, sólo lo que el hover
+// `-translate-y-0.5` necesita), revela bien. Este test es la única red DENTRO de `npm test` contra
+// que alguien le devuelva `transition-all` al CTA creyendo que es "la clase de siempre" — la
+// EJECUCIÓN real vive en el gate visual, no acá.
+test('"cierre": el botón NUNCA lleva `transition-all` -- compite con el `autoAlpha` de GSAP sobre `opacity`/`visibility` y lo deja invisible (§ MOVIMIENTO-CIERRE-BOTON-1, medido en Chromium real)', () => {
+  const html = renderCierre({ tipo: 'cierre', titulo: 'T', ctaLabel: 'Comprar café', ctaDestino: '/tienda' });
+  const botonMatch = html.match(/<a data-cta01-boton[^>]*class="([^"]*)"/);
+  assert.ok(botonMatch, 'el botón debe montarse con su className a la vista');
+  const claseBoton = botonMatch![1];
+  assert.doesNotMatch(claseBoton, /\btransition-all\b/);
+  assert.match(claseBoton, /\btransition-transform\b/, 'el hover `-translate-y-0.5` sigue necesitando una transición, sólo que acotada a `transform`');
+});
+
 // ─── § MOVIMIENTO-NIVEL-FIRMA-1 — HeroSection con la variante CANÓNICA ("curtina") no cambia ─────
 //
 // El dispatcher (`HeroSection.tsx`) ganó TRES entradas nuevas en su mapa VARIANTES
