@@ -531,3 +531,65 @@
 /* Escalonado por paridad (§ el comentario en Deslizador.tsx) — marcas vecinas y angostas (el velo:
    0/55/65/100, 10% de distancia entre "Suave" y "Medio") no se solapan si la segunda fila baja. */
 .editor-deslizador__marca--par2 { top: 22px; }
+
+/* ─── MOVIMIENTO-EDITOR-EXPOSICION-1 ─────────────────────────────────────────────────────────────
+   El ajuste «Animación»: tarjetas con mini-loop (`SelectorMovimiento.tsx`, calcado del vocabulario
+   visual de `SelectorTransicion.tsx` — `.bloque-tarjeta` ya existe en `duna.css`, ésta sólo suma
+   el grid+miniatura que le faltan) + la vista previa quieta con «Ver animación»
+   (`VistaMovimiento.tsx`). */
+.editor-movimiento-selector {
+  display: flex; flex-wrap: wrap; gap: var(--duna-space-3);
+}
+.editor-movimiento-tarjeta {
+  flex: 1 1 140px; min-width: 130px; text-align: left; cursor: pointer;
+}
+.editor-movimiento-tarjeta__cabeza {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--duna-space-2);
+}
+
+/* LA MINIATURA — una caja 16:9 recesada (`--duna-wash-hover`, el MISMO fondo "ventana decorativa"
+   que `CAJA_MINIATURA` de `SelectorTransicion.tsx`) con las piezas (líneas/foto/tarjetas) dentro. */
+.editor-movimiento-mini {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: var(--duna-r-s); background: var(--duna-wash-hover); border: 1px solid var(--duna-border);
+  display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px;
+}
+.editor-movimiento-mini__linea {
+  height: 7px; flex: 1; min-width: 0; border-radius: 3px;
+  background: var(--duna-wash-active); border: 1px solid var(--duna-border-2);
+}
+.editor-movimiento-mini__foto {
+  position: absolute; inset: 8px; border-radius: var(--duna-r-s);
+  background: var(--duna-wash-active); border: 1px solid var(--duna-border-2);
+}
+.editor-movimiento-mini__tarjeta {
+  width: 22%; height: 65%; border-radius: var(--duna-r-s);
+  background: var(--duna-wash-active); border: 1px solid var(--duna-border-2);
+}
+
+/* LA VISTA PREVIA junto al ajuste — misma caja recesada, más grande, con el botón «Ver animación»
+   debajo. El contenido de muestra (párrafo/foto/tarjetas) usa los MISMOS tokens que la miniatura,
+   a escala real en vez de ilustrativa: acá SÍ corre el motor real de GSAP (`<Movimiento auto=
+   {false}>`), así que el elemento necesita tamaño/forma reales para que la animación se note. */
+.editor-movimiento-vista {
+  margin-top: var(--duna-space-3); display: flex; flex-direction: column; gap: var(--duna-space-2);
+}
+.editor-movimiento-vista__caja {
+  position: relative; min-height: 96px; border-radius: var(--duna-r-m);
+  background: var(--duna-wash-hover); border: 1px solid var(--duna-border);
+  display: flex; align-items: center; justify-content: center; padding: var(--duna-space-4);
+  overflow: hidden;
+}
+.editor-movimiento-vista__texto {
+  margin: 0; font: 500 var(--duna-text-body) var(--duna-font-ui); color: var(--duna-ink); text-align: center;
+}
+.editor-movimiento-vista__imagen { position: relative; width: 70%; aspect-ratio: 4 / 3; }
+.editor-movimiento-vista__foto {
+  position: absolute; inset: 0; border-radius: var(--duna-r-s);
+  background: var(--duna-wash-active); border: 1px solid var(--duna-border-2);
+}
+.editor-movimiento-vista__tarjetas { display: flex; gap: var(--duna-space-3); width: 100%; }
+.editor-movimiento-vista__tarjeta {
+  flex: 1; height: 72px; border-radius: var(--duna-r-s);
+  background: var(--duna-wash-active); border: 1px solid var(--duna-border-2);
+}

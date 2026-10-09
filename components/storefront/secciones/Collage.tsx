@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
@@ -129,42 +130,69 @@ export default function SeccionCollage({
           </RevelarBloque>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <RevelarBloque indice={instancia.titulo ? 1 : 0} preview={preview} className={ordenGrande}>
-            {hrefGrande ? (
-              <Link href={hrefGrande} className="group relative block h-full">{contenidoGrande}</Link>
-            ) : (
-              <div className="group relative h-full">{contenidoGrande}</div>
-            )}
-          </RevelarBloque>
-
-          <div className={`grid ${colsChicas} gap-4 ${ordenChicas}`}>
-            {chicas.map((item, i) => {
-              const n = i + 1; // índice REAL en `instancia.items` (la grande ocupa el 0)
-              const href = resolverCtaSeccion(item.leyenda, item.enlace, paginas);
-              const contenido = (
-                <>
-                  <Media
-                    item={item}
-                    campo={`${id}.items.${n}.url`}
-                    alt={item.leyenda || instancia.titulo || "Foto del mosaico"}
-                    className="aspect-square overflow-hidden sf-radio-imagen sf-sombra-imagen"
-                  />
-                  <Leyenda texto={item.leyenda} />
-                </>
-              );
-              return (
-                <RevelarBloque key={n} indice={(instancia.titulo ? 1 : 0) + 1 + i} preview={preview}>
-                  {href ? (
-                    <Link href={href} className="group relative block">{contenido}</Link>
-                  ) : (
-                    <div className="group relative">{contenido}</div>
+        {(() => {
+          const chicasRender = chicas.map((item, i) => {
+            const n = i + 1; // índice REAL en `instancia.items` (la grande ocupa el 0)
+            const href = resolverCtaSeccion(item.leyenda, item.enlace, paginas);
+            const contenido = (
+              <>
+                <Media
+                  item={item}
+                  campo={`${id}.items.${n}.url`}
+                  alt={item.leyenda || instancia.titulo || "Foto del mosaico"}
+                  className="aspect-square overflow-hidden sf-radio-imagen sf-sombra-imagen"
+                />
+                <Leyenda texto={item.leyenda} />
+              </>
+            );
+            return { key: n, href, contenido };
+          });
+          const grandeNodo = hrefGrande ? (
+            <Link href={hrefGrande} className="group relative block h-full">{contenidoGrande}</Link>
+          ) : (
+            <div className="group relative h-full">{contenidoGrande}</div>
+          );
+          // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «tarjetas → los ítems»: el GRID EXTERIOR (dos
+          // piezas: la grande, la grilla de chicas) es el `raiz` de `Movimiento` — C01 las anima en
+          // cascada como DOS bloques, no foto por foto (el mosaico encaja entre sí, no es una fila
+          // de tarjetas sueltas). Cada pieza pasa a un wrapper PLANO; con «Ninguna» este branch
+          // nunca se toma (byte-idéntico a antes de este slice).
+          if (instancia.animacion) {
+            return (
+              <Movimiento id={instancia.animacion} as="div" className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className={ordenGrande}>{grandeNodo}</div>
+                <div className={`grid ${colsChicas} gap-4 ${ordenChicas}`}>
+                  {chicasRender.map(({ key, href, contenido }) =>
+                    href ? (
+                      <Link key={key} href={href} className="group relative block">{contenido}</Link>
+                    ) : (
+                      <div key={key} className="group relative">{contenido}</div>
+                    ),
                   )}
-                </RevelarBloque>
-              );
-            })}
-          </div>
-        </div>
+                </div>
+              </Movimiento>
+            );
+          }
+          return (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <RevelarBloque indice={instancia.titulo ? 1 : 0} preview={preview} className={ordenGrande}>
+                {grandeNodo}
+              </RevelarBloque>
+
+              <div className={`grid ${colsChicas} gap-4 ${ordenChicas}`}>
+                {chicasRender.map(({ key, href, contenido }, i) => (
+                  <RevelarBloque key={key} indice={(instancia.titulo ? 1 : 0) + 1 + i} preview={preview}>
+                    {href ? (
+                      <Link href={href} className="group relative block">{contenido}</Link>
+                    ) : (
+                      <div className="group relative">{contenido}</div>
+                    )}
+                  </RevelarBloque>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </section>
   );

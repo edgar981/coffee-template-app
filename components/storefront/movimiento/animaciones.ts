@@ -31,26 +31,32 @@ import { SplitText } from 'gsap/SplitText';
 
 /** El disparador compartido por todo `revelado` de este motor — EXACTO al `alEntrar` del
  *  prototipo: dispara al entrar al 82% del viewport, una sola vez, nunca se revierte con el
- *  scroll (`toggleActions:'play none none none'`). */
-function alEntrar(el: Element) {
+ *  scroll (`toggleActions:'play none none none'`).
+ *
+ *  `forzar` (§ MOVIMIENTO-EDITOR-EXPOSICION-1, el botón «Ver animación» del editor) OMITE el
+ *  `scrollTrigger` por completo: sin él, GSAP reproduce el tween INMEDIATAMENTE al crearlo, sin
+ *  depender de la posición de scroll — necesario porque la vista previa del editor es una cajita
+ *  chica que puede estar fuera del 82% del viewport, o directamente no scrollear nunca. */
+function alEntrar(el: Element, forzar = false) {
+  if (forzar) return undefined;
   return { trigger: el, start: 'top 82%', toggleActions: 'play none none none' } as const;
 }
 
 // ─── TEXTO ───────────────────────────────────────────────────────────────────────────────────────
 
-function t01(raiz: HTMLElement) {
+function t01(raiz: HTMLElement, forzar = false) {
   const split = SplitText.create(raiz, { type: 'lines', mask: 'lines', aria: 'auto' });
-  return gsap.from(split.lines, { yPercent: 110, duration: 0.9, ease: 'power3.out', stagger: 0.12, scrollTrigger: alEntrar(raiz) });
+  return gsap.from(split.lines, { yPercent: 110, duration: 0.9, ease: 'power3.out', stagger: 0.12, scrollTrigger: alEntrar(raiz, forzar) });
 }
 
-function t02(raiz: HTMLElement) {
+function t02(raiz: HTMLElement, forzar = false) {
   const split = SplitText.create(raiz, { type: 'words', aria: 'auto' });
-  return gsap.from(split.words, { y: '0.6em', autoAlpha: 0, duration: 0.6, ease: 'power2.out', stagger: 0.07, scrollTrigger: alEntrar(raiz) });
+  return gsap.from(split.words, { y: '0.6em', autoAlpha: 0, duration: 0.6, ease: 'power2.out', stagger: 0.07, scrollTrigger: alEntrar(raiz, forzar) });
 }
 
-function t03(raiz: HTMLElement) {
+function t03(raiz: HTMLElement, forzar = false) {
   const split = SplitText.create(raiz, { type: 'chars', aria: 'auto' });
-  return gsap.from(split.chars, { yPercent: 80, rotate: 6, autoAlpha: 0, duration: 0.7, ease: 'back.out(1.6)', stagger: 0.05, scrollTrigger: alEntrar(raiz) });
+  return gsap.from(split.chars, { yPercent: 80, rotate: 6, autoAlpha: 0, duration: 0.7, ease: 'back.out(1.6)', stagger: 0.05, scrollTrigger: alEntrar(raiz, forzar) });
 }
 
 /** `.sf-movimiento-resaltada`: la palabra que el dueño de la tienda marca — sin ella, T04 se
@@ -61,9 +67,9 @@ function t03(raiz: HTMLElement) {
  *  arma por ESTILO INLINE, puesto y quitado por GSAP — no una custom property que dependa de que
  *  algún `.css` defina qué significa. `gsap.set` fija el estado de reposo (ancho 0, invisible
  *  hasta que el bloque revele) y el `onUpdate` del tween escribe `backgroundSize` en cada frame. */
-function t04(raiz: HTMLElement) {
+function t04(raiz: HTMLElement, forzar = false) {
   const resaltada = raiz.querySelector<HTMLElement>('.sf-movimiento-resaltada');
-  const tl = gsap.timeline({ scrollTrigger: alEntrar(raiz) });
+  const tl = gsap.timeline({ scrollTrigger: alEntrar(raiz, forzar) });
   tl.from(raiz, { y: 24, autoAlpha: 0, duration: 0.7, ease: 'power2.out' });
   if (resaltada) {
     gsap.set(resaltada, {
@@ -83,25 +89,30 @@ function t04(raiz: HTMLElement) {
   return tl;
 }
 
-function t05(raiz: HTMLElement) {
-  return gsap.from(raiz, { y: 28, autoAlpha: 0, duration: 0.9, ease: 'power2.out', scrollTrigger: alEntrar(raiz) });
+function t05(raiz: HTMLElement, forzar = false) {
+  return gsap.from(raiz, { y: 28, autoAlpha: 0, duration: 0.9, ease: 'power2.out', scrollTrigger: alEntrar(raiz, forzar) });
 }
 
 // ─── IMAGEN ──────────────────────────────────────────────────────────────────────────────────────
 
-function i01(raiz: HTMLElement) {
+function i01(raiz: HTMLElement, forzar = false) {
   return gsap.fromTo(
     raiz,
     { clipPath: 'inset(100% 0% 0% 0%)' },
-    { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.2, ease: 'power3.inOut', scrollTrigger: alEntrar(raiz) },
+    { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.2, ease: 'power3.inOut', scrollTrigger: alEntrar(raiz, forzar) },
   );
 }
 
-function i02(raiz: HTMLElement) {
+function i02(raiz: HTMLElement, forzar = false) {
   const blanco = (raiz.firstElementChild as HTMLElement | null) ?? raiz;
-  return gsap.fromTo(blanco, { scale: 1.18 }, { scale: 1, duration: 1.6, ease: 'power2.out', scrollTrigger: alEntrar(raiz) });
+  return gsap.fromTo(blanco, { scale: 1.18 }, { scale: 1, duration: 1.6, ease: 'power2.out', scrollTrigger: alEntrar(raiz, forzar) });
 }
 
+// i03 (parallax) es `scrub` continuo, no un revelado de una vez: no tiene "forzar" con sentido —
+// `useMovimiento.ts` no ofrece «Ver animación» para ids fuera de la clase `revelado` (§ su
+// docstring), así que nunca se le pide reproducir una vez. Sin el segundo parámetro: una función
+// con MENOS parámetros sigue siendo asignable a `ANIMACIONES_ESENCIALES` (TS lo permite, JS lo
+// ignora en la llamada) — no hace falta nombrar un parámetro que nunca usaría.
 function i03(raiz: HTMLElement) {
   const blanco = (raiz.firstElementChild as HTMLElement | null) ?? raiz;
   return gsap.fromTo(
@@ -125,12 +136,15 @@ function hoverTarjetas(raiz: HTMLElement): void {
   }
 }
 
-function c01(raiz: HTMLElement) {
+function c01(raiz: HTMLElement, forzar = false) {
   const hijos = Array.from(raiz.children);
   hoverTarjetas(raiz);
-  return gsap.from(hijos, { y: 40, autoAlpha: 0, duration: 0.7, ease: 'power2.out', stagger: 0.12, scrollTrigger: alEntrar(raiz) });
+  return gsap.from(hijos, { y: 40, autoAlpha: 0, duration: 0.7, ease: 'power2.out', stagger: 0.12, scrollTrigger: alEntrar(raiz, forzar) });
 }
 
+// c02 es PURAMENTE interacción de puntero (`clases: []`, § catalogo.ts) — no tiene un tween de
+// entrada que «reproducir una vez», así que `useMovimiento.ts` nunca ofrece el botón para este id
+// (gate por `clases.includes('revelado')`). Sin el segundo parámetro, misma razón que en i03.
 function c02(raiz: HTMLElement) {
   hoverTarjetas(raiz);
   return null;
@@ -140,8 +154,8 @@ function c02(raiz: HTMLElement) {
  *  `[data-hasta]` es el valor final, `data-sufijo` es el texto que lo sigue, un `[data-barra]`
  *  HERMANO opcional crece de 0 a 1 en paralelo) — sin exigir una etiqueta ni una clase fija, el
  *  componente genérico no puede saber si el número vive en un `<b>` o un `<span>`. */
-function n01(raiz: HTMLElement) {
-  const tl = gsap.timeline({ scrollTrigger: alEntrar(raiz) });
+function n01(raiz: HTMLElement, forzar = false) {
+  const tl = gsap.timeline({ scrollTrigger: alEntrar(raiz, forzar) });
   const cifras = Array.from(raiz.querySelectorAll<HTMLElement>('[data-hasta]'));
   cifras.forEach((cifra, i) => {
     const hasta = Number(cifra.dataset.hasta);
@@ -167,7 +181,7 @@ type ResultadoAnimacion = gsap.core.Tween | gsap.core.Timeline | null;
 /** Mapa id→función — ÚNICA fuente que `useMovimiento.ts` consulta. Un id sin entrada acá (porque
  *  `movimientoPorId(id).implementada` es `false`, o porque es basura) nunca llega a este mapa: el
  *  llamador ya filtró con `motorDisponible` antes de invocar. */
-export const ANIMACIONES_ESENCIALES: Record<string, (raiz: HTMLElement) => ResultadoAnimacion> = {
+export const ANIMACIONES_ESENCIALES: Record<string, (raiz: HTMLElement, forzar?: boolean) => ResultadoAnimacion> = {
   T01: t01, T02: t02, T03: t03, T04: t04, T05: t05,
   I01: i01, I02: i02, I03: i03,
   C01: c01, C02: c02,

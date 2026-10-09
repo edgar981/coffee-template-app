@@ -487,6 +487,10 @@ const instanciaImagenTextoEditableSchema = z.object({
   // foto" del editor — sin default (§ DEFAULTS_INSTANCIA.imagenTexto, secciones-instancias.ts).
   imagen: z.string().optional(),
   lado: z.string().optional(),
+  // § MOVIMIENTO-EDITOR-EXPOSICION-1 — MISMO motivo que `instanciaTextoEditableSchema.animacion`:
+  // `z.string()` SOFT, el resolver (vía `DESCRIPTOR_INSTANCIA.imagenTexto.escalares.animacion`)
+  // clampa al catálogo o a «Ninguna».
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 const instanciaBannerEditableSchema = z.object({
@@ -501,6 +505,7 @@ const instanciaBannerEditableSchema = z.object({
   // `z.string()` — el resolver (vía `DESCRIPTOR_INSTANCIA.banner.escalares.alto`) clampa al mismo
   // set cerrado de tres pasos que `hero.alto` ('justo'|'alto'|'pantalla').
   alto: z.string().optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 // § SECCIONES-TIPOS-2 — los tres tipos REPEATER del catálogo (`secciones-instancias.ts`,
@@ -516,6 +521,7 @@ const instanciaPreguntasEditableSchema = z.object({
   tipo: z.literal('preguntas'),
   titulo: z.string().optional(),
   items: z.array(instanciaPreguntaItemSchema).optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 
@@ -531,6 +537,7 @@ const instanciaColumnasEditableSchema = z.object({
   tipo: z.literal('columnas'),
   titulo: z.string().optional(),
   items: z.array(instanciaColumnaItemSchema).optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 
@@ -545,6 +552,7 @@ const instanciaFilasEditableSchema = z.object({
   tipo: z.literal('filas'),
   titulo: z.string().optional(),
   items: z.array(instanciaFilaItemSchema).optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 
@@ -567,6 +575,7 @@ const instanciaCollageEditableSchema = z.object({
   // propio set cerrado (disposicion: dos|cuatro; lado: izquierda|derecha).
   disposicion: z.string().optional(),
   lado: z.string().optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 
@@ -582,6 +591,7 @@ const instanciaVideoEditableSchema = z.object({
   imagen: z.string().optional(),
   poster: z.string().optional(),
   modo: z.string().optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 
@@ -608,6 +618,7 @@ const instanciaCarruselEditableSchema = z.object({
   items: z.array(instanciaCarruselItemSchema).optional(),
   alto: z.string().optional(),
   autoplay: z.boolean().optional(),
+  animacion: z.string().optional(),
   visible: z.boolean().optional(),
 });
 

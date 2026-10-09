@@ -25,6 +25,7 @@ import { sonIguales } from '@/lib/admin/historial-editor';
 import { esSeccionInstanciaTipo, nombreInstancia } from '@/lib/config/secciones-instancias';
 import { MARCAS_VELO } from '@/lib/config/site-content-defaults';
 import { etiquetaCercana } from '@/lib/admin/deslizador';
+import { movimientoPorId, MOVIMIENTO_NINGUNA } from '@/lib/movimiento/catalogo';
 
 export type TipoCambio = 'nuevo' | 'cambiado' | 'quitado';
 
@@ -260,6 +261,26 @@ function nombreDeInstancia(valor: unknown): string {
   return esSeccionInstanciaTipo(tipo) ? nombreInstancia(tipo) : 'Sección';
 }
 
+// § MOVIMIENTO-EDITOR-EXPOSICION-1 — EL CASO ESPECÍFICO: cuando lo ÚNICO que cambió en una
+// instancia existente es `animacion`, el resumen nombra la animación elegida en vez del genérico
+// "editada" — «Animación de {nombre}: {nombre de la animación}» (el spec, literal: «Animación de
+// Historia: Aparece por líneas»). Mismo trato que la COMPOSICIÓN/los campos con `opciones` en
+// `cambiosDeSeccion`: un escalar que SIEMPRE tiene un valor es un REEMPLAZO, no un nuevo/quitado.
+// `nombre` sale del `titulo` de la instancia (lo que el dueño escribió, § `InstanciaTarjeta.tsx`,
+// "el título es el contenido, no el tipo") con el nombre de catálogo como respaldo si está vacío.
+function soloAnimacionCambio(antes: unknown, despues: unknown): boolean {
+  if (!antes || typeof antes !== 'object' || !despues || typeof despues !== 'object') return false;
+  const a = antes as Record<string, unknown>;
+  const d = despues as Record<string, unknown>;
+  if (sonIguales(a.animacion, d.animacion)) return false;
+  return sonIguales({ ...a, animacion: undefined }, { ...d, animacion: undefined });
+}
+
+function nombreDeAnimacion(id: unknown): string {
+  if (typeof id !== 'string' || id === MOVIMIENTO_NINGUNA) return 'Ninguna';
+  return movimientoPorId(id)?.nombre ?? 'Ninguna';
+}
+
 function cambiosSeccionesHome(publicado: unknown, borrador: unknown): CambioResumen[] {
   const a = (publicado ?? {}) as Record<string, unknown>;
   const d = (borrador ?? {}) as Record<string, unknown>;
@@ -269,6 +290,13 @@ function cambiosSeccionesHome(publicado: unknown, borrador: unknown): CambioResu
     const antes = a[id];
     const despues = d[id];
     if (sonIguales(antes, despues)) continue;
+    if (soloAnimacionCambio(antes, despues)) {
+      const despuesObj = despues as Record<string, unknown>;
+      const nombre = (typeof despuesObj.titulo === 'string' && despuesObj.titulo.trim()) || nombreDeInstancia(despues);
+      const nombreAnim = nombreDeAnimacion(despuesObj.animacion);
+      out.push(hecho(id, 'Inicio', 'Animación', 'cambiado', `Animación de ${nombre}: ${nombreAnim}`));
+      continue;
+    }
     const tipo: TipoCambio = antes === undefined ? 'nuevo' : despues === undefined ? 'quitado' : 'cambiado';
     const nombre = nombreDeInstancia(tipo === 'quitado' ? antes : despues);
     out.push(hecho(id, 'Inicio', nombre, tipo, `Inicio · ${nombre} · ${PALABRA_INSTANCIA[tipo]}`));

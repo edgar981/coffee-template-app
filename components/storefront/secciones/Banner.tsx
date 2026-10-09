@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion, claseAlturaHero } from "@/lib/config/site-content-defaults";
@@ -45,7 +46,12 @@ export default function SeccionBanner({
     >
       {instancia.imagen ? (
         <>
-          <Image src={instancia.imagen} alt={instancia.titulo} fill priority={false} sizes="100vw" className="object-cover" />
+          {/* § MOVIMIENTO-EDITOR-EXPOSICION-1 — «imagen → la foto». Con «Ninguna» (el default) este
+              `<Movimiento>` devuelve los children sin wrapper — la foto queda exactamente como
+              antes de este slice, byte-idéntico. */}
+          <Movimiento id={instancia.animacion} as="div" className="absolute inset-0">
+            <Image src={instancia.imagen} alt={instancia.titulo} fill priority={false} sizes="100vw" className="object-cover" />
+          </Movimiento>
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80 pointer-events-none" />
         </>
       ) : (

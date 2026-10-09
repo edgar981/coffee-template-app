@@ -6,6 +6,7 @@ import { Play } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion, claseAlturaHero } from "@/lib/config/site-content-defaults";
@@ -72,20 +73,25 @@ export default function SeccionVideo({
         style={style}
       >
         {instancia.imagen ? (
-          <CampoEditable campo={`${id}.imagen`} tipo="imagen">
-            <video
-              ref={videoRefFondo}
-              src={instancia.imagen}
-              poster={instancia.poster || undefined}
-              muted
-              loop
-              playsInline
-              preload={reproducirFondo ? "auto" : "none"}
-              controls={!!reduce && !preview}
-              aria-hidden="true"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          </CampoEditable>
+          // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «imagen → el video de fondo» (sólo modo 'fondo', la
+          // rama en la que estamos). Con «Ninguna» (el default) `<Movimiento>` no monta wrapper —
+          // byte-idéntico a antes de este slice.
+          <Movimiento id={instancia.animacion} as="div" className="absolute inset-0">
+            <CampoEditable campo={`${id}.imagen`} tipo="imagen">
+              <video
+                ref={videoRefFondo}
+                src={instancia.imagen}
+                poster={instancia.poster || undefined}
+                muted
+                loop
+                playsInline
+                preload={reproducirFondo ? "auto" : "none"}
+                controls={!!reduce && !preview}
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            </CampoEditable>
+          </Movimiento>
         ) : (
           <HuecoImagenOpcional campo={`${id}.imagen`} className="absolute inset-0" />
         )}

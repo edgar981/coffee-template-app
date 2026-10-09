@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
@@ -38,19 +39,38 @@ export default function SeccionImagenTexto({
     <section className="py-20 bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       <div className={`${contenedorClase} mx-auto`}>
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
-          <RevelarBloque
-            indice={0}
-            preview={preview}
-            className={`relative aspect-[4/3] overflow-hidden sf-radio-imagen sf-sombra-imagen ${imagenPrimero ? "lg:order-1" : "lg:order-2"}`}
-          >
-            {instancia.imagen ? (
-              <CampoEditable campo={`${id}.imagen`} tipo="imagen">
-                <Image src={instancia.imagen} alt={instancia.titulo} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
-              </CampoEditable>
-            ) : (
-              <HuecoImagenOpcional campo={`${id}.imagen`} className="absolute inset-0 bg-[var(--sf-linea)]" />
-            )}
-          </RevelarBloque>
+          {instancia.animacion ? (
+            // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «imagen → la foto». `Movimiento` reemplaza a
+            // `RevelarBloque` sólo con una animación elegida; con «Ninguna» este branch nunca se
+            // toma (byte-idéntico a antes de este slice).
+            <Movimiento
+              id={instancia.animacion}
+              as="div"
+              className={`relative aspect-[4/3] overflow-hidden sf-radio-imagen sf-sombra-imagen ${imagenPrimero ? "lg:order-1" : "lg:order-2"}`}
+            >
+              {instancia.imagen ? (
+                <CampoEditable campo={`${id}.imagen`} tipo="imagen">
+                  <Image src={instancia.imagen} alt={instancia.titulo} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+                </CampoEditable>
+              ) : (
+                <HuecoImagenOpcional campo={`${id}.imagen`} className="absolute inset-0 bg-[var(--sf-linea)]" />
+              )}
+            </Movimiento>
+          ) : (
+            <RevelarBloque
+              indice={0}
+              preview={preview}
+              className={`relative aspect-[4/3] overflow-hidden sf-radio-imagen sf-sombra-imagen ${imagenPrimero ? "lg:order-1" : "lg:order-2"}`}
+            >
+              {instancia.imagen ? (
+                <CampoEditable campo={`${id}.imagen`} tipo="imagen">
+                  <Image src={instancia.imagen} alt={instancia.titulo} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+                </CampoEditable>
+              ) : (
+                <HuecoImagenOpcional campo={`${id}.imagen`} className="absolute inset-0 bg-[var(--sf-linea)]" />
+              )}
+            </RevelarBloque>
+          )}
 
           <div className={`flex flex-col gap-4 ${imagenPrimero ? "lg:order-2" : "lg:order-1"}`}>
             {instancia.antetitulo && (

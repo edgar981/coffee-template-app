@@ -15,7 +15,7 @@
 // (nada se oculta por CSS estático; lo que T04 oculta, lo pone y lo quita GSAP por estilo inline,
 // § `animaciones.ts` — este componente no importa NINGÚN `.css`, a propósito: nada en este árbol
 // debe depender de que un consumidor recuerde cargar una hoja de estilos aparte).
-import type { ReactNode, Ref } from 'react';
+import { forwardRef, useImperativeHandle, type ReactNode, type Ref } from 'react';
 import { useMovimiento } from './useMovimiento';
 
 /** El set de etiquetas que una sección del storefront necesita para envolver su contenido — MISMO
@@ -29,14 +29,30 @@ export interface MovimientoProps {
   as?: EtiquetaMovimiento;
   className?: string;
   children: ReactNode;
+  /** § MOVIMIENTO-EDITOR-EXPOSICION-1 — `false`: no se auto-dispara por scroll; sólo corre vía el
+   *  `ref` imperativo (`reproducir()`). Ver `useMovimiento.ts`. Default `true`. */
+  auto?: boolean;
 }
 
-export default function Movimiento({ id, as: Etiqueta = 'div', className, children }: MovimientoProps) {
-  const { ref } = useMovimiento(id);
+/** El handle que expone `ref` — el botón «Ver animación» del editor lo usa para disparar un play
+ *  único, sin que el componente que envuelve (una sección cualquiera del storefront) tenga que
+ *  saber nada de esto: sólo pasa el `ref` hacia abajo. */
+export interface MovimientoHandle {
+  reproducir: () => void;
+}
+
+const Movimiento = forwardRef<MovimientoHandle, MovimientoProps>(function Movimiento(
+  { id, as: Etiqueta = 'div', className, children, auto },
+  refExterno,
+) {
+  const { ref, reproducir } = useMovimiento(id, { auto });
+  useImperativeHandle(refExterno, () => ({ reproducir }), [reproducir]);
   if (!id) return <>{children}</>;
   return (
     <Etiqueta ref={ref as Ref<never>} className={className}>
       {children}
     </Etiqueta>
   );
-}
+});
+
+export default Movimiento;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   CATALOGO_MOVIMIENTO, CLAVES_ANIMACION, MOVIMIENTO_NINGUNA,
   movimientoPorId, esMovimientoId, motorDisponible,
+  catalogoMovimientoDeElemento, puedeReproducirUnaVez,
 } from './catalogo';
 
 test('CATALOGO_MOVIMIENTO: 19 entradas, cada id del prototipo presente UNA sola vez', () => {
@@ -68,4 +69,27 @@ test('motorDisponible: true sólo para un id implementado; false para «Ninguna�
   assert.equal(motorDisponible(MOVIMIENTO_NINGUNA), false);
   assert.equal(motorDisponible('no-existe'), false);
   assert.equal(motorDisponible('T06'), false, 'está en el catálogo pero sin motor todavía');
+});
+
+// § MOVIMIENTO-EDITOR-EXPOSICION-1
+
+test('catalogoMovimientoDeElemento: sólo las implementada:true del elemento pedido, en el orden del catálogo', () => {
+  assert.deepEqual(catalogoMovimientoDeElemento('texto').map((d) => d.id), ['T01', 'T02', 'T03', 'T04', 'T05']);
+  assert.deepEqual(catalogoMovimientoDeElemento('imagen').map((d) => d.id), ['I01', 'I02', 'I03']);
+  assert.deepEqual(catalogoMovimientoDeElemento('tarjetas').map((d) => d.id), ['C01', 'C02']);
+  assert.deepEqual(catalogoMovimientoDeElemento('cifras').map((d) => d.id), ['N01']);
+  assert.deepEqual(catalogoMovimientoDeElemento('seccion'), [], 'ninguna aplicaA:seccion está implementada todavía');
+  assert.deepEqual(catalogoMovimientoDeElemento('hero'), [], 'ninguna aplicaA:hero está implementada todavía');
+});
+
+test('puedeReproducirUnaVez: true sólo para clase `revelado`; false para scrub (I03), hover sin tween (C02), basura y «Ninguna»', () => {
+  assert.equal(puedeReproducirUnaVez('T01'), true);
+  assert.equal(puedeReproducirUnaVez('I01'), true);
+  assert.equal(puedeReproducirUnaVez('I02'), true);
+  assert.equal(puedeReproducirUnaVez('C01'), true);
+  assert.equal(puedeReproducirUnaVez('N01'), true);
+  assert.equal(puedeReproducirUnaVez('I03'), false, 'scrub continuo, sin "una vez" que reproducir');
+  assert.equal(puedeReproducirUnaVez('C02'), false, 'hover sin tween de entrada, clases: []');
+  assert.equal(puedeReproducirUnaVez('no-existe'), false);
+  assert.equal(puedeReproducirUnaVez(MOVIMIENTO_NINGUNA), false);
 });

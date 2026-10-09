@@ -3,6 +3,7 @@
 import Link from "next/link";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
@@ -49,9 +50,19 @@ export default function SeccionTexto({
               <CampoEditable campo={`${id}.antetitulo`}>{instancia.antetitulo}</CampoEditable>
             </RevelarBloque>
           )}
-          <RevelarBloque as="h2" indice={instancia.antetitulo ? 1 : 0} preview={preview} className="font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl">
-            <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
-          </RevelarBloque>
+          {instancia.animacion ? (
+            // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «texto → título». Con una animación elegida, el
+            // título corre por GSAP (`Movimiento`) en vez de por `RevelarBloque` (framer-motion):
+            // "un mismo elemento nunca lleva las dos" (§ DUNA-MOVIMIENTO.md). Con «Ninguna» (el
+            // default de hoy) este branch nunca se toma — byte-idéntico a antes de este slice.
+            <Movimiento id={instancia.animacion} as="h2" className="font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl">
+              <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
+            </Movimiento>
+          ) : (
+            <RevelarBloque as="h2" indice={instancia.antetitulo ? 1 : 0} preview={preview} className="font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl">
+              <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
+            </RevelarBloque>
+          )}
           {instancia.texto && (
             <RevelarBloque as="p" indice={instancia.antetitulo ? 2 : 1} preview={preview} className="text-base leading-relaxed text-[var(--sf-sobre-banda-suave,var(--sf-texto))]">
               <CampoEditable campo={`${id}.texto`} multilinea>{instancia.texto}</CampoEditable>

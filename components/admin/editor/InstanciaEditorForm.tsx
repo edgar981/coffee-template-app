@@ -12,6 +12,8 @@ import {
   MSG_VIDEO_NO_ADMITIDO, CONTENEDORES_REMUXEABLES, MAX_VIDEO_HERO_BYTES, MSG_VIDEO_HERO_LARGO,
 } from '@/constants/upload';
 import { InstanciaItemsEditor } from '@/components/admin/editor/InstanciaItemsEditor';
+import { SelectorMovimiento } from '@/components/admin/editor/SelectorMovimiento';
+import { VistaMovimiento } from '@/components/admin/editor/VistaMovimiento';
 import {
   DESCRIPTOR_INSTANCIA, type InstanciaContent, type InstanciaVideoContent, type SeccionInstanciaTipo,
 } from '@/lib/config/secciones-instancias';
@@ -200,7 +202,13 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
           );
         })}
 
-        {descriptor.escalares && Object.keys(descriptor.escalares).map((campo) => {
+        {descriptor.escalares && Object.keys(descriptor.escalares)
+          // § MOVIMIENTO-EDITOR-EXPOSICION-1 — `animacion` NO entra al `<select>` nativo genérico
+          // de abajo: tiene su PROPIO control (tarjetas con mini-loop, bloque aparte). El escalar
+          // sigue viviendo en `descriptor.escalares` (clamp/almacenamiento), sólo cambia quién lo
+          // RENDERIZA.
+          .filter((campo) => campo !== 'animacion')
+          .map((campo) => {
           const id = `inst-${campo}`;
           const def = descriptor.escalares![campo];
           const value = datos[campo] ?? def.canonica;
@@ -214,6 +222,29 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
             </div>
           );
         })}
+
+        {/* § MOVIMIENTO-EDITOR-EXPOSICION-1 — el ajuste «Animación»: tarjetas con mini-loop
+            («Ninguna» primero) + la vista previa quieta con «Ver animación» junto al ajuste (una de
+            las dos ubicaciones que el spec permite — la otra es la barra flotante del iframe, fuera
+            de `touches:`). Sólo los tipos que `DESCRIPTOR_INSTANCIA` declara con
+            `animacionElemento` lo ofrecen. */}
+        {descriptor.animacionElemento && (
+          <div className="duna-field duna-form__full">
+            <span className="duna-field__label">Animación</span>
+            <p className="duna-field__hint" style={{ marginTop: 0 }}>
+              Elegir una no la reproduce acá: la página del editor queda quieta. Corre en la tienda
+              publicada, al hacer scroll.
+            </p>
+            <SelectorMovimiento
+              id={`inst-animacion-${tipo}`}
+              elemento={descriptor.animacionElemento}
+              valor={datos.animacion ?? ''}
+              onElegir={(v) => set('animacion', v)}
+              ariaLabel="Animación"
+            />
+            <VistaMovimiento elemento={descriptor.animacionElemento} animacion={datos.animacion ?? ''} />
+          </div>
+        )}
 
         {/* § EDITOR-PANEL-CONTROLES-1 — BOOLEANOS de instancia (hoy, sólo `carrusel.autoplay`): un
             COMPORTAMIENTO, no un ON/OFF — segmentado con palabras (`.duna-seg`, ya primitiva del

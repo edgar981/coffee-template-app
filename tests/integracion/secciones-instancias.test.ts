@@ -323,6 +323,11 @@ test('crear una instancia "video" (modo fondo, con video+póster), publicar: el 
   assert.deepEqual(publicado.seccionesHome['inst:v'], {
     tipo: 'video', titulo: 'Mira cómo trabajamos', texto: 'Un vistazo detrás de cámaras',
     ctaLabel: 'Ver más', ctaDestino: '/tienda', imagen: 'https://blob/v.mp4', poster: 'https://blob/p.jpg', modo: 'fondo',
+    // § MOVIMIENTO-EDITOR-EXPOSICION-1 — DEVIATION (fuera de `touches:`): MISMA actualización
+    // mecánica que ya hizo MOVIMIENTO-MARCO-GSAP-1 para "texto" más arriba en este archivo (ver su
+    // comentario): el eje `animacion` nuevo de "video" (§ lib/config/secciones-instancias.ts) deja
+    // este fixture literal desactualizado. Visto fallar con el campo ausente antes de este cambio.
+    animacion: '',
     visible: true,
   });
 });

@@ -138,11 +138,13 @@ catalogo-movimiento.html` — «Me gustaron todas las animaciones») y el censo 
   `animaciones.ts` (las once funciones ESENCIALES, una por id, traducción directa del `<script>`
   del prototipo). `id` ausente/«Ninguna» no monta NINGÚN nodo propio — devuelve los children tal
   cual, por eso «Ninguna» es byte-idéntico a no usar el componente.
-- **El eje por sección** — hoy SÓLO en `secciones-instancias.ts`, tipo `texto` (la demostración de
-  este slice: `escalares.animacion`, un escalar clampado al catálogo, igual mecanismo que
-  `alineacion`). Sumarlo a las otras ocho instancias y a las bandas del home (`site-content-
-  defaults.ts`) es la extensión que necesita exponerlo en el editor — explícitamente deferida, no
-  construida en este slice.
+- **El eje por sección** — en los NUEVE tipos de `secciones-instancias.ts` desde § MOVIMIENTO-EDITOR-
+  EXPOSICION-1 (abajo): `escalares.animacion`, un escalar clampado al catálogo, igual mecanismo que
+  `alineacion`, MÁS `animacionElemento` (declara a qué `aplicaA` del catálogo corresponde el ajuste
+  de esa sección, para que el editor filtre sus tarjetas). Esta frase describía el estado recién
+  nacido de este eje (sólo `texto`, como demostración) — § MOVIMIENTO-EDITOR-EXPOSICION-1 es la
+  extensión que esa misma entrada ya anticipaba como pendiente. Las bandas del home
+  (`site-content-defaults.ts`) siguen SIN el eje — ver esa sección para el porqué.
 
 ### La convivencia con framer-motion — un elemento, una librería
 
@@ -176,3 +178,98 @@ ni un tercer sistema en paralelo). En la práctica, hoy:
    el motor nunca la invoca.
 4. Verificá SIEMPRE contra `verificar:nayoli:visual` (§ arriba) antes de cerrar — ninguna animación
    nueva, con «Ninguna» como default, debe mover un píxel de Nayoli.
+
+## El eje llega a las nueve secciones, y al editor (§ MOVIMIENTO-EDITOR-EXPOSICION-1)
+
+Construido el 2026-10-08, siguiendo a MOVIMIENTO-MARCO-GSAP-1 (mismo día). Cierra el follow-up que
+esa entrada dejó abierto: el eje `animacion` llega a los nueve tipos de `secciones-instancias.ts`,
+cada sección lo aplica de verdad en su render, y el editor lo expone con el selector de tarjetas que
+el owner aprobó («Me gustaron todas las animaciones» sobre el prototipo completo).
+
+### El mapeo tipo→elemento, y por qué cada uno es el que es
+
+Cada tipo declara UN `animacionElemento` (`DESCRIPTOR_INSTANCIA[tipo].animacionElemento`) — la clase
+del catálogo (`aplicaA`) a la que su ajuste está acotado, y el NODO exacto que el componente real
+envuelve con `<Movimiento>`:
+
+| tipo | elemento | nodo que envuelve |
+| --- | --- | --- |
+| `texto` | texto | el título (h2) — el mismo nodo que ya demostraba `EjemploSeccionTexto.tsx` |
+| `imagenTexto` | imagen | la foto |
+| `banner` | imagen | la foto de fondo (nada si no hay foto) |
+| `preguntas` | tarjetas | el CONTENEDOR de la lista — C01 anima `raiz.children` (cada pregunta), no cada `<button>` por separado |
+| `columnas` | tarjetas | el GRID de columnas — mismo criterio |
+| `filas` | imagen | DELEGADO: cada fila ya es una `imagenTexto` sintética (§ Filas.tsx, que reusa `SeccionImagenTexto` literal); pasar `instancia.animacion` a cada sintética alcanza, sin segunda implementación |
+| `collage` | tarjetas | el GRID EXTERIOR (dos piezas: la grande, la grilla de chicas) — el mosaico encaja entre sí, así que la cascada es de DOS bloques, no foto por foto |
+| `video` | imagen | el video de fondo, SÓLO modo `'fondo'` (en `'reproducir'` el video ya tiene su propio gesto de arranque) |
+| `carrusel` | texto | la CABECERA opcional (`titulo` de instancia) — un carrusel sólo muestra una diapositiva a la vez, así que «tarjetas escalonadas» no tiene nada coherente que escalonar en las diapositivas; la cabecera sí es texto plano como cualquier título de sección |
+
+`cifras` (N01, el conteo animado) no tiene tipo que lo use hoy — ningún tipo del catálogo modela un
+contador numérico. Queda en el catálogo, sin consumidor, como `S01-S03`/`H01-H03`/`CTA01`/`T06`.
+
+### POR QUÉ NO SE WIREÓ NINGUNA BANDA DEL HOME
+
+`touches:` de este slice permitía tocar `site-content-defaults.ts`/`components/storefront/home/`
+("y las bandas de la home donde tenga sentido" — el spec, condicional). Medido antes de decidir: las
+bandas del home (`HeroMediaMarquesina.tsx`, `Origen.tsx`, `Spotlight.tsx`…) YA llevan movimiento
+bespoke propio (ticker/scrub/revelado a medida, documentado arriba en este archivo) — wireear el
+catálogo genérico ahí exigiría, para cada banda, decidir qué nodo reemplaza con GSAP sin duplicar o
+pelear con el movimiento que ya tiene, un análisis banda-por-banda que el cierre de este slice
+("elegir T01 en una sección de texto… I02 en una imagen y C01 en tarjetas") no pide verificar. Se
+dejó fuera a propósito — es una extensión real, no una deuda escondida, y su disparador es que el
+owner pida animar una banda específica (ahí se mide ESA banda, no las nueve de memoria).
+
+### LA VISTA PREVIA DEL EDITOR — motor real, pero `auto={false}`
+
+El ajuste «Animación» (`SelectorMovimiento.tsx`) es un radiogroup de tarjetas con una miniatura
+ILUSTRATIVA en loop (`MiniaturaMovimiento.tsx` + `lib/movimiento/vista-previa.ts`, puro) — **nunca
+GSAP real corriendo en una docena de tarjetas a la vez**, mismo criterio que
+`SelectorTransicion.tsx` (fuera de `touches:`) ya aplica para las transiciones de la marquesina:
+`progresoLoopTarjetaTransicion` (`lib/animation.ts`) reusada tal cual, nunca copiada.
+
+**«Ver animación» (`VistaMovimiento.tsx`) sí usa el motor REAL** (`<Movimiento auto={false}>`), con
+un contenido representativo (un párrafo de muestra / una foto de muestra / tres tarjetas de
+muestra) — no la sección entera, que sería más superficie de la que esto necesita probar. `auto`
+(nuevo en `useMovimiento.ts`) es lo que lo hace posible: con `auto=false` el motor NUNCA se
+auto-dispara por scroll —ni siquiera cuando no hay gate de preview/editor, que es justo el caso de
+esta vista previa, aislada en su propio documento— y sólo corre al llamar `reproducir()` (el `ref`
+imperativo que `Movimiento`/`useMovimiento` exponen). `reproducir()` llama a la MISMA función de
+`animaciones.ts` que la página real, con un segundo parámetro `forzar=true` que OMITE el
+`scrollTrigger` (así el tween juega inmediato, sin depender de que la cajita de 120px de alto esté
+dentro del 82% de un viewport que no tiene sentido ahí) — pero sigue respetando
+`prefers-reduced-motion`, igual que el camino automático. Gateado además por
+`puedeReproducirUnaVez(id)` (sólo clase `revelado`: I03/parallax y C02/hover no tienen "una vez" que
+mostrar — el botón se deshabilita para esos dos, y para «Ninguna»).
+
+**Por qué NO se usó la barra flotante / el iframe de la vista en vivo** (la otra ubicación que el
+spec permitía): `VistaTiendaIframe.tsx`/`EditorPuenteVivo.tsx` — el canal postMessage que sincroniza
+el borrador con el iframe de la tienda real — están fuera de `touches:` de este slice. Un widget
+local, autocontenido, con el motor real pero datos de muestra, cumple "la vista previa queda quieta
+y el botón la reproduce una vez" sin tocar esos archivos. La página del editor en SÍ (el iframe que
+muestra la sección real con el título/foto verdaderos) también queda quieta automáticamente, GRATIS:
+`EditorPuenteVivo` ya monta `ModoEditorProvider(activo=true)`, y el gate 1 de `useMovimiento`
+(`!editando`) ya apagaba el motor ahí desde MOVIMIENTO-MARCO-GSAP-1 — nada nuevo que construir para
+esa mitad.
+
+### El resumen de publicar nombra la animación
+
+`lib/admin/resumen-cambios.ts` (`cambiosSeccionesHome`): cuando lo ÚNICO que cambió en una instancia
+es `animacion`, la fila dice **"Animación de {título}: {nombre de la animación}"** (p. ej.
+"Animación de Historia: Aparece por líneas") en vez del genérico "{tipo} · editada" — mismo trato
+que la COMPOSICIÓN/los campos con `opciones` en `cambiosDeSeccion` (un escalar que SIEMPRE tiene un
+valor es un REEMPLAZO, no un nuevo/quitado). Si ADEMÁS cambia otro campo, se queda con el genérico
+—no inventa una frase a medias—, y una instancia NUEVA que ya nace con una animación no usa esta
+frase (sigue siendo "nueva").
+
+### Byte-identidad, medida en las NUEVE
+
+`lib/movimiento/demo-byte-identidad.test.ts` generaliza el par ausente/«Ninguna» que
+MOVIMIENTO-MARCO-GSAP-1 afirmaba sólo para `texto`, a los nueve tipos — cada uno renderizado con
+datos de fixture que ejercitan sus ramas reales (imagen presente, CTA, ítems). El contrato cambió de
+dirección a propósito: ese slice afirmaba "elegir una animación real NO mueve un byte" (porque
+`Texto.tsx` no leía el campo todavía); éste afirma lo INVERSO para `texto` (ahora SÍ lo lee) y
+mantiene "ausente = «Ninguna» explícito" byte-idéntico en los nueve. `verificar:nayoli:visual`
+confirma el mismo piso heredado que `MOVIMIENTO-MARCO-GSAP-1`/`NAV-PAGINA-ACTUAL-VISIBLE-1` ya
+documentaban (Nayoli no tiene ninguna `seccionesHome` sembrada, así que ninguno de los nueve
+componentes tocados se monta en sus páginas reales — el cambio es, por construcción, invisible para
+Nayoli).

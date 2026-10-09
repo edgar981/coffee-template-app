@@ -220,3 +220,22 @@ export function esMovimientoId(v: unknown): v is string {
 export function motorDisponible(id: string): boolean {
   return id !== MOVIMIENTO_NINGUNA && !!POR_ID.get(id)?.implementada;
 }
+
+// § MOVIMIENTO-EDITOR-EXPOSICION-1 — el catálogo FILTRADO que el selector del editor ofrece para UN
+// `elemento` (texto/imagen/tarjetas/cifras/sección/hero): sólo las entradas CON MOTOR
+// (`implementada:true`) — una tarjeta "con una mini animación en loop" no puede dibujar el loop de
+// algo que el motor todavía no construye (§ `DUNA-MOVIMIENTO.md`, "implementada:false… el catálogo
+// puede nombrar una animación antes de construirla"). Preserva el orden de `CATALOGO_MOVIMIENTO`
+// (agrupado por elemento desde que se escribió, § el comentario de ese array) — nunca reordena.
+export function catalogoMovimientoDeElemento(elemento: ElementoMovimiento): readonly MovimientoDef[] {
+  return CATALOGO_MOVIMIENTO.filter((d) => d.aplicaA === elemento && d.implementada);
+}
+
+/** ¿Tiene sentido «reproducir una vez» este id? Sólo los de clase `revelado` — un `scrub` (I03,
+ *  continuo, atado a la posición de scroll) o una interacción de puntero sin tween de entrada (C02,
+ *  `clases: []`) no tienen un estado final al que llegar de un solo play. FUENTE ÚNICA de este
+ *  criterio: `useMovimiento.ts` (`reproducir()`) y el botón «Ver animación» del editor lo consultan
+ *  a ÉSTA, nunca repiten `.clases.includes('revelado')` cada uno por su cuenta. */
+export function puedeReproducirUnaVez(id: string): boolean {
+  return !!movimientoPorId(id)?.clases.includes('revelado');
+}

@@ -31,34 +31,50 @@
 // import de este módulo (nivel de módulo, no dentro del hook) para que el costo sea de PARSEO, no
 // de cada render.
 
-import { useRef, type RefObject } from 'react';
+import { useCallback, useRef, type RefObject } from 'react';
 import { useGSAP } from '@gsap/react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
 import { useIsPreview } from '../PreviewMode';
 import { useModoEditorActivo } from '../ModoEditor';
-import { motorDisponible } from '@/lib/movimiento/catalogo';
+import { motorDisponible, puedeReproducirUnaVez } from '@/lib/movimiento/catalogo';
 import { ANIMACIONES_ESENCIALES } from './animaciones';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
+export interface UseMovimientoOpciones {
+  /** `false` (§ MOVIMIENTO-EDITOR-EXPOSICION-1, la vista previa del editor junto al ajuste
+   *  «Animación»): el motor NO se auto-dispara por scroll — ni siquiera cuando `preview`/`editando`
+   *  son `false`, como en la vista previa aislada del editor, que no está detrás de ninguno de esos
+   *  dos contextos pero TAMPOCO debe animarse sola apenas se monta. Sólo corre al llamar
+   *  `reproducir()`. Default `true`: el comportamiento de siempre, el de la página real. */
+  auto?: boolean;
+}
+
 export interface UseMovimientoResultado {
   ref: RefObject<HTMLElement | null>;
-  /** `true` sólo si HAY un id con motor Y ninguno de los tres gates lo apaga — lo que
-   *  `Movimiento.tsx` usa para decidir si monta el wrapper con el ref, o devuelve los children
-   *  directo (sin wrapper, byte-idéntico a no tener el eje). */
+  /** `true` sólo si HAY un id con motor, `auto` no está apagado, Y ninguno de los tres gates de
+   *  siempre lo frena — lo que `Movimiento.tsx` usa para decidir si monta el wrapper con el ref, o
+   *  devuelve los children directo (sin wrapper, byte-idéntico a no tener el eje). */
   activo: boolean;
+  /** Reproduce la animación UNA VEZ, ahora mismo — ignora ScrollTrigger (nunca espera a que el
+   *  elemento cruce el 82% del viewport) y los gates de editor/preview/`auto` (es una orden
+   *  EXPLÍCITA, no el motor automático que esos gates protegen). Sigue respetando
+   *  `prefers-reduced-motion`, igual que el camino automático. No-op si el id no tiene motor, o si
+   *  su clase no es `revelado` (un `scrub`/hover continuo no tiene "una vez" que reproducir). */
+  reproducir: () => void;
 }
 
 /** `id` vacío/undefined (= «Ninguna», § `MOVIMIENTO_NINGUNA`) es el caso más común — por eso el
  *  hook se puede llamar SIEMPRE, incondicional, sin que el consumidor tenga que decidir antes. */
-export function useMovimiento(id: string | undefined): UseMovimientoResultado {
+export function useMovimiento(id: string | undefined, opciones: UseMovimientoOpciones = {}): UseMovimientoResultado {
+  const auto = opciones.auto ?? true;
   const preview = useIsPreview();
   const editando = useModoEditorActivo();
   const ref = useRef<HTMLElement | null>(null);
   const disponible = !!id && motorDisponible(id);
-  const activo = disponible && !preview && !editando;
+  const activo = auto && disponible && !preview && !editando;
 
   useGSAP(() => {
     if (!activo || !ref.current || !id) return;
@@ -68,9 +84,25 @@ export function useMovimiento(id: string | undefined): UseMovimientoResultado {
     // 'reduce' no hay callback que correr, y gsap.matchMedia no inventa uno.
     const mm = gsap.matchMedia();
     mm.add('(prefers-reduced-motion: no-preference)', () => {
-      fn(ref.current as HTMLElement);
+      fn(ref.current as HTMLElement, false);
     });
   }, { scope: ref as RefObject<HTMLElement>, dependencies: [activo, id] });
 
-  return { ref, activo };
+  // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «Ver animación». No depende de `activo`: corre aunque
+  // `auto=false` sea justo lo que lo frenó, porque esto es la orden explícita que el apagado
+  // automático no cubre. El gate por CLASE (`revelado`) vive acá y no en el llamador (el botón del
+  // editor también lo consulta para deshabilitarse, pero el hook es la fuente — dos consultas del
+  // MISMO criterio divergirían si una cambiara sin la otra).
+  const reproducir = useCallback(() => {
+    if (!ref.current || !id) return;
+    if (!puedeReproducirUnaVez(id)) return;
+    const fn = ANIMACIONES_ESENCIALES[id];
+    if (!fn) return;
+    const mm = gsap.matchMedia();
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      fn(ref.current as HTMLElement, true);
+    });
+  }, [id]);
+
+  return { ref, activo, reproducir };
 }

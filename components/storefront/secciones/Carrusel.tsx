@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion, claseAlturaHero } from "@/lib/config/site-content-defaults";
@@ -197,14 +198,22 @@ export default function SeccionCarrusel({
     <section className="bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
       {instancia.titulo && (
         <div className={`${contenedorClase} mx-auto px-6 pt-14`}>
-          <RevelarBloque
-            as="h2"
-            indice={0}
-            preview={preview}
-            className="text-center font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl"
-          >
-            <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
-          </RevelarBloque>
+          {instancia.animacion ? (
+            // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «texto → la cabecera». Con «Ninguna» este branch
+            // nunca se toma (byte-idéntico a antes de este slice).
+            <Movimiento id={instancia.animacion} as="h2" className="text-center font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl">
+              <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
+            </Movimiento>
+          ) : (
+            <RevelarBloque
+              as="h2"
+              indice={0}
+              preview={preview}
+              className="text-center font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl"
+            >
+              <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
+            </RevelarBloque>
+          )}
         </div>
       )}
       {/* FONDO OSCURO por canónica (`instanciaOscuraCanonica('carrusel') === true`,

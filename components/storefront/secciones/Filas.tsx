@@ -65,6 +65,11 @@ export default function SeccionFilas({
           ctaDestino: fila.ctaDestino,
           imagen: fila.imagen,
           lado: i % 2 === 0 ? "izquierda" : "derecha",
+          // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «filas» DELEGA el elemento 'imagen' en
+          // `SeccionImagenTexto`, que YA sabe envolver su foto en `<Movimiento>` (§ su propio
+          // cableado). Pasar el MISMO `instancia.animacion` a cada fila sintética es todo lo que
+          // hace falta para que las N filas animen su foto — sin repetir el wrapping acá.
+          animacion: instancia.animacion,
           visible: true,
         };
         return <SeccionImagenTexto key={i} id={`${id}.items.${i}`} instancia={sintetica} style={style} />;

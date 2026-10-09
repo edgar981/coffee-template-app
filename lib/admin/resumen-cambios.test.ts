@@ -268,6 +268,62 @@ test('seccionesHome: sin fila ("" vs undefined) no revienta -- cae a mapas vací
   assert.deepEqual(resumenCambios(['seccionesHome'], {}, {}), []);
 });
 
+// § MOVIMIENTO-EDITOR-EXPOSICION-1 — el caso específico: SÓLO `animacion` cambió.
+
+test('seccionesHome: elegir SÓLO una animación (nada más cambia) se resume "Animación de {título}: {nombre}", no el genérico "editada"', () => {
+  const base = { tipo: 'texto', antetitulo: '', titulo: 'Historia', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro', animacion: '' };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, animacion: 'T01' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Animación', tipo: 'cambiado',
+    etiqueta: 'Animación de Historia: Aparece por líneas',
+  }]);
+});
+
+test('seccionesHome: volver la animación a «Ninguna» también usa la frase específica, con "Ninguna" como nombre', () => {
+  const base = { tipo: 'texto', antetitulo: '', titulo: 'Historia', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro', animacion: 'T01' };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, animacion: '' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Animación', tipo: 'cambiado',
+    etiqueta: 'Animación de Historia: Ninguna',
+  }]);
+});
+
+test('seccionesHome: sin título, la frase de animación cae al nombre del catálogo (como el genérico "editada")', () => {
+  const base = { tipo: 'banner', titulo: '', texto: '', ctaLabel: '', ctaDestino: '', ctaSecundarioLabel: '', ctaSecundarioDestino: '', imagen: '', alto: 'justo', animacion: '' };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, animacion: 'I02' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Animación', tipo: 'cambiado',
+    etiqueta: 'Animación de Banner: Escala suave',
+  }]);
+});
+
+test('seccionesHome: si ADEMÁS de la animación cambia otro campo, se queda con el genérico "editada" (no inventa una frase a medias)', () => {
+  const base = { tipo: 'texto', antetitulo: '', titulo: 'Historia', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro', animacion: '' };
+  const publicado = { 'inst:a': base };
+  const borrador = { 'inst:a': { ...base, animacion: 'T01', titulo: 'Historia 2' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Texto', tipo: 'cambiado',
+    etiqueta: 'Inicio · Texto · editada',
+  }]);
+});
+
+test('seccionesHome: una instancia NUEVA que ya nace con una animación distinta de «Ninguna» sigue siendo "nueva" (no la frase de animación)', () => {
+  const publicado = {};
+  const borrador = { 'inst:a': { tipo: 'texto', antetitulo: '', titulo: 'T', texto: '', ctaLabel: '', ctaDestino: '', alineacion: 'centro', animacion: 'T01' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Texto', tipo: 'nuevo',
+    etiqueta: 'Inicio · Texto · nueva',
+  }]);
+});
+
 // ── BONUS · imagen, booleano, repeater ──────────────────────────────────────────────────────────
 
 test('imagen: reemplazar la portada del hero es "cambiado"', () => {

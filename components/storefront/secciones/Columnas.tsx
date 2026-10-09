@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import RevelarBloque from "@/components/storefront/RevelarBloque";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import Movimiento from "@/components/storefront/movimiento/Movimiento";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { resolverCtaSeccion } from "@/lib/config/site-content-defaults";
@@ -63,13 +64,13 @@ export default function SeccionColumnas({
             <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
           </RevelarBloque>
         )}
-        <div className={`grid grid-cols-1 gap-8 ${gridClase}`}>
-          {instancia.items.map((col, i) => {
-            // `enlace` ES EL CTA de la columna entera: no hay un `enlaceLabel` separado, así que
-            // reusa `resolverCtaSeccion` con el TÍTULO como label — igual criterio que cualquier CTA
-            // de sección: sin destino válido o con la página de destino apagada, `null` (sin link
-            // roto, § CLAUDE.md "preferir callar"). `titulo` es REQUERIDO en el descriptor, así que
-            // esto nunca cae en el caso "label vacío" salvo que el dueño lo vacíe a propósito.
+        {(() => {
+          // `enlace` ES EL CTA de la columna entera: no hay un `enlaceLabel` separado, así que
+          // reusa `resolverCtaSeccion` con el TÍTULO como label — igual criterio que cualquier CTA
+          // de sección: sin destino válido o con la página de destino apagada, `null` (sin link
+          // roto, § CLAUDE.md "preferir callar"). `titulo` es REQUERIDO en el descriptor, así que
+          // esto nunca cae en el caso "label vacío" salvo que el dueño lo vacíe a propósito.
+          const items = instancia.items.map((col, i) => {
             const href = resolverCtaSeccion(col.titulo, col.enlace, paginas);
             const contenido = (
               <>
@@ -98,19 +99,39 @@ export default function SeccionColumnas({
                 )}
               </>
             );
+            return { key: i, href, contenido };
+          });
+          // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «tarjetas → los ítems»: con una animación elegida, el
+          // GRID entero es el `raiz` de `Movimiento` (C01 anima `raiz.children`), y cada columna
+          // pasa de `RevelarBloque` a su `<Link>`/`<div>` plano — con «Ninguna» este branch nunca se
+          // toma (byte-idéntico a antes de este slice).
+          if (instancia.animacion) {
             return (
-              <RevelarBloque key={i} indice={instancia.titulo ? i + 1 : i} preview={preview}>
-                {href ? (
-                  <Link href={href} className="group block">
-                    {contenido}
-                  </Link>
-                ) : (
-                  <div className="group">{contenido}</div>
+              <Movimiento id={instancia.animacion} as="div" className={`grid grid-cols-1 gap-8 ${gridClase}`}>
+                {items.map(({ key, href, contenido }) =>
+                  href ? (
+                    <Link key={key} href={href} className="group block">{contenido}</Link>
+                  ) : (
+                    <div key={key} className="group">{contenido}</div>
+                  ),
                 )}
-              </RevelarBloque>
+              </Movimiento>
             );
-          })}
-        </div>
+          }
+          return (
+            <div className={`grid grid-cols-1 gap-8 ${gridClase}`}>
+              {items.map(({ key, href, contenido }) => (
+                <RevelarBloque key={key} indice={instancia.titulo ? key + 1 : key} preview={preview}>
+                  {href ? (
+                    <Link href={href} className="group block">{contenido}</Link>
+                  ) : (
+                    <div className="group">{contenido}</div>
+                  )}
+                </RevelarBloque>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </section>
   );

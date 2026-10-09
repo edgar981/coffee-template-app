@@ -36,7 +36,7 @@
 // `lib/movimiento/catalogo.ts` es un módulo HOJA independiente (§ MOVIMIENTO-MARCO-GSAP-1,
 // ANIMACION_SECCION más abajo) — no crea el ciclo que el docstring de arriba previene, porque ese
 // catálogo no importa NADA de vuelta de este archivo ni de `site-content-defaults.ts`.
-import { CLAVES_ANIMACION, MOVIMIENTO_NINGUNA } from '../movimiento/catalogo';
+import { CLAVES_ANIMACION, MOVIMIENTO_NINGUNA, type ElementoMovimiento } from '../movimiento/catalogo';
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -121,6 +121,16 @@ export interface InstanciaDescriptor {
    *  de la instancia, p. ej. su `titulo`), guarda un array `items` cuyo contenido describe este
    *  campo. Ausente ⇒ el tipo es de campos planos nomás (Texto/ImagenTexto/Banner). */
   items?: InstanciaItemsDef;
+  /** § MOVIMIENTO-EDITOR-EXPOSICION-1 — presente ⇒ este tipo ADMITE el ajuste «Animación», y el
+   *  valor dice a qué CLASE de elemento del catálogo de movimiento (`lib/movimiento/catalogo.ts`)
+   *  se aplica — lo que el selector del editor usa para filtrar sus tarjetas
+   *  (`catalogoMovimientoDeElemento`), y lo que cada componente de sección YA sabe de memoria (no
+   *  lo lee de acá en runtime: el registro declara QUE existe el ajuste y CUÁL es su elemento, para
+   *  que el editor no tenga que adivinarlo por tipo; el componente de storefront, que conoce su
+   *  propia estructura, decide el NODO exacto que envuelve). El escalar de ALMACENAMIENTO sigue
+   *  siendo `escalares.animacion` (abajo, `ANIMACION_SECCION`) — éste es sólo el ROTULADO semántico
+   *  de para qué sirve. Ausente ⇒ el tipo no ofrece el ajuste; los nueve tipos de hoy lo declaran. */
+  animacionElemento?: ElementoMovimiento;
 }
 
 const ALINEACIONES_TEXTO = { claves: ['izquierda', 'centro', 'derecha'], canonica: 'centro' } as const;
@@ -167,6 +177,9 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       ctaDestino: 'opcional',
     },
     escalares: { alineacion: ALINEACIONES_TEXTO, animacion: ANIMACION_SECCION },
+    // «texto → título/párrafo» (§ el spec) — el componente aplica al TÍTULO (§ Texto.tsx), el nodo
+    // que ya demostraba `EjemploSeccionTexto.tsx` del slice anterior.
+    animacionElemento: 'texto',
   },
   imagenTexto: {
     campos: {
@@ -178,7 +191,11 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       imagen: 'opcional',
     },
     imagenes: ['imagen'],
-    escalares: { lado: LADOS_IMAGEN_TEXTO },
+    escalares: { lado: LADOS_IMAGEN_TEXTO, animacion: ANIMACION_SECCION },
+    // «imagen → la foto» (§ el spec de MOVIMIENTO-EDITOR-EXPOSICION-1): el elemento más prominente
+    // de este tipo es la foto, no el texto — y es el mismo target que reusa `filas` por delegación
+    // (§ DESCRIPTOR_INSTANCIA.filas, abajo).
+    animacionElemento: 'imagen',
   },
   banner: {
     campos: {
@@ -191,12 +208,19 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       imagen: 'opcional',
     },
     imagenes: ['imagen'],
-    escalares: { alto: ALTURAS_BANNER },
+    escalares: { alto: ALTURAS_BANNER, animacion: ANIMACION_SECCION },
+    // Foto de fondo a sangre, el elemento más prominente — mismo criterio que `imagenTexto`.
+    animacionElemento: 'imagen',
   },
   // § SECCIONES-TIPOS-2 — los tres REPEATER: la cabecera es sólo `titulo` (opcional, como el resto)
   // y el contenido real vive en `items`. `min`/`max` son sólo del EDITOR (§ `InstanciaItemsDef`).
   preguntas: {
     campos: { titulo: 'opcional' },
+    escalares: { animacion: ANIMACION_SECCION },
+    // «tarjetas → los ítems» (§ el spec): cada pregunta del acordeón es una "tarjeta" que entra en
+    // cascada, igual que cualquier otro repeater — § Preguntas.tsx envuelve el CONTENEDOR de la
+    // lista, no cada `<button>` por separado.
+    animacionElemento: 'tarjetas',
     items: {
       descriptor: { campos: { pregunta: 'requerido', respuesta: 'requerido' } },
       min: 0,
@@ -204,6 +228,8 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
   },
   columnas: {
     campos: { titulo: 'opcional' },
+    escalares: { animacion: ANIMACION_SECCION },
+    animacionElemento: 'tarjetas',
     items: {
       descriptor: {
         campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', enlace: 'opcional' },
@@ -215,8 +241,15 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       max: 6,
     },
   },
+  // «filas» DELEGA el elemento 'imagen', no 'tarjetas': cada fila YA es una `imagenTexto` sintética
+  // (§ Filas.tsx, que reusa `SeccionImagenTexto` literal por fila) — así que la misma animación que
+  // "imagen con texto" aplica a la FOTO de cada fila, pasando `instancia.animacion` a cada
+  // sintética. Tratarla como 'tarjetas' habría exigido una SEGUNDA implementación del wrapping en
+  // vez de reusar la que ImagenTexto.tsx ya tiene.
   filas: {
     campos: { titulo: 'opcional' },
+    escalares: { animacion: ANIMACION_SECCION },
+    animacionElemento: 'imagen',
     items: {
       descriptor: {
         campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', ctaLabel: 'opcional', ctaDestino: 'opcional' },
@@ -245,7 +278,10 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       min: 3,
       max: 6,
     },
-    escalares: { disposicion: DISPOSICIONES_COLLAGE, lado: LADOS_IMAGEN_TEXTO },
+    escalares: { disposicion: DISPOSICIONES_COLLAGE, lado: LADOS_IMAGEN_TEXTO, animacion: ANIMACION_SECCION },
+    // El mosaico es una colección de piezas (la grande + la grilla de chicas) — `C01` las hace
+    // entrar en cascada igual que cualquier otro repeater, § Collage.tsx.
+    animacionElemento: 'tarjetas',
   },
   // § SECCIONES-TIPOS-3 — "video": UN campo plano, `imagen` (reusa el mismo nombre que el resto del
   // catálogo para una media subida — § `imagenesDeInstancia`, que no necesita saber que acá siempre
@@ -263,7 +299,13 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       poster: 'opcional',
     },
     imagenes: ['imagen', 'poster'],
-    escalares: { modo: MODOS_VIDEO },
+    escalares: { modo: MODOS_VIDEO, animacion: ANIMACION_SECCION },
+    // El video ES la pieza visual de este tipo, el mismo rol que la foto en `imagenTexto`/`banner`
+    // — reusa su MISMO elemento del catálogo (I01/I02 operan con transform/clip-path, agnósticos de
+    // si el nodo es `<img>` o `<video>`). Sólo aplica en modo 'fondo' (§ Video.tsx); en
+    // 'reproducir' el video ya trae su propio gesto de arranque y no tiene sentido animarlo de
+    // entrada.
+    animacionElemento: 'imagen',
   },
   // § SECCIONES-CARRUSEL-1 — "carrusel": de DOS a SEIS diapositivas (el PISO es lo que hace cierta
   // "de dos a seis" — con una sola no hay nada que deslizar). `campos: { titulo: 'opcional' }` —
@@ -284,10 +326,16 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
   // spec), y la lógica de PAUSA (hover/foco/toque) y de nunca correr con `prefers-reduced-motion`
   // vive en el COMPONENTE (`Carrusel.tsx`) — este descriptor sólo declara que el campo EXISTE y se
   // persiste como booleano explícito, igual que `visible`.
+  // «carrusel» aplica 'texto' sobre su CABECERA (`titulo`, § arriba), no sobre las diapositivas: un
+  // carrusel sólo muestra una diapositiva a la vez (Embla las desliza, no las revela todas
+  // juntas), así que «tarjetas escalonadas» no tiene nada coherente que escalonar ahí — la cabecera
+  // opcional, en cambio, es texto plano como cualquier título de sección, y entra con el mismo
+  // T01-T05 que `texto`/`preguntas`/`columnas`/`collage` ya ofrecen para la suya.
   carrusel: {
     campos: { titulo: 'opcional' },
     booleanos: ['autoplay'],
-    escalares: { alto: ALTURAS_BANNER },
+    escalares: { alto: ALTURAS_BANNER, animacion: ANIMACION_SECCION },
+    animacionElemento: 'texto',
     items: {
       descriptor: {
         campos: { imagen: 'opcional', titulo: 'requerido', texto: 'opcional', ctaLabel: 'opcional', ctaDestino: 'opcional' },
@@ -332,6 +380,7 @@ export interface InstanciaImagenTextoContent {
   ctaDestino: string;
   imagen: string;
   lado: string;
+  animacion: string;
   visible: boolean;
 }
 
@@ -345,6 +394,7 @@ export interface InstanciaBannerContent {
   ctaSecundarioDestino: string;
   imagen: string;
   alto: string;
+  animacion: string;
   visible: boolean;
 }
 
@@ -359,6 +409,7 @@ export interface InstanciaPreguntasContent {
   tipo: 'preguntas';
   titulo: string;
   items: InstanciaPreguntaItem[];
+  animacion: string;
   visible: boolean;
 }
 
@@ -372,6 +423,7 @@ export interface InstanciaColumnasContent {
   tipo: 'columnas';
   titulo: string;
   items: InstanciaColumnaItem[];
+  animacion: string;
   visible: boolean;
 }
 
@@ -386,6 +438,7 @@ export interface InstanciaFilasContent {
   tipo: 'filas';
   titulo: string;
   items: InstanciaFilaItem[];
+  animacion: string;
   visible: boolean;
 }
 
@@ -406,6 +459,7 @@ export interface InstanciaCollageContent {
   items: InstanciaCollageItem[];
   disposicion: string;
   lado: string;
+  animacion: string;
   visible: boolean;
 }
 
@@ -418,6 +472,7 @@ export interface InstanciaVideoContent {
   imagen: string;
   poster: string;
   modo: string;
+  animacion: string;
   visible: boolean;
 }
 
@@ -439,6 +494,7 @@ export interface InstanciaCarruselContent {
   items: InstanciaCarruselItem[];
   alto: string;
   autoplay: boolean;
+  animacion: string;
   visible: boolean;
 }
 
@@ -487,6 +543,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaDestino: '',
     imagen: '',
     lado: LADOS_IMAGEN_TEXTO.canonica,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   banner: {
@@ -499,6 +556,7 @@ export const DEFAULTS_INSTANCIA: {
     ctaSecundarioDestino: '',
     imagen: '',
     alto: ALTURAS_BANNER.canonica,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   // § SECCIONES-TIPOS-2 — los tres REPEATER nacen con DOS ítems de ejemplo, texto neutro y SIN
@@ -516,6 +574,7 @@ export const DEFAULTS_INSTANCIA: {
       { pregunta: 'Una pregunta frecuente', respuesta: 'Escribe acá la respuesta a esta pregunta.' },
       { pregunta: 'Otra pregunta frecuente', respuesta: 'Escribe acá la respuesta a esta pregunta.' },
     ],
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   columnas: {
@@ -525,6 +584,7 @@ export const DEFAULTS_INSTANCIA: {
       { imagen: '', titulo: 'Una columna', texto: 'Escribe acá el texto de esta columna.', enlace: '' },
       { imagen: '', titulo: 'Otra columna', texto: 'Escribe acá el texto de esta columna.', enlace: '' },
     ],
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   filas: {
@@ -534,6 +594,7 @@ export const DEFAULTS_INSTANCIA: {
       { imagen: '', titulo: 'Un título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
       { imagen: '', titulo: 'Otro título para esta fila', texto: 'Escribe acá el texto de esta fila.', ctaLabel: '', ctaDestino: '' },
     ],
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   // § SECCIONES-TIPOS-3 — "collage" nace con TRES ítems de ejemplo (el PISO, no dos como los demás
@@ -550,6 +611,7 @@ export const DEFAULTS_INSTANCIA: {
     ],
     disposicion: DISPOSICIONES_COLLAGE.canonica,
     lado: LADOS_IMAGEN_TEXTO.canonica,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   video: {
@@ -561,6 +623,7 @@ export const DEFAULTS_INSTANCIA: {
     imagen: '',
     poster: '',
     modo: MODOS_VIDEO.canonica,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
   // § SECCIONES-CARRUSEL-1 — "carrusel" nace con DOS diapositivas de ejemplo (el PISO, como
@@ -575,6 +638,7 @@ export const DEFAULTS_INSTANCIA: {
     ],
     alto: ALTURAS_BANNER.canonica,
     autoplay: false,
+    animacion: MOVIMIENTO_NINGUNA,
     visible: true,
   },
 };
