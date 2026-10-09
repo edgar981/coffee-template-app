@@ -55,6 +55,15 @@ export default function SeccionImagenTexto({
               ) : (
                 <HuecoImagenOpcional campo={`${id}.imagen`} className="absolute inset-0 bg-[var(--sf-linea)]" />
               )}
+              {/* § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06, mismo marcador que Banner.tsx. */}
+              {instancia.animacion === 'T06' && instancia.imagen && instancia.titulo && (
+                <div
+                  aria-hidden="true"
+                  className="sf-movimiento-gigante pointer-events-none absolute inset-x-0 bottom-[6%] select-none overflow-hidden whitespace-nowrap font-playfair text-[clamp(32px,7vw,96px)] leading-[0.8] text-[var(--sf-fondo)]/90"
+                >
+                  {instancia.titulo.toUpperCase()}
+                </div>
+              )}
             </Movimiento>
           ) : (
             <RevelarBloque

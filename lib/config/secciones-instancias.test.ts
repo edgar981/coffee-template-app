@@ -42,7 +42,7 @@ test('DESCRIPTOR_INSTANCIA: un tipo REPEATER (`items` presente) siempre tiene `i
   }
 });
 
-test('esSeccionInstanciaTipo: acepta los nueve del catálogo, rechaza basura', () => {
+test('esSeccionInstanciaTipo: acepta los diez del catálogo, rechaza basura', () => {
   assert.equal(esSeccionInstanciaTipo('texto'), true);
   assert.equal(esSeccionInstanciaTipo('imagenTexto'), true);
   assert.equal(esSeccionInstanciaTipo('banner'), true);
@@ -52,6 +52,7 @@ test('esSeccionInstanciaTipo: acepta los nueve del catálogo, rechaza basura', (
   assert.equal(esSeccionInstanciaTipo('collage'), true);
   assert.equal(esSeccionInstanciaTipo('video'), true);
   assert.equal(esSeccionInstanciaTipo('carrusel'), true);
+  assert.equal(esSeccionInstanciaTipo('proceso'), true);
   assert.equal(esSeccionInstanciaTipo('hero'), false);
   assert.equal(esSeccionInstanciaTipo(''), false);
   assert.equal(esSeccionInstanciaTipo(123), false);
@@ -329,6 +330,10 @@ test('resolverInstancia: "collage" — disposicion/lado clampan a su set cerrado
   assert.equal((resolverInstancia({ tipo: 'collage', lado: 'arriba' }) as unknown as { lado: string }).lado, 'izquierda');
 });
 
+test('resolverInstancia: "collage" — `disposicion:\'horizontal\'` (el modo de S03, § MOVIMIENTO-NIVEL-EDITORIAL-1) es un valor VÁLIDO del set, no basura', () => {
+  assert.equal((resolverInstancia({ tipo: 'collage', disposicion: 'horizontal' }) as unknown as { disposicion: string }).disposicion, 'horizontal');
+});
+
 test('instanciaEsVisible: "collage" — hide-on-empty gana sobre `visible:true`, igual que los otros repeater', () => {
   const vacia = resolverInstancia({ tipo: 'collage', visible: true, items: [] })!;
   const conItems = resolverInstancia({ tipo: 'collage', visible: true, items: [{ leyenda: 'x' }] })!;
@@ -432,6 +437,7 @@ test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un t
   assert.equal(nombreInstancia('collage'), 'Collage');
   assert.equal(nombreInstancia('video'), 'Video');
   assert.equal(nombreInstancia('carrusel'), 'Carrusel');
+  assert.equal(nombreInstancia('proceso'), 'Proceso');
   assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
 });
 
@@ -553,5 +559,59 @@ test('imagenesDeInstancia: "carrusel" — junta la imagen de CADA diapositiva, n
 test('§ SECCIONES-CARRUSEL-1 — instanciaOscuraCanonica/instanciaEsUniforme: carrusel oscuro (como banner) y uniforme (foto de fondo a sangre en cada diapositiva)', () => {
   assert.equal(instanciaOscuraCanonica('carrusel'), true);
   assert.equal(instanciaEsUniforme('carrusel'), true);
+});
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" ("Del fruto a la taza", S02) ────────────────────
+
+test('DESCRIPTOR_INSTANCIA.proceso: "de tres a seis pasos" es el min/max del editor, el default nace con exactamente 3, y NO declara `animacionElemento`', () => {
+  assert.equal(DESCRIPTOR_INSTANCIA.proceso.items?.min, 3);
+  assert.equal(DESCRIPTOR_INSTANCIA.proceso.items?.max, 6);
+  assert.equal(DEFAULTS_INSTANCIA.proceso.items.length, 3);
+  assert.equal(DESCRIPTOR_INSTANCIA.proceso.animacionElemento, undefined, 'nace con S02 incorporado: no hay eje que elegir');
+  assert.equal(DESCRIPTOR_INSTANCIA.proceso.escalares, undefined);
+});
+
+test('resolverInstancia: "proceso" — items normaliza etiqueta/titulo/texto/imagen a string; "titulo"/"texto" requeridos son del EDITOR, no del resolver', () => {
+  const r = resolverInstancia({
+    tipo: 'proceso',
+    items: [
+      { etiqueta: '01 · Cosecha', titulo: 'Paso real', texto: 'Cuerpo', imagen: '/a.jpg' },
+      { titulo: '' },
+      'basura',
+    ],
+  }) as unknown as { items: Record<string, string>[] };
+  assert.deepEqual(r.items, [
+    { etiqueta: '01 · Cosecha', titulo: 'Paso real', texto: 'Cuerpo', imagen: '/a.jpg' },
+    { etiqueta: '', titulo: '', texto: '', imagen: '' },
+  ], 'el ítem-string se descarta; "titulo"/"texto" requeridos son del EDITOR, igual que carrusel/columnas/filas');
+});
+
+test('resolverInstancia: "proceso" — items ausente o no-array da [] (nunca lanza, nunca inventa pasos)', () => {
+  assert.deepEqual((resolverInstancia({ tipo: 'proceso' }) as unknown as { items: unknown[] }).items, []);
+  assert.deepEqual((resolverInstancia({ tipo: 'proceso', items: 'no es un array' }) as unknown as { items: unknown[] }).items, []);
+});
+
+test('resolverInstancia: "proceso" — no tiene `animacion` en su forma resuelta (ausente del descriptor, nunca se resuelve un escalar que no existe)', () => {
+  const r = resolverInstancia({ tipo: 'proceso', items: [{ titulo: 'A' }] }) as unknown as Record<string, unknown>;
+  assert.equal('animacion' in r, false);
+});
+
+test('instanciaEsVisible: "proceso" — hide-on-empty gana sobre `visible:true`, igual que los otros repeater', () => {
+  const vacia = resolverInstancia({ tipo: 'proceso', visible: true, items: [] })!;
+  const conItems = resolverInstancia({ tipo: 'proceso', visible: true, items: [{ titulo: 'x' }] })!;
+  assert.equal(instanciaEsVisible(vacia), false);
+  assert.equal(instanciaEsVisible(conItems), true);
+});
+
+test('imagenesDeInstancia: "proceso" — junta la imagen de CADA paso, no strings vacíos', () => {
+  assert.deepEqual(
+    imagenesDeInstancia({ tipo: 'proceso', items: [{ imagen: '/a.jpg', titulo: 'A' }, { imagen: '', titulo: 'B' }, { imagen: '/c.jpg', titulo: 'C' }] }),
+    ['/a.jpg', '/c.jpg'],
+  );
+});
+
+test('§ MOVIMIENTO-NIVEL-EDITORIAL-1 — instanciaOscuraCanonica/instanciaEsUniforme: proceso claro (como texto) y uniforme (un solo fondo de página)', () => {
+  assert.equal(instanciaOscuraCanonica('proceso'), false);
+  assert.equal(instanciaEsUniforme('proceso'), true);
 });
 

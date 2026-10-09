@@ -93,6 +93,55 @@ export default function SeccionCollage({
   const preview = useIsPreview();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — `disposicion:'horizontal'` es el MODO de S03 (§ catalogo.ts):
+  // reemplaza el mosaico grande+chicas por una tira pineada, TODOS los ítems por igual (ignora
+  // `lado`, que sólo tiene sentido para la partición grande+chicas). `instancia.animacion` sigue
+  // guardándose pero NO SE CONSULTA en este modo — mismo criterio que `ctaLabel`/`ctaDestino` de
+  // "video" en modo 'reproducir' (§ CLAUDE.md, el PATCH parcial): un campo guardado sin efecto en
+  // UN modo no es un bug, es la forma de no abrir una ramificación nueva en el editor para algo que
+  // el componente ya resuelve en su render.
+  if (instancia.disposicion === 'horizontal') {
+    return (
+      <section className="bg-[var(--sf-banda,var(--sf-fondo))]" style={style}>
+        {instancia.titulo && (
+          <div className={`${contenedorClase} mx-auto pt-20`}>
+            <RevelarBloque
+              as="h2"
+              indice={0}
+              preview={preview}
+              className="mb-2 text-center font-playfair text-3xl leading-tight text-[var(--sf-sobre-banda,var(--sf-tinta))] sm:text-4xl"
+            >
+              <CampoEditable campo={`${id}.titulo`}>{instancia.titulo}</CampoEditable>
+            </RevelarBloque>
+          </div>
+        )}
+        <Movimiento id="S03" as="div" className="relative flex h-screen min-h-[28rem] items-center overflow-hidden">
+          <div className="flex gap-6 px-[clamp(1rem,4vw,3.5rem)]">
+            {instancia.items.map((item, i) => {
+              const href = resolverCtaSeccion(item.leyenda, item.enlace, paginas);
+              const contenido = (
+                <>
+                  <Media
+                    item={item}
+                    campo={`${id}.items.${i}.url`}
+                    alt={item.leyenda || instancia.titulo || "Foto del mosaico"}
+                    className="absolute inset-0 overflow-hidden sf-radio-imagen sf-sombra-imagen"
+                  />
+                  <Leyenda texto={item.leyenda} />
+                </>
+              );
+              return href ? (
+                <Link key={i} href={href} className="group relative block aspect-[4/5] flex-[0_0_min(70vw,34rem)]">{contenido}</Link>
+              ) : (
+                <div key={i} className="group relative aspect-[4/5] flex-[0_0_min(70vw,34rem)]">{contenido}</div>
+              );
+            })}
+          </div>
+        </Movimiento>
+      </section>
+    );
+  }
+
   // `items[0]` SIEMPRE es la pieza grande (§ el docstring de cabecera). Con el mínimo del editor (3)
   // nunca llega vacío a un home publicado, pero el dispatcher SIEMPRE pasa por `instanciaEsVisible`
   // (hide-on-empty) antes de montar este componente — una red más, nunca mostrar un mosaico vacío.

@@ -440,3 +440,89 @@ test('"carrusel" — PUBLICAR la imagen nueva de una diapositiva deja la VIEJA h
   const { blobsABorrar } = await publicarSeccion('seccionesHome');
   assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
 });
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — EL VIAJE COMPLETO DE "proceso" ("Del fruto a la taza") ────
+
+test('crear una instancia "proceso" con título de cabecera y cinco pasos (uno con foto), publicar: el storefront la relee con todo intacto', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:proc': {
+        tipo: 'proceso',
+        titulo: 'Del fruto a la taza',
+        items: [
+          { etiqueta: '01 · Cosecha', titulo: 'Sólo frutos maduros', texto: 'Recogemos a mano.', imagen: 'https://blob/paso-1.jpg' },
+          { etiqueta: '02 · Despulpado', titulo: 'El mismo día', texto: 'Quitamos la pulpa.', imagen: '' },
+          { etiqueta: '03 · Secado', titulo: 'Al sol', texto: 'Quince días.', imagen: '' },
+          { etiqueta: '04 · Tostión', titulo: 'Lotes pequeños', texto: 'Doce kilos por tanda.', imagen: '' },
+          { etiqueta: '05 · Tu taza', titulo: 'Recién tostado', texto: 'Sale esta semana.', imagen: '' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const proc = publicado.seccionesHome['inst:proc'] as unknown as { titulo: string; items: Record<string, string>[] };
+  assert.equal(proc.titulo, 'Del fruto a la taza');
+  assert.equal(proc.items.length, 5);
+  assert.equal(proc.items[0]!.imagen, 'https://blob/paso-1.jpg');
+  assert.equal(proc.items[4]!.titulo, 'Recién tostado');
+});
+
+test('"proceso" — SIN `animacion`: un valor mandado en el borrador no sobrevive el viaje (el schema la descarta, el tipo nace con S02 incorporado)', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', titulo: 'T', animacion: 'T01', items: [{ titulo: 'A' }, { titulo: 'B' }, { titulo: 'C' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal('animacion' in (publicado.seccionesHome['inst:proc'] as unknown as Record<string, unknown>), false);
+});
+
+test('"proceso" — ocultar con `visible:false` sobrevive el viaje completo, igual que los demás tipos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', visible: false, items: [{ titulo: 'A' }, { titulo: 'B' }, { titulo: 'C' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:proc'] as { visible: boolean }).visible, false);
+});
+
+test('"proceso" — PUBLICAR la foto nueva de UN paso deja la VIEJA huérfana (ya sin referencias) — SÍ se borra', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', items: [{ imagen: 'https://blob/A.jpg', titulo: 'A' }, { titulo: 'B' }, { titulo: 'C' }] } },
+  });
+  await publicarSeccion('seccionesHome');
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', items: [{ imagen: 'https://blob/X.jpg', titulo: 'A' }, { titulo: 'B' }, { titulo: 'C' }] } },
+  });
+
+  const { blobsABorrar } = await publicarSeccion('seccionesHome');
+  assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
+});
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — "collage" en disposición HORIZONTAL (el modo de S03) ──────
+
+test('"collage" — `disposicion:\'horizontal\'` sobrevive el viaje completo, ignorando `lado` (irrelevante en ese modo)', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:gal': {
+        tipo: 'collage',
+        disposicion: 'horizontal',
+        lado: 'derecha',
+        items: [
+          { url: 'https://blob/1.jpg', leyenda: 'Uno' },
+          { url: 'https://blob/2.jpg', leyenda: 'Dos' },
+          { url: 'https://blob/3.jpg', leyenda: 'Tres' },
+        ],
+      },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const gal = publicado.seccionesHome['inst:gal'] as unknown as { disposicion: string; items: Record<string, string>[] };
+  assert.equal(gal.disposicion, 'horizontal');
+  assert.equal(gal.items.length, 3);
+});

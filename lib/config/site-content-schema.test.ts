@@ -242,9 +242,9 @@ test('seccionesHome: "imagenTexto" y "banner" también sobreviven, cada uno con 
   assert.equal((parsed.seccionesHome!['inst:ban'] as { alto: string }).alto, 'pantalla');
 });
 
-test('seccionesHome: un `tipo` que no es ninguno de los nueve se rechaza (unión discriminada)', () => {
+test('seccionesHome: un `tipo` que no es ninguno de los diez se rechaza (unión discriminada)', () => {
   // § SECCIONES-CARRUSEL-1 — este test usaba 'carrusel' como el tipo INVENTADO de muestra; ahora
-  // es uno de los nueve del catálogo, así que el ejemplo pasó a un nombre que de verdad no existe.
+  // es uno de los diez del catálogo, así que el ejemplo pasó a un nombre que de verdad no existe.
   assert.throws(() => siteContentEditableSchema.parse({ seccionesHome: { 'inst:a': { tipo: 'mosaico-inventado', titulo: 'x' } } }));
 });
 
@@ -455,4 +455,42 @@ test('seccionesHome: "carrusel" también lleva `visible`, mismo contrato que los
     seccionesHome: { 'inst:car': { tipo: 'carrusel', visible: false, items: [{ titulo: 'A' }] } },
   });
   assert.equal((parsed.seccionesHome!['inst:car'] as { visible: boolean }).visible, false);
+});
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" ("Del fruto a la taza", S02) ────────────────────
+
+test('seccionesHome: "proceso" sobrevive completo, con `titulo` de cabecera y sus pasos (etiqueta/titulo/texto/imagen)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: {
+      'inst:proc': {
+        tipo: 'proceso',
+        titulo: 'Nuestro proceso',
+        items: [
+          { etiqueta: '01 · Cosecha', titulo: 'Primero', texto: 'Cuerpo 1', imagen: '/a.jpg' },
+          { etiqueta: '', titulo: 'Segundo', texto: 'Cuerpo 2', imagen: '' },
+          { etiqueta: '03 · Tercero', titulo: 'Tercero', texto: 'Cuerpo 3', imagen: '' },
+        ],
+      },
+    },
+  });
+  assert.equal((parsed.seccionesHome!['inst:proc'] as { titulo: string }).titulo, 'Nuestro proceso');
+  assert.deepEqual((parsed.seccionesHome!['inst:proc'] as { items: unknown[] }).items, [
+    { etiqueta: '01 · Cosecha', titulo: 'Primero', texto: 'Cuerpo 1', imagen: '/a.jpg' },
+    { etiqueta: '', titulo: 'Segundo', texto: 'Cuerpo 2', imagen: '' },
+    { etiqueta: '03 · Tercero', titulo: 'Tercero', texto: 'Cuerpo 3', imagen: '' },
+  ]);
+});
+
+test('seccionesHome: "proceso" NO declara `animacion` — un valor mandado se descarta en silencio (el tipo nace con S02 incorporado)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', titulo: 'T', animacion: 'T01', items: [{ titulo: 'A' }] } },
+  });
+  assert.equal('animacion' in (parsed.seccionesHome!['inst:proc'] as Record<string, unknown>), false);
+});
+
+test('seccionesHome: "proceso" también lleva `visible`, mismo contrato que los demás tipos (§ SECCIONES-INSTANCIAS-VIVO-1)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:proc': { tipo: 'proceso', visible: false, items: [{ titulo: 'A' }] } },
+  });
+  assert.equal((parsed.seccionesHome!['inst:proc'] as { visible: boolean }).visible, false);
 });

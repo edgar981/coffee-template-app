@@ -28,6 +28,11 @@ export interface MovimientoProps {
   id?: string;
   as?: EtiquetaMovimiento;
   className?: string;
+  /** § MOVIMIENTO-NIVEL-EDITORIAL-1 — pasa-mano al nodo que SÍ se monta (S01 lo usa para heredar el
+   *  `style` que la banda ya trae del esquema asignado, § `page.tsx`). Como con `id` ausente este
+   *  componente no monta NINGÚN nodo propio (§ el docstring de cabecera), `style` se IGNORA en esa
+   *  rama — nunca puede alterar la byte-identidad de «Ninguna». */
+  style?: React.CSSProperties;
   children: ReactNode;
   /** § MOVIMIENTO-EDITOR-EXPOSICION-1 — `false`: no se auto-dispara por scroll; sólo corre vía el
    *  `ref` imperativo (`reproducir()`). Ver `useMovimiento.ts`. Default `true`. */
@@ -42,14 +47,14 @@ export interface MovimientoHandle {
 }
 
 const Movimiento = forwardRef<MovimientoHandle, MovimientoProps>(function Movimiento(
-  { id, as: Etiqueta = 'div', className, children, auto },
+  { id, as: Etiqueta = 'div', className, style, children, auto },
   refExterno,
 ) {
   const { ref, reproducir } = useMovimiento(id, { auto });
   useImperativeHandle(refExterno, () => ({ reproducir }), [reproducir]);
   if (!id) return <>{children}</>;
   return (
-    <Etiqueta ref={ref as Ref<never>} className={className}>
+    <Etiqueta ref={ref as Ref<never>} className={className} style={style}>
       {children}
     </Etiqueta>
   );

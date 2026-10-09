@@ -17,16 +17,22 @@ import { MiniaturaMovimiento } from './MiniaturaMovimiento';
 
 export interface SelectorMovimientoProps {
   id: string;
-  elemento: ElementoMovimiento;
+  /** § MOVIMIENTO-NIVEL-EDITORIAL-1 — acepta un ARRAY: la ÚNICA razón es "texto" sumando S01
+   *  (`aplicaA:'seccion'`) a su propio elemento (`'texto'`) — ver el docstring de
+   *  `InstanciaDescriptor.animacionElemento` (secciones-instancias.ts) para el porqué. La miniatura
+   *  de CADA opción usa el `aplicaA` DE ESA animación (`d.aplicaA`), no un elemento compartido por
+   *  todo el selector — así una lista mixta dibuja cada tarjeta con su propia forma. */
+  elemento: ElementoMovimiento | readonly ElementoMovimiento[];
   valor: string;
   onElegir: (valor: string) => void;
   ariaLabel?: string;
 }
 
 export function SelectorMovimiento({ id, elemento, valor, onElegir, ariaLabel }: SelectorMovimientoProps) {
+  const elementos = Array.isArray(elemento) ? elemento : [elemento];
   const opciones = [
-    { value: MOVIMIENTO_NINGUNA, nombre: 'Ninguna' },
-    ...catalogoMovimientoDeElemento(elemento).map((d) => ({ value: d.id, nombre: d.nombre })),
+    { value: MOVIMIENTO_NINGUNA, nombre: 'Ninguna', elemento: elementos[0]! },
+    ...elementos.flatMap((el) => catalogoMovimientoDeElemento(el).map((d) => ({ value: d.id, nombre: d.nombre, elemento: d.aplicaA }))),
   ];
   const [enfocada, setEnfocada] = useState<string | null>(null);
   const botonesRef = useRef(new Map<string, HTMLButtonElement>());
@@ -67,7 +73,7 @@ export function SelectorMovimiento({ id, elemento, valor, onElegir, ariaLabel }:
               <span className="duna-field__label" style={{ margin: 0 }}>{op.nombre}</span>
               {esActiva && <span className="duna-badge duna-badge--neutral">Actual</span>}
             </div>
-            <MiniaturaMovimiento id={op.value} elemento={elemento} activa={animando} />
+            <MiniaturaMovimiento id={op.value} elemento={op.elemento} activa={animando} />
           </button>
         );
       })}

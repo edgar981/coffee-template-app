@@ -47,6 +47,10 @@ const LABEL_CAMPO_ITEM: Record<string, string> = {
   // que `imagen` en Columnas/Filas) — queda acá sólo por completitud del mapa, nunca se lee.
   url: 'Imagen o video',
   leyenda: 'Leyenda',
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso": el rótulo corto de cada paso ("01 · Cosecha" en el
+  // prototipo). Opcional (§ DESCRIPTOR_INSTANCIA.proceso) — un paso sin etiqueta sigue narrando con
+  // sólo título+texto.
+  etiqueta: 'Etiqueta del paso',
 };
 // Los campos de DESTINO (set cerrado, igual que `ctaDestino` en los campos planos de la instancia)
 // y los de TEXTO LARGO (textarea) se reconocen por NOMBRE — no hay más de estos ocho nombres en los

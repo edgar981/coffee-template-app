@@ -1,10 +1,10 @@
 // LAS SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado por § SECCIONES-TIPOS-2,
-// § SECCIONES-TIPOS-3 y § SECCIONES-CARRUSEL-1) — el mecanismo que deja que el contenido declare
-// INSTANCIAS de un catálogo CURADO de NUEVE tipos genéricos: cuatro de campos planos (Texto, Imagen
-// con texto, Banner, Video) y cinco REPEATER (Preguntas, Columnas, Filas, Collage, Carrusel, §
-// InstanciaItemsDef más abajo) — y las mezcle en `orden` con las bandas de siempre. Lo que entra acá
-// es el modelo, el resolver y el schema; la UI de agregar vive en `components/admin/editor/` (ver
-// `docs/editor-tienda/AGREGAR-SECCIONES.md`).
+// § SECCIONES-TIPOS-3, § SECCIONES-CARRUSEL-1 y § MOVIMIENTO-NIVEL-EDITORIAL-1) — el mecanismo que
+// deja que el contenido declare INSTANCIAS de un catálogo CURADO de DIEZ tipos genéricos: cuatro de
+// campos planos (Texto, Imagen con texto, Banner, Video) y seis REPEATER (Preguntas, Columnas,
+// Filas, Collage, Carrusel, Proceso — § InstanciaItemsDef más abajo) — y las mezcle en `orden` con
+// las bandas de siempre. Lo que entra acá es el modelo, el resolver y el schema; la UI de agregar
+// vive en `components/admin/editor/` (ver `docs/editor-tienda/AGREGAR-SECCIONES.md`).
 //
 // MÓDULO HOJA A PROPÓSITO: no importa NADA de `site-content-defaults.ts`. Ese archivo SÍ importa
 // de acá (`resolverSeccionesHome`, `resolverOrdenCompleto`, tipos) para resolver la clave meta
@@ -42,7 +42,7 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
 
-export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video', 'carrusel'] as const;
+export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video', 'carrusel', 'proceso'] as const;
 export type SeccionInstanciaTipo = (typeof SECCION_INSTANCIA_TIPOS)[number];
 
 const TIPOS_SET: ReadonlySet<string> = new Set(SECCION_INSTANCIA_TIPOS);
@@ -129,7 +129,20 @@ export interface InstanciaDescriptor {
    *  que el editor no tenga que adivinarlo por tipo; el componente de storefront, que conoce su
    *  propia estructura, decide el NODO exacto que envuelve). El escalar de ALMACENAMIENTO sigue
    *  siendo `escalares.animacion` (abajo, `ANIMACION_SECCION`) — éste es sólo el ROTULADO semántico
-   *  de para qué sirve. Ausente ⇒ el tipo no ofrece el ajuste; los nueve tipos de hoy lo declaran. */
+   *  de para qué sirve. Ausente ⇒ el tipo no ofrece el ajuste; de los diez tipos de hoy, nueve lo
+   *  declaran — "proceso" (§ MOVIMIENTO-NIVEL-EDITORIAL-1) es la ÚNICA excepción, porque NACE con su
+   *  animación (S02) incorporada: no hay nada que elegir entre varias, así que no declara el eje ni
+   *  el escalar `animacion`.
+   *
+   *  **LA EXCEPCIÓN DE S01 ("texto" ofrece DOS elementos, no uno):** este campo es escalar (un tipo
+   *  → un elemento) en los otros NUEVE, pero "texto" es el ÚNICO con una excepción puntual:
+   *  `InstanciaEditorForm.tsx` le agrega TAMBIÉN las animaciones `aplicaA:'seccion'` (hoy, sólo S01)
+   *  a su selector, sin cambiar este campo a un array — generalizar `animacionElemento` a una lista
+   *  por el bien de UNA sola animación habría sido infraestructura por adelantado para un caso que
+   *  no se repite (§ CLAUDE.md, "el código compartido no nace..."): "texto" es el tipo MÁS SIMPLE
+   *  que sirve de 'capítulo' (un bloque único cuyo FONDO —no el título— puede transicionar de color,
+   *  § `animaciones.ts`, `s01`), y es la ÚNICA razón de la excepción. Si un segundo id `aplicaA:
+   *  'seccion'` necesitara otro tipo, ahí se generaliza; hasta entonces, un `if` en el editor. */
   animacionElemento?: ElementoMovimiento;
 }
 
@@ -162,7 +175,12 @@ const ALTURAS_BANNER = { claves: ['justo', 'alto', 'pantalla'], canonica: 'justo
 // grande. `lado` REUSA `LADOS_IMAGEN_TEXTO` a propósito (mismas dos claves, misma canónica) — dos
 // constantes idénticas para el mismo concepto ("¿la pieza principal va a la izquierda o a la
 // derecha?") habrían sido la misma trampa que `CATEGORIAS ≠ CATEGORIA_LABELS` (§ CLAUDE.md).
-const DISPOSICIONES_COLLAGE = { claves: ['dos', 'cuatro'], canonica: 'dos' } as const;
+//
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — 'horizontal' es el TERCER valor: el MODO de S03 (§ catalogo.ts,
+// la entrada S03), NO una cuarta disposición de la grilla de chicas — con 'horizontal', Collage.tsx
+// IGNORA `lado`/la partición grande+chicas y muestra TODOS los ítems en una tira pineada. La
+// canónica se queda en 'dos' (byte-idéntico a antes de este slice); 'horizontal' es opt-in.
+const DISPOSICIONES_COLLAGE = { claves: ['dos', 'cuatro', 'horizontal'], canonica: 'dos' } as const;
 // El escalar de "video": fondo en bucle silenciado (con título/texto/botón ENCIMA, como un Banner
 // de video) o un reproductor contenido con botón de Reproducir (sin autoplay, con sonido al tocar).
 const MODOS_VIDEO = { claves: ['fondo', 'reproducir'], canonica: 'fondo' } as const;
@@ -345,6 +363,26 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       max: 6,
     },
   },
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" ("Del fruto a la taza", S02): de TRES a SEIS pasos
+  // (el PISO es lo que hace cierta "de 3 a 6" — con menos no hay nada que recorrer en un pin). Cada
+  // paso lleva `etiqueta` (el rótulo corto, "01 · Cosecha" en el prototipo — OPCIONAL: un paso sin
+  // etiqueta sigue narrando con sólo título+texto), `titulo`/`texto` (REQUERIDOS: sin ellos el paso
+  // no tiene nada que mostrar mientras está activo) y `imagen` opcional — CON foto, Proceso.tsx la
+  // muestra en vez de la ilustración genérica (§ el spec, punto 2: "con fotos, cada paso muestra su
+  // foto en vez de la ilustración"). SIN `escalares`/`animacionElemento`: el tipo NACE con su
+  // animación (S02) incorporada, no hay nada que elegir — ver el docstring de `animacionElemento`
+  // arriba para el porqué de la excepción.
+  proceso: {
+    campos: { titulo: 'opcional' },
+    items: {
+      descriptor: {
+        campos: { etiqueta: 'opcional', titulo: 'requerido', texto: 'requerido', imagen: 'opcional' },
+        imagenes: ['imagen'],
+      },
+      min: 3,
+      max: 6,
+    },
+  },
 };
 
 // ─── LOS DEFAULTS — NEUTROS, sin café, sin imagen ───────────────────────────────────────────────
@@ -498,6 +536,22 @@ export interface InstanciaCarruselContent {
   visible: boolean;
 }
 
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso": SIN `animacion` (ver el docstring de
+// `InstanciaDescriptor.animacionElemento` arriba — el tipo nace con S02 incorporado, no hay eje que
+// guardar).
+export interface InstanciaProcesoItem {
+  etiqueta: string;
+  titulo: string;
+  texto: string;
+  imagen: string;
+}
+export interface InstanciaProcesoContent {
+  tipo: 'proceso';
+  titulo: string;
+  items: InstanciaProcesoItem[];
+  visible: boolean;
+}
+
 export type InstanciaContent =
   | InstanciaTextoContent
   | InstanciaImagenTextoContent
@@ -507,7 +561,8 @@ export type InstanciaContent =
   | InstanciaFilasContent
   | InstanciaCollageContent
   | InstanciaVideoContent
-  | InstanciaCarruselContent;
+  | InstanciaCarruselContent
+  | InstanciaProcesoContent;
 
 // Tipado POR CLAVE (no `Record<SeccionInstanciaTipo, InstanciaContent>`): así `DEFAULTS_INSTANCIA.texto`
 // sigue siendo `InstanciaTextoContent` para quien lo lea (p. ej. un test que compara
@@ -522,6 +577,7 @@ export const DEFAULTS_INSTANCIA: {
   collage: InstanciaCollageContent;
   video: InstanciaVideoContent;
   carrusel: InstanciaCarruselContent;
+  proceso: InstanciaProcesoContent;
 } = {
   texto: {
     tipo: 'texto',
@@ -639,6 +695,19 @@ export const DEFAULTS_INSTANCIA: {
     alto: ALTURAS_BANNER.canonica,
     autoplay: false,
     animacion: MOVIMIENTO_NINGUNA,
+    visible: true,
+  },
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" nace con TRES pasos de ejemplo (el PISO, como
+  // Collage): texto neutro, sin café — "proceso" es genérico para cualquier vertical con un
+  // recorrido de pasos (una receta, una fabricación, un ciclo de servicio), no sólo café.
+  proceso: {
+    tipo: 'proceso',
+    titulo: '',
+    items: [
+      { etiqueta: 'Paso 1', titulo: 'El primer paso de tu proceso', texto: 'Escribe acá qué pasa en este paso.', imagen: '' },
+      { etiqueta: 'Paso 2', titulo: 'El segundo paso', texto: 'Escribe acá qué pasa en este paso.', imagen: '' },
+      { etiqueta: 'Paso 3', titulo: 'El tercer paso', texto: 'Escribe acá qué pasa en este paso.', imagen: '' },
+    ],
     visible: true,
   },
 };
@@ -810,6 +879,7 @@ export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
   { tipo: 'collage', nombre: 'Collage', frase: 'Un mosaico de fotos y videos: una pieza grande y varias chicas.' },
   { tipo: 'video', nombre: 'Video', frase: 'Un video de fondo con mensaje, o un video con botón de reproducir.' },
   { tipo: 'carrusel', nombre: 'Carrusel', frase: 'De dos a seis diapositivas que se deslizan, cada una con foto, título, texto y botón.' },
+  { tipo: 'proceso', nombre: 'Proceso', frase: 'Una sección fija con pasos que se recorren al bajar — de tres a seis, con foto opcional.' },
 ];
 
 /** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
@@ -885,7 +955,9 @@ export function imagenesDeInstancia(inst: unknown): string[] {
  *  ('fondo', con velo) acá — esta función, como para `banner`/su `alto`, no bifurca por el escalar
  *  propio de la instancia (`modo`), la misma simplificación aceptada que ya rige `alto` de banner.
  *  § SECCIONES-CARRUSEL-1: `carrusel` es SIEMPRE foto de fondo con velo, en CADA diapositiva — no
- *  hay una variante "clara" que bifurcar, así que entra sin matiz, como `banner`. */
+ *  hay una variante "clara" que bifurcar, así que entra sin matiz, como `banner`. § MOVIMIENTO-
+ *  NIVEL-EDITORIAL-1: `proceso` cae al default `false` (claro) — su fondo es el de página, igual
+ *  que `texto`; S02 no tiñe el fondo, sólo el objeto que recorre los pasos. */
 export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
   return tipo === 'banner' || tipo === 'video' || tipo === 'carrusel';
 }
@@ -901,7 +973,10 @@ export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
  *  siempre un único plano, en sus dos modos (§ SECCIONES-TIPOS-3). `carrusel` (§ SECCIONES-
  *  CARRUSEL-1) es el MISMO caso que `banner`, repetido por diapositiva: cada una es foto a sangre
  *  con velo, nunca dos mitades de color — por eso cae en el default `true` sin necesitar su propia
- *  excepción, igual que `preguntas`/`columnas`/`collage`/`video` ya caen ahí. */
+ *  excepción, igual que `preguntas`/`columnas`/`collage`/`video` ya caen ahí. § MOVIMIENTO-NIVEL-
+ *  EDITORIAL-1: `proceso` también cae en el default `true` — un solo fondo de página de borde a
+ *  borde, como `texto`; el `disposicion:'horizontal'` de `collage` (S03) sigue siendo UN fondo de
+ *  sección (la tira de fotos vive adentro), así que tampoco necesita su propia excepción. */
 export function instanciaEsUniforme(tipo: SeccionInstanciaTipo): boolean {
   return tipo !== 'imagenTexto' && tipo !== 'filas';
 }

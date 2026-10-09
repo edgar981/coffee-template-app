@@ -438,8 +438,8 @@ const ordenEditableSchema = z.array(
 );
 
 // META de SECCIONES AGREGADAS del home (§ SECCIONES-INSTANCIAS-1, ampliado a seis tipos por
-// § SECCIONES-TIPOS-2, a ocho por § SECCIONES-TIPOS-3, a nueve por § SECCIONES-CARRUSEL-1): el mapa
-// id→instancia de un catálogo CURADO.
+// § SECCIONES-TIPOS-2, a ocho por § SECCIONES-TIPOS-3, a nueve por § SECCIONES-CARRUSEL-1, a diez
+// por § MOVIMIENTO-NIVEL-EDITORIAL-1): el mapa id→instancia de un catálogo CURADO.
 // NO es una sección del REGISTRY
 // —`SeccionKey` la excluye, igual que `esquemas`/`orden`/`variantesBandas`— pero a diferencia de
 // esas metas SÍ pasa por el flujo borrador/publicar genérico (como cualquier clave del REGISTRY —
@@ -451,7 +451,7 @@ const ordenEditableSchema = z.array(
 // mismos campos que estos sub-schemas; `secciones-instancias.test.ts` afirma la paridad). Todo
 // opcional/SOFT como el resto de este archivo: el resolver (`resolverInstancia`) decide requerido-
 // vacío→default / opcional-presente→se respeta, igual que cualquier sección.
-// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS NUEVE: el ojo de la lista (`InstanciaTarjeta.tsx`)
+// `visible` (§ SECCIONES-INSTANCIAS-VIVO-1), EN LOS DIEZ: el ojo de la lista (`InstanciaTarjeta.tsx`)
 // escribe este booleano con el MISMO autoguardado que cualquier otro campo de la instancia
 // (`cambiarInstancia`, `TiendaPaginas.tsx`) — sin declararlo acá, `z.object` lo STRIPPEA en silencio
 // al guardar (§ CLAUDE.md, "El schema editable STRIPPEA lo no declarado") y el ojo parecería
@@ -622,6 +622,26 @@ const instanciaCarruselEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" ("Del fruto a la taza", S02): `etiqueta`/`titulo`/
+// `texto`/`imagen` del ÍTEM son todos `z.string().optional()` como el resto de este archivo — el
+// requerido/opcional real (`titulo`/`texto`) es del EDITOR (asterisco, mínimo de ítems), nunca de
+// este schema, mismo criterio que `instanciaColumnaItemSchema`. SIN `animacion`: el tipo nace con
+// S02 incorporado (§ `DESCRIPTOR_INSTANCIA.proceso`, secciones-instancias.ts), no hay eje que
+// guardar — declararlo acá lo STRIPPEARÍA en silencio igual, pero omitirlo es la verdad: nunca se
+// manda.
+const instanciaProcesoItemSchema = z.object({
+  etiqueta: z.string().optional(),
+  titulo: z.string().optional(),
+  texto: z.string().optional(),
+  imagen: z.string().optional(),
+});
+const instanciaProcesoEditableSchema = z.object({
+  tipo: z.literal('proceso'),
+  titulo: z.string().optional(),
+  items: z.array(instanciaProcesoItemSchema).optional(),
+  visible: z.boolean().optional(),
+});
+
 const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaTextoEditableSchema,
   instanciaImagenTextoEditableSchema,
@@ -632,6 +652,7 @@ const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaCollageEditableSchema,
   instanciaVideoEditableSchema,
   instanciaCarruselEditableSchema,
+  instanciaProcesoEditableSchema,
 ]).refine(
   // PÓSTER OBLIGATORIO para "video" (§ SECCIONES-TIPOS-3, el spec: "póster obligatorio para
   // teléfono y modo ahorro") — MISMO criterio que `heroEditableSchema` para `imagen`/`imagenPoster`
@@ -646,7 +667,7 @@ const instanciaEditableSchema = z.discriminatedUnion('tipo', [
 );
 // `z.record(z.string(), …)`, KEY-AGNÓSTICO como `esquemasEditableSchema`: el dominio de ids lo
 // decide el dueño, no hay un enum que enumerarlo acá. Una clave sin el prefijo de instancia, o un
-// valor cuyo `tipo` no matchea ninguno de los nueve, falla la unión discriminada y el PUT entero se
+// valor cuyo `tipo` no matchea ninguno de los diez, falla la unión discriminada y el PUT entero se
 // rechaza con 400 — el mismo criterio "el WRITE puede ser más estricto que el loader" de `orden`.
 const seccionesHomeEditableSchema = z.record(z.string(), instanciaEditableSchema);
 

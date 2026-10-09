@@ -48,9 +48,20 @@ export default function SeccionBanner({
         <>
           {/* § MOVIMIENTO-EDITOR-EXPOSICION-1 — «imagen → la foto». Con «Ninguna» (el default) este
               `<Movimiento>` devuelve los children sin wrapper — la foto queda exactamente como
-              antes de este slice, byte-idéntico. */}
+              antes de este slice, byte-idéntico.
+              § MOVIMIENTO-NIVEL-EDITORIAL-1 — con T06, `.sf-movimiento-gigante` es el título
+              gigante que `t06()` desliza sobre la foto (marcador, no hoja de estilos — § el
+              docstring de `animaciones.ts`). Con cualquier otro id, o «Ninguna», no se renderiza. */}
           <Movimiento id={instancia.animacion} as="div" className="absolute inset-0">
             <Image src={instancia.imagen} alt={instancia.titulo} fill priority={false} sizes="100vw" className="object-cover" />
+            {instancia.animacion === 'T06' && instancia.titulo && (
+              <div
+                aria-hidden="true"
+                className="sf-movimiento-gigante pointer-events-none absolute inset-x-0 bottom-[8%] select-none overflow-hidden whitespace-nowrap font-playfair text-[clamp(60px,14vw,220px)] leading-[0.8] text-[var(--sf-fondo)]/90"
+              >
+                {instancia.titulo.toUpperCase()}
+              </div>
+            )}
           </Movimiento>
           <div className="absolute inset-0 bg-linear-to-b from-[var(--sf-tinta)]/60 via-transparent to-[var(--sf-tinta)]/80 pointer-events-none" />
         </>

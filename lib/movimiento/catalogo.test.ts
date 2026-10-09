@@ -31,13 +31,18 @@ test('CATALOGO_MOVIMIENTO: cada entrada declara nivel/aplicaA/descripción no va
   }
 });
 
-test('CATALOGO_MOVIMIENTO: las ONCE esenciales listadas por el spec están implementada:true', () => {
-  const esenciales = ['T01', 'T02', 'T03', 'T04', 'T05', 'I01', 'I02', 'I03', 'C01', 'C02', 'N01'];
+test('CATALOGO_MOVIMIENTO: las ONCE esenciales Y el nivel EDITORIAL de este slice están implementada:true', () => {
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06/S01/S02/S03 suman motor en este slice.
+  const esenciales = [
+    'T01', 'T02', 'T03', 'T04', 'T05', 'T06',
+    'I01', 'I02', 'I03', 'C01', 'C02', 'N01',
+    'S01', 'S02', 'S03',
+  ];
   for (const id of esenciales) {
     assert.equal(movimientoPorId(id)?.implementada, true, `${id} debe estar implementada`);
   }
-  // El resto del catálogo (narrativa de secciones/héroes/cierre) NO tiene motor en este slice.
-  const sinMotor = ['T06', 'S01', 'S02', 'S03', 'H01', 'H02', 'H03', 'CTA01'];
+  // Los héroes de FIRMA y el cierre (CTA01) siguen SIN motor — fuera de alcance de este slice.
+  const sinMotor = ['H01', 'H02', 'H03', 'CTA01'];
   for (const id of sinMotor) {
     assert.equal(movimientoPorId(id)?.implementada, false, `${id} no debe estar implementada todavía`);
   }
@@ -68,17 +73,18 @@ test('motorDisponible: true sólo para un id implementado; false para «Ninguna�
   assert.equal(motorDisponible('T01'), true);
   assert.equal(motorDisponible(MOVIMIENTO_NINGUNA), false);
   assert.equal(motorDisponible('no-existe'), false);
-  assert.equal(motorDisponible('T06'), false, 'está en el catálogo pero sin motor todavía');
+  assert.equal(motorDisponible('H01'), false, 'está en el catálogo pero sin motor todavía');
 });
 
 // § MOVIMIENTO-EDITOR-EXPOSICION-1
 
 test('catalogoMovimientoDeElemento: sólo las implementada:true del elemento pedido, en el orden del catálogo', () => {
   assert.deepEqual(catalogoMovimientoDeElemento('texto').map((d) => d.id), ['T01', 'T02', 'T03', 'T04', 'T05']);
-  assert.deepEqual(catalogoMovimientoDeElemento('imagen').map((d) => d.id), ['I01', 'I02', 'I03']);
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06 pasó de aplicaA:'texto' a aplicaA:'imagen' (§ catalogo.ts).
+  assert.deepEqual(catalogoMovimientoDeElemento('imagen').map((d) => d.id), ['T06', 'I01', 'I02', 'I03']);
   assert.deepEqual(catalogoMovimientoDeElemento('tarjetas').map((d) => d.id), ['C01', 'C02']);
   assert.deepEqual(catalogoMovimientoDeElemento('cifras').map((d) => d.id), ['N01']);
-  assert.deepEqual(catalogoMovimientoDeElemento('seccion'), [], 'ninguna aplicaA:seccion está implementada todavía');
+  assert.deepEqual(catalogoMovimientoDeElemento('seccion').map((d) => d.id), ['S01', 'S02', 'S03']);
   assert.deepEqual(catalogoMovimientoDeElemento('hero'), [], 'ninguna aplicaA:hero está implementada todavía');
 });
 

@@ -42,6 +42,17 @@ function alEntrar(el: Element, forzar = false) {
   return { trigger: el, start: 'top 82%', toggleActions: 'play none none none' } as const;
 }
 
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — EL COLOR SIEMPRE SALE DE LA PALETA, NUNCA FIJO. `getPropertyValue`
+// sobre `<html>` lee el valor CASCADEADO de un token `--sf-*` (§ `cssPaleta`, `lib/config/
+// palette-style.ts`) tal como el `<style>` server-rendered del layout lo escribió — un literal como
+// `#8b4513`, no un color COMPUTADO; GSAP interpola ese string directo. `fallback` cubre el caso sin
+// token (tema por defecto sin `<style>` inyectado, o SSR/tests sin DOM real).
+function leerVarPaleta(nombre: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+  return v || fallback;
+}
+
 // ─── TEXTO ───────────────────────────────────────────────────────────────────────────────────────
 
 function t01(raiz: HTMLElement, forzar = false) {
@@ -91,6 +102,22 @@ function t04(raiz: HTMLElement, forzar = false) {
 
 function t05(raiz: HTMLElement, forzar = false) {
   return gsap.from(raiz, { y: 28, autoAlpha: 0, duration: 0.9, ease: 'power2.out', scrollTrigger: alEntrar(raiz, forzar) });
+}
+
+/** T06 (§ MOVIMIENTO-NIVEL-EDITORIAL-1) — SCRUB continuo, sin `forzar`: mismo criterio que I03
+ *  (parallax), nunca "una vez" que reproducir (`puedeReproducirUnaVez` ya lo excluye por `clases`).
+ *  `.sf-movimiento-gigante` es un MARCADOR, no una hoja de estilos (§ el docstring de `t04` para
+ *  `.sf-movimiento-resaltada`, el mismo patrón): el consumidor (Banner.tsx/ImagenTexto.tsx) decide
+ *  la tipografía por Tailwind; esta función sólo mueve lo que encuentra. Sin el marcador (ningún
+ *  consumidor lo renderiza para este id) no hay nada que animar — `null`, nunca un error. */
+function t06(raiz: HTMLElement) {
+  const gigante = raiz.querySelector<HTMLElement>('.sf-movimiento-gigante');
+  if (!gigante) return null;
+  return gsap.fromTo(
+    gigante,
+    { xPercent: 10 },
+    { xPercent: -40, ease: 'none', scrollTrigger: { trigger: raiz, start: 'top bottom', end: 'bottom top', scrub: true } },
+  );
 }
 
 // ─── IMAGEN ──────────────────────────────────────────────────────────────────────────────────────
@@ -174,6 +201,118 @@ function n01(raiz: HTMLElement, forzar = false) {
   return tl;
 }
 
+// ─── SECCIONES (nivel editorial, § MOVIMIENTO-NIVEL-EDITORIAL-1) ───────────────────────────────────
+
+/** S01 "Capítulos de color" — ver el docstring de su entrada en `lib/movimiento/catalogo.ts` para el
+ *  porqué de la simplificación (scrub continuo sobre el fondo de LA SECCIÓN ENTERA, sin capítulos
+ *  discretos). `raiz` es el `<section>` completo (Texto.tsx lo pasa como `as="section"`), nunca sólo
+ *  el título — S01 no toca el color del TEXTO, sólo el FONDO, así que el texto (ya legible contra
+ *  `--sf-fondo`) se mantiene legible contra `--sf-acento`/`--sf-tostado` (tonos medios, nunca el más
+ *  oscuro de la paleta). Sin `forzar`: scrub puro, nunca "una vez". */
+function s01(raiz: HTMLElement) {
+  const fondo = leerVarPaleta('--sf-fondo', '#fdfbf7');
+  const acento = leerVarPaleta('--sf-acento', '#8b4513');
+  const tostado = leerVarPaleta('--sf-tostado', '#c79a55');
+  gsap.set(raiz, { backgroundColor: fondo });
+  return gsap
+    .timeline({ scrollTrigger: { trigger: raiz, start: 'top bottom', end: 'bottom top', scrub: true } })
+    .to(raiz, { backgroundColor: acento, ease: 'none', duration: 0.5 }, 0)
+    .to(raiz, { backgroundColor: tostado, ease: 'none', duration: 0.5 }, 0.5);
+}
+
+/** S02 "Del fruto a la taza" — el motor de la sección `proceso` (§ secciones-instancias.ts). `raiz`
+ *  es la sección ENTERA (Proceso.tsx la envuelve con `<Movimiento id="S02" as="section">`); lee sus
+ *  `[data-s02-paso]` (de 3 a 6, el piso/tope del editor), `[data-s02-marca]` (la barra de progreso),
+ *  `[data-s02-objeto]`/`[data-s02-taza]` (el dibujo) y `[data-s02-foto]` (la foto propia de cada
+ *  paso, si la tiene — § Proceso.tsx). Generaliza a cualquier N: el color/escala/rotación del
+ *  objeto es UNA sola transición continua a lo largo de TODO el recorrido (nunca por paso) — ver el
+ *  docstring de la entrada S02 en `catalogo.ts` para el porqué frente al prototipo.
+ *
+ *  LA ENTIDAD VISIBLE EN CADA PASO es su foto (`fotos.get(i)`) si la tiene, o el objeto ilustrativo
+ *  si no — y el cruce entre pasos SÓLO anima cuando esa entidad REALMENTE cambia (`actual !==
+ *  siguiente`): dos pasos consecutivos sin foto dejan el objeto FIJO (ni se apaga ni se reprende),
+ *  sin el parpadeo que un cruce incondicional produciría. */
+function s02(raiz: HTMLElement) {
+  const pasos = Array.from(raiz.querySelectorAll<HTMLElement>('[data-s02-paso]'));
+  const marcas = Array.from(raiz.querySelectorAll<HTMLElement>('[data-s02-marca]'));
+  const objeto = raiz.querySelector<SVGElement>('[data-s02-objeto]');
+  const taza = raiz.querySelector<SVGElement>('[data-s02-taza]');
+  const n = pasos.length;
+  if (n < 2 || !objeto) return null;
+
+  const fotos = new Map<number, Element>();
+  raiz.querySelectorAll<HTMLElement>('[data-s02-foto]').forEach((el) => {
+    const i = Number(el.dataset.s02Foto);
+    if (Number.isFinite(i)) fotos.set(i, el);
+  });
+  const entidadDePaso = (i: number): Element => fotos.get(i) ?? objeto;
+
+  const acento = leerVarPaleta('--sf-acento', '#8b4513');
+  const tinta = leerVarPaleta('--sf-tinta', '#1e150e');
+
+  gsap.set(pasos, { autoAlpha: 0, y: 20 });
+  gsap.set(pasos[0]!, { autoAlpha: 1, y: 0 });
+  marcas.forEach((m, k) => { m.style.backgroundColor = k === 0 ? tinta : 'var(--sf-linea)'; });
+  gsap.set(Array.from(fotos.values()), { autoAlpha: 0 });
+  gsap.set(entidadDePaso(0), { autoAlpha: 1 });
+  gsap.set(objeto, { attr: { fill: acento }, rotate: 0, scale: 1, transformOrigin: '50% 50%' });
+  if (taza) gsap.set(taza, { autoAlpha: 0 });
+
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: raiz,
+      start: 'top top',
+      end: `+=${(n - 1) * 100}%`,
+      pin: true,
+      scrub: 0.6,
+      onUpdate: (self) => {
+        const i = Math.min(n - 1, Math.floor(self.progress * n));
+        marcas.forEach((m, k) => { m.style.backgroundColor = k <= i ? tinta : 'var(--sf-linea)'; });
+      },
+    },
+  });
+
+  // El color/escala/rotación del objeto corre SIEMPRE, sea o no la entidad visible en cada paso —
+  // cuando está oculto por una foto, nadie ve el cambio; cuando vuelve a ser el visible, ya está en
+  // el tono que le corresponde a ESE punto del recorrido.
+  tl.to(objeto, { attr: { fill: tinta }, rotate: -24, scale: 0.85, duration: n - 1, ease: 'none' }, 0);
+
+  for (let k = 0; k < n - 1; k++) {
+    tl.to(pasos[k]!, { autoAlpha: 0, y: -20, duration: 0.3 }, k + 0.85);
+    tl.to(pasos[k + 1]!, { autoAlpha: 1, y: 0, duration: 0.3 }, k + 1);
+
+    const actual = entidadDePaso(k);
+    const siguiente = entidadDePaso(k + 1);
+    if (actual !== siguiente) {
+      tl.to(actual, { autoAlpha: 0, duration: 0.3 }, k + 0.85);
+      tl.to(siguiente, { autoAlpha: 1, duration: 0.3 }, k + 1);
+    }
+  }
+
+  if (taza) {
+    const ultima = entidadDePaso(n - 1);
+    tl.to(ultima, { autoAlpha: 0, duration: 0.3 }, n - 1.2);
+    tl.to(taza, { autoAlpha: 1, duration: 0.3 }, n - 1.05);
+  }
+
+  return tl;
+}
+
+/** S03 "Galería horizontal" — el MODO `disposicion:'horizontal'` de "collage" (§ Collage.tsx); nunca
+ *  se ofrece vía «Animación». `raiz` es el contenedor que Collage.tsx pinea (`<Movimiento id="S03"
+ *  as="div">`); su PRIMER hijo es la tira (flex-row de fotos) que se traslada — mismo mecanismo que
+ *  el prototipo (`distancia()` mide cuánto sobra de `scrollWidth` contra el viewport). */
+function s03(raiz: HTMLElement) {
+  const tira = raiz.firstElementChild as HTMLElement | null;
+  if (!tira) return null;
+  const distancia = () => Math.max(0, tira.scrollWidth - window.innerWidth);
+  return gsap.to(tira, {
+    x: () => -distancia(),
+    ease: 'none',
+    scrollTrigger: { trigger: raiz, start: 'top top', end: () => `+=${distancia()}`, pin: true, scrub: 0.5, invalidateOnRefresh: true },
+  });
+}
+
 // ─── EL DESPACHADOR ──────────────────────────────────────────────────────────────────────────────
 
 type ResultadoAnimacion = gsap.core.Tween | gsap.core.Timeline | null;
@@ -182,8 +321,9 @@ type ResultadoAnimacion = gsap.core.Tween | gsap.core.Timeline | null;
  *  `movimientoPorId(id).implementada` es `false`, o porque es basura) nunca llega a este mapa: el
  *  llamador ya filtró con `motorDisponible` antes de invocar. */
 export const ANIMACIONES_ESENCIALES: Record<string, (raiz: HTMLElement, forzar?: boolean) => ResultadoAnimacion> = {
-  T01: t01, T02: t02, T03: t03, T04: t04, T05: t05,
+  T01: t01, T02: t02, T03: t03, T04: t04, T05: t05, T06: t06,
   I01: i01, I02: i02, I03: i03,
   C01: c01, C02: c02,
   N01: n01,
+  S01: s01, S02: s02, S03: s03,
 };

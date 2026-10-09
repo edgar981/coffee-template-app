@@ -1,11 +1,18 @@
-// BYTE-IDENTIDAD (§ MOVIMIENTO-MARCO-GSAP-1, extendida por § MOVIMIENTO-EDITOR-EXPOSICION-1) —
-// `renderToStaticMarkup` con el contenido EN MEMORIA, sin tocar una base ni un `.env`. El contrato
-// de ESTE slice es el inverso del de arriba: las NUEVE secciones reales SÍ leen `instancia.animacion`
-// ahora (§ cada una envuelve su elemento objetivo en `<Movimiento>`), así que el requisito pasa a
-// ser "con «Ninguna» (ausente o explícito), byte-idéntico a antes de este slice — con una animación
-// REAL elegida, el HTML SÍ cambia (ahí vive el nuevo wrapper que el motor de GSAP anima del lado
-// del cliente)". Las nueve se miden abajo, por el MISMO par ausente/«Ninguna» que ya cubría a
-// "texto" sola.
+// BYTE-IDENTIDAD (§ MOVIMIENTO-MARCO-GSAP-1, extendida por § MOVIMIENTO-EDITOR-EXPOSICION-1 y por
+// § MOVIMIENTO-NIVEL-EDITORIAL-1) — `renderToStaticMarkup` con el contenido EN MEMORIA, sin tocar
+// una base ni un `.env`. El contrato de MOVIMIENTO-EDITOR-EXPOSICION-1 es el inverso del original:
+// las NUEVE secciones reales SÍ leen `instancia.animacion` (§ cada una envuelve su elemento objetivo
+// en `<Movimiento>`), así que el requisito pasa a ser "con «Ninguna» (ausente o explícito),
+// byte-idéntico a antes de ese slice — con una animación REAL elegida, el HTML SÍ cambia (ahí vive
+// el nuevo wrapper que el motor de GSAP anima del lado del cliente)". Las nueve se miden abajo, por
+// el MISMO par ausente/«Ninguna» que ya cubría a "texto" sola.
+//
+// MOVIMIENTO-NIVEL-EDITORIAL-1 suma motor a T06/S01/S02/S03, y con ellos el contrato se matiza: NO
+// toda animación nueva cambia el HTML servido — `Movimiento` no agrega NINGÚN atributo cuando monta
+// una etiqueta (ni ref, ni clase nueva), así que S01 (que envuelve la SECCIÓN, no un elemento con
+// contenido propio) da HTML IDÉNTICO al de «Ninguna»; T06 y S03, en cambio, SÍ agregan contenido
+// propio (el título gigante; la tira horizontal) y por eso el HTML SÍ cambia. Cada test de abajo
+// dice CUÁL de las dos formas le corresponde y por qué — ver la sección "T06/S01/S02/S03" más abajo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
@@ -19,7 +26,9 @@ import SeccionFilas from '@/components/storefront/secciones/Filas';
 import SeccionCollage from '@/components/storefront/secciones/Collage';
 import SeccionVideo from '@/components/storefront/secciones/Video';
 import SeccionCarrusel from '@/components/storefront/secciones/Carrusel';
+import SeccionProceso from '@/components/storefront/secciones/Proceso';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
 import { resolverInstancia } from '@/lib/config/secciones-instancias';
 import Movimiento from '@/components/storefront/movimiento/Movimiento';
@@ -77,6 +86,95 @@ for (const [nombre, Comp, stored] of CASOS_NUEVE) {
     assert.equal(sinCampo, conNinguna);
   });
 }
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06 SOBRE LA FOTO, S01 SOBRE LA SECCIÓN, S03 COMO MODO ─────
+//
+// Las CUATRO animaciones que este slice suma motor (T06/S01/S02/S03) tocan CUATRO de los archivos
+// de `CASOS_NUEVE` arriba (banner, imagenTexto, texto, collage) — así que primero se re-afirma que
+// esos CUATRO siguen dando el MISMO HTML ausente/«Ninguna» (ya cubierto por el loop de arriba, sin
+// cambios de fixture) y DESPUÉS se afirma que elegir la animación nueva SÍ mueve algo — el mismo
+// contrato que la T05 de "texto" ya probaba para el eje original.
+
+test('byte-identidad: "banner" con T06 — con foto Y título, el HTML cambia (el título gigante se monta sobre la foto)', () => {
+  const stored = { tipo: 'banner', titulo: 'Un título', imagen: '/x.jpg' };
+  const sinAnimar = render(SeccionBanner as ComponenteSeccion, stored);
+  const conT06 = render(SeccionBanner as ComponenteSeccion, { ...stored, animacion: 'T06' });
+  assert.notEqual(sinAnimar, conT06);
+  assert.match(conT06, /sf-movimiento-gigante/);
+});
+
+test('byte-identidad: "banner" con T06 pero SIN foto — el HTML es IDÉNTICO: sin `instancia.imagen`, Banner.tsx va al hueco "+Agregar foto" y nunca llega a consultar `animacion`', () => {
+  const stored = { tipo: 'banner', titulo: 'Un título' };
+  const sinAnimar = render(SeccionBanner as ComponenteSeccion, stored);
+  const conT06 = render(SeccionBanner as ComponenteSeccion, { ...stored, animacion: 'T06' });
+  assert.doesNotMatch(sinAnimar, /sf-movimiento-gigante/);
+  assert.doesNotMatch(conT06, /sf-movimiento-gigante/);
+  assert.equal(sinAnimar, conT06, 'el branch `instancia.imagen ? … : HuecoImagenOpcional` decide ANTES de mirar `animacion`');
+});
+
+test('byte-identidad: "imagenTexto" con T06 -- mismo contrato que banner', () => {
+  const stored = { tipo: 'imagenTexto', titulo: 'Un título', imagen: '/x.jpg' };
+  const sinAnimar = render(SeccionImagenTexto as ComponenteSeccion, stored);
+  const conT06 = render(SeccionImagenTexto as ComponenteSeccion, { ...stored, animacion: 'T06' });
+  assert.notEqual(sinAnimar, conT06);
+  assert.match(conT06, /sf-movimiento-gigante/);
+});
+
+test('byte-identidad: "texto" con S01 -- el HTML es IDÉNTICO al de «Ninguna»: la prueba de que el TÍTULO sigue en RevelarBloque, no en Movimiento', () => {
+  // `Movimiento` no agrega NINGÚN atributo serializable cuando monta una etiqueta (§ el contrato de
+  // `<Movimiento id="">`de arriba: "sin wrapper, sin ref, sin clase" -- un `ref` no se serializa en
+  // SSR) -- así que envolver la SECCIÓN con `<Movimiento id="S01" as="section">` en vez de un
+  // `<section>` plano no cambia el string renderizado: el efecto de S01 (tiñe el FONDO por GSAP del
+  // lado del cliente) vive enteramente en el DOM post-hidratación, nunca en el HTML servido. Lo que
+  // SÍ sería visible es el defecto que esta prueba previene: si `animacionTitulo` no se limpiara, el
+  // título pasaría de `RevelarBloque` (framer-motion, que SÍ estampa un `style` inicial en SSR) a
+  // `<Movimiento id="S01" as="h2">` (sin ese `style`) -- y ahí el HTML SÍ cambiaría.
+  const stored = { tipo: 'texto', titulo: 'Un título' };
+  const sinAnimar = render(SeccionTexto as ComponenteSeccion, stored);
+  const conS01 = render(SeccionTexto as ComponenteSeccion, { ...stored, animacion: 'S01' });
+  assert.equal(sinAnimar, conS01);
+});
+
+test('byte-identidad: "collage" con `disposicion:\'horizontal\'` (S03) -- mosaico grande+chicas reemplazado por la tira pineada', () => {
+  const stored = { tipo: 'collage', items: [{ url: '/a.jpg', leyenda: 'A' }, { url: '/b.jpg', leyenda: 'B' }, { url: '/c.jpg', leyenda: 'C' }] };
+  const mosaico = render(SeccionCollage as ComponenteSeccion, stored);
+  const horizontal = render(SeccionCollage as ComponenteSeccion, { ...stored, disposicion: 'horizontal' });
+  assert.notEqual(mosaico, horizontal);
+});
+
+// ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — "proceso" (S02) ─────────────────────────────────────────
+//
+// SIN eje `animacion` que elegir (§ el descriptor): no hay "ausente vs. «Ninguna»" que comparar.
+// Lo que se afirma es que SIEMPRE monta `<Movimiento id="S02">` con sus marcadores -- y que el modo
+// `quieto` (preview/editor) cambia la clase de ALTURA sin tocar los marcadores que el motor lee.
+function renderProceso(stored: Record<string, unknown>, preview = false): string {
+  const instancia = resolverInstancia(stored);
+  const children = createElement(SeccionProceso, { id: 'inst:prueba', instancia: instancia as never });
+  const envuelto = preview ? createElement(PreviewProvider, { children }) : children;
+  return renderToStaticMarkup(createElement(SiteContentProvider, { value: DEFAULTS, children: envuelto }));
+}
+
+test('"proceso": SIEMPRE monta `<Movimiento id="S02">` -- data-s02-paso por cada ítem, data-s02-objeto en el lienzo', () => {
+  const html = renderProceso({ tipo: 'proceso', items: [{ titulo: 'A', texto: 'ta' }, { titulo: 'B', texto: 'tb' }, { titulo: 'C', texto: 'tc' }] });
+  assert.equal((html.match(/data-s02-paso/g) ?? []).length, 3);
+  assert.match(html, /data-s02-objeto/);
+});
+
+test('"proceso": el modo QUIETO (preview) usa la altura normal de sección, no `h-screen` -- el pin del motor está apagado ahí', () => {
+  const stored = { tipo: 'proceso', items: [{ titulo: 'A', texto: 'ta' }, { titulo: 'B', texto: 'tb' }, { titulo: 'C', texto: 'tc' }] };
+  const real = renderProceso(stored, false);
+  const quieto = renderProceso(stored, true);
+  assert.match(real, /h-screen/);
+  assert.doesNotMatch(quieto, /h-screen/);
+  assert.match(quieto, /py-20/);
+});
+
+test('"proceso": con foto en el primer paso, aparece su capa `data-s02-foto="0"` -- sin foto, no hay ninguna capa de foto', () => {
+  const conFoto = renderProceso({ tipo: 'proceso', items: [{ titulo: 'A', texto: 'ta', imagen: '/a.jpg' }, { titulo: 'B', texto: 'tb' }, { titulo: 'C', texto: 'tc' }] });
+  assert.match(conFoto, /data-s02-foto="0"/);
+  const sinFoto = renderProceso({ tipo: 'proceso', items: [{ titulo: 'A', texto: 'ta' }, { titulo: 'B', texto: 'tb' }, { titulo: 'C', texto: 'tc' }] });
+  assert.doesNotMatch(sinFoto, /data-s02-foto/);
+});
 
 // EL CONTRATO DE `<Movimiento>` MISMO (no el de Texto.tsx): `id` ausente/«Ninguna» no debe montar
 // NINGÚN nodo propio -- children directo, sin wrapper, sin ref, sin clase.

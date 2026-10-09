@@ -138,13 +138,15 @@ catalogo-movimiento.html` — «Me gustaron todas las animaciones») y el censo 
   `animaciones.ts` (las once funciones ESENCIALES, una por id, traducción directa del `<script>`
   del prototipo). `id` ausente/«Ninguna» no monta NINGÚN nodo propio — devuelve los children tal
   cual, por eso «Ninguna» es byte-idéntico a no usar el componente.
-- **El eje por sección** — en los NUEVE tipos de `secciones-instancias.ts` desde § MOVIMIENTO-EDITOR-
-  EXPOSICION-1 (abajo): `escalares.animacion`, un escalar clampado al catálogo, igual mecanismo que
-  `alineacion`, MÁS `animacionElemento` (declara a qué `aplicaA` del catálogo corresponde el ajuste
-  de esa sección, para que el editor filtre sus tarjetas). Esta frase describía el estado recién
-  nacido de este eje (sólo `texto`, como demostración) — § MOVIMIENTO-EDITOR-EXPOSICION-1 es la
-  extensión que esa misma entrada ya anticipaba como pendiente. Las bandas del home
-  (`site-content-defaults.ts`) siguen SIN el eje — ver esa sección para el porqué.
+- **El eje por sección** — en NUEVE de los DIEZ tipos de `secciones-instancias.ts` desde § MOVIMIENTO-
+  EDITOR-EXPOSICION-1 (abajo): `escalares.animacion`, un escalar clampado al catálogo, igual mecanismo
+  que `alineacion`, MÁS `animacionElemento` (declara a qué `aplicaA` del catálogo corresponde el
+  ajuste de esa sección, para que el editor filtre sus tarjetas). Esta frase describía el estado
+  recién nacido de este eje (sólo `texto`, como demostración) — § MOVIMIENTO-EDITOR-EXPOSICION-1 es
+  la extensión que esa misma entrada ya anticipaba como pendiente. Las bandas del home
+  (`site-content-defaults.ts`) siguen SIN el eje — ver esa sección para el porqué. § MOVIMIENTO-
+  NIVEL-EDITORIAL-1 (abajo) suma el DÉCIMO tipo ("proceso", S02 incorporado, SIN el eje — nace con
+  su animación, no hay nada que elegir) y hace de "texto" la ÚNICA excepción con DOS elementos.
 
 ### La convivencia con framer-motion — un elemento, una librería
 
@@ -325,3 +327,172 @@ y asentaron. **7/7 verificaciones.** Capturas antes/durante/después en `.captur
 tienda/producto 209/407, checkout 163/361, nosotros 224/422, suscripciones 258/456, los dos hovers
 en 0px) — el fix es inerte para Nayoli, igual que el resto del motor (§ arriba, "Nayoli no tiene
 ninguna `seccionesHome` sembrada").
+
+## El NIVEL EDITORIAL llega a la tienda — T06, S01, S02 (sección nueva «proceso»), S03 (§ MOVIMIENTO-NIVEL-EDITORIAL-1)
+
+Construido el 2026-10-08, siguiendo a MOVIMIENTO-SCROLL-UMBRAL-1 (mismo día). El owner aprobó TODO
+el catálogo del prototipo («Me gustaron todas las animaciones»), incluido el nivel editorial; este
+slice les da motor a T06/S01/S02/S03 (las cuatro quedaban `implementada:false`) y a S02 una sección
+NUEVA del catálogo de instancias para hospedarla.
+
+### T06 — cambió de elemento, no sólo de motor
+
+En el prototipo T06 ("tipografía gigante que cruza") desliza un título ENORME SOBRE UNA FOTO
+(`.gigante-zona.foto`). El catálogo lo tenía `aplicaA:'texto'` (agrupado con T01-T05 en la lectura
+humana del prototipo), pero su mecánica real exige una foto — así que esta tanda le cambió el
+`aplicaA` a `'imagen'`, el mismo elemento que ya ofrecen `banner`/`imagenTexto` (y, por delegación,
+`filas`/`video`). Con eso, T06 aparece en el selector «Animación» de esos tipos, no del de "texto".
+
+- **El marcador es `.sf-movimiento-gigante`**, misma clase de marcador que `.sf-movimiento-
+  resaltada` de T04 (§ arriba) — una clase que `t06()` consulta por selector, no una hoja de
+  estilos. Banner.tsx/ImagenTexto.tsx la montan DENTRO del `<Movimiento id={animacion}>` que ya
+  envuelve la foto, SÓLO cuando `animacion==='T06' && titulo` (y, en Banner, sólo con `imagen`
+  presente — sin foto, esa rama ni se alcanza: Banner decide por `instancia.imagen` ANTES de mirar
+  `animacion`).
+- **El título gigante es DECORATIVO** (`aria-hidden`), uppercase, el MISMO `instancia.titulo` que el
+  bloque ya muestra en su tamaño normal — no es un campo nuevo, y por eso convive con el título
+  legible sin pedirle al dueño un segundo texto.
+- **`t06(raiz)`** (`animaciones.ts`) es SCRUB puro (como I03): busca `.sf-movimiento-gigante` dentro
+  de `raiz` y lo traslada `xPercent 10→-40` atado al progreso de scroll de la sección. Sin marcador
+  (ningún id ≠ T06, o T06 sin foto) → `null`, nada que animar.
+
+### S01 — capítulos de color, SIN capítulos discretos (simplificación deliberada)
+
+El prototipo cambia el FONDO de una sección con TRES sub-bloques ("capítulos") al cruzar el 55% de
+CADA uno. Este catálogo no tiene un tipo con sub-bloques de capítulo — así que S01 se simplificó a
+un **scrub CONTINUO sobre el fondo de LA SECCIÓN ENTERA**, de `--sf-fondo` → `--sf-acento` →
+`--sf-tostado`, mientras la sección cruza el viewport (sin pin). Con VARIAS instancias consecutivas
+que lo usen, el recorrido se lee como una secuencia de capítulos de color — sin estado compartido
+entre ellas, cada una resuelve su propio scrub de forma independiente.
+
+**ÚNICA EXCEPCIÓN DE "UN TIPO → UN ELEMENTO": "texto" ofrece T01-T06 (su propio `aplicaA:'texto'`)
+Y S01 (`aplicaA:'seccion'`).** `InstanciaDescriptor.animacionElemento` sigue siendo ESCALAR en los
+otros NUEVE tipos — no se generalizó a un array por el bien de una sola animación. La excepción vive
+en `InstanciaEditorForm.tsx` (`elemento={tipo === 'texto' ? [descriptor.animacionElemento, 'seccion'] : descriptor.animacionElemento}`)
+y en `SelectorMovimiento`/`MiniaturaMovimiento`, que ahora aceptan un `ElementoMovimiento | readonly
+ElementoMovimiento[]` y dibujan la miniatura de CADA opción con el `aplicaA` de ESA animación, no
+con el elemento compartido por todo el selector — una lista mixta nunca fuerza una forma ajena.
+"texto" se eligió porque es el tipo MÁS SIMPLE que sirve de "capítulo": un bloque único cuyo FONDO
+—no el título— puede transicionar de color.
+
+- **Con S01, el TÍTULO sigue en `RevelarBloque`** (como «Ninguna»), nunca en `Movimiento`: la
+  animación de la instancia la lleva la SECCIÓN entera (`Texto.tsx` envuelve TODO con `<Movimiento
+  id="S01" as="section">` cuando `animacion==='S01'`, y pasa `animacionTitulo=''` al título — "un
+  mismo campo nunca anima dos nodos a la vez"). `Movimiento.tsx` ganó un prop `style` (pasa-mano,
+  ignorado si `id` está ausente — nunca rompe la byte-identidad de «Ninguna») para que la sección
+  pueda seguir recibiendo el `style` del esquema asignado aunque esté envuelta en `Movimiento`.
+- **BYTE-IDENTIDAD: con S01 el HTML servido es IDÉNTICO al de «Ninguna»** (medido,
+  `demo-byte-identidad.test.ts`) — `Movimiento` no agrega ningún atributo serializable al montar una
+  etiqueta (un `ref` no se serializa en SSR), así que envolver la sección con `Movimiento` en vez de
+  un `<section>` plano no cambia el string. El efecto vive enteramente en el DOM post-hidratación.
+  Esto NO es una laguna: es la MISMA garantía de "sin wrapper, sin ref, sin clase" de «Ninguna»,
+  vista desde el otro lado — y lo que SÍ sería visible es el defecto que el test previene (si el
+  título NO se limpiara, pasaría de `RevelarBloque`, con su `style` inicial de framer-motion, a
+  `Movimiento`, sin él).
+- **`s01(raiz)`** lee `--sf-fondo`/`--sf-acento`/`--sf-tostado` de la paleta en vivo
+  (`leerVarPaleta`, nuevo helper en `animaciones.ts`: `getComputedStyle(document.documentElement).
+  getPropertyValue(...)`) y arma un timeline scrub de dos tramos (fondo→acento, acento→tostado) —
+  nunca colores fijos, siempre los de la tienda. Se evitó `--sf-tinta` (la raíz más oscura) a
+  propósito: el texto de la sección sigue con su color estático (tinta sobre fondo claro), y
+  tiñendo el fondo con tonos medios (acento/tostado) el contraste se mantiene razonable sin tener
+  que invertir también el color del texto (que habría exigido tocar el CSS de cada hijo).
+
+### S02 — nace la sección "proceso" ("Del fruto a la taza")
+
+El prototipo recorre CINCO etapas con nombre fijo (cereza → grano verde → pergamino → tostado →
+taza), cada una con su propio dibujo. Generalizar eso a de TRES a SEIS pasos EDITABLES (el spec)
+sin inventar una sexta etapa fantasma, o recortar una de las cinco para 3-4 pasos, pedía una forma
+que no dependiera del NÚMERO de etapas — así que el **objeto** (un círculo) tween su color/escala/
+rotación en UNA SOLA transición CONTINUA a lo largo de TODO el recorrido pineado (de `--sf-acento` a
+`--sf-tinta`, nunca fijo), independiente de cuántos pasos haya, y al llegar al ÚLTIMO paso aparece
+una taza genérica (trazo `--sf-tinta` sobre `--sf-fondo`). Es una simplificación deliberada frente
+al prototipo, no una limitación técnica — el owner no pidió los nombres de etapa literales, pidió
+"un objeto que recorre los pasos, con los colores de la paleta".
+
+- **`proceso` es un TIPO NUEVO de `secciones-instancias.ts`** (el DÉCIMO): `campos: { titulo:
+  'opcional' }` + `items` (descriptor `{etiqueta, titulo, texto, imagen}`, `etiqueta`/`imagen`
+  opcionales, `titulo`/`texto` requeridos, min 3 / max 6 — el PISO es lo que hace cierta "de tres a
+  seis"). **SIN `escalares`/`animacionElemento`**: nace CON su animación (S02) incorporada, no hay
+  eje `animacion` que elegir ni guardar — es la ÚNICA excepción de los diez tipos sin ese ajuste.
+  `DEFAULTS_INSTANCIA.proceso` nace con TRES pasos de ejemplo, texto neutro sin café (el tipo es
+  genérico: una receta, una fabricación, un ciclo de servicio — no sólo café).
+- **`Proceso.tsx`** envuelve la SECCIÓN ENTERA con `<Movimiento id="S02" as="section">` (nunca un
+  hijo) y renderiza: los pasos apilados ABSOLUTOS (uno por `data-s02-paso`, el `0` con `opacity-100`
+  y el resto `opacity-0` por TAILWIND, no por un `gsap.set` que sólo corre con el motor activo — así
+  el fallback sin JS/editor/preview es EXACTAMENTE "el primer paso", nunca una pila superpuesta
+  ilegible); la barra de progreso (`data-s02-marca`); el lienzo con el objeto ilustrativo
+  (`data-s02-objeto`, un círculo SVG) y la taza (`data-s02-taza`, oculta hasta el final); y, por
+  cada paso CON foto, una capa `data-s02-foto={i}` que sustituye al objeto ilustrativo EN ESE PASO
+  (§ el spec: "con fotos, cada paso muestra su foto en vez de la ilustración").
+- **`s02(raiz)`** (`animaciones.ts`) arma el pin (`end:'+=${(n-1)*100}%'`, un viewport de scroll por
+  transición — elegido limpio y generalizable, no una réplica literal del `+=300%` del prototipo
+  para 5 pasos) y, en cada transición `k→k+1`, cruza los textos Y decide qué ENTIDAD se ve
+  (`entidadDePaso(i) = fotos.get(i) ?? objeto`) — **el cruce SÓLO anima cuando la entidad visible
+  REALMENTE cambia entre pasos consecutivos** (`actual !== siguiente`): dos pasos sin foto dejan el
+  objeto FIJO (nunca se apaga y reprende), evitando el parpadeo que un cruce incondicional
+  produciría. El color/escala/rotación del objeto sigue su propia transición continua SIEMPRE, sea o
+  no la entidad visible en ese instante — cuando vuelve a ser visible, ya está en el tono correcto.
+- **EL MODO `quieto` (preview/editor) cambia la ALTURA, no los marcadores.** El motor ya se apaga
+  solo bajo esos dos gates (`useMovimiento`, los de siempre); lo que Proceso.tsx decide ADEMÁS es
+  que, sin motor, una sección `h-screen` sería un bloque casi vacío en la vista previa chica del
+  editor/Biblioteca — así que `quieto` baja la clase a `py-20` (la altura normal de cualquier otra
+  sección). Los `data-s02-*` se renderizan IGUAL en los dos modos; sólo cambia el contenedor.
+
+### S03 — el MODO de "collage", no una opción de «Animación»
+
+"Galería horizontal" pinea la sección y desliza TODAS las fotos de lado — una disposición distinta
+de "una grande + chicas", no un AJUSTE sobre esa disposición. Por eso S03 se wireó como el TERCER
+valor del escalar `disposicion` de "collage" (`'dos' | 'cuatro' | 'horizontal'`, canónica sigue
+siendo `'dos'` → byte-idéntico), el mismo patrón que `modo` en "video" (un campo que cambia la FORMA
+de la sección, no una animación de entrada) — **nunca una entrada del selector «Animación»** (el
+spec ofrecía las dos rutas; se eligió "como modo" porque S03 pinea la SECCIÓN completa y reemplaza
+el layout grande+chicas entero, algo que un simple wrapper de `Movimiento` alrededor del grid
+existente no puede expresar sin dos renders condicionales de todas formas).
+
+- **Con `disposicion:'horizontal'`, Collage.tsx IGNORA `lado`** (sin partición grande/chicas: TODOS
+  los ítems entran a la tira, en el orden del array) y **`instancia.animacion` queda guardado pero
+  SIN CONSULTAR** — mismo criterio que `ctaLabel`/`ctaDestino` de "video" en modo `'reproducir'`: un
+  campo sin efecto en un modo no es un bug, es la forma de no abrir una rama nueva del editor para
+  algo que el render ya resuelve.
+- **`s03(raiz)`** es LITERAL al prototipo (`distancia()` mide `scrollWidth - innerWidth`, pin +
+  scrub con `invalidateOnRefresh`), operando sobre `raiz.firstElementChild` (la tira) — el MISMO
+  patrón `raiz.firstElementChild` que I02/I03 ya usan para "el hijo que se mueve adentro".
+
+### El riesgo del pin-spacer contra un ancestro con overflow — MEDIDO, cerrado
+
+`GSAP-MARCO-CENSO-1` dejó abierta la pregunta ("¿el pin-spacer respeta el mismo overflow-clip que ya
+resolvió el sticky de framer-motion, o introduce su propio requisito?") sin poder instalar GSAP para
+medirla. Con GSAP instalado (desde MOVIMIENTO-MARCO-GSAP-1), el mecanismo es la MISMA clase de riesgo
+que `HERO-STICKY-OVERFLOW-FIX-1` (DECISIONS.md, 2026-09-29) ya documentó para `position:sticky`: un
+ancestro con `overflow-hidden`/`-auto`/`-scroll` se vuelve un scroll container, y el elemento pineado
+(que ScrollTrigger posiciona contra el VIEWPORT, vía `position:fixed` o `transform` según el
+`pinType`) deja de anclarse ahí.
+
+**MEDIDO, no asumido — los DOS pin de este slice están auto-contenidos:** `Proceso.tsx` y el modo
+horizontal de `Collage.tsx` llevan `overflow-hidden` SOBRE SÍ MISMOS (el recorte que el propio
+prototipo quiere — `.horizontal{overflow:hidden}`), nunca sobre un ANCESTRO. La cadena real de
+ancestros hasta el viewport (`app/(storefront)/layout.tsx`: el `<div className="min-h-screen …">` y
+`<main>` que envuelven toda la home) se grepeó por contenido — CERO apariciones de
+`overflow-hidden`/`-auto`/`-scroll`. `lib/movimiento/pin-overflow-ancestro.test.ts` lo afirma como
+regla permanente (si alguien le agrega esa clase al wrapper o a `<main>` por otra razón —una red de
+seguridad visual, como pasó con el hero—, este test se cae, y la salida es `overflow-clip`, no
+`hidden`, exactamente como ya resolvió el hero).
+
+**Límite declarado:** este test es un grep de FUENTE, no un render con medición de posición real
+(Playwright) como hizo `HERO-STICKY-OVERFLOW-FIX-1` — el mecanismo (overflow de ancestro rompe un
+elemento posicionado contra el viewport) es CSS puro y no depende de `pin:true` vs `sticky`, así que
+la MISMA causa-raíz aplica; lo que el grep no cubre es un ancestro que alguien agregue DESPUÉS de
+este slice sin tocar `layout.tsx` (un nuevo wrapper dentro de una sección, p. ej.) — ahí la garantía
+es "ningún componente de sección de este catálogo pone overflow en el ANCESTRO de su propio pin", que
+sí se cumple por construcción en Proceso.tsx/Collage.tsx (el `overflow-hidden` vive en el MISMO nodo
+que `<Movimiento>` pinea, nunca en un padre).
+
+### Byte-identidad, medida
+
+`lib/movimiento/demo-byte-identidad.test.ts` se extendió: T06 (con foto+título cambia el HTML — el
+título gigante es contenido real, no sólo un wrapper), S01 (HTML IDÉNTICO a «Ninguna» — ver arriba
+el porqué), S03 (el árbol completo difiere: layout distinto, no un simple wrapper) y "proceso" (sin
+eje que comparar; se afirma que SIEMPRE monta sus marcadores y que `quieto` sólo cambia la altura).
+`verificar:nayoli:visual` confirma el mismo piso heredado (Nayoli no tiene `seccionesHome`
+sembrada, así que ninguno de los cuatro cambios es visible para ella, igual que los slices
+anteriores de este eje).

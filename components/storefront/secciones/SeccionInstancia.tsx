@@ -11,15 +11,16 @@ import SeccionFilas from "@/components/storefront/secciones/Filas";
 import SeccionCollage from "@/components/storefront/secciones/Collage";
 import SeccionVideo from "@/components/storefront/secciones/Video";
 import SeccionCarrusel from "@/components/storefront/secciones/Carrusel";
+import SeccionProceso from "@/components/storefront/secciones/Proceso";
 
 // EL DISPATCHER de instancias (§ SECCIONES-INSTANCIAS-1) — gemelo de `BANDAS` (el registro
 // bandaId→render de `app/(storefront)/page.tsx`), pero por TIPO en vez de por id fijo: una
 // instancia de catálogo lleva su propio `tipo` guardado, así que no hace falta un registro externo
 // id→componente (el id es arbitrario, el tipo no). `instancia.tipo` ya viene CLAMPADO por
-// `resolverInstancia` (secciones-instancias.ts) a uno de los NUEVE del catálogo (§ SECCIONES-TIPOS-2
+// `resolverInstancia` (secciones-instancias.ts) a uno de los DIEZ del catálogo (§ SECCIONES-TIPOS-2
 // amplió de tres a seis, § SECCIONES-TIPOS-3 de seis a ocho, § SECCIONES-CARRUSEL-1 de ocho a
-// nueve), así que el switch es exhaustivo por construcción — ninguna rama "desconocida" puede
-// llegar acá con datos reales.
+// nueve, § MOVIMIENTO-NIVEL-EDITORIAL-1 de nueve a diez), así que el switch es exhaustivo por
+// construcción — ninguna rama "desconocida" puede llegar acá con datos reales.
 //
 // EN VIVO (§ SECCIONES-INSTANCIAS-VIVO-1, ver el docstring de cabecera de `secciones-instancias.ts`
 // para la regla general): lee `seccionesHome[id]` del CONTEXTO —el mismo que `EditorPuenteVivo.tsx`
@@ -66,5 +67,7 @@ export default function SeccionInstancia({
       return <SeccionVideo id={id} instancia={actual} style={style} />;
     case "carrusel":
       return <SeccionCarrusel id={id} instancia={actual} style={style} />;
+    case "proceso":
+      return <SeccionProceso id={id} instancia={actual} style={style} />;
   }
 }

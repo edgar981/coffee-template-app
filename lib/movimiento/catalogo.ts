@@ -100,11 +100,17 @@ export const CATALOGO_MOVIMIENTO: readonly MovimientoDef[] = [
     descripcion: 'El bloque entero revela de una sola vez, subiendo un poco mientras funde opacidad. La opción más tranquila para texto largo.',
     implementada: true,
   },
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06 cambió su `aplicaA` de 'texto' a 'imagen': en el prototipo
+  // el título gigante se desliza SOBRE UNA FOTO (`.gigante-zona.foto`, § catalogo-movimiento.html),
+  // y el spec de este slice lo pide explícito para "banner/imagen con texto" — los dos tipos cuyo
+  // `animacionElemento` ya es 'imagen' (§ DESCRIPTOR_INSTANCIA, secciones-instancias.ts). Queda en
+  // su posición original del array (agrupado con T01-T05 en la lectura humana del catálogo, que
+  // sigue el orden del prototipo) — `aplicaA` es el único campo que decide el filtro real.
   {
-    id: 'T06', nombre: 'Tipografía gigante que cruza', nivel: 'editorial', aplicaA: 'texto',
+    id: 'T06', nombre: 'Tipografía gigante que cruza', nivel: 'editorial', aplicaA: 'imagen',
     clases: ['scrub'],
-    descripcion: 'El texto se desliza de lado, atado a la posición de scroll mientras su sección pasa por el viewport — avanza y retrocede si el visitante retrocede.',
-    implementada: false,
+    descripcion: 'El título se desliza de lado SOBRE la foto, atado a la posición de scroll mientras la sección pasa por el viewport — avanza y retrocede si el visitante retrocede.',
+    implementada: true,
   },
   // ── Imagen ──
   {
@@ -145,23 +151,43 @@ export const CATALOGO_MOVIMIENTO: readonly MovimientoDef[] = [
     implementada: true,
   },
   // ── Secciones (narrativa, pin + scrub) ──
+  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — S01 SIN pin: el fondo de la sección entera transiciona de
+  // forma CONTINUA (scrub puro, sin capítulos discretos con umbral propio) entre tres colores de la
+  // paleta (fondo→acento→tostado) mientras la sección cruza el viewport — simplificación deliberada
+  // frente al prototipo (que fija el color al cruzar el 55% de CADA sub-bloque "capitulo"): este
+  // catálogo no tiene un tipo con sub-bloques de capítulo, así que "el capítulo" lo hace la sección
+  // ENTERA cambiando de color a su propio paso. Con VARIAS instancias consecutivas que lo usen, el
+  // recorrido se lee como una secuencia de capítulos — sin pin ni estado compartido entre ellas (§
+  // DUNA-MOVIMIENTO.md, la sección de este slice, para el porqué completo). Sólo ofrecido hoy en
+  // "texto" (§ InstanciaEditorForm.tsx) — ver el comentario de `InstanciaDescriptor.animacionElemento`.
   {
     id: 'S01', nombre: 'Capítulos de color', nivel: 'editorial', aplicaA: 'seccion',
     clases: ['scrub'],
-    descripcion: 'El fondo de la sección cambia de color (de la paleta de la tienda) según qué capítulo está activo al cruzar el 55% del viewport.',
-    implementada: false,
+    descripcion: 'El fondo de la sección transiciona entre tres colores de la paleta (fondo→acento→tostado), atado a la posición de scroll mientras la sección cruza el viewport — sin pin.',
+    implementada: true,
   },
+  // S02 es el motor de la sección "proceso" (§ secciones-instancias.ts, DESCRIPTOR_INSTANCIA.proceso)
+  // — NO se ofrece vía «Animación»: el tipo nace CON esta animación incorporada, no como una opción
+  // entre varias (no declara `animacionElemento`). El objeto es un círculo cuyo color/escala/rotación
+  // tween de forma CONTINUA a lo largo de TODO el recorrido pineado (de la paleta: acento→tinta,
+  // nunca fijo), y al llegar al ÚLTIMO paso aparece una taza — generaliza a cualquier N de 3 a 6
+  // pasos sin ramas por paso (simplificación frente al prototipo, que anima 5 etapas con nombre
+  // fijo: cereza/grano/pergamino/tostado/taza — ver DUNA-MOVIMIENTO.md para el porqué).
   {
     id: 'S02', nombre: 'Del fruto a la taza', nivel: 'editorial', aplicaA: 'seccion',
     clases: ['scrub'],
-    descripcion: 'La sección se pinea y un dibujo recorre sus pasos atado al progreso de scroll (ScrollTrigger pin + scrub).',
-    implementada: false,
+    descripcion: 'La sección se pinea; un objeto cambia de color y escala (de la paleta) mientras recorre los pasos atado al progreso de scroll, y revela una taza en el último paso.',
+    implementada: true,
   },
+  // S03 es un MODO de "collage" (`disposicion: 'horizontal'`, § secciones-instancias.ts), no una
+  // opción de «Animación»: elegir esa disposición reemplaza el mosaico grande+chicas por la tira
+  // horizontal pineada — mismo criterio que `modo` en "video" (un campo que cambia la FORMA de la
+  // sección, no su animación de entrada). Ver Collage.tsx.
   {
     id: 'S03', nombre: 'Galería horizontal', nivel: 'editorial', aplicaA: 'seccion',
     clases: ['scrub'],
     descripcion: 'La sección se pinea y las fotos se deslizan de lado atadas al progreso de scroll vertical.',
-    implementada: false,
+    implementada: true,
   },
   // ── Héroes (firma, pin + scrub narrativo) ──
   {

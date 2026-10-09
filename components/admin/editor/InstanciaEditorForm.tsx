@@ -57,14 +57,16 @@ const HINT_CAMPO: Record<string, string> = {
 };
 // § SECCIONES-TIPOS-3 — "disposicion"/"modo" se suman a los escalares ya conocidos; "lado" se
 // REUSA tal cual (mismas dos claves que ya usa "imagenTexto", § secciones-instancias.ts).
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — "disposicion" pasó de "Chicas" a "Disposición": con el tercer
+// valor ('horizontal', el modo de S03) ya no describe sólo la grilla de chicas.
 const LABEL_ESCALAR: Record<string, string> = {
-  alineacion: 'Alineación', lado: 'Lado de la imagen', alto: 'Alto', disposicion: 'Chicas', modo: 'Modo',
+  alineacion: 'Alineación', lado: 'Lado de la imagen', alto: 'Alto', disposicion: 'Disposición', modo: 'Modo',
 };
 const LABEL_VALOR_ESCALAR: Record<string, Record<string, string>> = {
   alineacion: { izquierda: 'Izquierda', centro: 'Centro', derecha: 'Derecha' },
   lado: { izquierda: 'Izquierda', derecha: 'Derecha' },
   alto: { justo: 'Justo', alto: 'Alto', pantalla: 'Pantalla completa' },
-  disposicion: { dos: 'Dos chicas', cuatro: 'Cuatro chicas' },
+  disposicion: { dos: 'Dos chicas', cuatro: 'Cuatro chicas', horizontal: 'Galería horizontal (fija al pasar)' },
   modo: { fondo: 'Fondo, con texto encima', reproducir: 'Reproducir al tocar' },
 };
 // § SECCIONES-CARRUSEL-1 — el PRIMER (y hoy único) booleano de INSTANCIA del catálogo
@@ -91,6 +93,12 @@ const ITEM_LABEL: Partial<Record<SeccionInstanciaTipo, string>> = {
   filas: 'fila',
   collage: 'foto',
   carrusel: 'diapositiva',
+  proceso: 'paso',
+};
+// § MOVIMIENTO-NIVEL-EDITORIAL-1 — "paso" es el ÚNICO `itemLabel` MASCULINO del catálogo (los demás
+// —pregunta/columna/fila/foto/diapositiva— son femeninos, el default de `InstanciaItemsEditor`).
+const ITEM_GENERO: Partial<Record<SeccionInstanciaTipo, 'f' | 'm'>> = {
+  proceso: 'm',
 };
 
 export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
@@ -237,7 +245,11 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
             </p>
             <SelectorMovimiento
               id={`inst-animacion-${tipo}`}
-              elemento={descriptor.animacionElemento}
+              // § MOVIMIENTO-NIVEL-EDITORIAL-1 — "texto" es el ÚNICO tipo que suma 'seccion' (S01)
+              // a su propio elemento — ver el docstring de `InstanciaDescriptor.animacionElemento`
+              // (secciones-instancias.ts) para el porqué de que sea un `if` acá y no un segundo
+              // campo del descriptor.
+              elemento={tipo === 'texto' ? [descriptor.animacionElemento, 'seccion'] : descriptor.animacionElemento}
               valor={datos.animacion ?? ''}
               onElegir={(v) => set('animacion', v)}
               ariaLabel="Animación"
@@ -389,6 +401,7 @@ export function InstanciaEditorForm({ tipo, instancia, onCambiar }: {
             min={descriptor.items.min}
             max={descriptor.items.max}
             itemLabel={ITEM_LABEL[tipo] ?? 'ítem'}
+            genero={ITEM_GENERO[tipo] ?? 'f'}
             conVideo={tipo === 'collage'}
             pedirImagen={subida.pedir}
             elegir={subida.elegir}
