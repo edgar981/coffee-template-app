@@ -76,16 +76,85 @@ export function useMovimiento(id: string | undefined, opciones: UseMovimientoOpc
   const disponible = !!id && motorDisponible(id);
   const activo = auto && disponible && !preview && !editando;
 
-  useGSAP(() => {
+  const { context } = useGSAP(() => {
     if (!activo || !ref.current || !id) return;
     const fn = ANIMACIONES_ESENCIALES[id];
     if (!fn) return;
-    // Sólo la rama 'no-preference' se registra (§ el docstring de cabecera, gate 2): con
-    // 'reduce' no hay callback que correr, y gsap.matchMedia no inventa uno.
-    const mm = gsap.matchMedia();
-    mm.add('(prefers-reduced-motion: no-preference)', () => {
-      fn(ref.current as HTMLElement, false);
-    });
+    const raiz = ref.current;
+
+    // § MOVIMIENTO-SCROLL-UMBRAL-1 — `ScrollTrigger` mide `start:'top 82%'` (§ `alEntrar`,
+    // `animaciones.ts`) como un píxel ABSOLUTO contra el documento TAL COMO ESTÁ en el instante en
+    // que este efecto corre. Si en ese instante el documento es más CORTO que el real —el
+    // storefront sirve el par de fuentes por `<link>`/`@import`, SIN `next/font` (§ DUNA-
+    // MOVIMIENTO.md, "Las FUENTES son content.tema.fuentePar"), así que el FOUT puede reflowear el
+    // texto de ARRIBA después de este efecto; lo mismo aplica a una imagen que todavía no reservó
+    // su alto, o cualquier otro contenido que crezca sin disparar `resize`— ese píxel calculado
+    // queda por DEBAJO del scroll actual (típicamente 0, recién cargada la página) y `ScrollTrigger`
+    // evalúa el umbral como YA CRUZADO: reproduce el tween ENTERO de inmediato, sin que el
+    // visitante haya scrolleado un píxel. Un `ScrollTrigger.refresh()` posterior NO lo corrige:
+    // `toggleActions:'play none none none'` no tiene acción de vuelta (`leaveBack:'none'`), así que
+    // refrescar sólo vuelve a medir, nunca deshace un "play" que ya corrió — medido con un repro
+    // aislado de GSAP/ScrollTrigger sin React (`.scratch/repro-scrolltrigger*.html`, fuera de
+    // `touches:`, no comiteado). Lo que SÍ lo corrige es MATAR el tween viejo (`.scrollTrigger.
+    // kill()` + `.revert()`, que restaura el estilo al de ANTES de animar) y crear uno NUEVO: el
+    // nuevo mide el documento como esté EN ESE momento, así que si el layout ya creció, el umbral
+    // vuelve a quedar donde corresponde.
+    //
+    // El disparador de la re-medición es un `ResizeObserver` sobre `<html>` — agnóstico de la
+    // CAUSA (fuente, imagen, contenido async): reacciona al EFECTO (el documento cambió de alto),
+    // no a una señal específica. Se apaga en el PRIMER scroll real: el defecto que esto corrige
+    // sólo existe ANTES de que el visitante scrollee un píxel — una vez que scrolleó, cualquier
+    // "play" ya es una reacción a scroll de verdad, y matar/recrear ahí reabriría un segundo
+    // defecto (un salto visible a mitad de una reproducción legítima). Por eso NO es un
+    // `document.fonts.ready` con timeout: ESE camino se midió y queda BLOQUEADO indefinidamente si
+    // la fuente nunca resuelve (red caída, bloqueador de contenido) — un timeout corto reintroduce
+    // el bug justo en la red lenta que más lo necesita, y uno largo demora la primera animación de
+    // toda visita. El `ResizeObserver` no depende de red: sólo reacciona si algo realmente cambió.
+    // `estado.tween` (no un `let` suelto): TS no sigue la reasignación de un `let` dentro de un
+    // closure llamado síncronamente (`crear()` abajo) para efectos de ESTRECHAR su tipo en el
+    // código que sigue — con un `let` lo ve `null` para siempre y marca el resto como inalcanzable
+    // (`never`). Una propiedad de objeto no tiene ese problema: TS no aplica el mismo análisis de
+    // flujo a los miembros de un objeto mutado por asignación simple.
+    const estado: { tween: gsap.core.Tween | gsap.core.Timeline | null } = { tween: null };
+    const crear = () => {
+      // Sólo la rama 'no-preference' se registra (§ el docstring de cabecera, gate 2): con
+      // 'reduce' no hay callback que correr, y gsap.matchMedia no inventa uno — `estado.tween`
+      // queda `null` y el bloque de abajo no instala el `ResizeObserver` (nada que corregir).
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        estado.tween = fn(raiz, false);
+      });
+    };
+    crear();
+
+    // C02 (hover puro, § `animaciones.ts`) no devuelve tween — nada atado a scroll que corregir,
+    // y recrear ahí DUPLICARÍA los listeners de `hoverTarjetas` en cada resize. El resto de la
+    // clase `scrub`/`revelado` siempre crea un tween con `scrollTrigger` (§ `alEntrar`).
+    if (!estado.tween?.scrollTrigger || typeof ResizeObserver === 'undefined') return;
+
+    let corrigiendo = true;
+    const recrear = () => {
+      if (!corrigiendo) return;
+      // `context.add` reabre el contexto de este `useGSAP` para la llamada SÍNCRONA de abajo
+      // (`_context = self` mientras corre, § gsap-core `Context.prototype.add`): sin esto, el
+      // tween nuevo —creado dentro del callback del `ResizeObserver`, fuera de la pila síncrona
+      // del efecto— quedaría SIN registrar en este contexto, y `context.revert()` al desmontar no
+      // lo limpiaría.
+      context.add(() => {
+        estado.tween?.scrollTrigger?.kill();
+        estado.tween?.revert();
+        crear();
+      });
+    };
+    const ro = new ResizeObserver(recrear);
+    ro.observe(document.documentElement);
+    const apagar = () => { corrigiendo = false; ro.disconnect(); };
+    window.addEventListener('scroll', apagar, { once: true, passive: true });
+
+    return () => {
+      apagar();
+      window.removeEventListener('scroll', apagar);
+    };
   }, { scope: ref as RefObject<HTMLElement>, dependencies: [activo, id] });
 
   // § MOVIMIENTO-EDITOR-EXPOSICION-1 — «Ver animación». No depende de `activo`: corre aunque

@@ -56635,3 +56635,133 @@ Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise la ra
 el orquestador.
 
 **Cierra `MOVIMIENTO-EDITOR-EXPOSICION-1`.**
+
+## MOVIMIENTO-SCROLL-UMBRAL-1 — el motor espera a que el layout se asiente antes de medir el umbral
+
+**Fecha:** 2026-10-08. **Spec:** aprobado por el owner el 2026-10-08 («Me gustaron todas las
+animaciones»), investigar y arreglar el follow-up que dejó `MOVIMIENTO-EDITOR-EXPOSICION-1`
+(nombrado ahí `MOVIMIENTO-SCROLLTRIGGER-PRE-SCROLL-1`): una sección `revelado` muy por debajo del
+fold ya medía su estado FINAL antes de que el visitante scrolleara. `touches:
+components/storefront/movimiento/, lib/movimiento/, DUNA-MOVIMIENTO.md, DECISIONS.md`.
+`continues-branch: slice/editor-secciones-1`.
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `slice/editor-secciones-1` (392 commits adelante de `main`, 0 atrás) — verificado.
+- El número 3417px que el spec cita como medición previa: confirmado en `DECISIONS.md`
+  (`MOVIMIENTO-EDITOR-EXPOSICION-1`, línea ~56533) y REPRODUCIDO en este slice, dígito por dígito
+  (ver abajo) — no se tomó como dato, se volvió a medir.
+
+### La causa — reproducida SIN React, SIN Next, SIN Postgres
+
+Un repro aislado (`.scratch/repro-scrolltrigger*.html`, UMD de `gsap`/`ScrollTrigger` vía
+`<script>`, Chromium headless con la instalación propia de `.arnes-tooling/playwright`, fuera de
+`touches:`, no comiteado) replica EXACTO el `gsap.from(...) + scrollTrigger:{start:'top 82%',
+toggleActions:'play none none none'}` de `alEntrar`/`t01` (`animaciones.ts`), con un bloque que
+arranca en `height:0` y crece a 3000px 80ms después de crear el tween — simula CUALQUIER causa
+asíncrona de layout (fuente, imagen, contenido async), sin comprometerse a cuál es.
+
+**Medido:** con el bloque en 0px al crear el `ScrollTrigger`, el elemento objetivo queda cerca del
+tope de un documento corto → el `start` calculado (offset del elemento − 82%·viewport) resulta
+NEGATIVO → `ScrollTrigger` evalúa el umbral como YA CRUZADO y reproduce el tween COMPLETO de
+inmediato, con `scrollY=0` — sin que nada haya scrolleado. Tras el crecimiento posterior (el bloque
+llega a 3000px, el objetivo queda a 3080px de scroll, genuinamente lejos del fold), el tween YA
+jugó y se quedó así: `ScrollTrigger.refresh()` después del cambio de alto NO lo revierte
+(`toggleActions` no tiene acción de vuelta para `leaveBack`, está en `'none'`) — medido explícito
+en el repro, con y sin el refresh tardío.
+
+**El fix validado en el mismo repro, antes de tocar código real:** un `ResizeObserver` sobre
+`document.documentElement` que, al detectar el cambio de alto, MATA el tween viejo
+(`scrollTrigger.kill()` + `tween.revert()`) y CREA uno nuevo — el nuevo mide el documento como esté
+en ESE momento (ya corregido) y vuelve a quedar correctamente en su estado "from". Confirmado:
+tras el kill+recreate, el elemento vuelve a `transform` no-identidad (oculto) y se queda así hasta
+el scroll real.
+
+**Descartado, medido:** esperar `document.fonts.ready` (con o sin timeout) antes de crear el
+`ScrollTrigger`. En el arnés de verificación en sesión real (sandbox sin salida a
+`fonts.googleapis.com`) esa promesa NUNCA resolvió — más de 30s sin resolver — lo que habría dejado
+el motor COMPLETAMENTE MUDO en cualquier entorno con la red de fuentes bloqueada o lenta (ad-
+blockers, extensiones de privacidad, redes corporativas). Un timeout corto reintroduce el bug
+exactamente en la red lenta que más lo necesita; uno largo demora la primera animación de cualquier
+visita real. El `ResizeObserver` no depende de red — sólo reacciona si el documento cambió de
+alto de verdad — y por eso es la forma elegida, no la primera que se probó.
+
+### El fix — un único archivo, `useMovimiento.ts`
+
+`useGSAP` crea el tween igual que antes; si el resultado tiene `.scrollTrigger` (clase `scrub` o
+`revelado` — C02, hover puro, no lo tiene y el bloque entero se salta), instala el
+`ResizeObserver` sobre `<html>` y un listener de `scroll` `{once:true}` que lo apaga. Mientras no
+haya scroll real, cualquier resize del documento mata+recrea el tween (vía `context.add(...)` para
+que el reemplazo quede registrado en el `gsap.context()` de este `useGSAP`, y se revierta solo al
+desmontar). Al primer scroll, se apaga para siempre: el defecto sólo existe ANTES de que el
+visitante scrollee, y seguir corrigiendo después arriesgaría un salto visible sobre una
+reproducción legítima.
+
+**`let tween` crudo no type-checkeaba** (TS no sigue la reasignación dentro de un closure llamado
+síncronamente para efectos de angostar su tipo en el código que sigue — lo narrowea a `never` y
+marca el resto inalcanzable). Se resolvió envolviendo en `{ tween }` (un objeto, no un `let`
+suelto) — confirmado con un repro mínimo aislado antes de aplicarlo al archivo real.
+
+### Verificación en sesión real
+
+Arnés propio (`.scratch/verificar-scroll-umbral.ts`, Postgres efímero, `next build`+`next start`,
+Chromium vía Playwright, no comiteado): se agregaron TRES secciones a la home de Nayoli desde el
+editor — Texto+T01, Imagen con texto+I02, Preguntas+C01 — y se publicaron. La ÚLTIMA (T01) aterrizó
+a **3417.15625px de scroll** (viewport 900px, umbral 82%=738px) — el MISMO número, hasta el
+decimal, que `MOVIMIENTO-EDITOR-EXPOSICION-1` había medido con una sola sección. En sesión pública
+NUEVA (sin editor), SIN scrollear un píxel:
+
+| sección | ANTES de scrollear | TRAS `scrollIntoView` |
+| --- | --- | --- |
+| T01 (texto) | `transform=matrix(1,0,0,1,0,49.5)` — oculta | `matrix(1,0,0,1,0,0)` — asentada |
+| I02 (imagen) | `transform=matrix(1.18,0,0,1.18,0,0)` — escala de entrada | `matrix(1,0,0,1,0,0)` — identidad |
+| C01 (tarjetas) | `opacity=0` — oculta | `opacity=1` — asentada |
+
+**7/7 verificaciones.** El navegador emitió el warning nativo *"SplitText called before fonts
+loaded"* exactamente en este caso — confirma que el storefront corre con el FOUT real (fuentes por
+`<link>`/`@import`, sin `next/font`, § DUNA-MOVIMIENTO.md), la misma familia de causa que el repro
+aislado reproducía con un bloque sintético. Capturas antes/durante(350ms)/después en `.capturas/
+scroll-umbral-0{1,2b,2,3,4}-*.png`.
+
+**El chequeo inicial de este mismo arnés usaba la propiedad CSS equivocada** (`getComputedStyle
+(...).translate`, la que `MOVIMIENTO-EDITOR-EXPOSICION-1` había usado con éxito para su caso): para
+este tween GSAP anima vía el `transform` matricial, no el `translate` nativo — medido comparando
+las dos propiedades nivel por nivel del DOM generado por `SplitText`. El arnés final comprueba las
+dos, sin asumir cuál usa GSAP.
+
+### Byte-identidad
+
+`npx tsc --noEmit`: 0 errores. `npm test`: **4007/4007** (sin cambio — ningún test nuevo de capa 1;
+el fix no tiene superficie pura propia, es orquestación de efectos). `npm run test:integracion`:
+**363/363** (sin cambio). `npm run verificar:nayoli:visual`: reproduce el MISMO piso heredado
+dígito a dígito que `MOVIMIENTO-EDITOR-EXPOSICION-1` —home 165052/174711, tienda/producto 209/407,
+checkout 163/361, nosotros 224/422, suscripciones 258/456, los dos hovers en 0px— porque Nayoli no
+tiene ninguna `seccionesHome` sembrada (el fix es, por construcción, inerte para sus páginas
+reales).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff toca (`useMovimiento`, `useGSAP`, `ScrollTrigger`,
+`ResizeObserver`, `context.add`) contra `CLAUDE.md`: cero menciones — esa doctrina vive en
+`DUNA-MOVIMIENTO.md` (actualizado por este slice), no en `CLAUDE.md`. Ninguna sentencia de
+`CLAUDE.md` se vuelve falsa por este diff.
+
+### Open follow-ups
+
+- **`MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1`** (ya abierto, sigue sin tocar): el motor de las 8
+  animaciones Editorial/Firma con `pin`. El `ResizeObserver` de este fix cubre también ESAS, una
+  vez que tengan motor — no hace falta repetirlo, el gate es del hook, no por animación.
+- **`MOVIMIENTO-BANDAS-HOME-1`** (ya abierto, sigue sin tocar).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** La RAMA (`slice/editor-secciones-1`) ya cargaba
+`customer_bytes: true` desde antes de este slice (mismo patrón que `MOVIMIENTO-EDITOR-
+EXPOSICION-1`/`PANEL-PULIDO-1`); este commit en sí no agrega bytes nuevos de cliente —es una
+corrección de TIMING del motor, invisible en el HTML/markup, sólo cambia CUÁNDO corre una
+animación que ya existía— pero el eje es la rama completa contra su base, no el commit, y la rama
+sigue cargando bytes de cliente de slices anteriores. `npm run gate` GREEN de punta a punta.
+Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise la rama completa, lo
+hace el orquestador.
+
+**Cierra `MOVIMIENTO-SCROLL-UMBRAL-1`.**

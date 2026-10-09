@@ -273,3 +273,55 @@ confirma el mismo piso heredado que `MOVIMIENTO-MARCO-GSAP-1`/`NAV-PAGINA-ACTUAL
 documentaban (Nayoli no tiene ninguna `seccionesHome` sembrada, así que ninguno de los nueve
 componentes tocados se monta en sus páginas reales — el cambio es, por construcción, invisible para
 Nayoli).
+
+## El motor espera a que el LAYOUT se asiente antes de medir el umbral (§ MOVIMIENTO-SCROLL-UMBRAL-1)
+
+Cierra el follow-up `MOVIMIENTO-SCROLLTRIGGER-PRE-SCROLL-1` que dejó abierto `MOVIMIENTO-EDITOR-
+EXPOSICION-1`: una sección `revelado` muy por debajo del fold (medido: 3417px de scroll, viewport
+900px) ya medía `translate:none`/su estado FINAL ANTES de que el visitante bajara un solo píxel —
+la animación corría sola, invisible, en vez de esperar el scroll.
+
+**La causa, confirmada con un repro aislado de GSAP/ScrollTrigger SIN React** (sin Postgres ni
+Next, `.scratch/repro-scrolltrigger*.html`, no comiteado — reproduce el mecanismo puro de la
+librería): `ScrollTrigger` mide `start:'top 82%'` (§ `alEntrar`, `animaciones.ts`) como un píxel
+ABSOLUTO contra el documento TAL COMO ESTÁ en el instante en que `useGSAP` lo crea. Si en ese
+instante el documento es más CORTO que el real — el storefront sirve el par de fuentes por
+`<link>`/`@import`, SIN `next/font` (§ "Las FUENTES son content.tema.fuentePar", arriba), así que
+el FOUT reflowea el texto DESPUÉS de montar; verificado en sesión real contra la app completa: el
+navegador emitió el warning nativo de GSAP *"SplitText called before fonts loaded"* exactamente en
+este caso — ese píxel calculado queda por DEBAJO del scroll actual (típicamente 0, recién cargada
+la página) y `ScrollTrigger` evalúa el umbral como YA CRUZADO: reproduce el tween entero de
+inmediato. Un `ScrollTrigger.refresh()` posterior NO lo corrige — medido en el mismo repro:
+`toggleActions:'play none none none'` no tiene acción de vuelta (`leaveBack:'none'`), así que
+refrescar sólo vuelve a medir, nunca deshace un "play" que ya corrió.
+
+**El fix, en `useMovimiento.ts` (único archivo tocado):** un `ResizeObserver` sobre
+`document.documentElement`, instalado junto al tween, que ante CUALQUIER cambio de alto del
+documento —agnóstico de la CAUSA (fuente, imagen, contenido async)— MATA el tween viejo
+(`scrollTrigger.kill()` + `tween.revert()`, que restaura el estilo al de ANTES de animar) y crea
+uno NUEVO, que mide el documento como esté EN ESE momento. Se apaga en el PRIMER scroll real
+(`window.addEventListener('scroll', …, {once:true})`): el defecto sólo existe ANTES de que el
+visitante scrollee un píxel — después, cualquier "play" ya es una reacción a scroll de verdad, y
+seguir matando/recreando ahí reabriría un defecto nuevo (un salto visible a mitad de una
+reproducción legítima). **Deliberadamente NO es `document.fonts.ready` con timeout**: se midió esa
+ruta primero y quedó BLOQUEADA INDEFINIDAMENTE en el arnés (sandbox sin red al CDN de fuentes) —
+un timeout corto reintroduce el bug justo en la red lenta que más lo necesita (donde la fuente
+tarda más en llegar), y uno largo demora la primera animación de cualquier visita real. El
+`ResizeObserver` no depende de red: sólo reacciona si el layout realmente cambió.
+
+**C02** (hover puro, `clases: []`) no crea tween con `scrollTrigger` — el motor lo detecta
+(`!tween?.scrollTrigger`) y NO instala el observer: recrear ahí sólo duplicaría los listeners de
+`hoverTarjetas` en cada resize, sin nada que corregir (no depende de scroll).
+
+**Verificado en sesión real** (Postgres efímero, `next build`+`next start`, Chromium vía
+Playwright, `.scratch/verificar-scroll-umbral.ts`, no comiteado): tres secciones agregadas al home
+de Nayoli (Texto+T01, Imagen con texto+I02, Preguntas+C01), publicadas; la ÚLTIMA (T01) aterrizó a
+**3417px de scroll** — el mismo número que midió `MOVIMIENTO-EDITOR-EXPOSICION-1` —, y en sesión
+pública NUEVA, SIN scrollear: T01 seguía trasladada (`transform≠identidad`), I02 seguía en su
+escala de entrada (1.18, no 1), C01 seguía en opacidad 0. Tras `scrollIntoView`, las tres corrieron
+y asentaron. **7/7 verificaciones.** Capturas antes/durante/después en `.capturas/scroll-umbral-*.png`.
+
+`verificar:nayoli:visual` reproduce el MISMO piso heredado dígito a dígito (home 165052/174711,
+tienda/producto 209/407, checkout 163/361, nosotros 224/422, suscripciones 258/456, los dos hovers
+en 0px) — el fix es inerte para Nayoli, igual que el resto del motor (§ arriba, "Nayoli no tiene
+ninguna `seccionesHome` sembrada").
