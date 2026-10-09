@@ -335,10 +335,15 @@ export function esMensajeCamposCambio(data: unknown): data is MensajeCamposCambi
 // está en `touches:` de este slice. Comparten la convención de nombre (`data-editor-*`), no el
 // módulo.
 //
-// UN SEGUNDO PAR OPCIONAL (`_CAMPO2`/`_VALOR2`) cubre el VELO: «Oscurecer para leer mejor» escribe
-// DOS campos reales a la vez (`veloVisible`+`veloIntensidad`, § `camposDeVeloCombo`,
-// site-content-defaults.ts) — los DOS entran al MISMO mensaje compuesto, nunca dos mensajes
-// separados (eso es justo lo que este slice retira).
+// UN SEGUNDO PAR OPCIONAL (`_CAMPO2`/`_VALOR2`) cubre un campo que escribe DOS valores reales a la
+// vez — los DOS entran al MISMO mensaje compuesto, nunca dos mensajes separados. HOY lo usa «Alto»
+// (`alto`+`alturaLlena`, las zonas segmentadas de `HeroFicha.tsx`/`HeroCurtina.tsx`/`HeroMedia.tsx`).
+// CORREGIDO (§ PANEL-PULIDO-1): esta nota citaba al VELO —«Oscurecer para leer mejor» escribiendo
+// `veloVisible`+`veloIntensidad` vía `camposDeVeloCombo`— y esa cita quedó VENCIDA: el combo de
+// cuatro pasos se RETIRÓ (§ EDITOR-PANEL-DESLIZADORES-1, `site-content-defaults.ts` lo documenta
+// como retirado) y el velo hoy escribe un solo campo (`veloNivel`, § `HeroMediaMarquesina.tsx`),
+// pasando `null`/`null` en el segundo par. El mecanismo sigue GENÉRICO para el próximo campo
+// compuesto que lo necesite — no es dead code, es el caso de uso el que cambió de dueño.
 export const ATRIBUTO_EDITOR_ZONA_CAMPO = 'data-editor-zona-campo';
 export const ATRIBUTO_EDITOR_ZONA_VALOR = 'data-editor-zona-valor';
 export const ATRIBUTO_EDITOR_ZONA_CAMPO2 = 'data-editor-zona-campo2';

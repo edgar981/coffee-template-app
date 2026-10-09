@@ -56074,3 +56074,154 @@ Deviations/Open follow-ups). Commit pendiente en `slice/editor-secciones-1` — 
 del merge gateado.
 
 **Cierra `PAGOS-VARIAS-CUENTAS-1`.**
+
+## 2026-10-08 — Siete ajustes menores del editor y del panel, y la doctrina que ya no era cierta (`PANEL-PULIDO-1`)
+
+**Rama:** `slice/editor-secciones-1` (continúa). **Tier:** 2. **Spec:** aprobado por el owner el
+2026-10-08 ("ok, sigamos") sobre la lista de pendientes menores que dejaron las tandas de la
+semana. `observed-report: EDITOR-TIENDA-REDISENO-PROPUESTA-1`.
+
+### Lo hecho
+
+1. **Destinos del menú en nombre llano, no en ruta cruda.** `OPCIONES_CTA_DESTINO`
+   (`components/admin/tienda-secciones.ts`) ganó `LABEL_CTA_DESTINO` (`/tienda`→"Tienda",
+   `/suscripciones`→"Suscripciones", `/nosotros`→"Nosotros"), MISMO patrón que
+   `LABEL_PUNTO_FOCAL`/`LABEL_VELO_INTENSIDAD` ya establecido en ese archivo. `MenuSeccion.tsx`
+   dejó de mapear `MENU_CTA_DESTINOS` crudo (dos sitios, `renderDestino` y el select de
+   `ctaDestino`) y ahora reusa `OPCIONES_CTA_DESTINO` — la MISMA lista que ya usan
+   presentaciones/brandStory/subscriptionCTA/las secciones agregadas
+   (`InstanciaEditorForm.tsx`/`InstanciaItemsEditor.tsx`), así que el fix cubre los seis
+   consumidores de una sola vez, no sólo el menú.
+2. **«Texto del loop (marquesina)» → «Texto que se repite (marquesina)».**
+   `lib/admin/resumen-cambios.test.ts` fijaba el rótulo viejo para resolver a qué sección
+   pertenece el campo cruzado (`marquesina.texto`, mostrado dentro de la tarjeta del hero); el
+   test se reescribió para buscar por `tituloSeccion === 'Marquesina'` en vez de por el texto del
+   rótulo —hay un solo cambio en el fixture, así que hay exactamente un ítem—, para que el rótulo
+   pueda seguir evolucionando sin volver a romper este test.
+3. **El aviso de WhatsApp vacío aterriza en `?parte=contacto`.** `lib/config/avisos-
+   configuracion.ts` tenía un comentario que decía "`/admin/configuracion` NO lee query params" —
+   cierto cuando se escribió, falso desde `PANEL-CONFIG-BLOQUES-1` (que le dio `?parte=`). Se
+   corrigió el comentario y se agregó `HREF_CONTACTO_REDES`, usado SÓLO por `negocio-whatsapp`
+   (el WhatsApp vive en la parte `'contacto'`, `ContactoRedesBloque.tsx`). `checkout-sin-salida`
+   (mezcla dos partes) y `pasarela-metodo-no-habilitado` (parte `'pagos'`, no `'contacto'`)
+   SIGUEN con el href genérico `/admin/configuracion` — apuntarlos a `?parte=contacto` habría sido
+   tan impreciso como el defecto que esta tanda corrige; afinarlos es su propio trabajo.
+4. **Perfil usa `DESCRIPCION_ROL`, no su propia copia.** `app/(admin)/admin/perfil/page.tsx` tenía
+   `PERMISOS`, un texto PROPIO por rol distinto del que ya usan Equipo (`EquipoSeccion.tsx`) e
+   Invitar (`InviteUserModal.tsx`) — dos voces del mismo hecho, el patrón #39 de CLAUDE.md. Pasó a
+   `descripcionRol(role)`, que indexa `DESCRIPCION_ROL` (`lib/admin/configuracion-partes.ts`) con
+   el mismo `role as Role` + fallback a STAFF que ya usa `RoleBadge.tsx`.
+5. **«Alto» y la velocidad de la marquesina son deslizadores por pasos, no un segmentado/select.**
+   `CampoTexto` (`tienda-secciones.ts`) gana `deslizadorPasos?: boolean`; `renderCampo`
+   (`TiendaSeccionEditor.tsx`) lo detecta y devuelve un `<Deslizador>` temprano (antes del
+   envoltorio común label+hint, que ya trae el propio `Deslizador`) en vez del `<select>` nativo.
+   `tickerVelocidad` lo declara. "Alto" NO pasa por `renderCampo` (lo excluye
+   `CAMPOS_HERO_YA_DIBUJADOS`) — se reescribió a mano en `renderAltoYFondo`, con el mismo patrón
+   índice→opción. `renderSegmentadoHero` (el `.duna-seg` que montaba "Alto") se RETIRÓ: quedaba
+   sin consumidores. El VALOR GUARDADO no cambió en ningún caso — sigue siendo el string del set
+   cerrado (`opciones[i].value`), nunca el índice. Ningún cambio en la barra flotante del
+   storefront (`EditorPuenteVivo.tsx`/`HeroFicha.tsx`/etc.): fuera de `touches:`, y ahí "Alto"
+   sigue siendo el segmentado de siempre (`_CAMPO2`/`_VALOR2`, § punto 6).
+6. **Comentarios y doctrina vencidos:**
+   - `lib/storefront/editor-puente.ts`: el comentario de `_CAMPO2`/`_VALOR2` citaba
+     `camposDeVeloCombo` (RETIRADO con el deslizador continuo de `veloNivel`, §
+     EDITOR-PANEL-DESLIZADORES-1) como el caso que usa el segundo par. Se corrigió: el uso REAL
+     hoy es "Alto" (`alto`+`alturaLlena`, las zonas segmentadas de `HeroFicha.tsx`/
+     `HeroCurtina.tsx`/`HeroMedia.tsx`); el velo pasa `null`/`null` desde que escribe un solo
+     campo.
+   - `app/(admin)/editor/editor.css`: la spec citaba una referencia viva a `.admin-pagos-grupo`
+     (retirada) — MEDIDO antes de tocar, y resultó que `PANEL-PAGOS-PASARELA-CHIPS-1` ya la había
+     corregido (la única mención que queda es la frase que EXPLICA la corrección). No se tocó el
+     archivo: no había nada que corregir.
+   - `CLAUDE.md`: tres frases vencidas, cada una con su VENCIÓN citando quién la volvió falsa —
+     "El sheet NO lleva bloque de usuario" (falso desde `PANEL-ESTRUCTURA-TIENDA-1`, que le dio a
+     la hoja «Más» las secciones "Tu tienda"/"Cuenta" al retirar `UserMenu variant="topbar"`);
+     "Configuración… DOS secciones… SIN sub-rutas todavía" (falso desde `PANEL-CONFIG-BLOQUES-1`,
+     que la partió en CINCO con `?parte=`); y las DOS frases que `PAGOS-VARIAS-CUENTAS-1` ya había
+     nombrado como open follow-up sin corregir —"el elemento `transferencia`" (singular) y "cada
+     uno dueño de sus propios `datos`"— ahora corregidas citando que `transferencia` dejó de ser
+     singleton.
+7. **Aclaración del owner sobre `ORIGEN-TEXTO-POR-BLOQUE-1`** — ver su propia entrada, abajo.
+
+### Lo que la spec afirmaba y no era cierto (medido, no asumido)
+
+- **`DESCRIPCION_ROL` NO vive en `components/admin/configuracion/`** (como decía el punto 4):
+  vive en `lib/admin/configuracion-partes.ts`, y lo CONSUMEN `EquipoSeccion.tsx` (bajo
+  `components/admin/configuracion/`) e `InviteUserModal.tsx`. Se importó desde la ubicación real.
+- **El `.admin-pagos-grupo` de `editor.css`** (punto 6): la spec lo daba por pendiente; ya estaba
+  corregido por `PANEL-PAGOS-PASARELA-CHIPS-1`. Sin acción.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npm run typecheck` | limpio, cero errores |
+| `npm test` | **3967/3967** — mismo total que antes del slice (los dos tests tocados cambiaron de cuerpo/título, ninguno se agregó ni se quitó) |
+| `npm run test:integracion` | **363/363** (Postgres efímero, 38.9 s) |
+| `npm run verificar:nayoli:visual` | corrido completo (main vs. rama). Reporta diferencias en 6 de 8 rutas — el MISMO piso de drift acumulado que `PANEL-CONFIG-PAGOS-1`/`PANEL-PAGOS-PASARELA-CHIPS-1`/`PAGOS-VARIAS-CUENTAS-1` ya documentaron para esta rama: el diff de este slice no toca un solo archivo bajo `components/storefront/` ni `app/(storefront)/` (confirmado por `git status`), y el único archivo de `lib/storefront/` que tocó (`editor-puente.ts`) sólo cambió un comentario — no puede ser la fuente de un diff de píxeles. No es una regresión de este slice. |
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff cambia (`PERMISOS`, `renderSegmentadoHero`, `tickerVelocidad`,
+`OPCIONES_CTA_DESTINO`, `MENU_CTA_DESTINOS`, "Texto del loop", `HREF_DATOS_NEGOCIO`,
+`negocio-whatsapp`, `camposDeVeloCombo`, `deslizadorPasos`, `DESCRIPCION_ROL`, `descripcionRol`) →
+CERO coincidencias en CLAUDE.md, salvo las tres que este slice mismo corrigió (§ punto 6). Un
+cuarto hallazgo, por el otro eje (grep de las SECCIONES que el diff tocó, no de los símbolos): la
+cita de línea `lib/config/avisos-configuracion.ts:66` (§ "El AVISO DE CONFIGURACIÓN del Dashboard")
+apuntaba a la firma de `avisosDeConfiguracion` cuando se escribió; MEDIDO contra `HEAD` (antes de
+este slice), la línea 66 YA caía en medio del docstring de FASE 3, no en la firma — estaba vencida
+ANTES de este slice, por el crecimiento normal del docstring en tandas anteriores. Este slice
+agregó 9 líneas antes de la firma (hoy en la línea 99), así que ENSANCHÓ una brecha que no abrió.
+No se corrige acá — no es de los tres puntos nombrados y `lib/config/avisos-configuracion.ts:66`
+no está escrito como algo que este slice debiera tocar — se registra como open follow-up.
+
+## 2026-10-08 — Aclaración del owner: "hazla por bloque de texto" fue de PRODUCTO para "El origen", no una regla contra la cascada por palabra o por letra (`PANEL-PULIDO-1`)
+
+El gate de `ORIGEN-TEXTO-POR-BLOQUE-1` (arriba) cita al owner: *"La animación no me supe explicar y
+efectivamente hazla por bloque de texto."* Esa frase describe una decisión de PRODUCTO sobre UNA
+sección —"El origen" de /nosotros—, no una regla de SISTEMA contra animar texto palabra por
+palabra o letra por letra en cualquier otro componente del storefront. El owner lo aclaró el
+2026-10-08: el retiro de la cascada por palabra en esa tanda (`transicionPalabra`/
+`palabrasDeTexto`/`TokenCascada`, § `ORIGEN-TEXTO-POR-BLOQUE-1`) fue sobre ESA sección concreta;
+animar por palabra o por letra sigue siendo una opción legítima del catálogo de animaciones para
+un componente futuro que la pida con su propio argumento de producto.
+
+`components/storefront/TextoEnCascada.tsx` es tienda y queda fuera de `touches:` de
+`PANEL-PULIDO-1` — no se tocó ningún componente de storefront; esta entrada sólo registra el
+alcance real de la cita del owner, para que no se lea como un veto general a futuro.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna de las dos aplica: sin cambios a `packages/core/prisma/schema.prisma`, sin migración, sin
+contrato cross-repo. Ningún valor GUARDADO cambió de forma (§ punto 5, "Mismo valor guardado que
+hoy") — sólo texto (labels, comentarios, doctrina) y el CONTROL de dos campos existentes.
+
+### `customer_bytes`
+
+**`false`.** El diff entero vive en `/admin/*` (panel, sesión OWNER/MANAGER) y en doctrina
+(CLAUDE.md/DECISIONS.md). Cero archivos bajo `components/storefront/`/`app/(storefront)/`
+tocados, confirmado por `git status` antes de cada commit. El único cambio de TEXTO que un
+operador ve es administrativo (labels de un select, descripción de rol, rótulo de un campo del
+editor) — ninguno es un byte que un CLIENTE del storefront lea.
+
+### Open follow-ups
+
+- **`AVISOS-CONFIG-LINEA-66-VENCIDA-1`**: la cita `lib/config/avisos-configuracion.ts:66` en
+  CLAUDE.md (§ "El AVISO DE CONFIGURACIÓN del Dashboard") apunta hoy a mitad del docstring de FASE
+  3, no a la firma de `avisosDeConfiguracion` (línea real: 99). Ya estaba vencida antes de este
+  slice; no se corrigió porque no es uno de los tres puntos que el spec nombró y tocarla habría
+  sido ensanchar el alcance sin pedido. Queda para quien re-mida esa sección.
+- **`AVISOS-CONFIG-HREF-PAGOS-PRECISO-1`**: `checkout-sin-salida` y `pasarela-metodo-no-habilitado`
+  siguen aterrizando en `/admin/configuracion` a secas (parte default `'negocio'`), no en su parte
+  real (`'pagos'`/mixta). Afinar esos dos hrefs —el segundo es sencillo (`?parte=pagos`); el
+  primero no tiene una sola parte que nombrar— es trabajo aparte, nombrado pero no hecho acá.
+
+### Verdict
+
+**COMPLETE.** Sin schema, sin `customer_bytes` (`false`, arriba), sin contrato cruzado — las tres
+condiciones de la política A quedan limpias, a diferencia de `PAGOS-VARIAS-CUENTAS-1` (arriba),
+que sí tocaba bytes de cliente. `npm run gate` GREEN de punta a punta (typecheck 0 · 3967/3967 ·
+363/363). Commiteado en `slice/editor-secciones-1`; el merge lo hace el orquestador, no este
+slice.
+
+**Cierra `PANEL-PULIDO-1`.**

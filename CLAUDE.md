@@ -2068,12 +2068,19 @@ saberlo).
 
 **Configuración recuperó su nombre.** Era "Equipo y usuarios" mientras SÓLO mostraba equipo
 (llamarla "Configuración" con una sola cosa adentro habría sido la promesa vacía que el rediseño
-evita). Con el editor del negocio hay contenido real, así que vuelve a "Configuración" con DOS
-secciones (Datos del negocio · Equipo y usuarios), y el UserMenu + el título de pestaña vuelven a
-"Configuración"/Settings. **SIN sub-rutas todavía**: dos secciones caben en una página; el hub con
-sub-routes es la era multi-tenant. Y **"Agregar usuario" bajó a secundario**: en lectura la
-pantalla no tiene primario sólido, y al editar "Guardar cambios" es el único ancla — sin dos
-primarios compitiendo (§ un solo primario sólido por vista).
+evita). Con el editor del negocio hay contenido real, así que vuelve a "Configuración", y el
+UserMenu + el título de pestaña vuelven a "Configuración"/Settings. Y **"Agregar usuario" bajó a
+secundario**: en lectura la pantalla no tiene primario sólido, y al editar "Guardar cambios" es el
+único ancla — sin dos primarios compitiendo (§ un solo primario sólido por vista).
+
+**"DOS secciones… SIN sub-rutas todavía" VENCIÓ (§ PANEL-PULIDO-1, 2026-10-08, corrige la premisa
+de `PANEL-CONFIG-BLOQUES-1`):** esta sección describía el estado recién-nacido de Configuración —
+dos secciones en una sola página, sin `?parte=`—. `PANEL-CONFIG-BLOQUES-1` la partió en **CINCO**
+subsecciones (Negocio · Contacto y redes · Correos · Pagos y cobros · Equipo), cada una con su
+propio Editar/Cancelar/Guardar, elegidas por `?parte=` en la URL (§ `lib/admin/configuracion-
+partes.ts`, `ConfiguracionNav.tsx`). El párrafo de arriba describe lo que SIGUE siendo cierto
+(el nombre, el UserMenu, "Agregar usuario" secundario); el hub-con-sub-rutas que esta sección
+daba por cosa de la era multi-tenant ya existe hoy, antes de esa era.
 
 ### Qué QUEDA en `siteConfig`
 
@@ -2117,10 +2124,16 @@ Tanda del 2026-09-04. El checkout mostraba una cuenta bancaria **HARDCODEADA** �
 Ahorro · 123-456789-00"— en la ruta del dinero: si el negocio lanza, un cliente real transfiere a un
 número inventado. Pasó a ser editable. **El mecanismo de esa tanda —cuatro columnas propias en
 `SiteSetting` (`bancoNombre`, `bancoTipoCuenta`, `bancoNumeroCuenta`, `bancoTitular`)— se DROPEÓ el
-2026-09-11** (`PAGOS-METODOS-DROP-VIEJAS-1`): hoy la cuenta vive como los `datos` (`banco`, `tipoCuenta`,
-`numeroCuenta`, `titular`) del elemento `transferencia` dentro de `SiteSetting.metodosPago` — la LISTA
-de métodos de pago (§ abajo). El razonamiento de esta sección es el que sobrevivió a ese cambio de
-mecanismo.
+2026-09-11** (`PAGOS-METODOS-DROP-VIEJAS-1`): hoy cada cuenta vive como los `datos` (`banco`,
+`tipoCuenta`, `numeroCuenta`, `titular`) de un elemento `transferencia` dentro de
+`SiteSetting.metodosPago` — la LISTA de métodos de pago (§ abajo). El razonamiento de esta sección
+es el que sobrevivió a ese cambio de mecanismo.
+
+**"El elemento `transferencia`" (singular) VENCIÓ (§ PAGOS-VARIAS-CUENTAS-1, 2026-10-08):** desde
+esa tanda `transferencia` dejó de ser singleton — el negocio puede declarar VARIAS cuentas, cada una
+su propio elemento `{tipo:'transferencia', datos:{…}}` en la lista, distinguidas por `datos.id`
+(`claveMedioPago`, `lib/checkout/metodos-pago.ts`), nunca por posición. Lo de abajo (NÚMERO string,
+VACÍO oculta esa cuenta, titular opcional) sigue valiendo, ahora POR CUENTA.
 
 - **El NÚMERO es string siempre** —ceros a la izquierda, guiones, largos que varían por banco—; un
   `number` los perdería. **NIT/cédula quedó FUERA**: una transferencia por número de cuenta no exige el
@@ -2154,6 +2167,11 @@ sin encendido/apagado aparte** —con dos ejes el dueño leería dos cosas por f
 ("¿qué ve mi cliente al pagar?")—. NO es un motor de métodos arbitrarios —eso es Wompi/pasarela, un
 flujo con webhooks, no "un método más"; queda en el backlog con disparador (§ Mejoras
 post-multitenant)—.
+
+**"Cada uno dueño de sus propios `datos`" VENCIÓ para `transferencia` (§ PAGOS-VARIAS-CUENTAS-1,
+2026-10-08):** los otros CUATRO tipos siguen siendo singleton —a lo sumo un elemento en la lista,
+un `datos` por tipo—; `transferencia` SOLA puede repetirse, un elemento por cuenta. El resto del
+párrafo (set cerrado, orden canónico, "estar en la lista ES ofrecerlo") sigue cierto tal como está.
 
 - **Un método SE MUESTRA con estar en la lista *y* datos completos.** La regla vive en
   `metodosDisponibles` (`lib/checkout/metodos-pago.ts`, pura, capa 1): nequi/daviplata → su propio
@@ -6336,9 +6354,13 @@ el registry: el orden ya lo dice el array, que es el mismo que el operador ve en
 el rail, así que las dos navegaciones no pueden contradecirse sobre qué es
 principal.
 
-**El sheet NO lleva bloque de usuario** aunque la maqueta lo dibuje: la identidad
-ya vive en la topbar por debajo del breakpoint, y sería el segundo sitio para lo
-mismo.
+**"El sheet NO lleva bloque de usuario" VENCIÓ (§ PANEL-PULIDO-1, 2026-10-08, corrige la premisa de
+`PANEL-ESTRUCTURA-TIENDA-1`):** era cierto cuando se escribió —la identidad vivía en la topbar,
+`UserMenu variant="topbar"`—, pero esa variante SE RETIRÓ entera en esa tanda, y la hoja «Más» ganó
+DOS secciones nuevas ("Tu tienda" y "Cuenta": Mi perfil/Configuración/Cerrar sesión) justamente
+PORQUE el avatar de la topbar que las cubría en angosto dejó de existir. El sheet SÍ lleva
+identidad hoy; lo que esta sección fijaba no era una regla de sistema, era una descripción de un
+estado que una tanda de otro subsistema volvió falso sin tocar este párrafo.
 
 ### Dos huecos del sistema que aparecieron construyendo
 

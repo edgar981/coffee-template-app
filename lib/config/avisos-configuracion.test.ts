@@ -151,11 +151,11 @@ test('Presentaciones OCULTA (visible:false) → sin avisos aunque haya defectos'
 // El checkout promete confirmar el pago por WhatsApp; sin número esa promesa se retira del storefront
 // (§ el gate del checkout) y el dueño tiene que enterarse de por qué.
 
-test('#8 whatsapp VACÍO → un aviso, que aterriza donde se edita el campo', () => {
+test('#8 whatsapp VACÍO → un aviso, que aterriza en la PARTE donde se edita el campo (§ PANEL-PULIDO-1)', () => {
   const avs = whatsapps(conWhatsapp(''));
   assert.equal(avs.length, 1);
   assert.equal(avs[0].clave, 'negocio-whatsapp');
-  assert.equal(avs[0].href, '/admin/configuracion');
+  assert.equal(avs[0].href, '/admin/configuracion?parte=contacto');
 });
 
 test('#8 whatsapp CARGADO no dispara', () => {

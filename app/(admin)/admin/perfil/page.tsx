@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import RoleBadge from '@/components/admin/RoleBadge';
 import { useSiteSettings } from '@/components/admin/SiteSettingsProvider';
 import { useAccionGuardada } from '@/hooks/useAccionGuardada';
+import { DESCRIPCION_ROL } from '@/lib/admin/configuracion-partes';
+import type { Role } from '@/types/admin';
 
 // ─── ESTA PANTALLA ES LA CUENTA DE QUIEN ESTÁ ADENTRO ────────────────────────
 //
@@ -23,11 +25,13 @@ import { useAccionGuardada } from '@/hooks/useAccionGuardada';
 // Lo que quedó es lo que la pantalla puede sostener de verdad: editar el nombre,
 // ver el correo y el rol, saber de qué negocio es la cuenta, y cerrar sesión.
 
-const PERMISOS: Record<string, string> = {
-  OWNER:   'Acceso completo al panel, la configuración y los datos críticos.',
-  MANAGER: 'Gestión operativa: pedidos, inventario, clientes y reportes. Sin la administración de la cuenta.',
-  STAFF:   'Acceso a las operaciones del día a día.',
-};
+// § PANEL-PULIDO-1 — las descripciones de rol vienen de `DESCRIPCION_ROL`
+// (`lib/admin/configuracion-partes.ts`), la MISMA fuente que ya usan la leyenda de roles de Equipo
+// (`EquipoSeccion.tsx`) y `InviteUserModal.tsx`. Antes este archivo tenía su PROPIA copia (`PERMISOS`)
+// con un texto distinto para el mismo rol — dos voces del mismo hecho, el patrón que CLAUDE.md ya
+// documenta como defecto (§ #39). `role as Role` porque el valor sale de la sesión como `string`
+// (mismo patrón que `RoleBadge.tsx`); cualquier valor fuera del enum cae a la descripción de STAFF.
+const descripcionRol = (role: string): string => DESCRIPCION_ROL[role as Role] ?? DESCRIPCION_ROL.STAFF;
 
 const initialesDe = (nombre: string) =>
   (nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()) || 'N';
@@ -196,7 +200,7 @@ export default function Perfil() {
           </div>
           <RoleBadge role={role} size="lg" />
           <p className="duna-sub" style={{ marginTop: 'var(--duna-space-2)' }}>
-            {PERMISOS[role] ?? PERMISOS.STAFF}
+            {descripcionRol(role)}
           </p>
         </div>
 

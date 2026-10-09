@@ -70,10 +70,14 @@ test('texto: un campo CRUZADO (marquesina.texto, mostrado en la tarjeta del hero
     { marquesina: marquesinaBorrador },
     { marquesina: marquesinaPublicado },
   );
-  const item = cambios.find((c) => c.elemento === 'Texto del loop (marquesina)');
-  assert.ok(item, 'el campo cruzado debe aparecer bajo la sección que REALMENTE lo guarda');
-  assert.equal(item!.tituloSeccion, 'Marquesina');
-  assert.equal(item!.tipo, 'nuevo');
+  // Se busca por SECCIÓN, no por el texto del rótulo (§ PANEL-PULIDO-1: el rótulo cambió de
+  // "Texto del loop (marquesina)" a "Texto que se repite (marquesina)") — lo que este test afirma
+  // es que el campo cruzado resuelve contra MARQUESINA, no contra HERO, y eso no depende de cómo
+  // se llame el campo. Un solo cambio en el fixture, así que hay exactamente UN ítem.
+  assert.equal(cambios.length, 1);
+  const [item] = cambios;
+  assert.equal(item.tituloSeccion, 'Marquesina', 'el campo cruzado debe aparecer bajo la sección que REALMENTE lo guarda');
+  assert.equal(item.tipo, 'nuevo');
 });
 
 // ── 2 · COMPOSICIÓN ─────────────────────────────────────────────────────────────────────────────

@@ -28,14 +28,24 @@ export interface AvisoConfig {
 // `tarjeta` (el SLOT) resalta y scrollea su bloque, reusando `tarjetaActiva`/`bloquesRef` del puente.
 const hrefTarjeta = (slot: number) => `/admin/tienda?seccion=presentaciones&tarjeta=${slot}`;
 
-// EL DEEP-LINK DEL AVISO #8 ATERRIZA EN LA PANTALLA, NO EN EL CAMPO — y es un LÍMITE de la convención,
-// no un descuido. `?seccion=&tarjeta=` es del editor de CONTENIDO (`/admin/tienda`): `seccion` es una
-// clave de SiteContent y `tarjeta` un SLOT de un bloque. El `whatsapp` es un SiteSetting —IDENTIDAD del
-// negocio, otra pantalla (§ la frontera negocio≠tienda)— y `/admin/configuracion` NO lee query params
-// (medido: cero `useSearchParams` en esa página y en `DatosNegocioSeccion`), así que no hay a qué
-// aterrizar más fino. Se cae a la pantalla donde vive el campo, que es lo más cerca que la convención
-// permite hoy; el día que Configuración gane sub-rutas o deep-link por sección, esto lo aprovecha.
+// EL DEEP-LINK DEL AVISO #8 ATERRIZA EN LA PARTE, NO SÓLO EN LA PANTALLA (§ PANEL-PULIDO-1, corrige
+// la premisa de abajo). `?seccion=&tarjeta=` es del editor de CONTENIDO (`/admin/tienda`): `seccion`
+// es una clave de SiteContent y `tarjeta` un SLOT de un bloque. El `whatsapp` es un SiteSetting
+// —IDENTIDAD del negocio, otra pantalla (§ la frontera negocio≠tienda)—, y DESDE
+// `PANEL-CONFIG-BLOQUES-1` `/admin/configuracion` SÍ lee un query param propio: `?parte=` elige la
+// subsección (`negocio`/`contacto`/`correos`/`pagos`/`equipo`, § `lib/admin/configuracion-partes.ts`).
+// El WhatsApp vive en «Contacto y redes» (`ContactoRedesBloque.tsx`, parte `'contacto'`), así que el
+// aviso #8 aterriza ahí con `HREF_CONTACTO_REDES`, abajo — el "el día que Configuración gane
+// sub-rutas, esto lo aprovecha" que esta sección decía YA LLEGÓ.
+//
+// `HREF_DATOS_NEGOCIO` SE QUEDA genérico (sin `?parte=`, cae a la parte default `'negocio'`) para
+// los otros DOS avisos que lo usan: `checkout-sin-salida` mezcla DOS partes (métodos de pago, en
+// `'pagos'`, Y whatsapp, en `'contacto'`) y un solo href no puede nombrar las dos sin elegir una
+// arbitrariamente; `pasarela-metodo-no-habilitado` (#9) es de la parte `'pagos'`
+// (`PagosCobrosBloque.tsx`), no `'contacto'` — apuntarlo a `?parte=contacto` sería tan impreciso como
+// el defecto que esta tanda corrige. Afinar esos dos hrefs es su propio trabajo, no éste.
 const HREF_DATOS_NEGOCIO = '/admin/configuracion';
+const HREF_CONTACTO_REDES = '/admin/configuracion?parte=contacto';
 
 /**
  * Los defectos de CONFIGURACIÓN del storefront PUBLICADO —cruzando el contenido que ve el visitante
@@ -162,7 +172,7 @@ export function avisosDeConfiguracion(
     avisos.push({
       clave: 'negocio-whatsapp',
       mensaje: 'No cargaste el WhatsApp del negocio: tu checkout ya no le ofrece a los compradores confirmar el pago por ese canal.',
-      href: HREF_DATOS_NEGOCIO,
+      href: HREF_CONTACTO_REDES,
     });
   }
 

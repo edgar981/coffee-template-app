@@ -15,17 +15,27 @@ import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_
 export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
-// opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` — el path crudo como label (no hay
-// nombre "bonito" declarado en ningún lado que no sea la propia ruta) + `<option value="">Sin
+// opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
 // destino</option>` primero. Un solo lugar para que `presentaciones.ctaDestino`/`brandStory.
 // ctaDestino`/`subscriptionCTA.ctaSecundarioDestino` no diverjan entre sí ni del menú.
 // EXPORTADA (§ EDITOR-AGREGAR-SECCION-1): el editor BESPOKE de una sección agregada
 // (`InstanciaEditorForm.tsx`) no pasa por `SeccionConfig`/`renderCampo` —el dominio de instancias es
 // abierto, § secciones-instancias.ts—, pero su CTA tiene que ofrecer el MISMO set de destinos que
 // cualquier banda; reexportar la lista evita una segunda copia que pudiera divergir.
+//
+// EL LABEL ES EL NOMBRE LLANO, NO LA RUTA CRUDA (§ PANEL-PULIDO-1): antes el `<option>` mostraba
+// `/tienda`/`/suscripciones`/`/nosotros` tal cual — un dato interno de ruteo, no lo que el dueño
+// reconoce como destino. MISMO patrón que `LABEL_PUNTO_FOCAL`/`LABEL_VELO_INTENSIDAD` arriba: las
+// claves salen de `MENU_CTA_DESTINOS` (el set cerrado del resolver), este archivo sólo agrega el
+// texto legible.
+const LABEL_CTA_DESTINO: Record<(typeof MENU_CTA_DESTINOS)[number], string> = {
+  '/tienda': 'Tienda',
+  '/suscripciones': 'Suscripciones',
+  '/nosotros': 'Nosotros',
+};
 export const OPCIONES_CTA_DESTINO: { value: string; label: string }[] = [
   { value: '', label: 'Sin destino' },
-  ...MENU_CTA_DESTINOS.map((d) => ({ value: d, label: d })),
+  ...MENU_CTA_DESTINOS.map((d) => ({ value: d, label: LABEL_CTA_DESTINO[d] })),
 ];
 
 // EL SELECT del punto focal del hero (§ HERO-PUNTO-FOCAL-1): las etiquetas EN ESPAÑOL de las mismas
@@ -220,14 +230,23 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // transicion`, y generalizarlo a "cualquier campo con tarjetas" antes de que exista un segundo caso
 // sería diseñar para un requisito que nadie pidió (§ CLAUDE.md).
 // `numero: true` (§ EDITOR-PANEL-DESLIZADORES-1) — el campo es un NÚMERO (hoy sólo `hero.veloNivel`),
-// renderizado con el deslizador (`Deslizador.tsx`) en vez del `<select>`/`<input>` de texto que
-// `renderCampo` da por defecto. Necesario además del lado del CANAL iframe→panel
-// (`TiendaSeccionEditor.tsx`, `parcialDeCampoRemoto`): el mensaje del puente siempre viaja como
-// STRING (§ `MensajeCamposCambio.valor`, `editor-puente.ts`, fuera de `touches:`), así que sin este
-// marcador `cambiar()` guardaría `veloNivel:'65'` —una cadena, que el PUT de autoguardado
-// (`z.number()`, site-content-schema.ts) rechazaría—. MISMO criterio que `config.booleanos` ya usa
-// para coercionar `'true'`/`'false'`, aplicado al segundo tipo no-string que cruza ese canal.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean };
+// rendering a mano con `Deslizador.tsx` DESDE `renderAltoYFondo` (`TiendaSeccionEditor.tsx`), no
+// desde `renderCampo` — `veloNivel` nunca llega ahí (filtrado por `CAMPOS_HERO_YA_DIBUJADOS`). El
+// consumidor REAL de esta marca es el CANAL iframe→panel (`TiendaSeccionEditor.tsx`,
+// `parcialDeCampoRemoto`): el mensaje del puente siempre viaja como STRING (§ `MensajeCamposCambio.
+// valor`, `editor-puente.ts`, fuera de `touches:`), así que sin este marcador `cambiar()` guardaría
+// `veloNivel:'65'` —una cadena, que el PUT de autoguardado (`z.number()`, site-content-schema.ts)
+// rechazaría—. MISMO criterio que `config.booleanos` ya usa para coercionar `'true'`/`'false'`,
+// aplicado al segundo tipo no-string que cruza ese canal.
+// `deslizadorPasos: true` (§ PANEL-PULIDO-1) → DIFERENTE de `numero`: el campo SÍ pasa por
+// `renderCampo` (es un `string` del set cerrado `opciones`, no un número), y ESE renderizador lo
+// detecta para devolver un `<Deslizador>` —índice 0..N-1 sobre `campo.opciones`— en vez del
+// `<select>` nativo que `opciones` da por defecto. El VALOR guardado sigue siendo el string de
+// `opciones[i].value`: sólo cambia el CONTROL, nunca el dato (mismo criterio que el "Tamaño" de
+// `EstiloElementoControles.tsx`, que ya usa este patrón índice→`Deslizador` sin ser un campo de
+// `renderCampo`). Exige `opciones` con pocas posiciones con NOMBRE —hoy `tickerVelocidad` (dos) y
+// `alto`, que NO declara este flag porque ya tiene su propio render especial en `renderAltoYFondo`.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; deslizadorPasos?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -455,7 +474,11 @@ const HERO: SeccionConfig = {
     // tienen un valor (la canónica si nadie lo tocó), así que ninguno lleva `opcional`.
     { name: 'veloIntensidad', label: 'Intensidad del velo', opciones: OPCIONES_VELO_INTENSIDAD,
       hint: 'Sólo con la composición "Marquesina" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
+    // DESLIZADOR POR PASOS (§ PANEL-PULIDO-1, `CampoTexto.deslizadorPasos`): dos posiciones con
+    // nombre ("Normal"/"Más lenta"), el mismo control que "Alto" (abajo) y "Tamaño" en
+    // `EstiloElementoControles.tsx` — no un `<select>` para un set tan chico.
     { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
+      deslizadorPasos: true,
       hint: 'Sólo con la composición "Marquesina". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
     // EL ALTO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4/§ 8) — reemplaza al interruptor "Ocupar toda
     // la pantalla" por un select de TRES pasos en palabras. `TiendaSeccionEditor.tsx` escribe SIEMPRE
@@ -488,7 +511,7 @@ const HERO: SeccionConfig = {
     // nombre de campo que `MARQUESINA.campos` solía declarar —'texto'/'productoSlug'—, no un alias: es
     // lo que permite que `panel-controles.ts` los siga contando como `marquesina.texto`/
     // `marquesina.productoSlug`, no como `hero.texto`/`hero.productoSlug`.
-    { name: 'texto', label: 'Texto del loop (marquesina)', seccionCruzada: 'marquesina',
+    { name: 'texto', label: 'Texto que se repite (marquesina)', seccionCruzada: 'marquesina',
       hint: 'Sólo con la composición "Marquesina". La frase que se repite desplazándose por la marquesina sobre el video — el mismo texto que usa la banda «Marquesina» si además la muestras suelta más abajo. Vacío: se usa el texto por defecto.' },
     { name: 'productoSlug', label: 'Producto destacado en la marquesina (opcional)', opcional: true, seccionCruzada: 'marquesina',
       hint: 'Sólo con la composición "Marquesina". El producto que aparece en la tarjeta flotante de la marquesina. Vacío: la tarjeta no se muestra.' },

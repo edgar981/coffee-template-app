@@ -11,7 +11,8 @@ import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
 import { AyudaCampo } from '@/components/admin/editor/AyudaCampo';
-import { MENU_ITEM_IDS, MENU_CTA_DESTINOS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
+import { MENU_ITEM_IDS, resolverOrdenMenu, type MenuContent, type MenuItemId } from '@/lib/config/site-content-defaults';
+import { OPCIONES_CTA_DESTINO } from '@/components/admin/tienda-secciones';
 import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMedias, type CampoPosicionMenu } from '@/lib/config/menu-editor';
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
@@ -266,11 +267,13 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
     cambiar({ [campo]: e.target.value } as Partial<Form>);
 
   // El destino de un enlace del panel (intro, cada enlace de columna, la tarjeta) es del MISMO SET
-  // CERRADO `MENU_CTA_DESTINOS` que el CTA del menú — un `<select>` nativo, repetido seis veces.
+  // CERRADO que el CTA del menú — un `<select>` nativo, repetido seis veces. `OPCIONES_CTA_DESTINO`
+  // (§ PANEL-PULIDO-1, tienda-secciones.ts) ya trae "Sin destino" primero y el NOMBRE LLANO de cada
+  // ruta, la MISMA fuente que usan presentaciones/brandStory/subscriptionCTA — nunca una segunda
+  // lista que pudiera mostrar la ruta cruda donde ésas ya muestran el nombre.
   const renderDestino = (campo: keyof Form, id: string) => (
     <select id={id} className="duna-input duna-select" value={valorCampo(campo)} onChange={setCampo(campo)}>
-      <option value="">Sin destino</option>
-      {MENU_CTA_DESTINOS.map((d) => <option key={d} value={d}>{d}</option>)}
+      {OPCIONES_CTA_DESTINO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
 
@@ -447,8 +450,7 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
                 value={form.ctaDestino}
                 onChange={(e) => cambiar({ ctaDestino: e.target.value })}
               >
-                <option value="">Sin destino</option>
-                {MENU_CTA_DESTINOS.map((d) => <option key={d} value={d}>{d}</option>)}
+                {OPCIONES_CTA_DESTINO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               {ctaAMedias && (
                 <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)' }}>

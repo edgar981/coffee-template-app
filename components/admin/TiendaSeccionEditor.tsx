@@ -1329,6 +1329,29 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     const metaEstilo = metaElementoEstilo(seccion, campo.name);
     const estiloActual = (form.estilos as Record<string, EstiloElementoResuelto> | undefined)?.[campo.name] ?? ESTILO_ELEMENTO_VACIO;
     const value = String(form[campo.name] ?? '');
+    // § PANEL-PULIDO-1 — EL DESLIZADOR POR PASOS (`CampoTexto.deslizadorPasos`, tienda-secciones.ts),
+    // RETORNO TEMPRANO antes del envoltorio común de abajo (label + `AyudaCampo` al pie): `Deslizador`
+    // YA es autónomo —trae su propia etiqueta y su propio hint (§ Deslizador.tsx)— y anidarlo dentro
+    // de ese envoltorio duplicaría los dos, como pasaría con cualquier otro campo. El VALOR guardado
+    // sigue siendo el string del set cerrado (`opciones[i].value`), nunca el índice — mismo patrón
+    // que el "Tamaño" de `EstiloElementoControles.tsx`.
+    if (campo.deslizadorPasos && campo.opciones) {
+      const opcionesCampo = campo.opciones;
+      const indice = Math.max(0, opcionesCampo.findIndex((o) => o.value === value));
+      return (
+        <Deslizador
+          key={campo.name}
+          id={id}
+          etiqueta={campo.label}
+          hint={campo.hint}
+          valor={indice}
+          min={0}
+          max={opcionesCampo.length - 1}
+          formatoValor={(i) => opcionesCampo[i]?.label ?? ''}
+          onCambiar={(i) => cambiar({ [campo.name]: opcionesCampo[i]?.value ?? value })}
+        />
+      );
+    }
     // Aviso: el destino elegido ya no está en el catálogo (sólo si el catálogo YA cargó).
     const destinoInexistente = !!campo.categoria && categoriasListas && value.trim() !== '' && !categorias.includes(value);
     // Gemelo de `destinoInexistente`, para un PIN de producto (§ `campo.producto`, arriba): el slug
@@ -1616,49 +1639,46 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     );
   };
 
-  // "ALTO" Y "FONDO" DEL HERO, COMO SEGMENTADO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3: "Alto
-  // (segmentado Justo · Alto · Pantalla completa), Fondo (miniatura + Cambiar + punto focal +
-  // «Oscurecer para leer mejor» segmentado)"). Un segmentado GENÉRICO —reusado para los dos ejes— en
-  // vez del `<select>` nativo que `renderCampo` sigue dando a cualquier OTRO campo de opciones: acá
-  // el set es chico (3 y 4) y el valor es el MISMO «modo, no conteo» que ya justifica `.duna-seg` en
-  // la barra (dispositivo, § CLAUDE.md "el segmentado cambia el MODO de ver lo mismo"). `puntoFocal`
-  // NO se vuelve segmentado —nueve opciones no caben en una fila de palabras— y se queda con
-  // `renderCampo` (select nativo, la regla general de siempre).
-  const renderSegmentadoHero = (etiqueta: string, hint: string | undefined, opciones: { value: string; label: string }[], valor: string, onElegir: (v: string) => void) => (
-    <div className="duna-field">
-      <span className="duna-field__label">{etiqueta}</span>
-      <div className="duna-seg editor-seg-full" role="group" aria-label={etiqueta}>
-        {opciones.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={valor === o.value}
-            onClick={() => onElegir(o.value)}
-            className={`duna-seg__item${valor === o.value ? ' is-on' : ''}`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <AyudaCampo texto={hint} />
-    </div>
-  );
+  // "ALTO" Y "FONDO" DEL HERO (§ EDITOR-VISUAL-NIVELES-1, REDISENO.md § 3: "Alto (… Fondo (miniatura
+  // + Cambiar + punto focal + «Oscurecer para leer mejor» …)"). `puntoFocal` NO se vuelve deslizador
+  // —nueve opciones no caben en tres pasos con nombre— y se queda con `renderCampo` (select nativo,
+  // la regla general de siempre).
+  //
+  // "ALTO" ES UN DESLIZADOR POR PASOS, no un segmentado (§ PANEL-PULIDO-1): MISMO control que
+  // `tickerVelocidad` (`renderCampo`, arriba) y que "Tamaño" en `EstiloElementoControles.tsx` — un
+  // set chico de posiciones con NOMBRE se elige con `Deslizador`, no con botones. `renderSegmentadoHero`
+  // (el `.duna-seg` que montaba este campo) se RETIRÓ con este cambio: era de uso único, para "Alto",
+  // y convertirlo lo dejaba sin consumidores — código muerto si se quedaba.
   const renderAltoYFondo = () => {
     const campoAlto = config.campos.find((c) => c.name === 'alto');
     const campoVeloNivel = config.campos.find((c) => c.name === 'veloNivel');
     const campoPuntoFocal = config.campos.find((c) => c.name === 'puntoFocal');
     const campoImagen = config.imagenes.find((i) => i.name === 'imagen');
     const campoImagenMovil = config.imagenes.find((i) => i.name === 'imagenMovil');
-    const valorAlto = String(form.alto ?? campoAlto?.opciones?.[0]?.value ?? 'justo');
+    const opcionesAlto = campoAlto?.opciones;
+    const valorAlto = String(form.alto ?? opcionesAlto?.[0]?.value ?? 'justo');
+    const indiceAlto = opcionesAlto ? Math.max(0, opcionesAlto.findIndex((o) => o.value === valorAlto)) : 0;
     // EL NIVEL del velo (§ EDITOR-PANEL-DESLIZADORES-1): `nivelEfectivoDeVelo` deriva de los DOS
     // campos de siempre cuando `veloNivel` nunca se tocó, para que el deslizador nazca en la
     // posición que YA representa el tema — nunca en 0 por default.
     const valorVelo = nivelEfectivoDeVelo(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'), form.veloNivel);
     return (
       <>
-        {campoAlto?.opciones && (
+        {campoAlto && opcionesAlto && (
           <div className="admin-bloque">
-            {renderSegmentadoHero(campoAlto.label, campoAlto.hint, campoAlto.opciones, valorAlto, (v) => cambiar({ alto: v, alturaLlena: v === 'pantalla' }))}
+            <Deslizador
+              id={`${seccion}-alto`}
+              etiqueta={campoAlto.label}
+              hint={campoAlto.hint}
+              valor={indiceAlto}
+              min={0}
+              max={opcionesAlto.length - 1}
+              formatoValor={(i) => opcionesAlto[i]?.label ?? ''}
+              onCambiar={(i) => {
+                const v = opcionesAlto[i]?.value ?? valorAlto;
+                cambiar({ alto: v, alturaLlena: v === 'pantalla' });
+              }}
+            />
           </div>
         )}
         <div className="admin-bloque">
