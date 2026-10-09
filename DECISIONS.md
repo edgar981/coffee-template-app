@@ -56240,3 +56240,180 @@ run gate` GREEN de punta a punta (typecheck 0 · 3967/3967 · 363/363, 44.3 s). 
 orquestador — no este slice.
 
 **Cierra `PANEL-PULIDO-1`.**
+
+## 2026-10-08 — Nace el marco de animaciones de la tienda sobre GSAP (`MOVIMIENTO-MARCO-GSAP-1`)
+
+**Rama:** `slice/editor-secciones-1` (continúa). **Tier:** 1 (segunda etapa de escritura, tras la
+primera etapa read-only `GSAP-MARCO-CENSO-1`). **Spec:** aprobado por el owner el 2026-10-08 sobre
+el prototipo `docs/movimiento/catalogo-movimiento.html` — *"Me gustaron todas las animaciones"* —
+y sobre las recomendaciones del censo con *"ok, sigamos"*.
+
+### Lo hecho
+
+1. **Dependencias exactas, no rangos.** `gsap@3.13.0` (la versión del propio prototipo — desde
+   ahí GSAP es LIBRE por completo, incluidos `ScrollTrigger`/`SplitText`/`Flip`, tras la
+   adquisición de Webflow) y `@gsap/react@2.1.2` (peer `gsap:^3.12.5`, satisfecho).
+   `package-lock.json` actualizado con `npm install`, auditado: sólo esas dos entradas más sus
+   dependencias transitivas.
+2. **El registro — `lib/movimiento/catalogo.ts`, puro, con test.** Las **19** animaciones del
+   prototipo (T01–T06, I01–I03, C01–C02, N01, S01–S03, H01–H03, CTA01), cada una con `id` (el
+   mismo del prototipo), `nombre` llano, `nivel` (esencial/editorial/firma, el vocabulario de las
+   tres fichas de cabecera del prototipo), `aplicaA` (texto/imagen/tarjetas/cifras/sección/hero,
+   el vocabulario del punto 4 del spec), `clases` (el vocabulario INTERNO de `DUNA-MOVIMIENTO.md`
+   — ticker/scrub/revelado) y `implementada` (si el motor de este slice la construye). Las
+   **11** marcadas `implementada:true` son EXACTAMENTE las que el spec lista como Esenciales —
+   incluidas T02 ("palabra por palabra") y T03 ("letra a letra"), que entran al catálogo por la
+   aclaración explícita del owner citada en `approval-reason` del spec (y registrada arriba, §
+   "Aclaración del owner: 'hazla por bloque de texto' fue de PRODUCTO para 'El origen'…") —
+   `TextoEnCascada.tsx` (el componente que esa aclaración protege) no se tocó.
+3. **`ClaseMovimiento` se REUSA, no se redeclara.** `lib/movimiento/clasificar.ts` (preexistente,
+   § `ARNES-CENSO-MOVIMIENTO-1`) ya exportaba un tipo del mismo nombre con CUATRO miembros
+   (incluye `"estatico"`, para REPORTAR un elemento medido que no se mueve). El catálogo nuevo lo
+   IMPORTA y lo acota con `Exclude<…, 'estatico'>` — una entrada del catálogo nunca existe para no
+   moverse, así que el tipo que describe lo que una entrada puede DECLARAR excluye ese miembro,
+   derivado del mismo origen en vez de una segunda copia manual. Encontrado por el chequeo
+   mecánico contra símbolos del propio diff (grep de `ClaseMovimiento` tras escribir el archivo,
+   ANTES de este asiento), no por el gate — `tsc` no lo marca porque son dos módulos distintos sin
+   conflicto de compilación, sólo el mismo nombre con semántica distinta.
+4. **El motor — `components/storefront/movimiento/`.** `useMovimiento.ts` decide SI una animación
+   corre (tres gates: `useIsPreview()`/`useModoEditorActivo()` — las DOS señales del censo,
+   "editor-convivencia-dos-señales-de-preview-distintas"; `gsap.matchMedia` sólo en la rama
+   `'(prefers-reduced-motion: no-preference)'`; y `motorDisponible(id)`) y arma `useGSAP` con
+   `scope` en el nodo propio. `animaciones.ts` trae las once funciones ESENCIALES, traducción
+   directa del `<script>` final del prototipo (mismas duraciones/eases/disparador `start:'top
+   82%'`), con DOS simplificaciones documentadas en su cabecera por ser un componente genérico sin
+   la estructura fija del prototipo (I02/I03 animan `firstElementChild`, no `.capa`; C01/C02 los
+   hijos directos, no `.bolsa`) y SIN hoja de estilos propia (T04 arma su subrayado con estilo
+   INLINE puesto por GSAP, nunca una custom property que un `.css` tuviera que definir — así
+   ninguna prueba con `renderToStaticMarkup` se rompe por un import de CSS que `tsx`/node no
+   resuelve fuera de Next). `Movimiento.tsx` es la cáscara: `id` ausente/«Ninguna» devuelve
+   `children` SIN wrapper — ningún nodo propio, byte-idéntico a no usar el componente.
+5. **El eje `animacion` — SÓLO en `texto` (la demostración, no la cobertura completa).**
+   `lib/config/secciones-instancias.ts`: `ANIMACION_SECCION` (escalar clampado a
+   `CLAVES_ANIMACION` — «Ninguna» + cada id del catálogo, incluidos los sin motor todavía — con
+   canónica `MOVIMIENTO_NINGUNA`), sumado a `DESCRIPTOR_INSTANCIA.texto.escalares`,
+   `InstanciaTextoContent.animacion` y `DEFAULTS_INSTANCIA.texto.animacion`. El import de
+   `lib/movimiento/catalogo.ts` NO abre el ciclo que el docstring de cabecera de ese archivo
+   previene (catalogo.ts no importa de vuelta ni de `secciones-instancias.ts` ni de
+   `site-content-defaults.ts`). `lib/config/site-content-schema.ts`:
+   `instanciaTextoEditableSchema.animacion` (`z.string().optional()`, mismo criterio que
+   `alineacion` — el resolver clampa, el schema sólo evita el strip silencioso). **Deliberadamente
+   NO se declaró en los otros ocho tipos de instancia ni en ninguna banda del home** — el spec
+   dice explícito "este slice NO cablea el ajuste en cada sección ni lo expone en el editor",
+   y declarar el campo en veinte interfaces sin que nada lo lea ni lo exponga habría sido
+   exactamente la clase de superficie que las instrucciones de esta sesión piden no ensanchar sin
+   pedido. `lib/config/site-content-defaults.ts` (listado en `touches:`) **no se tocó** — ningún
+   home-banda gana el eje en este slice.
+6. **La demostración — `EjemploSeccionTexto.tsx`, NUNCA montado.** `components/storefront/
+   secciones/Texto.tsx` (el renderer REAL del tipo "texto") está **fuera de `touches:`** de este
+   slice, así que no se tocó — el cableado real a esa pantalla es la tanda que lo expone en el
+   editor, explícitamente deferida. El ejemplo reproduce el patrón mínimo (`<Movimiento
+   id={instancia.animacion} as="h2">{instancia.titulo}</Movimiento>`) sin montarse en ninguna ruta
+   de `app/`.
+
+### DEVIATION — un test fuera de `touches:` quedó falso, y se corrigió
+
+`tests/integracion/secciones-instancias.test.ts:38-47` tenía el MISMO fixture literal que
+`lib/config/secciones-instancias.test.ts:79-89` (ambos afirman la forma EXACTA de una instancia
+"texto" resuelta) — el campo nuevo lo desactualizó. El spec de este slice anticipa el caso
+("si un test fuera de touches: afirma algo que tu cambio vuelve falso, decilo como DEVIATION") y
+el arreglo es MECÁNICO (una línea, `animacion: ''`, idéntica al fix ya aplicado dentro de
+`touches:`) — se corrigió en vez de dejar el gate en rojo por una actualización de fixture que no
+es una decisión de producto. Visto fallar ANTES del fix (`not ok 305`, `tests/integracion/
+secciones-instancias.test.ts:2:1844`, deep-equal con un campo de más) y verde después.
+
+### `schema`
+
+No aplica: sin cambios a `packages/core/prisma/schema.prisma` ni a ninguna migración. El campo
+nuevo (`InstanciaTextoContent.animacion`) vive en el JSON `SiteContent.content` (ya existente, sin
+columna nueva) — mismo criterio que cualquier campo de `secciones-instancias.ts`.
+
+### `cross-repo-contract`
+
+No aplica: ningún DTO ni contrato compartido con otro repo. `gsap`/`@gsap/react` son dependencias
+de ESTE paquete (`package.json` raíz), no de `packages/core`.
+
+### `customer_bytes`
+
+**`true` — EL EJE ES LA RAMA, NO EL COMMIT** (mismo razonamiento que `PANEL-PULIDO-1`/
+`PAGOS-VARIAS-CUENTAS-1`, arriba). El commit de ESTE slice, solo, es `false` en el sentido más
+literal posible: `components/storefront/movimiento/` es un directorio NUEVO que **ninguna ruta
+montada importa** — confirmado por ejecución, no por lectura: `grep -rl "gsap" .next/static/chunks
+.next/server` sobre un `next build` completo (contra Postgres efímero, migrado, sin seed) da CERO
+coincidencias, y la única mención de "gsap" en TODO `.next/` es `.tsbuildinfo` (metadata de
+`tsc`, no código servido). El campo `animacion` de `texto` tampoco se lee en ningún render real
+(`Texto.tsx` no se tocó). Pero, igual que las entradas anteriores de esta rama, lo que el owner
+gatea al mergear es la RAMA contra `main`, y esa rama sigue cargando el storefront entero de las
+tandas previas (`slice/editor-secciones-1`, customer-bytes `true` desde antes de que este slice
+existiera). Declarar `false` acá por el mismo motivo ya corregido en `PANEL-PULIDO-1` sería
+razonar por commit.
+
+**`strings`**: ninguno nuevo de este commit — no hay texto visible al visitante que este diff
+agregue o cambie (el catálogo y el motor son código sin UI; `EjemploSeccionTexto.tsx` no se monta).
+
+### `verificar:nayoli:visual` — corrido completo; drift IDÉNTICO al piso ya documentado
+
+`npm run verificar:nayoli:visual` (main vs. esta rama, Postgres efímero propio, Chromium headless,
+claro forzado) reporta diferencias en 6 de 8 capturas — **las MISMAS cifras, dígito a dígito, que
+`NAV-PAGINA-ACTUAL-VISIBLE-1` estableció y que las tandas siguientes de esta rama vienen
+reproduciendo sin cambio** (home: 165052/4608000 px AA · 174711 crudo, caja
+`[105,862]–[1183,3581]`; tienda/producto: 209/… · 407 crudo; checkout: 163/1152000 · 361 crudo —
+el floor puro, sin delta de ruta; nosotros: 224/1152000 · 422 crudo; suscripciones: 258/2144000 ·
+456 crudo; los dos hovers de `ProductCard` IDÉNTICOS, 0px). Ninguna cifra de esta corrida difiere
+de la que `NAV-PAGINA-ACTUAL-VISIBLE-1` citó por primera vez (verificado comparando los números
+exactos contra ese asiento, no de memoria) — exit 1 esperado, drift heredado, cero píxeles
+atribuibles a este slice: `components/storefront/movimiento/` no se importa desde ningún
+`components/storefront/secciones/` ni `app/(storefront)/`.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/paths que este diff introduce (`secciones-instancias.ts`,
+`InstanciaTextoContent`, `DESCRIPTOR_INSTANCIA`, `DEFAULTS_INSTANCIA`, `site-content-schema.ts`,
+`instanciaTextoEditableSchema`, `lib/movimiento`, `catalogo-movimiento`, `GSAP`, `animacion`)
+contra `CLAUDE.md`. Único hallazgo con sustancia: `lib/config/site-content-schema.ts` aparece en
+§ "Tier 1 — superficies protegidas" (línea 39 de ese archivo) — **esperado, no una sorpresa**: el
+spec de este slice declara `tier 1` explícito, con la segunda etapa de escritura autorizada
+(`approved yes`, `observed-report GSAP-MARCO-CENSO-1`) exactamente por ser una de esas superficies
+medidas. Ninguna sentencia de CLAUDE.md se vuelve FALSA por este diff: la doctrina de
+"El schema editable STRIPPEA lo no declarado" (línea 1928) describe el defecto general y el
+criterio para evitarlo — este slice lo SIGUE (agregó `animacion` al sub-schema de `texto`
+precisamente para no repetirlo), no lo contradice. Las dos menciones de "animaciones" en
+§ "La capa de TEMA por cliente" (líneas 3180/3185) hablan de un eje de TEMA por-tenant
+(post-multitenant, color/fuente/animación como configuración de cliente) — un concepto distinto
+del catálogo de movimiento de este slice (por TIPO DE SECCIÓN, no por tenant); ninguna de las dos
+frases afirma nada sobre este catálogo que mi cambio pudiera volver falso.
+
+### Open follow-ups
+
+- **`MOVIMIENTO-EDITOR-EXPOSICION-1`**: exponer `animacion` en el editor de `/admin/tienda` y
+  cablearlo de verdad en `Texto.tsx` y el resto de los tipos de `secciones-instancias.ts` (y, si el
+  owner lo pide, en las bandas del home vía `SeccionDef.escalares`). No se hizo acá porque el spec
+  de este slice lo deferea explícitamente al punto 4 ("no cablea… ni lo expone en el editor").
+- **`MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1`**: construir el motor de las 8 animaciones restantes
+  (`T06`, `S01`–`S03`, `H01`–`H03`, `CTA01` — Editorial/Firma, pin+scrub, S02/H01/H02 con
+  `ScrollTrigger.pin`). El censo (§ "LO QUE ESTE CENSO NO MIDIÓ") dejó sin verificar si el
+  pin-spacer de `ScrollTrigger` convive con el `overflow-clip` que ya resuelve el sticky de
+  framer-motion en `HeroMediaMarquesina.tsx` — a medir ANTES de construir H01/H02 sobre esa
+  sección.
+- **`MOVIMIENTO-CAPTURAS-VISUALES-1`**: las capturas antes/durante/después pedidas en el Cierre
+  del spec para cada Esencial, en una página real del storefront, se verificaron por LÓGICA
+  (`renderToStaticMarkup`, los tres gates leídos en el código) y por el gate de píxeles de Nayoli
+  (que prueba AUSENCIA de cambio, no la animación en sí) — no por una captura de pantalla de la
+  animación corriendo, porque ninguna ruta pública monta el motor todavía (§ punto 6, "nunca
+  montado"). Esa evidencia visual llega naturalmente con `MOVIMIENTO-EDITOR-EXPOSICION-1`, cuando
+  haya una pantalla real donde capturarla.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** Mismo patrón que `PANEL-PULIDO-1`/
+`PAGOS-VARIAS-CUENTAS-1`: el commit de este slice, por sí solo, pasaría limpio las tres
+condiciones de la política A (sin schema, sin bytes de cliente propios de este commit, sin
+contrato cruzado) — pero la RAMA ya tenía `customer_bytes: true` desde antes, y ninguna de esas
+commits se ha mergeado a `main`. `stopped_on: [customer-bytes]` no es nuevo de este slice.
+`npm run gate` GREEN de punta a punta: `typecheck` 0 errores · `npm test` **3984/3984** (capa 1,
+~9.8 s) · `npm run test:integracion` **363/363** (Postgres efímero, ~27.5 s). `npm run
+verificar:nayoli:visual` corrido completo — drift idéntico al piso heredado, cero píxeles nuevos
+(§ arriba). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise la rama
+completa, lo hace el orquestador — no este slice.
+
+**Cierra `MOVIMIENTO-MARCO-GSAP-1`.**
