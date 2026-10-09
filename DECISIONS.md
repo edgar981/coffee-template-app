@@ -56198,11 +56198,22 @@ hoy") — sólo texto (labels, comentarios, doctrina) y el CONTROL de dos campos
 
 ### `customer_bytes`
 
-**`false`.** El diff entero vive en `/admin/*` (panel, sesión OWNER/MANAGER) y en doctrina
-(CLAUDE.md/DECISIONS.md). Cero archivos bajo `components/storefront/`/`app/(storefront)/`
-tocados, confirmado por `git status` antes de cada commit. El único cambio de TEXTO que un
-operador ve es administrativo (labels de un select, descripción de rol, rótulo de un campo del
-editor) — ninguno es un byte que un CLIENTE del storefront lea.
+**`true` — EL EJE ES LA RAMA, NO EL COMMIT.** El commit de ESTE slice, solo, es `false`: vive
+entero en `/admin/*` (sesión OWNER/MANAGER) y en doctrina — cero archivos bajo
+`components/storefront/`/`app/(storefront)/` tocados, confirmado por `git status` antes de cada
+commit. Pero lo que el owner gatea al mergear es la RAMA contra `main`, no este commit aislado:
+`git diff $(git merge-base main HEAD)..HEAD -- components/storefront app/(storefront)` da **76
+archivos, 13.220 inserciones** — el storefront entero que las tandas anteriores de esta misma rama
+(`slice/editor-secciones-1`) construyeron (home por bloques, `/nosotros`, `/suscripciones`, el nav,
+`PAGOS-VARIAS-CUENTAS-1` en el checkout, y el resto de slices del editor de secciones). Esos bytes
+ya eran `changed: true` ANTES de que este slice tocara nada; este commit no los agrega ni los
+quita, pero la rama sigue cargándolos. Declarar `false` acá porque MI diff no los toca sería
+razonar por commit, el error que esta regla existe para prevenir.
+
+**`strings`**: los introdujo un COMMIT ANTERIOR de la misma rama, no éste — ver los asientos de
+cada slice anterior en este mismo archivo (p. ej. `PAGOS-VARIAS-CUENTAS-1`, arriba: "Puedes
+transferir a cualquiera de estas cuentas:" en el checkout) para el detalle string-por-string. Este
+slice no agrega ni cambia ningún texto visible al storefront.
 
 ### Open follow-ups
 
@@ -56218,10 +56229,14 @@ editor) — ninguno es un byte que un CLIENTE del storefront lea.
 
 ### Verdict
 
-**COMPLETE.** Sin schema, sin `customer_bytes` (`false`, arriba), sin contrato cruzado — las tres
-condiciones de la política A quedan limpias, a diferencia de `PAGOS-VARIAS-CUENTAS-1` (arriba),
-que sí tocaba bytes de cliente. `npm run gate` GREEN de punta a punta (typecheck 0 · 3967/3967 ·
-363/363). Commiteado en `slice/editor-secciones-1`; el merge lo hace el orquestador, no este
-slice.
+**AWAITING_APPROVAL (`customer-bytes`).** El commit de este slice, por sí solo, pasaría limpio las
+tres condiciones de la política A (sin schema, sin bytes de cliente propios, sin contrato
+cruzado) — pero la RAMA sobre la que se asienta ya tenía `customer_bytes: true` desde antes (§
+arriba), y ninguna de esas 383+ commits se ha mergeado a `main` todavía. `stopped_on:
+[customer-bytes]` no es nuevo de este slice: es el mismo estado que `PAGOS-VARIAS-CUENTAS-1` (y
+los anteriores de esta rama) ya venían reportando, y que este commit no cambia ni resuelve. `npm
+run gate` GREEN de punta a punta (typecheck 0 · 3967/3967 · 363/363, 44.3 s). Commiteado en
+`slice/editor-secciones-1`; el merge, cuando el owner revise la rama completa, lo hace el
+orquestador — no este slice.
 
 **Cierra `PANEL-PULIDO-1`.**
