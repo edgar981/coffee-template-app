@@ -56765,3 +56765,188 @@ Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise la ra
 hace el orquestador.
 
 **Cierra `MOVIMIENTO-SCROLL-UMBRAL-1`.**
+
+## MOVIMIENTO-NIVEL-EDITORIAL-1 — el nivel Editorial llega a la tienda: T06, S01, S02 (nace "proceso"), S03
+
+**Fecha:** 2026-10-09. **Rama:** `slice/editor-secciones-1` (continúa), HEAD `74cf61c` al arrancar,
+392 commits adelante de `main` / 0 atrás. **Tier:** 1, segunda etapa de escritura (`approved: yes`,
+`observed-report: GSAP-MARCO-CENSO-1`). **Spec:** aprobado por el owner el 2026-10-08 sobre el
+prototipo completo («Me gustaron todas las animaciones»), incluido el nivel Editorial.
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `slice/editor-secciones-1` — verificado.
+- `grep` de CLAUDE.md por los símbolos que esta spec nombra (T06/S01/S02/S03,
+  `DESCRIPTOR_INSTANCIA`, `SelectorMovimiento`, `sf-movimiento-*`, `secciones-instancias.ts`): CERO
+  apariciones — esa doctrina vive en `DUNA-MOVIMIENTO.md`, no en CLAUDE.md.
+
+### Las CUATRO decisiones de forma, cada una con su porqué completo en `DUNA-MOVIMIENTO.md` (§ "El
+### NIVEL EDITORIAL llega a la tienda")
+
+1. **T06 cambió `aplicaA` de `'texto'` a `'imagen'`.** En el prototipo el título gigante se desliza
+   SOBRE UNA FOTO; el catálogo lo tenía agrupado con T01-T05 por lectura humana, pero su mecánica
+   exige foto. Con el cambio, aparece en el selector de `banner`/`imagenTexto` (los tipos
+   `animacionElemento:'imagen'`), vía un marcador `.sf-movimiento-gigante` (mismo patrón que
+   `.sf-movimiento-resaltada` de T04) que esos dos componentes montan SÓLO con T06 + foto + título.
+2. **S01 ("capítulos de color") se simplificó a un scrub CONTINUO sobre el FONDO de la sección
+   entera** (`--sf-fondo`→`--sf-acento`→`--sf-tostado`, nunca fijo), sin capítulos discretos — este
+   catálogo no tiene un tipo con sub-bloques. Es la ÚNICA excepción de "un tipo → un elemento":
+   "texto" ofrece T01-T06 (su propio elemento) Y S01 (`aplicaA:'seccion'`), vía un `if` puntual en
+   `InstanciaEditorForm.tsx` (`SelectorMovimiento`/`MiniaturaMovimiento` ganaron soporte para un
+   ARRAY de elementos, no se generalizó `animacionElemento` a array por una sola animación). Con
+   S01, el TÍTULO sigue en `RevelarBloque` (nunca en `Movimiento`) — medido: el HTML servido es
+   IDÉNTICO al de «Ninguna» (`Movimiento` no agrega ningún atributo serializable al montar una
+   etiqueta), y esa igualdad es la prueba de que el título no se envolvió por error.
+3. **S02 nace como el DÉCIMO tipo del catálogo de instancias: "proceso"** (`secciones-instancias.ts`,
+   `DESCRIPTOR_INSTANCIA.proceso`, de 3 a 6 pasos, SIN `animacionElemento`/`escalares.animacion` — el
+   tipo nace CON su animación incorporada). El objeto ilustrativo (un círculo SVG) tween su color/
+   escala/rotación en UNA transición continua a lo largo de TODO el pin (nunca por paso), y una taza
+   aparece al final — generaliza a cualquier N sin ramas por paso, a diferencia del prototipo (5
+   etapas con nombre fijo: cereza/grano/pergamino/tostado/taza). Cada paso CON foto muestra su foto
+   en vez del objeto; el cruce entre pasos SÓLO anima cuando la entidad visible REALMENTE cambia
+   (evita parpadeo entre dos pasos sin foto).
+4. **S03 ("galería horizontal") es el TERCER valor de `disposicion` en "collage"**
+   (`'dos'|'cuatro'|'horizontal'`, canónica sigue `'dos'`), NO una opción de «Animación» — reemplaza
+   el mosaico grande+chicas por una tira pineada con TODOS los ítems, ignorando `lado`.
+   `instancia.animacion` de collage queda guardado pero sin consultar en ese modo (mismo criterio
+   que `ctaLabel` de "video" en modo `'reproducir'`).
+
+### El riesgo medido (punto 4 del spec): pin-spacer contra un ancestro con overflow
+
+`GSAP-MARCO-CENSO-1` dejó la pregunta sin medir (no se podía instalar GSAP en esa etapa read-only).
+Con GSAP instalado: la MISMA clase de riesgo que `HERO-STICKY-OVERFLOW-FIX-1` ya documentó para
+`position:sticky` (un ancestro con `overflow-hidden`/`-auto`/`-scroll` rompe el anclaje contra el
+viewport). MEDIDO: los dos `pin:true` de este slice (Proceso.tsx, Collage.tsx modo horizontal)
+llevan `overflow-hidden` SOBRE SÍ MISMOS, nunca sobre un ancestro; la cadena real hasta el viewport
+(`app/(storefront)/layout.tsx`, el wrapper `min-h-screen` + `<main>`) se grepeó por contenido — cero
+apariciones de esas tres clases. `lib/movimiento/pin-overflow-ancestro.test.ts` (nuevo, capa 1) lo
+afirma como regla permanente contra una regresión futura.
+
+### Verificado EN EJECUCIÓN, en la tienda pública (no sólo por lógica)
+
+Arnés descartable (`.scratch/verificar-nivel-editorial.ts`, no comiteado — Postgres efímero propio
++ `next build`/`next start` + Chromium headless vía `.arnes-tooling/playwright`, el MISMO patrón que
+`scripts/capturar-seccion.ts`): se sembró UNA instancia de cada tipo nuevo (`proceso` con 5 pasos sin
+foto, `texto`+S01, `banner`+T06 con foto, `collage` disposicion `horizontal`) vía
+`guardarBorrador`+`publicarSeccion` (el mismo camino que usan los tests de integración), se publicó,
+y se midió en Chromium real a **1440×900** y **390×844**:
+
+| verificación | 1440×900 | 390×844 |
+| --- | --- | --- |
+| "proceso" se PINEA (section.top=0 durante todo el recorrido) | confirmado, 5 puntos | confirmado, 5 puntos |
+| "proceso" SUELTA al terminar (section.top muy negativo) | `-263px` | `-567px` |
+| "collage horizontal": la tira se traslada (transform difiere inicio vs. medio-scroll) | `matrix(…,-0.0037,0)` → `matrix(…,-920,0)` | `matrix(…,-0.0089,0)` → `matrix(…,-806,0)` |
+| T06: el título gigante se desliza (transform difiere entre dos puntos de scroll) | `-58.5px` → `-403.5px` | `-15.889px` → `-109.296px` |
+| S01: el fondo de la sección cambia de color (dos puntos de scroll) | `rgb(149,83,33)` → `rgb(196,147,100)` | `rgb(147,81,31)` → `rgb(196,147,99)` |
+
+Capturas de pantalla en `.scratch/nivel-editorial-{1440x900,390x844}.png` (no comiteadas).
+
+**LÍMITE MEDIDO, declarado sin maquillar:** el muestreo de los 5 puntos de "proceso" usó fracciones
+`0, 1/4, 2/4, 3/4, 4/4` del presupuesto de scroll, que caen EXACTAMENTE sobre los puntos de
+transición programados en `s02()` (los cruces de `autoAlpha` ocurren en esas mismas posiciones de
+tiempo) — así que en los puntos intermedios (1/4 a 3/4) ningún `[data-s02-paso]` leyó
+`opacity:1` exacto (ambos extremos del cruce estaban a medio camino en el instante muestreado); sólo
+el punto 0/4 (reposo inicial, antes de cualquier cruce) lo confirmó limpio. La matemática de las
+ventanas de descanso (cada cruce dura 0.3 "unidades" de timeline, dejando ~0.55 unidades de reposo
+entre cruces) se verificó por INSPECCIÓN del código, no por una segunda corrida del arnés con
+fracciones desplazadas (p. ej. 0.5/1.5/2.5/3.5) — **no se re-corrió el arnés completo (Postgres +
+build, ~varios minutos) sólo para mover el punto de muestreo**; el mecanismo (GSAP linear scrub,
+posiciones de timeline fijas y conocidas) no deja margen de ambigüedad razonable, pero la ausencia
+de esa segunda medición queda anotada, no disimulada. Lo que SÍ se midió sin ambigüedad en los 5
+puntos: el PIN (section.top=0 todo el recorrido) y la SUELTA (top muy negativo al final) — el
+requisito más importante del punto 4/5 del spec.
+**Mismo límite, más chico, para S03:** se midió que la tira SE MUEVE (dos puntos de scroll dan
+transforms distintos) pero no se re-verificó explícitamente un punto de "SUELTA sin superposición"
+propio de collage — se infiere del MISMO mecanismo `ScrollTrigger({pin:true})` ya confirmado
+soltando correctamente en "proceso" (ningún parámetro de pin difiere entre los dos usos), no de una
+medición independiente sobre collage.
+
+**El proceso `next-server` quedó HUÉRFANO tras la corrida** (el mismo defecto que
+`ARNES-NEXT-START-PROCESO-HUERFANO-1` ya documentó para `capturar-seccion.ts`: mi arnés descartable
+usó un `process.kill` más simple, sin la corrección de grupo de procesos de ese script, y el
+`next-server` se reparentó). Detectado con `ps aux` tras la corrida (puerto 3411 seguía ocupado) y
+cerrado a mano antes de correr `verificar:nayoli:visual` (que necesita el `.next/` del checkout
+libre). Anotado para que el próximo arnés descartable de este tipo copie el mecanismo de grupo de
+procesos de `capturar-seccion.ts` en vez de reinventar uno más simple.
+
+### Byte-identidad
+
+`npx tsc --noEmit`: 0 errores. `npm test`: **4028/4028** (4007 + 21 nuevos: 8 en
+`secciones-instancias.test.ts`, 3 en `site-content-schema.test.ts`, 8 en
+`demo-byte-identidad.test.ts`, 2 en `pin-overflow-ancestro.test.ts`). `npm run test:integracion`:
+**368/368** (363 + 5 nuevos: 4 del viaje completo de "proceso", 1 de "collage" en disposición
+horizontal). `npm run gate` completo, GREEN de punta a punta, en el árbol final.
+
+`npm run verificar:nayoli:visual`: reproduce el MISMO piso heredado dígito a dígito que
+`MOVIMIENTO-SCROLL-UMBRAL-1` — home 165052/174711, tienda/producto 209/407, checkout 163/361,
+nosotros 224/422, suscripciones 258/456, los dos hovers en 0px — porque Nayoli no tiene ninguna
+`seccionesHome` sembrada (el motor entero, incluidas las cuatro piezas nuevas, es inerte para sus
+páginas reales, por construcción).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff toca (`proceso`, `SeccionProceso`, `disposicion`,
+`animacionElemento`, `SelectorMovimiento`, `sf-movimiento-*`, `T06`/`S01`/`S02`/`S03`,
+`DESCRIPTOR_INSTANCIA`, `CATALOGO_INSTANCIAS`, `SECCION_INSTANCIA_TIPOS`) contra `CLAUDE.md`: CERO
+apariciones salvo falsos positivos de otra palabra "proceso" (`Product.proceso`, el método de
+beneficio del café — un campo de dominio sin relación con el tipo de sección nuevo). Ninguna
+sentencia de `CLAUDE.md` se vuelve falsa por este diff.
+
+**El chequeo de puntero sobre `DUNA-MOVIMIENTO.md` y `DECISIONS.md`:** las tres apariciones previas
+de `MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1` (abierto por `MOVIMIENTO-MARCO-GSAP-1`) decían "el motor de
+las 8 animaciones restantes (T06, S01–S03, H01–H03, CTA01)… sigue sin tocar" — ESO SE VUELVE FALSO
+por este diff: T06/S01/S02/S03 (4 de las 8) ya tienen motor. Se NARROWEA ese follow-up abajo, en vez
+de editar las tres entradas históricas (el libro es append-only).
+
+### Open follow-ups
+
+- **`MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1`** — NARROWEADO por este slice: quedan sólo **H01, H02, H03,
+  CTA01** (los héroes de FIRMA + el cierre). El riesgo de pin-spacer-contra-overflow que ese
+  follow-up pedía medir ANTES de construir H01/H02 sobre `HeroMediaMarquesina.tsx` ya se midió acá
+  (§ arriba) para el caso GENÉRICO (ancestros limpios hoy); `HeroMediaMarquesina.tsx` en particular
+  tiene su PROPIO historial de `overflow-clip` (`HERO-STICKY-OVERFLOW-FIX-1`) que hay que releer
+  antes de tocarlo — no se asume que el genérico cubre ese caso específico sin revisarlo.
+- **`MOVIMIENTO-BANDAS-HOME-1`** (ya abierto, sigue sin tocar).
+- **`AYUDA-EDITOR-LISTA-TIPOS-VENCIDA-1`** (nuevo): `lib/admin/ayuda-editor.ts` enumera a mano, en
+  el paso de ayuda "Secciones (genérico)", los tipos que ofrece «Agregar sección» — *"Texto, Imagen
+  con texto, Banner, Preguntas, Columnas, Filas"*. Esa lista YA estaba vencida antes de este slice
+  (le faltan Collage/Video/Carrusel, de §SECCIONES-TIPOS-3/§SECCIONES-CARRUSEL-1) y este slice la
+  deja MÁS vencida (ahora también falta "Proceso") sin tocarla — corregirla exigía decidir si
+  completar la lista entera (7 tipos) o resumir ("varios tipos"), una decisión de COPY fuera del
+  alcance de `touches:` de este slice (no se tocó `lib/admin/ayuda-editor.ts` en ningún otro punto).
+  Verificado por lectura, no por test — este archivo no tiene uno que afirme la lista contra
+  `CATALOGO_INSTANCIAS`.
+- **S01 sólo en "texto"**: si el owner pide "capítulos de color" en otro tipo, la excepción puntual
+  de `InstanciaEditorForm.tsx` (el `if (tipo === 'texto')`) es el lugar a extender — ya acepta un
+  ARRAY de elementos, así que agregar un segundo tipo es otro `if`, no un refactor.
+- **El doble título de T06** (el título gigante decorativo Y el título normal legible, el MISMO
+  texto, dos veces en pantalla): decisión de diseño de este slice (§ arriba, "la forma más simple"),
+  no un defecto — anotado por si el owner, al ver el gate visual, prefiere una forma distinta (p.ej.
+  un campo de texto SEPARADO para el título gigante).
+
+### Deviations
+
+- **El spec citaba el riesgo de pin-spacer como algo a "medir y resolver"** sin dar una fuente — se
+  verificó que ya estaba PARCIALMENTE medido y nombrado como open follow-up por
+  `MOVIMIENTO-MARCO-GSAP-1`/`GSAP-MARCO-CENSO-1` (no una medición nueva desde cero, sino completar
+  una que había quedado abierta).
+- **El spec pedía "agregar «Del fruto a la taza» con 5 pasos" para el cierre** — se interpretó como
+  el PISO del rango editable (3-6), no un número fijo del modelo; el modelo acepta de 3 a 6, y la
+  verificación usó 5 porque coincide con el número de etapas del prototipo (más fácil de comparar
+  visualmente), no porque el modelo lo exija.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** Mismo patrón que CADA slice de esta rama desde
+`MOVIMIENTO-MARCO-GSAP-1`: el diff de ESTE commit, por sí solo, agrega bytes de cliente reales —
+cuatro animaciones nuevas visibles si se eligen, y un tipo de sección nuevo con su propio copy
+("Proceso", "Agregar paso", las frases de ayuda del catálogo) — así que `stopped_on:
+[customer-bytes]` aplica de las DOS formas posibles (el commit en sí, Y la rama acumulada). `npm run
+gate` GREEN de punta a punta (typecheck 0 errores · `npm test` 4028/4028 · `npm run test:integracion`
+368/368). `npm run verificar:nayoli:visual` corrido completo — mismo piso heredado, cero píxeles
+nuevos. Verificación en ejecución (Postgres + build real + Chromium) de las cuatro piezas nuevas en
+la tienda pública, con los límites medidos declarados arriba. Commiteado en
+`slice/editor-secciones-1`; el merge, cuando el owner revise la rama completa, lo hace el
+orquestador — no este slice.
+
+**Cierra `MOVIMIENTO-NIVEL-EDITORIAL-1`.**
