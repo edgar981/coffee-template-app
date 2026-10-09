@@ -84,9 +84,15 @@ function renderMarquesina(content: SiteContentData, opts: { activo?: boolean } =
 // ─── EL MODELO — la clave nueva entra al set cerrado; la canónica NO cambia ───────────────────────
 
 test('REGISTRY.hero.variantes.claves incluye "sticky", CUARTA del set; la canónica sigue siendo "curtina"', () => {
+  // § MOVIMIENTO-NIVEL-FIRMA-1 (fuera de `touches:` de ESE slice, actualizada acá por necesidad
+  // mecánica — ver su ledger): el set ganó TRES claves más ('grano'/'cereza'/'paisaje', los héroes
+  // de firma H01/H02/H03). Esta aserción sigue probando lo que su nombre dice —"sticky" entra,
+  // "curtina" sigue siendo la canónica—; la snapshot completa vive también en
+  // `site-content-defaults.test.ts`, que es la fuente que un cambio de REGISTRY.hero.variantes
+  // debe actualizar primero.
   assert.deepEqual(
     REGISTRY.hero.variantes,
-    { claves: ['curtina', 'ficha', 'media', 'sticky'], canonica: 'curtina', noUniformes: ['ficha'] },
+    { claves: ['curtina', 'ficha', 'media', 'sticky', 'grano', 'cereza', 'paisaje'], canonica: 'curtina', noUniformes: ['ficha'] },
   );
 });
 

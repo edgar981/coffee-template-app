@@ -53,6 +53,7 @@ test('esSeccionInstanciaTipo: acepta los diez del catálogo, rechaza basura', ()
   assert.equal(esSeccionInstanciaTipo('video'), true);
   assert.equal(esSeccionInstanciaTipo('carrusel'), true);
   assert.equal(esSeccionInstanciaTipo('proceso'), true);
+  assert.equal(esSeccionInstanciaTipo('cierre'), true);
   assert.equal(esSeccionInstanciaTipo('hero'), false);
   assert.equal(esSeccionInstanciaTipo(''), false);
   assert.equal(esSeccionInstanciaTipo(123), false);
@@ -438,6 +439,7 @@ test('nombreInstancia: el nombre en palabras del catálogo, "Sección" para un t
   assert.equal(nombreInstancia('video'), 'Video');
   assert.equal(nombreInstancia('carrusel'), 'Carrusel');
   assert.equal(nombreInstancia('proceso'), 'Proceso');
+  assert.equal(nombreInstancia('cierre'), 'Cierre');
   assert.equal(nombreInstancia('inventado' as unknown as 'texto'), 'Sección');
 });
 
@@ -613,5 +615,46 @@ test('imagenesDeInstancia: "proceso" — junta la imagen de CADA paso, no string
 test('§ MOVIMIENTO-NIVEL-EDITORIAL-1 — instanciaOscuraCanonica/instanciaEsUniforme: proceso claro (como texto) y uniforme (un solo fondo de página)', () => {
   assert.equal(instanciaOscuraCanonica('proceso'), false);
   assert.equal(instanciaEsUniforme('proceso'), true);
+});
+
+// ─── § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" ("Vapor que forma el llamado", CTA01) ────────────────
+
+test('DESCRIPTOR_INSTANCIA.cierre: título requerido, ctaLabel/ctaDestino opcionales, y NO declara `animacionElemento`/`escalares`/`items` (nace con CTA01 incorporado)', () => {
+  assert.deepEqual(DESCRIPTOR_INSTANCIA.cierre.campos, { titulo: 'requerido', ctaLabel: 'opcional', ctaDestino: 'opcional' });
+  assert.equal(DESCRIPTOR_INSTANCIA.cierre.animacionElemento, undefined);
+  assert.equal(DESCRIPTOR_INSTANCIA.cierre.escalares, undefined);
+  assert.equal(DESCRIPTOR_INSTANCIA.cierre.items, undefined);
+});
+
+test('resolverInstancia: "cierre" — título requerido vacío cae al default, ctaLabel/ctaDestino opcionales se respetan', () => {
+  const r = resolverInstancia({ tipo: 'cierre', titulo: '', ctaLabel: 'Comprar café', ctaDestino: '/tienda' });
+  assert.deepEqual(r, {
+    tipo: 'cierre',
+    titulo: DEFAULTS_INSTANCIA.cierre.titulo,
+    ctaLabel: 'Comprar café',
+    ctaDestino: '/tienda',
+    visible: true,
+  });
+});
+
+test('resolverInstancia: "cierre" — no tiene `animacion` en su forma resuelta (ausente del descriptor, nunca se resuelve un escalar que no existe)', () => {
+  const r = resolverInstancia({ tipo: 'cierre', titulo: 'T' }) as unknown as Record<string, unknown>;
+  assert.equal('animacion' in r, false);
+});
+
+test('instanciaEsVisible: "cierre" — true por default (sin items, no es repeater), false sólo con `visible:false` explícito', () => {
+  const visible = resolverInstancia({ tipo: 'cierre', titulo: 'T' })!;
+  const oculta = resolverInstancia({ tipo: 'cierre', titulo: 'T', visible: false })!;
+  assert.equal(instanciaEsVisible(visible), true);
+  assert.equal(instanciaEsVisible(oculta), false);
+});
+
+test('imagenesDeInstancia: "cierre" — sin campos de imagen, siempre []', () => {
+  assert.deepEqual(imagenesDeInstancia({ tipo: 'cierre', titulo: 'T' }), []);
+});
+
+test('§ MOVIMIENTO-NIVEL-FIRMA-1 — instanciaOscuraCanonica/instanciaEsUniforme: cierre oscuro (fondo --sf-tinta, como el prototipo) y uniforme (un solo plano)', () => {
+  assert.equal(instanciaOscuraCanonica('cierre'), true);
+  assert.equal(instanciaEsUniforme('cierre'), true);
 });
 

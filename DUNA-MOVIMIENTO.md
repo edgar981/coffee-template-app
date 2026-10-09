@@ -496,3 +496,83 @@ eje que comparar; se afirma que SIEMPRE monta sus marcadores y que `quieto` sól
 `verificar:nayoli:visual` confirma el mismo piso heredado (Nayoli no tiene `seccionesHome`
 sembrada, así que ninguno de los cuatro cambios es visible para ella, igual que los slices
 anteriores de este eje).
+
+## El NIVEL FIRMA llega a la tienda — H01, H02, H03 y CTA01 (§ MOVIMIENTO-NIVEL-FIRMA-1)
+
+El catálogo quedó CERRADO: las 19 entradas del prototipo tienen motor. Las últimas cuatro —los tres
+héroes (H01/H02/H03) y el cierre (CTA01)— son `nivel: 'firma'` (salvo H03, `'editorial'`) y cambian
+de FORMA de llegada respecto a T01-S03:
+
+- **H01/H02/H03 son COMPOSICIONES de `hero.variante`** ('grano'/'cereza'/'paisaje'), no un eje
+  `animacion` que elegir sobre una zona del hero — el hero no tiene ese eje, nunca lo tuvo. Son la
+  QUINTA/SEXTA/SÉPTIMA composición, junto a curtina/ficha/media/sticky
+  (`REGISTRY.hero.variantes.claves`, site-content-defaults.ts), con su propia zona de texto
+  (eyebrow/titular/subtítulo/botones, extraída a `HeroFirmaContenido.tsx` por ser las TRES
+  idénticas — a diferencia de Cortina/Ficha/Portada/Marquesina, que sí difieren entre sí). El
+  `HeroSection.tsx` dispatcher gana tres entradas en su `Record` (`grano: HeroGrano, cereza:
+  HeroCereza, paisaje: HeroPaisaje`); con la canónica `'curtina'` (Nayoli hoy) el HTML no cambia un
+  byte (medido, `demo-byte-identidad.test.ts`).
+- **CTA01 es el TIPO NUEVO "cierre"** de `secciones-instancias.ts` (el ONCEAVO del catálogo
+  curado), con el MISMO patrón que "proceso" con S02: nace CON su animación incorporada
+  (`campos: { titulo, ctaLabel, ctaDestino }`, SIN `escalares`/`animacionElemento` — no hay eje que
+  elegir). `Cierre.tsx` envuelve la sección con `<Movimiento id="CTA01" as="section">`.
+
+### Las TRES heroes son `scrub` Y `revelado` a la vez — el botón «Ver animación» en el hero mismo
+
+El spec pide que, en el editor, las tres composiciones se vean QUIETAS con un botón «▶ Ver
+animación» — el mismo affordance que T01-T06 ya dan (`VistaMovimiento.tsx`), pero **ESE** componente
+es sólo para instancias con `animacionElemento` (su vista previa es una cajita genérica, no la
+sección real). Un hero no tiene ese ajuste, así que el botón vive DENTRO del hero real
+(`VerAnimacionHero.tsx`, `components/storefront/movimiento/`), visible sólo cuando
+`useModoEditorActivo()` — el MISMO patrón que la zona «alto» flotante de `HeroCurtina.tsx`. Para que
+`reproducir()` (el mecanismo de siempre, `MovimientoHandle`) tenga sentido sobre un `scrub`
+pin+scroll, **H01/H02/H03 ganaron `'revelado'` a sus `clases`, ADEMÁS de `'scrub'`** (como CTA01, que
+ya las tenía las dos) — con `forzar=true` el `ScrollTrigger` se OMITE del todo y el timeline corre
+UNA vez con sus propias duraciones, dejando el resultado en su estado FINAL (mismo mecanismo que
+`alEntrar(raiz, forzar)` ya usa para T01-T06, aplicado a mano acá porque el pin exige más que un
+simple `scrollTrigger: undefined`).
+
+### H01 "El grano cae en la taza" — el REPOSO es el final de la narrativa, no el principio
+
+A diferencia de "proceso" (reposo = paso 0, el arranque natural), el reposo elegido para H01 es el
+**grano ya fundido** —invisible, el repique ya asentado, la taza llena— porque es el que se ve BIEN
+como hero ESTÁTICO (un grano flotando a medio camino se lee como "roto", no como "portada"). El
+grano (`[data-h01-grano]`) y las ondas (`[data-h01-onda1]`/`[data-h01-onda2]`) nacen con
+`opacity-0`/`opacity="0"` por CSS; el PRIMER `gsap.set` de `h01()` es lo único que los saca de ese
+reposo (visibles, el grano arriba) antes de dejarlo caer — el motor es la única vía de salida del
+reposo, nunca al revés. El color tuesta de `--sf-acento` a `--sf-tinta`, el MISMO par que S02 ya usa
+para "verde→tostado" (§ arriba) — ningún color fijo, siempre los de la paleta de la tienda.
+
+### H02 "La cereza se expande" — la transición es LITERAL, no un panel inventado
+
+El prototipo dibuja un panel "Nuestra finca" que aparece cuando la cereza cubre la pantalla. Esta
+tienda no tiene esa pieza —agregar un campo nuevo sólo para esto habría sido inventar contenido que
+el spec no pidió (reusa "el titular, subtítulo y botones que ya existen")—, así que la "transición
+al resto de la página" (§ la descripción de H02 en `catalogo.ts`) es LITERAL: el bloque de texto se
+desvanece al iniciar el pin, la cereza (`[data-h02-cereza]`/`[data-h02-fruto]`) crece hasta cubrir
+la pantalla, y al soltar el pin el visitante sigue a la SECCIÓN SIGUIENTE de la página — sin un
+panel propio. Misma familia de simplificación deliberada que S01/S02/S03 frente a su prototipo.
+
+### H03 "Paisaje en capas" — UNA capa sobre la foto real, o CUATRO en la ilustración
+
+El único de los tres que lee `hero.imagen` (el campo COMPARTIDO con curtina/media/sticky, no un
+campo nuevo): con foto/video de fondo, el motor (`h03`) anima UNA capa (`[data-h03-capa]`, velocidad
+baja) sobre la media real; sin ella, cae a la ILUSTRACIÓN de montañas del prototipo —CUATRO capas a
+velocidades distintas (`data-v` 0.15/0.35/0.6/0.95, igual que el prototipo), con colores DERIVADOS
+de la paleta (tostado→acento→tinta), nunca los hex fijos del prototipo. `HeroPaisaje.tsx` decide
+CUÁNTAS capas hay; `h03()` no distingue los dos casos, sólo anima lo que encuentra — mismo criterio
+agnóstico que I03/T06.
+
+### Byte-identidad y el pin, medidos
+
+`demo-byte-identidad.test.ts` se extendió: "cierre" (mismo contrato que "proceso" — sin eje que
+comparar, siempre monta sus marcadores, con/sin destino) y las TRES composiciones del hero (cada
+una monta sus propios `data-h0X-*`; la canónica "curtina" no contiene NINGUNO de los tres). El
+riesgo del pin-spacer contra un ancestro con overflow (§ arriba) se reevaluó para H01/H02: los dos
+llevan `overflow-hidden` SOBRE SÍ MISMOS (el `<Movimiento as="section" className="…overflow-
+hidden…">` que cada `Hero*.tsx` ya declara), nunca sobre un ancestro — `pin-overflow-ancestro.test.ts`
+sigue afirmando que ni `layout.tsx` ni `page.tsx` lo declaran, y como el hero se monta DENTRO de ese
+mismo árbol (vía `HeroSection` en el registro de bandas de `page.tsx`), la garantía ya cubierta por
+ese test alcanza sin tocarlo. `verificar:nayoli:visual` confirma el mismo piso heredado: Nayoli
+sigue en `hero.variante` ausente ('curtina'), así que ninguno de los cambios de este slice es
+visible para ella.

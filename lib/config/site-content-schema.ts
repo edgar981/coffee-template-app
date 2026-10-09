@@ -642,6 +642,18 @@ const instanciaProcesoEditableSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+// § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" ("Vapor que forma el llamado", CTA01): `titulo` es la
+// FRASE sobre el vapor; `ctaLabel`/`ctaDestino` el botón, MISMO set cerrado de destinos que el
+// resto del archivo. SIN `animacion`: nace con CTA01 incorporado (§ `DESCRIPTOR_INSTANCIA.cierre`,
+// secciones-instancias.ts), mismo criterio que "proceso".
+const instanciaCierreEditableSchema = z.object({
+  tipo: z.literal('cierre'),
+  titulo: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  visible: z.boolean().optional(),
+});
+
 const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaTextoEditableSchema,
   instanciaImagenTextoEditableSchema,
@@ -653,6 +665,7 @@ const instanciaEditableSchema = z.discriminatedUnion('tipo', [
   instanciaVideoEditableSchema,
   instanciaCarruselEditableSchema,
   instanciaProcesoEditableSchema,
+  instanciaCierreEditableSchema,
 ]).refine(
   // PÓSTER OBLIGATORIO para "video" (§ SECCIONES-TIPOS-3, el spec: "póster obligatorio para
   // teléfono y modo ahorro") — MISMO criterio que `heroEditableSchema` para `imagen`/`imagenPoster`

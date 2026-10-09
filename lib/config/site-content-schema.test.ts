@@ -494,3 +494,34 @@ test('seccionesHome: "proceso" también lleva `visible`, mismo contrato que los 
   });
   assert.equal((parsed.seccionesHome!['inst:proc'] as { visible: boolean }).visible, false);
 });
+
+// ─── § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" ("Vapor que forma el llamado", CTA01) ─────────────────
+
+test('seccionesHome: "cierre" sobrevive completo, con `titulo`/`ctaLabel`/`ctaDestino`', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', titulo: 'Lleva esta historia a tu mesa', ctaLabel: 'Comprar café', ctaDestino: '/tienda' } },
+  });
+  assert.deepEqual(parsed.seccionesHome!['inst:cta'], {
+    tipo: 'cierre', titulo: 'Lleva esta historia a tu mesa', ctaLabel: 'Comprar café', ctaDestino: '/tienda',
+  });
+});
+
+test('seccionesHome: "cierre" — un `ctaDestino` fuera del set cerrado se rechaza, igual que el resto del archivo', () => {
+  assert.throws(() => siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', titulo: 'T', ctaDestino: '/inventado' } },
+  }));
+});
+
+test('seccionesHome: "cierre" NO declara `animacion` — un valor mandado se descarta en silencio (el tipo nace con CTA01 incorporado)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', titulo: 'T', animacion: 'T01' } },
+  });
+  assert.equal('animacion' in (parsed.seccionesHome!['inst:cta'] as Record<string, unknown>), false);
+});
+
+test('seccionesHome: "cierre" también lleva `visible`, mismo contrato que los demás tipos (§ SECCIONES-INSTANCIAS-VIVO-1)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', visible: false } },
+  });
+  assert.equal((parsed.seccionesHome!['inst:cta'] as { visible: boolean }).visible, false);
+});

@@ -2592,7 +2592,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // válido por accidente, corrompiendo esa afirmación sin tocar ese archivo. Medido ANTES de
     // cerrar el nombre (`npm test` corrido contra 'marquesina' reventó ese archivo); se cambió el
     // nombre de la clave, no el archivo.
-    variantes: { claves: ['curtina', 'ficha', 'media', 'sticky'], canonica: 'curtina', noUniformes: ['ficha'] },
+    // § MOVIMIENTO-NIVEL-FIRMA-1 — 'grano'/'cereza'/'paisaje' son la QUINTA, SEXTA y SÉPTIMA:
+    // los tres héroes de FIRMA del catálogo de movimiento (H01/H02/H03, `lib/movimiento/catalogo.ts`),
+    // cada uno pin+scrub con su propia ilustración (`HeroGrano.tsx`/`HeroCereza.tsx`/`HeroPaisaje.tsx`,
+    // `components/storefront/home/`). Las tres son UN SOLO PLANO de media (como 'media'/'sticky'):
+    // no entran a `noUniformes` (el nav sigue flotando transparente) y `bandaOscuraCanonica` las
+    // trata como OSCURAS por el mismo default que ya rige curtina/media/sticky (`variante !==
+    // 'ficha'`, abajo) — las tres pintan `--sf-tinta` de fondo, con el texto en `--sf-sobre-banda`.
+    variantes: { claves: ['curtina', 'ficha', 'media', 'sticky', 'grano', 'cereza', 'paisaje'], canonica: 'curtina', noUniformes: ['ficha'] },
     // ESCALARES (§ HERO-VIDEO-COMO-DATO-1): `imagenTipo` es el SEGUNDO escalar clampado de esta
     // sección (el primero es `variante`, arriba) — MISMO mecanismo (`resolverVariante`), otra
     // ranura. 'imagen' es la canónica: Nayoli queda byte-idéntica sin fila. `puntoFocal`

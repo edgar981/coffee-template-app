@@ -1,4 +1,5 @@
 import { SECCIONES_TIENDA } from '@/components/admin/tienda-secciones';
+import { CATALOGO_INSTANCIAS } from '@/lib/config/secciones-instancias';
 
 // EL CENTRO DE AYUDA del editor (§ EDITOR-AYUDA-1). Datos PUROS — sin React, sin 'use client' —
 // mismo criterio que `tienda-secciones.ts`/`secciones-instancias.ts`: el contenido se prueba sin
@@ -83,6 +84,14 @@ export const NIVELES_PANEL: readonly string[] = [
 // para que una sección nueva quede cubierta sola, sin tocar este archivo.
 const NIVELES_SECCIONES_GENERICAS = NIVELES_SECCIONES.filter((s) => s !== 'hero');
 
+// § MOVIMIENTO-NIVEL-FIRMA-1 — LA LISTA DE TIPOS de «Agregar sección» se DERIVA de
+// `CATALOGO_INSTANCIAS` (`lib/config/secciones-instancias.ts`), nunca escrita a mano: estaba vencida
+// —enumeraba sólo Texto/Imagen con texto/Banner/Preguntas/Columnas/Filas, perdiendo Collage, Video,
+// Carrusel y Proceso en cuanto el catálogo creció— y una lista a mano vuelve a vencer la próxima vez
+// que el catálogo gane un tipo (como "cierre", acá mismo). Ésta es la fuente ÚNICA (§ CLAUDE.md,
+// "cuando dos declaraciones describen el mismo conjunto, o una DERIVA de la otra o hay un TEST").
+const NOMBRES_TIPOS_INSTANCIA = CATALOGO_INSTANCIAS.map((c) => c.nombre).join(', ');
+
 export const GUIAS_AYUDA: GuiaAyuda[] = [
   {
     id: 'primeros-pasos',
@@ -141,7 +150,7 @@ export const GUIAS_AYUDA: GuiaAyuda[] = [
       { texto: 'En «Inicio» ves todas las secciones de la página activa, en el mismo orden en que aparecen en la tienda.' },
       { texto: 'Para moverlas, arrastra el asa de puntos a la izquierda de cada fila — o, con el foco ahí, usa las flechas arriba/abajo del teclado.' },
       { texto: 'El ojo de cada fila la muestra u oculta en la tienda. Una sección oculta sigue acá, lista para volver a encenderla cuando quieras.' },
-      { texto: '«Agregar sección» te deja elegir entre varios tipos — Texto, Imagen con texto, Banner, Preguntas, Columnas, Filas — y la agrega al final. Después la puedes mover a donde quieras.' },
+      { texto: `«Agregar sección» te deja elegir entre varios tipos — ${NOMBRES_TIPOS_INSTANCIA} — y la agrega al final. Después la puedes mover a donde quieras.` },
       { texto: 'Las secciones que agregaste tienen un menú «⋯» con Duplicar y Eliminar. Las secciones de siempre (como el hero o la historia) sólo se pueden ocultar, no eliminar: son parte de la base de tu tienda.' },
       { texto: 'Eliminar una sección agregada pide confirmación. Mientras no publiques ese cambio, sigues a tiempo de deshacerlo con Ctrl/Cmd+Z.' },
     ],

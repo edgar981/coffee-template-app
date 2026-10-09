@@ -42,7 +42,7 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 
 // ─── EL TIPO Y SU PREFIJO DE ID ─────────────────────────────────────────────────────────────────
 
-export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video', 'carrusel', 'proceso'] as const;
+export const SECCION_INSTANCIA_TIPOS = ['texto', 'imagenTexto', 'banner', 'preguntas', 'columnas', 'filas', 'collage', 'video', 'carrusel', 'proceso', 'cierre'] as const;
 export type SeccionInstanciaTipo = (typeof SECCION_INSTANCIA_TIPOS)[number];
 
 const TIPOS_SET: ReadonlySet<string> = new Set(SECCION_INSTANCIA_TIPOS);
@@ -383,6 +383,17 @@ export const DESCRIPTOR_INSTANCIA: Record<SeccionInstanciaTipo, InstanciaDescrip
       max: 6,
     },
   },
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" ("Vapor que forma el llamado", CTA01): UNA frase + un
+  // botón, de campos planos (sin repeater). `titulo` es la FRASE sobre el vapor (requerido: sin
+  // texto, el cierre no tiene nada que llamar) — y, por el mismo motivo que "carrusel" ganó su
+  // cabecera (`TiendaPaginas.tsx` asume `.titulo` en TODA instancia), el nombre del campo es
+  // `titulo`, no `frase`: acá además coincide con lo que YA es — la frase ES el título de esta
+  // sección, igual que en "texto"/"banner". SIN `escalares`/`animacionElemento`: nace CON su
+  // animación (CTA01) incorporada, el mismo caso que "proceso" con S02 — ver el docstring de
+  // `animacionElemento` arriba para el porqué de la excepción.
+  cierre: {
+    campos: { titulo: 'requerido', ctaLabel: 'opcional', ctaDestino: 'opcional' },
+  },
 };
 
 // ─── LOS DEFAULTS — NEUTROS, sin café, sin imagen ───────────────────────────────────────────────
@@ -552,6 +563,16 @@ export interface InstanciaProcesoContent {
   visible: boolean;
 }
 
+// § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre": SIN `animacion` (nace con CTA01 incorporado, ver el
+// docstring del descriptor arriba).
+export interface InstanciaCierreContent {
+  tipo: 'cierre';
+  titulo: string;
+  ctaLabel: string;
+  ctaDestino: string;
+  visible: boolean;
+}
+
 export type InstanciaContent =
   | InstanciaTextoContent
   | InstanciaImagenTextoContent
@@ -562,7 +583,8 @@ export type InstanciaContent =
   | InstanciaCollageContent
   | InstanciaVideoContent
   | InstanciaCarruselContent
-  | InstanciaProcesoContent;
+  | InstanciaProcesoContent
+  | InstanciaCierreContent;
 
 // Tipado POR CLAVE (no `Record<SeccionInstanciaTipo, InstanciaContent>`): así `DEFAULTS_INSTANCIA.texto`
 // sigue siendo `InstanciaTextoContent` para quien lo lea (p. ej. un test que compara
@@ -578,6 +600,7 @@ export const DEFAULTS_INSTANCIA: {
   video: InstanciaVideoContent;
   carrusel: InstanciaCarruselContent;
   proceso: InstanciaProcesoContent;
+  cierre: InstanciaCierreContent;
 } = {
   texto: {
     tipo: 'texto',
@@ -708,6 +731,15 @@ export const DEFAULTS_INSTANCIA: {
       { etiqueta: 'Paso 2', titulo: 'El segundo paso', texto: 'Escribe acá qué pasa en este paso.', imagen: '' },
       { etiqueta: 'Paso 3', titulo: 'El tercer paso', texto: 'Escribe acá qué pasa en este paso.', imagen: '' },
     ],
+    visible: true,
+  },
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" nace con el llamado neutro de siempre, sin café ni botón
+  // (el dueño agrega el suyo).
+  cierre: {
+    tipo: 'cierre',
+    titulo: 'Lleva esta historia a tu mesa',
+    ctaLabel: '',
+    ctaDestino: '',
     visible: true,
   },
 };
@@ -880,6 +912,7 @@ export const CATALOGO_INSTANCIAS: readonly CatalogoInstanciaEntry[] = [
   { tipo: 'video', nombre: 'Video', frase: 'Un video de fondo con mensaje, o un video con botón de reproducir.' },
   { tipo: 'carrusel', nombre: 'Carrusel', frase: 'De dos a seis diapositivas que se deslizan, cada una con foto, título, texto y botón.' },
   { tipo: 'proceso', nombre: 'Proceso', frase: 'Una sección fija con pasos que se recorren al bajar — de tres a seis, con foto opcional.' },
+  { tipo: 'cierre', nombre: 'Cierre', frase: 'Una frase y un botón, con vapor que se dibuja al llegar — para cerrar la página con un llamado.' },
 ];
 
 /** El nombre en palabras de un tipo — la MISMA fuente que la biblioteca, para que la tarjeta de la
@@ -957,9 +990,11 @@ export function imagenesDeInstancia(inst: unknown): string[] {
  *  § SECCIONES-CARRUSEL-1: `carrusel` es SIEMPRE foto de fondo con velo, en CADA diapositiva — no
  *  hay una variante "clara" que bifurcar, así que entra sin matiz, como `banner`. § MOVIMIENTO-
  *  NIVEL-EDITORIAL-1: `proceso` cae al default `false` (claro) — su fondo es el de página, igual
- *  que `texto`; S02 no tiñe el fondo, sólo el objeto que recorre los pasos. */
+ *  que `texto`; S02 no tiñe el fondo, sólo el objeto que recorre los pasos. § MOVIMIENTO-NIVEL-
+ *  FIRMA-1: `cierre` ES oscura —`Cierre.tsx` pinta `--sf-tinta` de fondo, como el prototipo
+ *  (`.cta{background:var(--tinta)}`), con el vapor y el texto en `--sf-fondo` encima—. */
 export function instanciaOscuraCanonica(tipo: SeccionInstanciaTipo): boolean {
-  return tipo === 'banner' || tipo === 'video' || tipo === 'carrusel';
+  return tipo === 'banner' || tipo === 'video' || tipo === 'carrusel' || tipo === 'cierre';
 }
 
 /** ¿Un `imagenTexto`/`filas` es una banda UNIFORME (un solo tono) para el nav flotante? NO — las

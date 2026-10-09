@@ -92,6 +92,18 @@ test('composición: cambiar hero.variante se resume con el NOMBRE de la elegida,
   assert.equal(item!.clave, 'hero');
 });
 
+// § MOVIMIENTO-NIVEL-FIRMA-1 — las tres composiciones de FIRMA pasan por el MISMO camino genérico
+// que "media"/"ficha"/"sticky": `config.composiciones` ya trae sus labels (`LABEL_COMPOSICION_HERO`,
+// tienda-secciones.ts), sin ningún `if` nuevo en este archivo.
+test('composición: elegir "grano" (H01) se resume con su nombre de catálogo "Grano"', () => {
+  const publicado = heroBase();
+  const borrador = { ...heroBase(), variante: 'grano' };
+  const cambios = resumenCambios(['hero'], { hero: borrador }, { hero: publicado });
+  const item = cambios.find((c) => c.elemento === 'Composición');
+  assert.ok(item);
+  assert.equal(item!.etiqueta, 'Hero de la home · Composición «Grano»');
+});
+
 test('composición: sin cambio en variante no aparece "Composición" en la lista', () => {
   const contenido = heroBase();
   const cambios = resumenCambios(['hero'], { hero: contenido }, { hero: { ...contenido } });
@@ -206,6 +218,19 @@ test('seccionesHome: una instancia nueva se resume con su NOMBRE DE CATÁLOGO y 
   assert.deepEqual(cambios, [{
     clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Imagen con texto', tipo: 'nuevo',
     etiqueta: 'Inicio · Imagen con texto · nueva',
+  }]);
+});
+
+// § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" (CTA01) pasa por el MISMO camino genérico que cualquier
+// otro tipo: `nombreDeInstancia` lo resuelve por `esSeccionInstanciaTipo`/`nombreInstancia`, sin un
+// `if` nuevo en este archivo.
+test('seccionesHome: una instancia "cierre" nueva se resume con su NOMBRE DE CATÁLOGO "Cierre"', () => {
+  const publicado = {};
+  const borrador = { 'inst:a': { tipo: 'cierre', titulo: 'Lleva esta historia a tu mesa', ctaLabel: '', ctaDestino: '' } };
+  const cambios = resumenCambios(['seccionesHome'], { seccionesHome: borrador }, { seccionesHome: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'inst:a', tituloSeccion: 'Inicio', elemento: 'Cierre', tipo: 'nuevo',
+    etiqueta: 'Inicio · Cierre · nueva',
   }]);
 });
 

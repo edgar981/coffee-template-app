@@ -5,6 +5,9 @@ import HeroCurtina from "@/components/storefront/home/HeroCurtina";
 import HeroFicha from "@/components/storefront/home/HeroFicha";
 import HeroMedia from "@/components/storefront/home/HeroMedia";
 import HeroMediaMarquesina from "@/components/storefront/home/HeroMediaMarquesina";
+import HeroGrano from "@/components/storefront/home/HeroGrano";
+import HeroCereza from "@/components/storefront/home/HeroCereza";
+import HeroPaisaje from "@/components/storefront/home/HeroPaisaje";
 import { paresFuenteReferenciados } from "@/lib/config/estilo-elemento";
 import { urlGoogle, parDeFuentePar } from "@/lib/config/fuentes";
 
@@ -27,6 +30,14 @@ const VARIANTES: Record<string, typeof HeroCurtina> = {
   // seguir fallando por nombre — medido, no supuesto (§ MUESTRARIO-HERO-MARQUESINA-STICKY-1,
   // DECISIONS.md, el desvío del nombre de esta clave).
   sticky: HeroMediaMarquesina, // § MUESTRARIO-HERO-MARQUESINA-STICKY-1
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — las TRES composiciones de FIRMA del catálogo de movimiento
+  // (H01/H02/H03, `lib/movimiento/catalogo.ts`): cada una pinea la sección y anima con GSAP
+  // (`components/storefront/movimiento/animaciones.ts`), gateado por los mismos tres gates de
+  // siempre (editor/preview/reduced-motion, § `useMovimiento.ts`) — ninguna tienda cambia de hero
+  // hasta que alguien elija una de estas tres claves.
+  grano: HeroGrano,
+  cereza: HeroCereza,
+  paisaje: HeroPaisaje,
 };
 
 export default function HeroSection({ style }: { style?: React.CSSProperties } = {}) {

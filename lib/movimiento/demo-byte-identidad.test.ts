@@ -27,6 +27,7 @@ import SeccionCollage from '@/components/storefront/secciones/Collage';
 import SeccionVideo from '@/components/storefront/secciones/Video';
 import SeccionCarrusel from '@/components/storefront/secciones/Carrusel';
 import SeccionProceso from '@/components/storefront/secciones/Proceso';
+import SeccionCierre from '@/components/storefront/secciones/Cierre';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { DEFAULTS } from '@/lib/config/site-content-defaults';
@@ -207,4 +208,80 @@ test('EjemploSeccionTexto: con instancia.animacion="T01" monta el <h2> que el cl
   const instancia = resolverInstancia({ tipo: 'texto', titulo: 'Un título', animacion: 'T01' }) as import('@/lib/config/secciones-instancias').InstanciaTextoContent;
   const html = renderToStaticMarkup(createElement(EjemploSeccionTexto, { instancia }));
   assert.equal(html, '<section><h2>Un título</h2></section>');
+});
+
+// ─── § MOVIMIENTO-NIVEL-FIRMA-1 — "cierre" (CTA01, "Vapor que forma el llamado") ─────────────────
+//
+// SIN eje `animacion` que elegir (§ el descriptor, como "proceso"): siempre monta
+// `<Movimiento id="CTA01">` con sus marcadores — el vapor (tres trazos), la frase y el botón
+// (cuando hay destino).
+function renderCierre(stored: Record<string, unknown>): string {
+  return render(SeccionCierre as ComponenteSeccion, stored);
+}
+
+test('"cierre": SIEMPRE monta `<Movimiento id="CTA01">` -- tres `data-cta01-vapor`, una `data-cta01-frase`', () => {
+  const html = renderCierre({ tipo: 'cierre', titulo: 'Lleva nuestra historia a tu taza' });
+  assert.equal((html.match(/data-cta01-vapor/g) ?? []).length, 3);
+  assert.match(html, /data-cta01-frase/);
+});
+
+test('"cierre": SIN destino (ctaLabel/ctaDestino vacíos), el botón no se monta -- sin `data-cta01-boton`', () => {
+  const html = renderCierre({ tipo: 'cierre', titulo: 'T' });
+  assert.doesNotMatch(html, /data-cta01-boton/);
+});
+
+test('"cierre": CON ctaLabel y un destino del set cerrado, el botón SÍ se monta', () => {
+  const html = renderCierre({ tipo: 'cierre', titulo: 'T', ctaLabel: 'Comprar café', ctaDestino: '/tienda' });
+  assert.match(html, /data-cta01-boton/);
+});
+
+// ─── § MOVIMIENTO-NIVEL-FIRMA-1 — HeroSection con la variante CANÓNICA ("curtina") no cambia ─────
+//
+// El dispatcher (`HeroSection.tsx`) ganó TRES entradas nuevas en su mapa VARIANTES
+// ('grano'/'cereza'/'paisaje'), pero con `hero.variante` ausente (la canónica, byte-idéntica a
+// Nayoli hoy) sigue eligiendo `HeroCurtina` -- ésta prueba que agregar entradas a un `Record` no
+// toca la que ya resolvía.
+test('HeroSection: sin `variante` (canónica "curtina"), el HTML NO contiene ningún marcador de los héroes de firma', async () => {
+  const { default: HeroSection } = await import('@/components/storefront/home/HeroSection');
+  const html = renderToStaticMarkup(
+    createElement(SiteContentProvider, { value: DEFAULTS, children: createElement(HeroSection) }),
+  );
+  assert.doesNotMatch(html, /data-h01-|data-h02-|data-h03-/);
+});
+
+// ─── LAS TRES COMPOSICIONES DE FIRMA, cada una monta SUS PROPIOS marcadores ─────────────────────
+
+async function renderHeroVariante(variante: string, heroExtra: Record<string, unknown> = {}): Promise<string> {
+  const { default: HeroSection } = await import('@/components/storefront/home/HeroSection');
+  const content = { ...DEFAULTS, hero: { ...DEFAULTS.hero, variante, ...heroExtra } };
+  return renderToStaticMarkup(
+    createElement(SiteContentProvider, { value: content as never, children: createElement(HeroSection) }),
+  );
+}
+
+test('HeroSection "grano": monta `<Movimiento id="H01">` con el grano en reposo (opacity-0) y las dos ondas', async () => {
+  const html = await renderHeroVariante('grano');
+  assert.match(html, /data-h01-grano/);
+  assert.match(html, /data-h01-onda1/);
+  assert.match(html, /data-h01-onda2/);
+  assert.match(html, /data-h01-titulo/);
+});
+
+test('HeroSection "cereza": monta `<Movimiento id="H02">` con la cereza y el fruto', async () => {
+  const html = await renderHeroVariante('cereza');
+  assert.match(html, /data-h02-cereza/);
+  assert.match(html, /data-h02-fruto/);
+  assert.match(html, /data-h02-titulo/);
+});
+
+test('HeroSection "paisaje" SIN `hero.imagen`: cae a la ilustración, CUATRO capas `data-h03-capa`', async () => {
+  const html = await renderHeroVariante('paisaje', { imagen: '' });
+  assert.equal((html.match(/data-h03-capa/g) ?? []).length, 4);
+  assert.match(html, /data-h03-titulo/);
+});
+
+test('HeroSection "paisaje" CON `hero.imagen`: UNA sola capa de parallax sobre la foto real', async () => {
+  const html = await renderHeroVariante('paisaje', { imagen: '/finca.jpg', imagenTipo: 'imagen' });
+  assert.equal((html.match(/data-h03-capa/g) ?? []).length, 1);
+  assert.match(html, /finca\.jpg/);
 });

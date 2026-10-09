@@ -31,20 +31,9 @@ test('CATALOGO_MOVIMIENTO: cada entrada declara nivel/aplicaA/descripción no va
   }
 });
 
-test('CATALOGO_MOVIMIENTO: las ONCE esenciales Y el nivel EDITORIAL de este slice están implementada:true', () => {
-  // § MOVIMIENTO-NIVEL-EDITORIAL-1 — T06/S01/S02/S03 suman motor en este slice.
-  const esenciales = [
-    'T01', 'T02', 'T03', 'T04', 'T05', 'T06',
-    'I01', 'I02', 'I03', 'C01', 'C02', 'N01',
-    'S01', 'S02', 'S03',
-  ];
-  for (const id of esenciales) {
-    assert.equal(movimientoPorId(id)?.implementada, true, `${id} debe estar implementada`);
-  }
-  // Los héroes de FIRMA y el cierre (CTA01) siguen SIN motor — fuera de alcance de este slice.
-  const sinMotor = ['H01', 'H02', 'H03', 'CTA01'];
-  for (const id of sinMotor) {
-    assert.equal(movimientoPorId(id)?.implementada, false, `${id} no debe estar implementada todavía`);
+test('CATALOGO_MOVIMIENTO: las DIECINUEVE entradas están implementada:true (§ MOVIMIENTO-NIVEL-FIRMA-1 cierra el catálogo)', () => {
+  for (const d of CATALOGO_MOVIMIENTO) {
+    assert.equal(d.implementada, true, `${d.id} debe estar implementada`);
   }
 });
 
@@ -69,11 +58,12 @@ test('CLAVES_ANIMACION: «Ninguna» + cada id del catálogo, sin duplicados', ()
   assert.equal(new Set(CLAVES_ANIMACION).size, CLAVES_ANIMACION.length);
 });
 
-test('motorDisponible: true sólo para un id implementado; false para «Ninguna», basura, y un id reservado sin motor', () => {
+test('motorDisponible: true para cualquier id del catálogo (§ MOVIMIENTO-NIVEL-FIRMA-1, las 19 implementadas); false para «Ninguna» y basura', () => {
   assert.equal(motorDisponible('T01'), true);
+  assert.equal(motorDisponible('H01'), true);
+  assert.equal(motorDisponible('CTA01'), true);
   assert.equal(motorDisponible(MOVIMIENTO_NINGUNA), false);
   assert.equal(motorDisponible('no-existe'), false);
-  assert.equal(motorDisponible('H01'), false, 'está en el catálogo pero sin motor todavía');
 });
 
 // § MOVIMIENTO-EDITOR-EXPOSICION-1
@@ -84,16 +74,24 @@ test('catalogoMovimientoDeElemento: sólo las implementada:true del elemento ped
   assert.deepEqual(catalogoMovimientoDeElemento('imagen').map((d) => d.id), ['T06', 'I01', 'I02', 'I03']);
   assert.deepEqual(catalogoMovimientoDeElemento('tarjetas').map((d) => d.id), ['C01', 'C02']);
   assert.deepEqual(catalogoMovimientoDeElemento('cifras').map((d) => d.id), ['N01']);
-  assert.deepEqual(catalogoMovimientoDeElemento('seccion').map((d) => d.id), ['S01', 'S02', 'S03']);
-  assert.deepEqual(catalogoMovimientoDeElemento('hero'), [], 'ninguna aplicaA:hero está implementada todavía');
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — CTA01 (aplicaA:'seccion') suma motor: mismo "leak" ya aceptado
+  // para S02/S03 (nacen incorporadas en su tipo, nunca ofrecidas por el selector de "proceso"/
+  // "cierre"; "texto" sigue siendo el único tipo que suma `'seccion'` a su propio elemento).
+  assert.deepEqual(catalogoMovimientoDeElemento('seccion').map((d) => d.id), ['S01', 'S02', 'S03', 'CTA01']);
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — H01/H02/H03 ganan motor y pasan a ser composiciones de `hero.variante`.
+  assert.deepEqual(catalogoMovimientoDeElemento('hero').map((d) => d.id), ['H01', 'H02', 'H03']);
 });
 
-test('puedeReproducirUnaVez: true sólo para clase `revelado`; false para scrub (I03), hover sin tween (C02), basura y «Ninguna»', () => {
+test('puedeReproducirUnaVez: true para clase `revelado` (incluida junto a `scrub`, § H01/H02/H03/CTA01); false para scrub puro (I03), hover sin tween (C02), basura y «Ninguna»', () => {
   assert.equal(puedeReproducirUnaVez('T01'), true);
   assert.equal(puedeReproducirUnaVez('I01'), true);
   assert.equal(puedeReproducirUnaVez('I02'), true);
   assert.equal(puedeReproducirUnaVez('C01'), true);
   assert.equal(puedeReproducirUnaVez('N01'), true);
+  assert.equal(puedeReproducirUnaVez('H01'), true);
+  assert.equal(puedeReproducirUnaVez('H02'), true);
+  assert.equal(puedeReproducirUnaVez('H03'), true);
+  assert.equal(puedeReproducirUnaVez('CTA01'), true);
   assert.equal(puedeReproducirUnaVez('I03'), false, 'scrub continuo, sin "una vez" que reproducir');
   assert.equal(puedeReproducirUnaVez('C02'), false, 'hover sin tween de entrada, clases: []');
   assert.equal(puedeReproducirUnaVez('no-existe'), false);

@@ -122,6 +122,43 @@ function MiniaturaComposicion({ valor }: { valor: string }) {
       </div>
     );
   }
+  // § MOVIMIENTO-NIVEL-FIRMA-1 — las tres composiciones de FIRMA: texto centrado (como 'curtina',
+  // "fiel a la POSICIÓN", no al dibujo real — ver el docstring de cabecera) sobre una marca visual
+  // que distingue a cada una de un vistazo: un óvalo (el grano) para 'grano', un círculo (la
+  // cereza) para 'cereza', y una franja horizontal (el paisaje en capas) para 'paisaje'.
+  if (valor === 'grano' || valor === 'cereza') {
+    return (
+      <div style={CAJA_MINIATURA} aria-hidden>
+        <div style={{ position: 'absolute', inset: 0, background: 'var(--duna-wash-active)' }} />
+        <div
+          style={{
+            position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+            width: valor === 'grano' ? 26 : 34, height: valor === 'grano' ? 34 : 34,
+            borderRadius: valor === 'grano' ? '50% 50% 50% 50% / 60% 60% 40% 40%' : '50%',
+            background: 'var(--duna-ink)', opacity: 0.3,
+          }}
+        />
+        <div style={{ position: 'absolute', left: '8%', top: '16%', width: '42%', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={barra(55, 4)} />
+          <div style={barra(85, 8)} />
+          <div style={PILDORA} />
+        </div>
+      </div>
+    );
+  }
+  if (valor === 'paisaje') {
+    return (
+      <div style={CAJA_MINIATURA} aria-hidden>
+        <div style={{ position: 'absolute', inset: 0, background: 'var(--duna-wash-active)' }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: '18%', height: '30%', background: 'var(--duna-ink)', opacity: 0.18 }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '22%', background: 'var(--duna-ink)', opacity: 0.3 }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+          <div style={barra(55, 8)} />
+          <div style={barra(32, 4)} />
+        </div>
+      </div>
+    );
+  }
   // 'curtina' (canónica) y cualquier valor fuera del set (no debería ocurrir): texto centrado.
   return (
     <div style={CAJA_MINIATURA} aria-hidden>

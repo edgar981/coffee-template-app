@@ -502,6 +502,43 @@ test('"proceso" — PUBLICAR la foto nueva de UN paso deja la VIEJA huérfana (y
   assert.deepEqual(blobsABorrar, ['https://blob/A.jpg']);
 });
 
+// ─── § MOVIMIENTO-NIVEL-FIRMA-1 — EL VIAJE COMPLETO DE "cierre" ("Vapor que forma el llamado") ──
+
+test('crear una instancia "cierre" con frase y botón, publicar: el storefront la relee con todo intacto', async () => {
+  await guardarComoElRoute({
+    seccionesHome: {
+      'inst:cta': { tipo: 'cierre', titulo: 'Lleva nuestra historia a tu taza', ctaLabel: 'Comprar café', ctaDestino: '/tienda' },
+    },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  const cierre = publicado.seccionesHome['inst:cta'] as unknown as { titulo: string; ctaLabel: string; ctaDestino: string };
+  assert.equal(cierre.titulo, 'Lleva nuestra historia a tu taza');
+  assert.equal(cierre.ctaLabel, 'Comprar café');
+  assert.equal(cierre.ctaDestino, '/tienda');
+});
+
+test('"cierre" — SIN `animacion`: un valor mandado en el borrador no sobrevive el viaje (el schema la descarta, el tipo nace con CTA01 incorporado)', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', titulo: 'T', animacion: 'T01' } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal('animacion' in (publicado.seccionesHome['inst:cta'] as unknown as Record<string, unknown>), false);
+});
+
+test('"cierre" — ocultar con `visible:false` sobrevive el viaje completo, igual que los demás tipos', async () => {
+  await guardarComoElRoute({
+    seccionesHome: { 'inst:cta': { tipo: 'cierre', titulo: 'T', visible: false } },
+  });
+  await publicarSeccion('seccionesHome');
+
+  const publicado = await readSiteContent();
+  assert.equal((publicado.seccionesHome['inst:cta'] as { visible: boolean }).visible, false);
+});
+
 // ─── § MOVIMIENTO-NIVEL-EDITORIAL-1 — "collage" en disposición HORIZONTAL (el modo de S03) ──────
 
 test('"collage" — `disposicion:\'horizontal\'` sobrevive el viaje completo, ignorando `lado` (irrelevante en ese modo)', async () => {

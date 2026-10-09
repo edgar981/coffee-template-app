@@ -313,6 +313,123 @@ function s03(raiz: HTMLElement) {
   });
 }
 
+// ─── HÉROES (nivel FIRMA, § MOVIMIENTO-NIVEL-FIRMA-1) ───────────────────────────────────────────
+//
+// Las tres son COMPOSICIONES de `hero.variante` ('grano'/'cereza'/'paisaje' — ver
+// `components/storefront/home/HeroGrano.tsx`/`HeroCereza.tsx`/`HeroPaisaje.tsx`), no un eje
+// `animacion` sobre una zona: cada una nace CON su animación incorporada, como "proceso" con S02.
+// Las tres ganan `forzar` (el botón «Ver animación» del editor): con `forzar`, el `ScrollTrigger`
+// con `pin`/`scrub` se OMITE y el timeline corre UNA vez con sus propias duraciones, dejando el
+// resultado en el ESTADO FINAL — el mismo mecanismo que T01-T06 ya usan vía `alEntrar(raiz, forzar)`,
+// aplicado acá a mano porque el pin exige más que un simple `scrollTrigger: undefined`.
+
+/** H01 "El grano cae en la taza" — `raiz` es la sección entera del hero. Lee `[data-h01-grano]`
+ *  (el grupo que cae y rota), `[data-h01-grano-cuerpo]` (el fill que tuesta de `--sf-acento` a
+ *  `--sf-tinta`, el MISMO par que S02 ya usa para "verde→tostado"), `[data-h01-onda1]`/`[data-h01-
+ *  onda2]` (el repique en la taza) y `[data-h01-titulo]` (el bloque de texto, que se atenúa como en
+ *  el prototipo). EL ESTADO DE REPOSO (sin motor: editor/preview/reduced-motion) es el FINAL de la
+ *  narrativa —el grano ya fundido, invisible— porque es el que se ve bien como hero estático; por
+ *  eso `HeroGrano.tsx` lo renderiza con `opacity-0` por CSS, y acá el PRIMER `gsap.set` lo hace
+ *  visible y lo posiciona arriba antes de animarlo cayendo — el motor es lo único que lo saca de su
+ *  reposo, nunca al revés. */
+function h01(raiz: HTMLElement, forzar = false) {
+  const grano = raiz.querySelector<SVGGElement>('[data-h01-grano]');
+  const cuerpo = raiz.querySelector<SVGElement>('[data-h01-grano-cuerpo]');
+  const onda1 = raiz.querySelector<SVGElement>('[data-h01-onda1]');
+  const onda2 = raiz.querySelector<SVGElement>('[data-h01-onda2]');
+  const titulo = raiz.querySelector<HTMLElement>('[data-h01-titulo]');
+  if (!grano || !cuerpo) return null;
+  const acento = leerVarPaleta('--sf-acento', '#8b4513');
+  const tinta = leerVarPaleta('--sf-tinta', '#1e150e');
+  gsap.set(grano, { autoAlpha: 1, y: 0, rotate: 0, transformOrigin: '50% 50%' });
+  gsap.set(cuerpo, { attr: { fill: acento } });
+  const tl = gsap.timeline({
+    scrollTrigger: forzar ? undefined : { trigger: raiz, start: 'top top', end: '+=170%', pin: true, scrub: 0.7 },
+  });
+  tl.to(grano, { y: 340, rotate: 200, ease: 'power1.in', duration: 1 }, 0)
+    .to(cuerpo, { attr: { fill: tinta }, duration: 0.45 }, 0.15)
+    .to(grano, { autoAlpha: 0, duration: 0.05 }, 0.98);
+  if (onda1) tl.fromTo(onda1, { attr: { rx: 10, ry: 3 }, autoAlpha: 0.9 }, { attr: { rx: 140, ry: 26 }, autoAlpha: 0, duration: 0.5 }, 1);
+  if (onda2) tl.fromTo(onda2, { attr: { rx: 10, ry: 3 }, autoAlpha: 0.9 }, { attr: { rx: 110, ry: 20 }, autoAlpha: 0, duration: 0.5 }, 1.12);
+  if (titulo) tl.to(titulo, { y: -40, autoAlpha: 0.25, duration: 1 }, 0);
+  return tl;
+}
+
+/** H02 "La cereza se expande" — `[data-h02-titulo]` (el bloque de texto, que se desvanece al
+ *  iniciar — § el spec: "sirve como transición al resto de la página", que acá es literal: al
+ *  soltar el pin, el visitante sigue a la SECCIÓN SIGUIENTE, no a un panel inventado dentro de ésta)
+ *  y `[data-h02-cereza]`/`[data-h02-fruto]` (el grupo que se acerca y el círculo que crece hasta
+ *  cubrir la pantalla). El color del fruto es `--sf-cereza` si la tienda lo declara, o el rojo de
+ *  cereza del prototipo como fallback — el "rojo de cereza declarado en el registro" del spec (§ el
+ *  mismo mecanismo de fallback que `leerVarPaleta` ya usa para `--sf-acento`/`--sf-fondo`). ESTADO
+ *  DE REPOSO = el PRIMER frame (fruto chico, título visible) — es la CSS por defecto, sin que este
+ *  `gsap.set` necesite tocar nada más que el color. */
+function h02(raiz: HTMLElement, forzar = false) {
+  const titulo = raiz.querySelector<HTMLElement>('[data-h02-titulo]');
+  const cereza = raiz.querySelector<SVGGElement>('[data-h02-cereza]');
+  const fruto = raiz.querySelector<SVGElement>('[data-h02-fruto]');
+  if (!cereza || !fruto) return null;
+  const cerezaColor = leerVarPaleta('--sf-cereza', '#b3261e');
+  gsap.set(fruto, { attr: { fill: cerezaColor } });
+  const tl = gsap.timeline({
+    scrollTrigger: forzar ? undefined : { trigger: raiz, start: 'top top', end: '+=160%', pin: true, scrub: 0.7 },
+  });
+  if (titulo) tl.to(titulo, { autoAlpha: 0, y: -30, duration: 0.3 }, 0);
+  tl.to(cereza, { x: -120, y: -20, duration: 0.4 }, 0)
+    .to(fruto, { attr: { r: 900 }, ease: 'power2.in', duration: 0.8 }, 0.3);
+  return tl;
+}
+
+/** H03 "Paisaje en capas" — PARALLAX de varias capas, scrub puro (como I03) pero con MÁS de un
+ *  nodo: `[data-h03-capa]` (cada capa, con `data-h03-capa` = su velocidad relativa, string numérico
+ *  — mismo contrato que `[data-hasta]` de N01: lo que el componente DECLARA, el motor sólo lee) y
+ *  `[data-h03-titulo]` (el título, que se atenúa y sube — igual que el prototipo). `HeroPaisaje.tsx`
+ *  decide CUÁNTAS capas hay: UNA sola (la foto/video real, con una velocidad baja) si el dueño subió
+ *  media de fondo, o CUATRO (la ilustración de montañas) si no — este motor no distingue los dos
+ *  casos, sólo anima lo que encuentra. */
+function h03(raiz: HTMLElement, forzar = false) {
+  const capas = Array.from(raiz.querySelectorAll<HTMLElement>('[data-h03-capa]'));
+  const titulo = raiz.querySelector<HTMLElement>('[data-h03-titulo]');
+  if (capas.length === 0 && !titulo) return null;
+  const tl = gsap.timeline({
+    scrollTrigger: forzar ? undefined : { trigger: raiz, start: 'top top', end: 'bottom top', scrub: true },
+  });
+  for (const capa of capas) {
+    const v = Number(capa.dataset.h03Capa);
+    if (Number.isFinite(v)) tl.to(capa, { y: v * 260, ease: 'none', duration: 1 }, 0);
+  }
+  if (titulo) tl.to(titulo, { y: -120, autoAlpha: 0, ease: 'none', duration: 1 }, 0);
+  return tl;
+}
+
+// ─── CIERRE (nivel FIRMA) ────────────────────────────────────────────────────────────────────────
+
+/** CTA01 "Vapor que forma el llamado" — el motor del tipo "cierre" (§ secciones-instancias.ts),
+ *  incorporado como S02 en "proceso": nunca se ofrece vía «Animación». `raiz` es la sección entera
+ *  (`Cierre.tsx` la envuelve con `<Movimiento id="CTA01" as="section">`). Lee `[data-cta01-vapor]`
+ *  (cada trazo de vapor, dibujado con `stroke-dasharray`/`stroke-dashoffset` — EXACTO al prototipo:
+ *  `getTotalLength()` sobre el PATH real, no un valor inventado), `[data-cta01-frase]` y
+ *  `[data-cta01-boton]` (revelan una vez, al completar el trazo). SIN PIN: el vapor se dibuja atado
+ *  al scroll (scrub) mientras la sección entra al viewport, como el prototipo — nunca fija la
+ *  página. */
+function cta01(raiz: HTMLElement, forzar = false) {
+  const vapor = Array.from(raiz.querySelectorAll<SVGPathElement>('[data-cta01-vapor]'));
+  const frase = raiz.querySelector<HTMLElement>('[data-cta01-frase]');
+  const boton = raiz.querySelector<HTMLElement>('[data-cta01-boton]');
+  if (vapor.length === 0) return null;
+  for (const p of vapor) {
+    const largo = p.getTotalLength();
+    gsap.set(p, { strokeDasharray: largo, strokeDashoffset: largo });
+  }
+  const tl = gsap.timeline({
+    scrollTrigger: forzar ? undefined : { trigger: raiz, start: 'top 70%', end: 'center 45%', scrub: 0.6 },
+  });
+  tl.to(vapor, { strokeDashoffset: 0, stagger: 0.15, duration: 1, ease: 'none' });
+  if (frase) tl.from(frase, { y: 20, autoAlpha: 0, duration: 0.5 }, '-=0.2');
+  if (boton) tl.from(boton, { y: 12, autoAlpha: 0, duration: 0.4 }, '-=0.2');
+  return tl;
+}
+
 // ─── EL DESPACHADOR ──────────────────────────────────────────────────────────────────────────────
 
 type ResultadoAnimacion = gsap.core.Tween | gsap.core.Timeline | null;
@@ -326,4 +443,6 @@ export const ANIMACIONES_ESENCIALES: Record<string, (raiz: HTMLElement, forzar?:
   C01: c01, C02: c02,
   N01: n01,
   S01: s01, S02: s02, S03: s03,
+  H01: h01, H02: h02, H03: h03,
+  CTA01: cta01,
 };

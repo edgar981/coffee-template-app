@@ -17,6 +17,7 @@ import SeccionCollage from '@/components/storefront/secciones/Collage';
 import SeccionVideo from '@/components/storefront/secciones/Video';
 import SeccionCarrusel from '@/components/storefront/secciones/Carrusel';
 import SeccionProceso from '@/components/storefront/secciones/Proceso';
+import SeccionCierre from '@/components/storefront/secciones/Cierre';
 import {
   CATALOGO_INSTANCIAS, DEFAULTS_INSTANCIA, type InstanciaContent, type SeccionInstanciaTipo,
 } from '@/lib/config/secciones-instancias';
@@ -62,6 +63,7 @@ const COMPONENTE_INSTANCIA: Record<SeccionInstanciaTipo, ComponenteInstancia> = 
   video: SeccionVideo as ComponenteInstancia,
   carrusel: SeccionCarrusel as ComponenteInstancia,
   proceso: SeccionProceso as ComponenteInstancia,
+  cierre: SeccionCierre as ComponenteInstancia,
 };
 
 const ALTO_PREVIEW = 104;

@@ -189,31 +189,37 @@ export const CATALOGO_MOVIMIENTO: readonly MovimientoDef[] = [
     descripcion: 'La sección se pinea y las fotos se deslizan de lado atadas al progreso de scroll vertical.',
     implementada: true,
   },
-  // ── Héroes (firma, pin + scrub narrativo) ──
+  // ── Héroes (firma, pin + scrub narrativo) — § MOVIMIENTO-NIVEL-FIRMA-1: las tres ganan motor Y
+  // pasan a ser COMPOSICIONES DEL HERO (`hero.variante`: 'grano'/'cereza'/'paisaje'), no un eje
+  // `animacion` sobre una zona — ver `HeroGrano.tsx`/`HeroCereza.tsx`/`HeroPaisaje.tsx`
+  // (`components/storefront/home/`). `clases` suma 'revelado' a las tres (además de 'scrub'): cada
+  // una tiene un tramo con un ESTADO FINAL claro que "reproducir una vez" puede mostrar en el
+  // editor («▶ Ver animación», § el spec) — `forzar=true` salta el `ScrollTrigger`/pin y corre el
+  // timeline entero una sola vez, igual que T01-T06.
   {
     id: 'H01', nombre: 'El grano cae en la taza', nivel: 'firma', aplicaA: 'hero',
-    clases: ['scrub'],
-    descripcion: 'El hero se pinea; un grano cae y cambia de color atado al progreso de scroll, hasta revelar la marca sobre la taza.',
-    implementada: false,
+    clases: ['scrub', 'revelado'],
+    descripcion: 'El hero se pinea; un grano cae y se tuesta (de acento a tinta, la paleta) atado al progreso de scroll, hasta fundirse en el café con un repique en la superficie.',
+    implementada: true,
   },
   {
     id: 'H02', nombre: 'La cereza se expande', nivel: 'firma', aplicaA: 'hero',
-    clases: ['scrub'],
+    clases: ['scrub', 'revelado'],
     descripcion: 'El hero se pinea; una cereza se acerca y crece hasta cubrir la pantalla, atada al progreso de scroll — transición al resto de la página.',
-    implementada: false,
+    implementada: true,
   },
   {
     id: 'H03', nombre: 'Paisaje en capas', nivel: 'editorial', aplicaA: 'hero',
-    clases: ['scrub'],
-    descripcion: 'Las capas del paisaje se trasladan a velocidades distintas atadas al scroll (parallax de varias capas).',
-    implementada: false,
+    clases: ['scrub', 'revelado'],
+    descripcion: 'Las capas del paisaje (la foto/video de fondo, o la ilustración por capas sin ella) se trasladan a velocidades distintas atadas al scroll.',
+    implementada: true,
   },
   // ── Cierre ──
   {
     id: 'CTA01', nombre: 'Vapor que forma el llamado', nivel: 'firma', aplicaA: 'seccion',
     clases: ['scrub', 'revelado'],
-    descripcion: 'El trazo del vapor se dibuja atado al scroll (scrub) y, al completar, la frase y el botón revelan (una sola vez).',
-    implementada: false,
+    descripcion: 'El trazo del vapor se dibuja atado al scroll (scrub) y, al completar, la frase y el botón revelan (una sola vez). Nace incorporado en el tipo "cierre", como S02 en "proceso".',
+    implementada: true,
   },
 ] as const;
 

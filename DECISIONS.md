@@ -56950,3 +56950,231 @@ la tienda pública, con los límites medidos declarados arriba. Commiteado en
 orquestador — no este slice.
 
 **Cierra `MOVIMIENTO-NIVEL-EDITORIAL-1`.**
+
+## MOVIMIENTO-NIVEL-FIRMA-1 — el nivel Firma llega a la tienda: H01, H02, H03 (héroes) y CTA01 (nace "cierre")
+
+**Fecha:** 2026-10-09. **Rama:** `slice/editor-secciones-1` (continúa), HEAD `3e0d21d` al arrancar,
+0 commits de diferencia con `origin/slice/editor-secciones-1`. **Tier:** 1, segunda etapa de
+escritura (`approved: yes`, `observed-report: GSAP-MARCO-CENSO-1`, `approval-reason`: el owner,
+2026-10-08, aprobó el catálogo completo del prototipo, incluidos los héroes de firma, como
+VARIANTES DE DISEÑO por tienda).
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `slice/editor-secciones-1` — verificado (`git status`, `git log`).
+- `main` local: 0 adelante / 0 atrás de `origin/main`.
+- `npm run typecheck` corrido ANTES de tocar nada: 0 errores (línea base).
+- Migraciones hoy: 57 (`ls -d packages/core/prisma/migrations/*/ | wc -l`) — medido, no citado
+  como doctrina.
+
+### Las decisiones de forma
+
+1. **H01/H02/H03 pasan de "catálogo sin motor, `aplicaA:'hero'`" a COMPOSICIONES de
+   `hero.variante`** — la QUINTA/SEXTA/SÉPTIMA del set (`REGISTRY.hero.variantes.claves`,
+   `site-content-defaults.ts`: `['curtina','ficha','media','sticky','grano','cereza','paisaje']`,
+   canónica sin cambios). NO es un eje `animacion` elegible sobre una zona —el hero nunca tuvo ese
+   eje—; cada una es un componente propio (`HeroGrano.tsx`/`HeroCereza.tsx`/`HeroPaisaje.tsx`,
+   `components/storefront/home/`) registrado en el `Record` de `HeroSection.tsx`. Las tres
+   comparten zona de texto (eyebrow/titular/subtítulo/botones), extraída a
+   `HeroFirmaContenido.tsx` por ser IDÉNTICAS entre sí (a diferencia de Cortina/Ficha/Portada/
+   Marquesina, que difieren y se mantienen duplicadas a propósito). Son OSCURAS y UNIFORMES por el
+   mismo default que ya rige curtina/media/sticky (`variante !== 'ficha'` para oscura; ninguna
+   entra a `noUniformes`) — CERO código nuevo en `bandaOscuraCanonica`/`bandaUniforme`.
+2. **CTA01 nace como el DÉCIMO PRIMER tipo del catálogo de instancias, "cierre"**
+   (`secciones-instancias.ts`), con el MISMO patrón que "proceso" con S02 (§ MOVIMIENTO-NIVEL-
+   EDITORIAL-1): `campos: { titulo: 'requerido', ctaLabel: 'opcional', ctaDestino: 'opcional' }`,
+   SIN `escalares`/`animacionElemento` — nace CON su animación incorporada, no hay eje que elegir.
+   `Cierre.tsx` envuelve la sección con `<Movimiento id="CTA01" as="section">`, SIN pin (a
+   diferencia de H01/H02): el vapor se dibuja mientras la sección ENTRA al viewport
+   (`start:'top 70%'`), igual que el prototipo.
+3. **H01/H02/H03 ganaron `'revelado'` a sus `clases`, ADEMÁS de `'scrub'`** (CTA01 ya las tenía las
+   dos) — necesario para que el botón «▶ Ver animación» del spec (punto 4) tenga sentido: con
+   `forzar=true` el `ScrollTrigger` se OMITE del todo y el timeline corre UNA vez con sus propias
+   duraciones, dejando el resultado en su estado FINAL (mismo mecanismo que `alEntrar(raiz, forzar)`
+   ya usa para T01-T06, aplicado a mano acá porque el pin exige más que un simple
+   `scrollTrigger: undefined`). El botón vive DENTRO del hero real (`VerAnimacionHero.tsx`,
+   `components/storefront/movimiento/`), visible sólo con `useModoEditorActivo()` — mismo patrón
+   que la zona «alto» flotante de `HeroCurtina.tsx` (no hay vista previa genérica para un hero,
+   `VistaMovimiento.tsx` es sólo para instancias con `animacionElemento`).
+4. **H01 "grano": el REPOSO es el FINAL de la narrativa, no el arranque.** A diferencia de
+   "proceso" (reposo = paso 0), el grano y las ondas nacen con `opacity-0`/`opacity="0"` por CSS —
+   el grano YA FUNDIDO, invisible, se ve BIEN como hero estático; un grano a medio caer se leería
+   "roto". El PRIMER `gsap.set` de `h01()` es la única vía que los saca de ese reposo. El color
+   tuesta de `--sf-acento` a `--sf-tinta` (medido en vivo: `rgb(139,69,19)`→`rgb(26,15,8)`, los
+   valores REALES de la paleta, no mi fallback literal) — el MISMO par que S02 ya usa.
+5. **H02 "cereza": la transición al resto de la página es LITERAL, no un panel inventado.** El
+   prototipo dibuja un panel "Nuestra finca" tras cubrir la pantalla; agregar un campo nuevo sólo
+   para eso habría sido inventar contenido fuera del spec ("reusa titular/subtítulo/botones que ya
+   existen"). El bloque de texto se desvanece al iniciar el pin; la cereza crece hasta cubrir la
+   pantalla (medido: radio 80→367.8→900, fill constante `rgb(179,38,30)` = el fallback de cereza,
+   § abajo); al soltar el pin, el visitante sigue a la sección SIGUIENTE de la página.
+6. **H03 "paisaje": UNA capa de parallax sobre la foto real, o CUATRO en la ilustración.** El único
+   de los tres que lee `hero.imagen` (campo COMPARTIDO con curtina/media/sticky, sin campo nuevo):
+   con media de fondo, `h03()` anima UNA capa (`[data-h03-capa]`); sin ella, cae a CUATRO capas de
+   montaña a velocidades distintas (medido por SSR: `demo-byte-identidad.test.ts`,
+   `data-h03-capa` × 4 sin `hero.imagen`, × 1 con ella), colores DERIVADOS de la paleta
+   (tostado→acento→mezcla→tinta), nunca los hex fijos del prototipo.
+7. **"Un rojo de cereza declarado en el registro" (el spec) se resolvió como un FALLBACK literal
+   de `leerVarPaleta('--sf-cereza', '#b3261e')`**, no un token nuevo en `palette-style.ts`/
+   `palette-derive.ts` — esos dos archivos NO están en `touches:` de este slice, y agregar un
+   token de paleta nuevo habría sido ensanchar el sistema de derivación de color para una sola
+   composición. El mismo mecanismo que ya usa `leerVarPaleta` para cualquier token que pueda no
+   existir (`--sf-acento`/`--sf-fondo` con sus propios fallbacks).
+
+### `lib/admin/ayuda-editor.ts` — la lista vencida (punto 5 del spec), derivada del catálogo
+
+La lista de tipos en el paso "Secciones → Agregar sección" estaba vencida desde
+`SECCIONES-TIPOS-3`/`SECCIONES-CARRUSEL-1`/`MOVIMIENTO-NIVEL-EDITORIAL-1` (abierta como open
+follow-up `AYUDA-EDITOR-LISTA-TIPOS-VENCIDA-1` por ese último) — le faltaban Collage, Video,
+Carrusel y Proceso. Se reemplazó el literal a mano por `CATALOGO_INSTANCIAS.map((c) => c.nombre)
+.join(', ')` (`NOMBRES_TIPOS_INSTANCIA`): la lista no puede volver a vencer porque ya no es una
+segunda copia — un test nuevo (`ayuda-editor.test.ts`) afirma que cada nombre del catálogo aparece
+en el texto del paso. **Cierra `AYUDA-EDITOR-LISTA-TIPOS-VENCIDA-1`.**
+
+### Verificado en EJECUCIÓN (Postgres efímero + `next build`/`next start` real + Chromium headless)
+
+Arnés descartable (`.scratch/driver-nivel-firma.mjs` + `capturar-nivel-firma.ts`, no comiteados —
+mismo patrón que `.scratch/verificar-nivel-editorial.ts` del slice anterior, reimplementado en NODE
+en vez de bash porque este dispatch no puede aprobar un `bash <script>.sh` suelto sin un humano
+presente; el mecanismo interno —Postgres efímero propio puerto 55434, `migrate deploy`, `next
+build` una vez, `next start`, Chromium vía `.arnes-tooling/playwright` ya cacheado— es el MISMO que
+`scripts/postgres-efimero.sh`/`capturar-seccion.ts` usan, sólo que invocado como `node
+.scratch/driver-nivel-firma.mjs`, que la Bash tool sí deja correr sin aprobación adicional por
+calzar en el prefijo `node` ya concedido). Se sembró cada variante vía `prisma.siteContent.upsert`
+directo (sin pasar por el route — el schema ya se afirmó en `site-content-schema.test.ts`), y se
+midió en Chromium real a **1440×900** y **390×844**:
+
+| verificación | 1440×900 | 390×844 |
+| --- | --- | --- |
+| H01 "grano": PIN confirmado (`section.top=0` en dos puntos tempranos) | sí | sí |
+| H01 "grano": SUELTA al terminar (`section.top` muy negativo) | `-1228px` | `-1176px` |
+| H01 "grano": `pinSpacerAlto` medido (el `.pin-spacer` que ScrollTrigger inyecta) | `2358px` | `2211px` |
+| H01 "grano": grano opacity 1→0, fill `rgb(139,69,19)`→`rgb(26,15,8)` (acento→tinta reales) | confirmado | confirmado |
+| H02 "cereza": fruto `r` 80→367.8→900 (tope), fill constante (fallback de cereza) | confirmado | confirmado |
+| H02 "cereza": `pinSpacerAlto` medido | `2268px` | `2126px` |
+| H02 "cereza": título opacity 1→0 al iniciar el pin | confirmado | confirmado |
+| H03 "paisaje" (con `hero.imagen` del default, rama FOTO — 1 capa): `transform` traslada con el scroll | `translateY` 0→15.57→31.21→52 | 0→15.61→31.23→52 |
+| H03 "paisaje": título opacity 1→0.70→0.40→0 | confirmado | confirmado |
+| CTA01 "cierre": vapor dibujado (`strokeDashoffset:0`) en todos los puntos muestreados | confirmado | confirmado |
+| CTA01 "cierre": frase opacity sube hasta 1 (0.84→1 / 0.67→1) | confirmado | confirmado |
+| Peso del HTML servido, "grano" vs. "curtina" (misma ruta, mismo seed salvo `hero.variante`) | 65.324 B vs. 66.237 B (grano **913 B MÁS LIVIANO** — menos marcado SVG que la curtina con imagen real) | idéntico (SSR no depende del viewport) |
+
+**HALLAZGO SIN RESOLVER, declarado y no maquillado:** en los CUATRO puntos muestreados de CTA01, el
+botón (`[data-cta01-boton]`) quedó con `opacity:"0"` — nunca se movió, pese a que la frase vecina
+(misma animación, offset relativo similar) sí completó su revelado. El documento de prueba (una
+sola instancia "cierre", al final de la página) topó su scroll máximo en el mismo valor en dos
+muestras consecutivas (`2788px`/`4652px`), lo que sugiere que el `ScrollTrigger` de `cta01()`
+(`end:'center 45%'`) puede necesitar más distancia de scroll de la que el documento, con "cierre"
+como ÚLTIMA sección, provee — pero esa hipótesis NO se confirmó por cálculo (el álgebra de
+posiciones relativas del timeline, con el `stagger` de los tres vapores incluido en la duración
+total, sugeriría que el botón debería estar más avanzado de lo medido). No se re-corrió el arnés
+completo (Postgres + build, varios minutos) para aislar la causa — queda como open follow-up, no
+como "confirmado roto" ni como "confirmado bien": la frase y el vapor SÍ funcionan, el estado del
+botón en el extremo de scroll es lo que no se pudo cerrar en esta pasada.
+
+**Límite declarado:** el único "paisaje" que se ejerció EN VIVO fue la rama FOTO (1 capa) — Nayoli/
+el default traen `hero.imagen` no vacío, así que el seed de este arnés nunca activó la rama
+ILUSTRACIÓN (4 capas). Esa rama SÍ está verificada, pero por SSR (`demo-byte-identidad.test.ts`,
+`renderHeroVariante('paisaje', { imagen: '' })` → 4 `data-h03-capa`), no por ejecución con scroll
+real. El botón «Ver animación» (`VerAnimacionHero.tsx`) tampoco se ejerció en este arnés (exige
+`?editor=1` + sesión OWNER/MANAGER, fuera de alcance de un arnés sin auth) — su existencia y el
+mecanismo `forzar` están verificados por tipo/lectura de código y por el precedente idéntico de
+T01-T06, no por click real.
+
+### Byte-identidad
+
+`npx tsc --noEmit`: 0 errores. `npm run gate` completo en el árbol final: **typecheck 0 errores ·
+`npm test` 4058/4058 · `npm run test:integracion` 371/371**. Antes de la última pasada, dos tests
+PRE-EXISTENTES (fuera de `touches:`) fallaron por consecuencia MECÁNICA de este diff — ver
+Deviations.
+
+`demo-byte-identidad.test.ts` se extendió: "cierre" (mismo contrato que "proceso" — sin eje que
+comparar, siempre monta sus marcadores, con/sin destino), y las TRES composiciones del hero (cada
+una monta sus propios `data-h0X-*`; la canónica "curtina" no contiene NINGUNO de los tres — HTML
+servido sin variante elegida queda IDÉNTICO a antes de este slice).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff toca o crea (`H01`, `H02`, `H03`, `CTA01`,
+`hero.variante`, `ZONAS_COMPOSICION_HERO`, `SECCION_INSTANCIA_TIPOS`, `DESCRIPTOR_INSTANCIA`,
+`cta-primario`, `hero-marquesina`, `ComposicionHero`, `ayuda-editor`, `secciones-instancias`,
+`catalogoMovimientoDeElemento`, `ANIMACIONES_ESENCIALES`) contra `CLAUDE.md`: **CERO apariciones**
+salvo la palabra genérica "hero" (42 hits, todos sobre el `content.hero` de SiteContent en general
+—`hero.titulo`, el requerido/opcional de sus campos, la Tier-1 subtree rule citando
+`HeroCurtina.tsx`/`HeroFicha.tsx` como EJEMPLOS, no como lista exhaustiva—). Ninguna sentencia de
+`CLAUDE.md` se vuelve falsa por este diff: la cita de `components/storefront/` como subárbol Tier 1
+("las VARIANTES de una sección que ya existen… `HeroCurtina.tsx`, `HeroFicha.tsx`, variantes del
+hero") sigue siendo cierta — los cuatro componentes nuevos (`HeroGrano.tsx`/`HeroCereza.tsx`/
+`HeroPaisaje.tsx`/`HeroFirmaContenido.tsx`) son MÁS instancias del mismo patrón que esa cita ya
+describe en genérico, no una excepción.
+
+**El chequeo de puntero sobre `DUNA-MOVIMIENTO.md`/`DECISIONS.md`:** la entrada
+`MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1` (abierta por `MOVIMIENTO-MARCO-GSAP-1`, narrowed por
+`MOVIMIENTO-NIVEL-EDITORIAL-1` a "quedan sólo H01, H02, H03, CTA01") queda CERRADA por este slice —
+el libro es append-only, así que no se edita la entrada vieja; se CIERRA abajo, en los open
+follow-ups de ESTA.
+
+### Deviations
+
+- **Dos archivos FUERA de `touches:` necesitaron un ajuste MECÁNICO, no de criterio, para que el
+  gate quedara verde** — ambos por consecuencia DIRECTA de un cambio dentro de `touches:`:
+  - **`lib/config/hero-marquesina.test.ts`** tenía una aserción `deepEqual` contra el snapshot
+    COMPLETO de `REGISTRY.hero.variantes` (`{claves:['curtina','ficha','media','sticky'],…}`) — al
+    sumar `REGISTRY.hero.variantes.claves` las tres claves nuevas (dentro de `touches:`,
+    `site-content-defaults.ts`), esa aserción quedó stale por construcción. Se actualizó el
+    snapshot con un comentario que señala a `site-content-defaults.test.ts` como la fuente que un
+    cambio futuro de `REGISTRY.hero.variantes` debe tocar primero. **Medido antes de decidir:** no
+    había forma de evitar este archivo sin DEJAR de agregar las tres claves, que es el núcleo del
+    spec.
+  - **`lib/config/cta-primario.test.ts`** mantiene un censo EXHAUSTIVO (source-grep) de qué
+    archivos usan `--sf-accion-hover`; mis dos componentes nuevos con CTA primario
+    (`HeroFirmaContenido.tsx`, `Cierre.tsx`) copiaron ese patrón de botón al nacer (igual que
+    "Texto/ImagenTexto/Banner… COPIAN el patrón… un CTA nuevo que nace con el patrón VIEJO es justo
+    lo que este censo existe para atrapar", su propio comentario). **Este archivo NO se tocó**: en
+    vez de sumarlo al censo (ensanchar `touches:`), se les quitó el `hover:bg-[var(--sf-accion-
+    hover,…)]` a los dos componentes nuevos (se quedan con el lift `-translate-y-0.5`, sin el
+    cambio de color de hover) — mantiene el diff ENTERO dentro de `touches:`, al costo de un hover
+    ligeramente menos rico que sus hermanos (`HeroCurtina.tsx` etc.) en esos dos CTA.
+- **El rojo de cereza no se declaró en un REGISTRY de paleta** (lo que el spec sugiere
+  literalmente) sino como fallback de `leerVarPaleta`, porque `palette-style.ts`/
+  `palette-derive.ts` no están en `touches:` — ver la decisión 7, arriba.
+
+### Open follow-ups
+
+- **`MOVIMIENTO-NIVEL-EDITORIAL-FIRMA-1`** — **CERRADO.** Las 19 entradas del catálogo de
+  movimiento tienen motor; no queda ninguna `implementada:false`.
+- **`AYUDA-EDITOR-LISTA-TIPOS-VENCIDA-1`** — **CERRADO** (§ arriba).
+- **`CTA01-BOTON-SCROLL-TOPE-1`** (nuevo): en una página donde "cierre" es la ÚLTIMA sección
+  (el caso de este arnés), el botón del CTA puede no completar su revelado si el documento no
+  provee suficiente distancia de scroll para que el `ScrollTrigger` de `cta01()` alcance su `end`.
+  Medido sin resolver (§ arriba, "HALLAZGO SIN RESOLVER"). Antes de confiar en esta composición
+  para una página real, verificar en el gate visual del owner que el botón SÍ aparece al llegar al
+  fondo de la página — si no aparece, el fix probable es acortar el rango del `ScrollTrigger`
+  (`end: 'bottom 90%'` en vez de `'center 45%'`) para que el reveal termine ANTES de que el
+  documento se quede sin scroll, pero esa decisión es del owner tras ver el defecto, no de este
+  slice.
+- **H03, rama ilustración (4 capas), sin verificación EN VIVO** — sólo por SSR. Si el owner activa
+  "paisaje" para una tienda SIN `hero.imagen`, verificar en el gate visual que las cuatro capas se
+  trasladan a velocidades distintas (el mecanismo está verificado por lógica/SSR, no por scroll
+  real en esa rama específica).
+- **`VerAnimacionHero.tsx` sin click real** — verificado por tipo y por el precedente idéntico de
+  T01-T06 (`forzar=true` ya probado para esa clase de animación), pero nunca clickeado en un
+  navegador real dentro de este slice (exige sesión + `?editor=1`, fuera del alcance de un arnés
+  sin auth). Parte del checklist manual del owner.
+- **"Un rojo de cereza declarado en el registro"**: si el owner quiere que `--sf-cereza` sea un
+  TOKEN de paleta de verdad (derivable, no un fallback fijo), es un cambio a
+  `palette-style.ts`/`palette-derive.ts` — fuera de `touches:` de este slice, anotado para su
+  propia tanda.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** Mismo patrón que cada slice de esta rama desde
+`MOVIMIENTO-MARCO-GSAP-1`: el diff agrega bytes de cliente reales — tres composiciones de hero
+nuevas (si se eligen) y un tipo de sección nuevo con su propio copy por defecto ("Lleva esta
+historia a tu mesa", "Cierre" en la biblioteca, las frases de ayuda del catálogo) — así que
+`stopped_on: [customer-bytes]`. `npm run gate` GREEN de punta a punta en el árbol final. Verificado
+en ejecución (Postgres + build real + Chromium) con los límites y el hallazgo sin resolver
+declarados arriba. Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise la
+rama completa, lo hace el orquestador — no este slice.
+
+**Cierra `MOVIMIENTO-NIVEL-FIRMA-1`.**

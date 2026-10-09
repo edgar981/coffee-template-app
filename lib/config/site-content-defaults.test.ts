@@ -1163,10 +1163,10 @@ test('brandStory: una `variante` guardada "centrada" se respeta, y resuelve igua
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────
 
-test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media/sticky), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1, MUESTRARIO-HERO-MARQUESINA-STICKY-1)', () => {
+test('REGISTRY.hero declara `variantes` con el set cerrado (curtina/ficha/media/sticky/grano/cereza/paisaje), la canónica y `noUniformes: [\'ficha\']` (§ EJE-5-NAV-UNIFORME, TEMAS-HERO-MEDIA-1, MUESTRARIO-HERO-MARQUESINA-STICKY-1, MOVIMIENTO-NIVEL-FIRMA-1)', () => {
   assert.deepEqual(
     REGISTRY.hero.variantes,
-    { claves: ['curtina', 'ficha', 'media', 'sticky'], canonica: 'curtina', noUniformes: ['ficha'] },
+    { claves: ['curtina', 'ficha', 'media', 'sticky', 'grano', 'cereza', 'paisaje'], canonica: 'curtina', noUniformes: ['ficha'] },
   );
 });
 
@@ -1189,7 +1189,7 @@ test('hero: una `variante` guardada fuera del set cae a la canónica', () => {
   assert.equal(r.hero.variante, 'curtina');
 });
 
-test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha", "media" y "sticky" se respetan', () => {
+test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "curtina"; "ficha", "media", "sticky" y los tres héroes de firma se respetan', () => {
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, undefined), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, ''), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, null), 'curtina');
@@ -1198,6 +1198,20 @@ test('resolverVariante con las claves del hero: ausente/vacío/null/basura → "
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'curtina'), 'curtina');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'media'), 'media');
   assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'sticky'), 'sticky');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'grano'), 'grano');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'cereza'), 'cereza');
+  assert.equal(resolverVariante(REGISTRY.hero.variantes!, 'paisaje'), 'paisaje');
+});
+
+// § MOVIMIENTO-NIVEL-FIRMA-1 — los tres héroes de FIRMA son UN SOLO PLANO de media (como 'media'/
+// 'sticky'): oscuros (el default `variante !== 'ficha'`) y uniformes (sin entrar a `noUniformes`).
+test('hero: "grano"/"cereza"/"paisaje" se respetan, son OSCUROS (como curtina/media/sticky) y UNIFORMES (no entran a noUniformes)', () => {
+  for (const variante of ['grano', 'cereza', 'paisaje']) {
+    const r = resolverSiteContent({ hero: { variante } });
+    assert.equal(r.hero.variante, variante);
+    assert.equal(bandaOscuraCanonica('hero', variante), true, `${variante} debe ser oscura`);
+    assert.equal(bandaUniforme('hero', variante), true, `${variante} debe ser uniforme`);
+  }
 });
 
 test('hero: una `variante` guardada "media" se respeta, y resuelve igual que las otras (§ TEMAS-HERO-MEDIA-1)', () => {

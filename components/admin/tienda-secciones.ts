@@ -154,11 +154,39 @@ const ZONAS_MARQUESINA: ZonaComposicion[] = [
   { campos: ['veloVisible', 'veloIntensidad', 'veloNivel'], label: 'Velo', textoVisible: false },
   { campos: ['imagen'], label: 'Fondo' },
 ];
-const LABEL_COMPOSICION_HERO: Record<string, string> = {
+// § MOVIMIENTO-NIVEL-FIRMA-1 — las TRES composiciones de FIRMA (H01/H02/H03, `lib/movimiento/
+// catalogo.ts`): MISMAS cinco zonas que Cortina/Ficha (eyebrow/titular/subtítulo/botones), medidas
+// contra `HeroGrano.tsx`/`HeroCereza.tsx`/`HeroPaisaje.tsx` — ninguna de las tres gana un campo
+// nuevo (§ el spec: "usan el titular, subtítulo y botones del hero que ya existen"). "Grano" y
+// "Cereza" son ilustración PURA (sin `imagen` que editar: el grano/la cereza no son una foto del
+// dueño); "Paisaje" SÍ lee `hero.imagen` —la foto/video de fondo, opcional: con ella hace parallax
+// sobre la foto real, sin ella cae a la ilustración de montañas— así que gana la zona "Fondo", como
+// Cortina/Ficha/Portada.
+const ZONAS_GRANO: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
+];
+const ZONAS_CEREZA: ZonaComposicion[] = ZONAS_GRANO;
+const ZONAS_PAISAJE: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo', 'tituloEnfasis'], label: 'Titular' },
+  { campos: ['subtitulo'], label: 'Subtítulo' },
+  { campos: ['ctaPrimarioLabel', 'ctaSecundarioLabel'], label: 'Botones' },
+  { campos: ['imagen'], label: 'Fondo (foto o video; vacío: ilustración)' },
+];
+// EXPORTADOS (§ MOVIMIENTO-NIVEL-FIRMA-1) para el test de paridad de `lib/config/hero-
+// composiciones.test.ts`: cada clave de `REGISTRY.hero.variantes.claves` debe tener EXACTAMENTE una
+// entrada acá y en `LABEL_COMPOSICION_HERO` — mismo criterio que el resto del repo ("cuando dos
+// declaraciones describen el mismo conjunto, o una DERIVA de la otra o hay un TEST").
+export const LABEL_COMPOSICION_HERO: Record<string, string> = {
   curtina: 'Cortina', ficha: 'Ficha', media: 'Portada', sticky: 'Marquesina',
+  grano: 'Grano', cereza: 'Cereza', paisaje: 'Paisaje',
 };
-const ZONAS_COMPOSICION_HERO: Record<string, ZonaComposicion[]> = {
+export const ZONAS_COMPOSICION_HERO: Record<string, ZonaComposicion[]> = {
   curtina: ZONAS_CORTINA, ficha: ZONAS_FICHA, media: ZONAS_PORTADA, sticky: ZONAS_MARQUESINA,
+  grano: ZONAS_GRANO, cereza: ZONAS_CEREZA, paisaje: ZONAS_PAISAJE,
 };
 // EL VALOR y el ORDEN salen de `REGISTRY.hero.variantes.claves` —la MISMA fuente que clampa
 // `resolverVariante`—, no de una segunda lista a mano: MISMO patrón que `OPCIONES_VELO_INTENSIDAD`/

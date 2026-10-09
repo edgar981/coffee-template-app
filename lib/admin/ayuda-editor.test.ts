@@ -4,11 +4,26 @@ import {
   GUIAS_AYUDA, PREGUNTAS_FRECUENTES, ATAJOS_TECLADO, NIVELES_PANEL,
   temaDeNivel, buscarAyuda,
 } from './ayuda-editor';
+import { CATALOGO_INSTANCIAS } from '@/lib/config/secciones-instancias';
 
 // EL CONTRATO del centro de ayuda (§ EDITOR-AYUDA-1): ids únicos dentro de cada colección, y todo
 // nivel que una guía reclama tiene que ser un nivel REAL del panel — nunca un nombre inventado que
 // el «?» de una sección deje apuntando a nada. Afirma lo que el spec pidió: "un test que falle si
 // una guía apunta a un nivel del panel que no existe, o si hay ids repetidos."
+
+// § MOVIMIENTO-NIVEL-FIRMA-1 — la lista de tipos de «Agregar sección» (paso de la guía "secciones")
+// se DERIVA de `CATALOGO_INSTANCIAS`, nunca escrita a mano: estaba vencida (le faltaban Collage,
+// Video, Carrusel y Proceso) y una lista a mano vuelve a vencer la próxima vez que el catálogo gane
+// un tipo. Este test afirma que CADA nombre del catálogo aparece en el texto del paso, para que un
+// tipo nuevo que no se derive correctamente lo delate.
+test('la guía "secciones" menciona CADA nombre de CATALOGO_INSTANCIAS en su paso de «Agregar sección»', () => {
+  const guia = GUIAS_AYUDA.find((g) => g.id === 'secciones')!;
+  const pasoAgregar = guia.pasos.find((p) => p.texto.includes('Agregar sección'))!;
+  assert.ok(pasoAgregar, 'debe existir un paso que mencione «Agregar sección»');
+  for (const entrada of CATALOGO_INSTANCIAS) {
+    assert.ok(pasoAgregar.texto.includes(entrada.nombre), `falta "${entrada.nombre}" en el paso de Agregar sección`);
+  }
+});
 
 test('ids de guías son únicos', () => {
   const ids = GUIAS_AYUDA.map((g) => g.id);
