@@ -395,6 +395,20 @@ const suscripcionFaqEditableSchema = z.object({
   items: z.array(suscripcionFaqItemSchema).optional(),
 });
 
+// /tienda (§ TIENDA-PAGINA-REGISTRO-1): sin `visible` — `REGISTRY.tiendaEncabezado`/`.tiendaCatalogo`
+// son `ocultable: false`, como el hero. `variante` SOBREVIVE al parse como el resto de las secciones
+// con composición (`z.string()`, clampada SOFT por `resolverVariante` al leer, no acá).
+const tiendaEncabezadoEditableSchema = z.object({
+  titulo: z.string().optional(),
+  leyenda: z.string().optional(),
+  variante: z.string().optional(),
+});
+const tiendaCatalogoEditableSchema = z.object({
+  vacioTitulo: z.string().optional(),
+  vacioTexto: z.string().optional(),
+  variante: z.string().optional(),
+});
+
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
 // de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
 const paginasEditableSchema = z.object({
@@ -959,6 +973,8 @@ export const siteContentEditableSchema = z.object({
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
+  tiendaEncabezado: tiendaEncabezadoEditableSchema.optional(),
+  tiendaCatalogo: tiendaCatalogoEditableSchema.optional(),
   menu: menuEditableSchema.optional(),
   footer: footerEditableSchema.optional(),
   logo: logoEditableSchema.optional(),

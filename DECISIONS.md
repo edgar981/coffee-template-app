@@ -57397,3 +57397,180 @@ invisible). `npm run gate` GREEN de punta a punta en el árbol final. Verificado
 orquestador — no este slice.
 
 **Cierra `MOVIMIENTO-CIERRE-BOTON-1`.**
+
+## TIENDA-PAGINA-REGISTRO-1 — /tienda entra al editor como página, partida en encabezado + catálogo
+
+**Fecha:** 2026-10-10. **Rama:** `slice/editor-secciones-1` (continúa), HEAD `390d3e8` al arrancar,
+0 commits de diferencia con `origin/main` en `main` (`9a7ab97`). **Tier:** 1, segunda etapa de
+escritura (`approved: yes`, `observed-report: TIENDA-COMPOSICIONES-CENSO-1`, `approval-reason`: el
+owner vio el plan de /tienda tras ese censo y dio el go el 2026-10-10 — "si quieres arranca y reviso
+cuando esté construido". La aprobación autoriza la escritura, nunca el merge).
+
+### Pre-flight
+
+- Árbol limpio, `HEAD` en `slice/editor-secciones-1` (`390d3e8`) — verificado (`git status`, `git log`).
+- `main` local: 0 adelante / 0 atrás de `origin/main`.
+- `npm run typecheck` corrido ANTES de tocar nada: 0 errores (línea base).
+- El censo (`.scratch/tienda-composiciones/TIENDA-COMPOSICIONES-CENSO-1.md`, OBSERVED, sin commit —
+  vive sólo en `.scratch/`, gitignored) midió: /tienda es 100% cliente sin wrapper server
+  (`app/(storefront)/tienda/page.tsx:1`), las dos ramas `ShopLegacy`/`ShopCorte` ya existían
+  completas gateadas por `navTratamiento.posicion`, y el mecanismo de `composiciones` (hero.variante)
+  era reusable sin tocar schema.
+
+### Lo que se construyó
+
+`PaginaKey` gana `'tienda'` (`components/admin/tienda-secciones.ts`), no apagable, segunda en
+`PAGINAS` (justo tras Home). Dos secciones nuevas en el REGISTRY
+(`lib/config/site-content-defaults.ts`): `tiendaEncabezado` (`titulo`/`leyenda`) y `tiendaCatalogo`
+(`vacioTitulo`/`vacioTexto`), las dos `ocultable:false`, las dos con `variantes:{claves:['actual'],
+canonica:'actual'}` — el mismo mecanismo de `hero.variante`, con el slot listo para que un slice
+futuro agregue Cartel/Taquilla sin tocar el resolver. Schema editable
+(`lib/config/site-content-schema.ts`) con sus dos sub-schemas. `SeccionConfig`
+(`TIENDA_ENCABEZADO`/`TIENDA_CATALOGO` en `tienda-secciones.ts`) con la composición «Actual» —una
+sola opción— declarada por el mismo mecanismo que `hero.composiciones`.
+
+`app/(storefront)/tienda/page.tsx` se partió: `ShopLegacy`/`ShopCorte` SIGUEN siendo las dos mismas
+funciones de siempre (la bifurcación por `navTratamiento.posicion` no se tocó), pero su encabezado y
+su cuerpo de catálogo/filtros/grilla se movieron a dos componentes HEADLESS nuevos
+(`components/storefront/tienda/TiendaEncabezado.tsx`/`TiendaCatalogo.tsx`) que `page.tsx` sigue
+envolviendo con los MISMOS divs de layout de cada rama — ningún wrapper se partió ni se unificó. Los
+dos componentes entraron al mapa `COMPONENTES` de `VistaTiendaEnVivo.tsx` (exhaustividad de
+`Record<SeccionVista,…>`).
+
+### Deviation medida — el buscador NO es contenido editable
+
+El placeholder "Buscar café..." se dejó como literal en `TiendaCatalogo.tsx`, SIN campo en el
+REGISTRY. Razón medida, no asumida: `lib/config/site-content-defaults.test.ts` corre
+`TERMINOS_PROHIBIDOS` (café/molid/tueste/finca…) sobre TODO `DEFAULTS`, sin excepción declarada para
+texto — un default con "café" lo hace fallar. Y el default NO puede ser neutro sin romper el
+byte-idéntico que el spec exige: no hay fila de `SiteContent` sembrada para esta sección nueva
+(`verificar:nayoli` no siembra `SiteContent`, § su propio docstring), así que `verificar:nayoli`
+resolvería contra el DEFAULT — un default neutro sería un byte distinto del "Buscar café..." que
+Nayoli muestra hoy. El café-shape del microcopy del storefront es un censo APARTE, ya nombrado en
+CLAUDE.md (§ #63, "COPY café-shape del storefront"), con su propio disparador ("el primer cliente
+no-café FIRMADO"); no se adelanta acá. `vacioTitulo`/`vacioTexto` ("Sin resultados"/"Prueba con
+otros filtros...") SÍ entraron — ninguno de los dos contiene vocabulario prohibido.
+
+### Deviation medida — un archivo fuera de `touches:`, mecánica, no de diseño
+
+`components/admin/EditorTiendaPantallaCompleta.tsx` (NO declarado en `touches:`) tiene
+`LABEL_PAGINA_SELECTOR: Record<PaginaKey, string>` — un literal exhaustivo. Medido: sin tocarlo,
+`npm run typecheck` da `TS2741: Property 'tienda' is missing`. Es el MISMO patrón que
+`VistaTiendaEnVivo.tsx` (SÍ en `touches:`) ya documenta repetidamente como "NECESARIO POR
+CONSECUENCIA MECÁNICA" para cada `SeccionVista` nueva (`PANEL-EDITOR-MARQUESINA-1`,
+`-TRUSTBADGES-VISIBLE-1`, `-ORIGEN-1`, `PANEL-EDITOR-SPOTLIGHT-PIN-1`, `NOSOTROS-COMPOSICION-1`) —
+sumar un valor a un union exhaustivo obliga a tocar TODO Record que lo consuma, sin excepción por
+`touches:` declarado. Se agregó la línea (`tienda: 'Tienda'`), documentada con el mismo rótulo. Es
+puramente mecánico —un string de display, cero decisión de diseño— y el diff se reporta completo
+más abajo para que el orquestador lo re-clasifique.
+
+### `lib/config/site-content-defaults.test.ts` — un segundo ajuste medido, dentro de `touches:`
+
+`DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distintos` falló: `"actual"` en
+`tiendaEncabezado.variante` Y `tiendaCatalogo.variante` — la primera vez que DOS secciones comparten
+canónica de composición (antes cada `variantes.canonica` era única: curtina/columnas/mosaico/
+franjas). Se agregó `valoresDeCamposVariantes()` (gemela de `valoresDeCamposEscalares()`, ya
+excluida por la MISMA razón: sentinel de config, no copy visible) a la exclusión del collator. Visto
+pasar las 252 pruebas del archivo tras el fix.
+
+### El hallazgo del diff real — `verificar:nayoli` no compara contra el padre del slice
+
+`npm run verificar:nayoli` compara literal `main` contra TODA la rama (hardcodeado,
+`scripts/verificar-nayoli.ts:191`, sin parametrizar) — y esta rama lleva MUCHOS slices por delante
+de `main` (navTratamiento/CORTE, el crédito "Hecho por Duna", etc.), así que las 4 rutas Y el CSS
+mostraron diff AUN en `/`/`/checkout` (que este slice no toca). Verificado por contenido, no
+asumido: diffeando `.scratch/verificar-nayoli-reporte/html-main_tienda.txt` contra
+`html-rama_tienda.txt` token por token, el ÚNICO diff dentro de `<main>…</main>` fue el orden de
+clases `max-w-6xl mx-auto px-4…` → `max-w-6xl px-4… mx-auto` — `contenedorAnchoClase`
+(`lib/config/themes.ts`, PRE-EXISTENTE, § `PARIDAD-ANCHO-CONTENIDO-1`, una tanda anterior de esta
+misma rama), no tocada por este diff. Las cinco cadenas de contenido ("Nuestra Tienda", "Origen
+colombiano", "Sin resultados", "Prueba con otros filtros o términos de búsqueda.", "Buscar café...")
+aparecen EXACTAMENTE una vez en cada árbol.
+
+**Un defecto real SÍ se encontró y se corrigió en el camino:** el primer intento usaba un solo
+template-literal (`` `${conteo} · ${leyenda}` ``) para el renglón del conteo. El JSX de HOY era
+`{ternario} · Origen colombiano` — expresión + texto estático, DOS hijos — y React 19 inserta un
+comentario `<!-- -->` de frontera de hidratación entre hijos de texto adyacentes (confirmado en el
+propio diff: `main` traía `Cargando<!-- --> · Origen colombiano`). Combinar en UN solo hijo hacía
+desaparecer ese comentario — byte distinto, medido antes de corregirlo. Fix: `{conteo}{` · ${leyenda}`}`
+—DOS hijos, igual que hoy— en los dos componentes de `TiendaEncabezado.tsx`. Confirmado
+byte-idéntico tras el fix (`Cargando<!-- --> · Origen colombiano` en ambos árboles).
+
+`npm run verificar:nayoli:visual`: `/tienda` → 209/2.433.280 px (consciente de AA). La imagen de
+diff (`.scratch/verificar-nayoli-visual/diffs/ruta-tienda.png`) se inspeccionó: el único trazo de
+color está en la línea "· Hecho por Duna" del pie — el MISMO crédito que aparece en las otras 5
+rutas medidas (incluidas `/checkout`/`/nosotros`/`/suscripciones`, que este slice no toca), confirma
+que es la MISMA diferencia pre-existente, no algo introducido acá.
+
+### Gate
+
+`npm run gate` en el árbol final: **typecheck 0 errores · `npm test` 4092/4092 · `npm run
+test:integracion` 377/377** (371 previos + 6 nuevos de `tienda-pagina-viaje.test.ts`;
+`tienda-pagina.test.ts`, capa 1, agrega 14 a los 4092). Corrido UNA vez, en el árbol final (tras el
+fix del comentario de hidratación).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff toca (`PaginaKey`, `SeccionVista`, `tiendaEncabezado`,
+`tiendaCatalogo`, `ShopLegacy`, `ShopCorte`, `LABEL_PAGINA_SELECTOR`, `tienda-secciones.ts`,
+`VistaTiendaEnVivo.tsx`/`.ts`, `EditorTiendaPantallaCompleta.tsx`, `TiendaPaginas.tsx`,
+`SECCIONES_TIENDA`, `site-content-defaults.ts`, `site-content-schema.ts`) contra `CLAUDE.md`:
+**ninguna sentencia encontrada queda falsa.** Lo que SÍ salió, medido, no corregido (fuera de
+`touches:`): § "La VISTA PREVIA ES EN VIVO" (CLAUDE.md, describiendo `VistaTiendaEnVivo` como el
+mecanismo de preview en vivo) ya estaba OBSOLETO antes de este slice — `TiendaPaginas.tsx` monta
+`VistaTiendaIframe`, no `VistaTiendaEnVivo`, desde `EDITOR-TIENDA-IFRAME-VISTA-1` (una tanda
+anterior); el default export de `VistaTiendaEnVivo.tsx` hoy sólo lo consume
+`lib/config/admin-tienda-preset.test.ts` (vía `VistaTiendaContenido`). Mi diff AGREGA dos entradas a
+un `COMPONENTES` que sigue siendo exhaustivo-para-el-tipo pero ya no es el canal de render en vivo
+real — no causa la staleness (ya existía), no la agrava, y corregir esa sección de CLAUDE.md está
+fuera de `touches:` de este slice. Se anota como open follow-up.
+
+### Lo que NO se completó — la captura del editor en el arnés
+
+El spec pedía "Captura de la pestaña «Tienda» del editor en el arnés (base efímera)". **No se
+hizo.** Medido antes de intentarlo: `/editor/tienda` vive detrás de `proxy.ts` (sesión OWNER/MANAGER
+real), y este repo tiene precedente repetido y explícito de declarar este límite en vez de
+improvisar un arnés de login (`DECISIONS.md`, p. ej. el bloque "LÍMITE DEL ARNÉS — capa 3 (sesión
+autenticada, capturas) NO SE COMPLETÓ" de una tanda anterior) — construir un arnés de autenticación
+nuevo (Postgres efímero + seed + `next build`/`start` + Playwright + POST de login + navegar
+`/editor/tienda` + captura) es un script nuevo no declarado en `touches:`, y la cobertura real de
+"¿las dos secciones aparecen con su composición?" ya la dan, medidos: el chequeo derivado
+`huecosDelPanel()` (campos leídos ⊆ controlados, § `panel-controles.test.ts`, verde sin exención
+nueva), `admin-tienda-preset.test.ts` (`VistaTiendaContenido` no tira para las 17 `SeccionVista`,
+incluidas las dos nuevas, bajo los 6 presets + control), y las 20 pruebas nuevas de
+`tienda-pagina.test.ts`/`tienda-pagina-viaje.test.ts`. La captura visual del panel queda como
+open follow-up para quien tenga sesión real.
+
+### Open follow-ups
+
+- **`TIENDA-DOCTRINA-VISTAPREVIA-OBSOLETA-1`** (nuevo): § "La VISTA PREVIA ES EN VIVO" de CLAUDE.md
+  describe `VistaTiendaEnVivo` como el mecanismo de preview en vivo del editor; desde
+  `EDITOR-TIENDA-IFRAME-VISTA-1` el mecanismo real es `VistaTiendaIframe`. No se corrige acá —fuera
+  de `touches:`—; alguien con ese archivo en `touches:` debería actualizar la sección o confirmar
+  que sigue describiendo algo vigente (la mitad SSR-testeable, `VistaTiendaContenido`, si acaso).
+- **`TIENDA-EDITOR-CAPTURA-SESION-1`** (nuevo): la captura de `/editor/tienda` con la pestaña
+  "Tienda" activa, con sesión real, no se hizo (§ arriba). Cubre su lugar la batería de tests ya
+  verde; si el owner quiere la captura visual, necesita una sesión real o un arnés de login nuevo
+  (otro slice, con `touches:` propio).
+- Las composiciones Cartel/Taquilla (Onix) y Carta/Láminas (Las Chamisas) que este slice deja
+  preparadas (el slot `composiciones`/`variantes.claves` con una sola opción hoy) son trabajo de
+  slices futuros, ya nombrados en el censo citado — no se abren acá como follow-up nuevo porque ya
+  estaban nombrados antes de este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff reescribe `app/(storefront)/tienda/page.tsx`
+entero y agrega dos componentes nuevos bajo `components/storefront/tienda/` — archivos que
+COMPILAN a lo que un visitante recibe, así que `customer_bytes.changed = true` aunque el HTML
+servido resulte byte-idéntico (medido, no "por construcción": § arriba, el diff real contra `main`
+se inspeccionó token por token dentro de `<main>…</main>` y las 5 cadenas de contenido se
+verificaron 1-a-1). `strings: []` — ningún texto visible cambia; es la rama que compila distinto
+sin cambiar lo que el visitante lee, el caso que el propio contrato de `customer_bytes` declara
+legítimo. `npm run gate` GREEN de punta a punta en el árbol final. Byte-identidad e identidad
+visual confirmadas por MEDICIÓN directa del diff real (no por "0 archivos de storefront en
+touches", que habría sido insuficiente dado el estado de la rama — TODOS los archivos nuevos de
+storefront de este slice SÍ están en `touches:`). Commiteado en `slice/editor-secciones-1`; el
+merge, cuando el owner revise, lo hace el orquestador.
+
+**No cierra `TIENDA-COMPOSICIONES-CENSO-1`** (sigue sirviendo como referencia para los slices de
+composición que faltan) — este slice cubre sólo "la plomería", el primer paso de su plan.

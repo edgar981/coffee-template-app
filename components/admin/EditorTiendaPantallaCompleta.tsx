@@ -71,8 +71,16 @@ const DISPOSITIVOS: { key: DispositivoKey; label: string; Icon: typeof Monitor }
 // "Inicio"). `PAGINAS` (tienda-secciones.ts, fuera de `touches:`) sigue con `label: 'Home'` — lo
 // consume también `TogglePagina` para nosotros/suscripciones, así que no se toca esa fuente; esto
 // es sólo el texto de DISPLAY del selector de esta barra, local a este componente.
+// NECESARIO POR CONSECUENCIA MECÁNICA de § TIENDA-PAGINA-REGISTRO-1 (fuera de su `touches:`
+// declarado — mismo patrón que `VistaTiendaEnVivo.tsx`, § los comentarios "NECESARIO POR
+// CONSECUENCIA MECÁNICA" de ese archivo): sumar `'tienda'` a `PaginaKey` (tienda-secciones.ts) para
+// que /tienda entre al editor vuelve este `Record<PaginaKey, string>` NO-exhaustivo sin esta línea —
+// `tsc` lo rechaza (medido: `tsc --noEmit` sin este cambio da TS2741, "Property 'tienda' is
+// missing"). Sólo el LABEL de display de esta barra; `PAGINAS` (tienda-secciones.ts) ya trae el suyo
+// propio ('Tienda') para `TogglePagina`/el resto del editor.
 const LABEL_PAGINA_SELECTOR: Record<PaginaKey, string> = {
   home: 'Inicio',
+  tienda: 'Tienda',
   nosotros: 'Nosotros',
   suscripciones: 'Suscripciones',
 };

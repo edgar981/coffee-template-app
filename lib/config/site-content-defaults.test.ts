@@ -1885,6 +1885,24 @@ function valoresDeCamposEscalares(): Set<string> {
   return out;
 }
 
+// Los valores de `REGISTRY.<seccion>.variantes` (la COMPOSICIÓN, § eje 5e) son TAMBIÉN sentinels de
+// config — mismo criterio que `valoresDeCamposEscalares` arriba, sólo que para la ranura FIJA
+// `variante` en vez de un escalar con nombre propio. Dos secciones DISTINTAS que comparten canónica
+// (`tiendaEncabezado.variante`/`tiendaCatalogo.variante`, § TIENDA-PAGINA-REGISTRO-1 — las dos
+// "actual", su única composición hoy) no es el defecto de copy duplicado que el test de abajo existe
+// para atrapar: es la MISMA palabra sentinel, no el mismo párrafo pegado dos veces.
+function valoresDeCamposVariantes(): Set<string> {
+  const out = new Set<string>();
+  for (const key of Object.keys(REGISTRY) as (keyof typeof DEFAULTS)[]) {
+    const def = REGISTRY[key as keyof typeof REGISTRY];
+    if (!def.variantes) continue;
+    const sec = DEFAULTS[key] as Record<string, unknown>;
+    const v = sec.variante;
+    if (typeof v === 'string' && v.trim() !== '') out.add(v);
+  }
+  return out;
+}
+
 test('DEFAULTS: ningún campo de TEXTO menciona café, Nayoli, ni asume manufactura/perecedero (tanda, elaborad-, prepara-, fresco, material, artesanal) — las rutas de imagen quedan EXCLUIDAS a propósito (§ MARCA-DE-CLIENTE-EN-EL-REPO-1, no es parte de este slice)', () => {
   const rutasDeImagen = valoresDeCamposImagen();
   const todas: [string, string][] = [];
@@ -1931,11 +1949,12 @@ const DUPLICADO_PERMITIDO = new Set(['Suscripción Mensual', 'Nuestra Historia',
 test('DEFAULTS: ningún texto (no-imagen) se repite EXACTO entre campos distintos — salvo el CTA↔destino declarado', () => {
   const rutasDeImagen = valoresDeCamposImagen();
   const valoresEscalares = valoresDeCamposEscalares();
+  const valoresVariantes = valoresDeCamposVariantes();
   const todas: [string, string][] = [];
   walkStrings(DEFAULTS as unknown, '', todas);
   const porValor = new Map<string, string[]>();
   for (const [path, val] of todas) {
-    if (val.trim() === '' || rutasDeImagen.has(val) || valoresEscalares.has(val) || DUPLICADO_PERMITIDO.has(val)) continue;
+    if (val.trim() === '' || rutasDeImagen.has(val) || valoresEscalares.has(val) || valoresVariantes.has(val) || DUPLICADO_PERMITIDO.has(val)) continue;
     const arr = porValor.get(val) ?? [];
     arr.push(path);
     porValor.set(val, arr);

@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -206,9 +206,13 @@ const OPCIONES_COMPOSICION_HERO: ComposicionOpcion[] = REGISTRY.hero.variantes!.
 // anidado en el dato, § modelo): cada sección declara a qué página pertenece. El selector del editor
 // muestra una pestaña por página. `home` no se apaga; `nosotros` y `suscripciones` sí
 // (§ paginas.<pagina>.visible). `nota` es una línea opcional para una pestaña SIN secciones editables.
-export type PaginaKey = 'home' | 'nosotros' | 'suscripciones';
+// 'tienda' (§ TIENDA-PAGINA-REGISTRO-1): no apagable — el catálogo ES la tienda, la misma razón por
+// la que 'home' tampoco lo es. Entra SEGUNDA, inmediatamente después de Home: es tan central como
+// ella, no una página secundaria como Nosotros/Suscripciones.
+export type PaginaKey = 'home' | 'tienda' | 'nosotros' | 'suscripciones';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
+  { key: 'tienda',   label: 'Tienda',   apagable: false },
   { key: 'nosotros', label: 'Nosotros', apagable: true },
   // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes,
   // sus pasos y su FAQ editables (§ Backlog #49, opción 1; § SUSCRIPCIONES-FAQ-DATO-1). El interruptor
@@ -1158,6 +1162,57 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
   },
 };
 
+// LA PÁGINA /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `REGISTRY.tiendaEncabezado`/
+// `.tiendaCatalogo` en site-content-defaults.ts). UNA sola composición, «Actual» — el mismo
+// mecanismo que `hero.composiciones`, con el set `['actual']` de `REGISTRY.tienda*.variantes.claves`:
+// deja el slot de composición listo para que un slice futuro agregue Cartel/Taquilla sin tocar el
+// resolver ni este archivo salvo por sumar la opción nueva.
+const ZONAS_TIENDA_ENCABEZADO: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['leyenda'], label: 'Leyenda' },
+];
+const OPCIONES_COMPOSICION_TIENDA_ENCABEZADO: ComposicionOpcion[] = REGISTRY.tiendaEncabezado.variantes!.claves.map((v) => ({
+  value: v, label: 'Actual', zonas: ZONAS_TIENDA_ENCABEZADO,
+}));
+const ZONAS_TIENDA_CATALOGO: ZonaComposicion[] = [
+  { campos: ['vacioTitulo', 'vacioTexto'], label: 'Sin resultados' },
+];
+const OPCIONES_COMPOSICION_TIENDA_CATALOGO: ComposicionOpcion[] = REGISTRY.tiendaCatalogo.variantes!.claves.map((v) => ({
+  value: v, label: 'Actual', zonas: ZONAS_TIENDA_CATALOGO,
+}));
+
+// Título + conteo de productos + leyenda. El CONTEO sigue siendo DATO vivo (`getCatalog`), no
+// contenido de este editor. `ocultable: false` — el catálogo es la tienda (§ `PAGINAS`, arriba).
+const TIENDA_ENCABEZADO: SeccionConfig = {
+  seccion: 'tiendaEncabezado',
+  pagina: 'tienda',
+  titulo: 'Encabezado de la tienda',
+  ocultable: false,
+  composiciones: OPCIONES_COMPOSICION_TIENDA_ENCABEZADO,
+  imagenes: [],
+  campos: [
+    { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'leyenda', label: 'Leyenda', hint: 'Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
+  ],
+};
+
+// El buscador, los filtros y la grilla. El placeholder del buscador ("Buscar café...") y el
+// catálogo/sus filtros NO son contenido de este editor — ver el docstring de
+// `TiendaCatalogoContent` (site-content-defaults.ts) para el porqué del buscador. Sólo los dos
+// textos del estado vacío son editables.
+const TIENDA_CATALOGO: SeccionConfig = {
+  seccion: 'tiendaCatalogo',
+  pagina: 'tienda',
+  titulo: 'Catálogo',
+  ocultable: false,
+  composiciones: OPCIONES_COMPOSICION_TIENDA_CATALOGO,
+  imagenes: [],
+  campos: [
+    { name: 'vacioTitulo', label: 'Título · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'vacioTexto', label: 'Texto · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
 // /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
 // el editor las agrupa por `pagina` en pestañas.
@@ -1182,4 +1237,4 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
 // SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
 // no sugerir un orden que el storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

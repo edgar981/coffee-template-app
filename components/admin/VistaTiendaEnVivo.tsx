@@ -16,6 +16,8 @@ import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
+import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
+import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
@@ -129,6 +131,15 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // devuelve `null` — la vista previa queda en blanco, no rota (§ el docstring de `SPOTLIGHT` en
   // tienda-secciones.ts).
   spotlight: Spotlight,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § TIENDA-PAGINA-REGISTRO-1 (mismo patrón que 'marquesina'/
+  // 'origen'/'spotlight' arriba): sumar `'tiendaEncabezado'`/`'tiendaCatalogo'` a `SeccionVista`
+  // (tienda-secciones.ts) para que /tienda entre al editor vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin estas dos líneas — `tsc` lo rechaza, y
+  // sin ellas en runtime `COMPONENTES['tiendaEncabezado']`/`['tiendaCatalogo']` serían `undefined` y
+  // `<Comp />` reventaría el editor al abrir "Tienda". Los dos componentes son HEADLESS y no toman
+  // props (como `NosotrosHistoria`/`SuscripcionPasos`) → asignables a `ComponentType`.
+  tiendaEncabezado: TiendaEncabezado,
+  tiendaCatalogo: TiendaCatalogo,
   nosotrosHistoria: NosotrosHistoria,
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.

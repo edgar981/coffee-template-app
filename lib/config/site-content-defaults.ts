@@ -969,6 +969,41 @@ export interface SuscripcionFaqContent {
   items: SuscripcionFaqItem[];
 }
 
+// LA PÁGINA /tienda ENTRA AL EDITOR (§ TIENDA-PAGINA-REGISTRO-1, sobre TIENDA-COMPOSICIONES-CENSO-1).
+// El catálogo público era una sola función de cliente (`ShopLegacy`/`ShopCorte`,
+// app/(storefront)/tienda/page.tsx) sin registro en SiteContent — ni `PaginaKey` ni `SeccionVista`.
+// Se parte en DOS secciones mínimas, cada una con UNA composición «Actual» (§ REGISTRY.
+// tiendaEncabezado/.tiendaCatalogo.variantes) que reproduce BYTE A BYTE lo de hoy: las dos ramas
+// `ShopLegacy`/`ShopCorte` se conservan tal cual dentro de esa única composición — este registro no
+// unifica ni re-estiliza nada, sólo mueve dónde vive el texto.
+//
+// `ocultable: false` en las DOS, como el hero y el menú: el catálogo ES la tienda, no una banda que
+// se pueda apagar — no hay `visible` que resolver.
+export interface TiendaEncabezadoContent {
+  titulo: string;
+  // Acompaña al conteo de productos, que sigue siendo DATO vivo (`getCatalog`), nunca contenido:
+  // "{N} productos · {leyenda}" (hoy, siempre "Origen colombiano"). Requerido — vacío cae al
+  // default, el conteo nunca queda sin su frase.
+  leyenda: string;
+  variante: string;
+}
+
+// EL BUSCADOR QUEDA FUERA A PROPÓSITO — DESVIACIÓN MEDIDA, no un campo olvidado. El placeholder de
+// hoy es literal "Buscar café..." (`ShopLegacy`/`ShopCorte`, antes de este slice): un DEFAULT de
+// REGISTRY con esa palabra viola el catcher de vocabulario café-shape que ya corre sobre TODO
+// `DEFAULTS` (`site-content-defaults.test.ts`, `TERMINOS_PROHIBIDOS` — café/molid/tueste/finca…,
+// sin excepción declarada para ningún campo de texto), y cambiarlo a un texto neutro rompería el
+// byte-idéntico que este mismo slice exige (no hay fila de `SiteContent` sembrada para esta sección
+// nueva: `verificar:nayoli` resolvería contra el DEFAULT, no contra un dato de Nayoli). El café-shape
+// del microcopy del storefront es un censo APARTE, ya nombrado en CLAUDE.md (§ #63, "COPY café-shape
+// del storefront"), con su propio disparador ("el primer cliente no-café FIRMADO") — no se adelanta
+// acá. El placeholder sigue siendo el literal de hoy, sin cambio, en `TiendaCatalogo.tsx`.
+export interface TiendaCatalogoContent {
+  vacioTitulo: string;
+  vacioTexto: string;
+  variante: string;
+}
+
 // Los TRES ítems CONOCIDOS del menú del nav (§ CROMO-MENU-COMO-DATO-1) — set CERRADO: no se
 // agregan ni se quitan ítems, sólo se RENOMBRAN y se REORDENAN. El orden CANÓNICO (el de
 // `StoreNav.tsx` antes de este slice) es tienda → suscripciones → nosotros.
@@ -1728,6 +1763,8 @@ export interface SiteContentData {
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
   suscripcionFaq: SuscripcionFaqContent;
+  tiendaEncabezado: TiendaEncabezadoContent;
+  tiendaCatalogo: TiendaCatalogoContent;
   menu: MenuContent;
   footer: FooterContent;
   logo: LogoContent;
@@ -2241,6 +2278,20 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     titulo: 'Preguntas frecuentes',
     items: [],
+  },
+  // /tienda (§ TIENDA-PAGINA-REGISTRO-1): el texto EXACTO de hoy (`ShopLegacy`/`ShopCorte`, antes de
+  // este slice) — byte-idéntico sin fila de SiteContent sembrada. El placeholder del buscador
+  // ("Buscar café...") queda FUERA de este modelo a propósito (§ el docstring de
+  // `TiendaCatalogoContent`): sigue siendo literal en el componente.
+  tiendaEncabezado: {
+    titulo: 'Nuestra Tienda',
+    leyenda: 'Origen colombiano',
+    variante: 'actual',
+  },
+  tiendaCatalogo: {
+    vacioTitulo: 'Sin resultados',
+    vacioTexto: 'Prueba con otros filtros o términos de búsqueda.',
+    variante: 'actual',
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
   // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
@@ -2993,6 +3044,29 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         question: 'requerido',
         answer: 'requerido',
       },
+    },
+  },
+  // /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `TiendaEncabezadoContent`/
+  // `TiendaCatalogoContent` arriba). `ocultable: false` en las DOS — como el hero, el catálogo no se
+  // apaga entero. UNA sola composición por sección (`variantes.claves: ['actual']`), el mismo
+  // mecanismo que `hero.variante`: deja el slot listo para que un slice futuro agregue una segunda
+  // clave (Cartel/Taquilla…) sin tocar el resolver.
+  tiendaEncabezado: {
+    label: 'Encabezado de la tienda',
+    ocultable: false,
+    variantes: { claves: ['actual'], canonica: 'actual' },
+    campos: {
+      titulo: 'requerido',
+      leyenda: 'requerido',
+    },
+  },
+  tiendaCatalogo: {
+    label: 'Catálogo',
+    ocultable: false,
+    variantes: { claves: ['actual'], canonica: 'actual' },
+    campos: {
+      vacioTitulo: 'requerido',
+      vacioTexto: 'requerido',
     },
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
