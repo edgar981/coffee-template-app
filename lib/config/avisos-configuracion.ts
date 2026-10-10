@@ -28,6 +28,21 @@ export interface AvisoConfig {
 // `tarjeta` (el SLOT) resalta y scrollea su bloque, reusando `tarjetaActiva`/`bloquesRef` del puente.
 const hrefTarjeta = (slot: number) => `/admin/tienda?seccion=presentaciones&tarjeta=${slot}`;
 
+// AVISOS-PRESENTACIONES-RIEL-1 — COMPOSICIONES EN LAS QUE LA PORTADA SÍ PINTA LAS TARJETAS
+// CONFIGURADAS (label/imagen/categoría): las ÚNICAS donde #1 (destino inexistente) y #2 (título sin
+// imagen) pueden ser un defecto real. 'riel' (§ CORTE-PRESENTACIONES-RIEL-1,
+// `GrindChooserRiel.tsx`) pinta el CATÁLOGO vía `productosDelRiel(getCatalog())` — verificado en el
+// componente: NO importa `tarjetasDePresentaciones` (se retiró de ahí, § RIEL-PRODUCTOS-Y-VISTA-
+// RAPIDA-1) — así que una tarjeta configurada sin imagen o con destino rancio no es un hueco que el
+// visitante vea; es config muerta bajo esa composición.
+//
+// DECLARADO EN POSITIVO, no como `variante !== 'riel'`: comparar contra el literal 'riel' obliga a
+// acordarse de sumar cada composición nueva que TAMPOCO pinte estas tarjetas. Con la lista en
+// positivo, una composición nueva nace AFUERA y no dispara el falso aviso por defecto — mismo
+// criterio de "preferir callar a afirmar sin base" que ya rige `catalogoListo` arriba. Si una
+// composición futura SÍ pinta las tarjetas configuradas, se suma acá explícitamente.
+const VARIANTES_CON_TARJETAS = new Set(['mosaico', 'indice']);
+
 // EL DEEP-LINK DEL AVISO #8 ATERRIZA EN LA PARTE, NO SÓLO EN LA PANTALLA (§ PANEL-PULIDO-1, corrige
 // la premisa de abajo). `?seccion=&tarjeta=` es del editor de CONTENIDO (`/admin/tienda`): `seccion`
 // es una clave de SiteContent y `tarjeta` un SLOT de un bloque. El `whatsapp` es un SiteSetting
@@ -105,8 +120,10 @@ export function avisosDeConfiguracion(
   const avisos: AvisoConfig[] = [];
   const pres = contenido.presentaciones;
 
-  // Sólo si la sección se MUESTRA al visitante: una Presentaciones OCULTA no tiene defecto visible.
-  if (pres && pres.visible !== false) {
+  // Sólo si la sección se MUESTRA al visitante Y su composición PINTA estas tarjetas (arriba): una
+  // Presentaciones OCULTA no tiene defecto visible, y bajo 'riel' las tarjetas configuradas no son
+  // lo que el visitante ve, así que sus huecos tampoco lo son.
+  if (pres && pres.visible !== false && VARIANTES_CON_TARJETAS.has(pres.variante)) {
     for (const t of tarjetasDePresentaciones(pres)) {
       const cat = t.cat.trim();
       const titulo = t.label.trim();

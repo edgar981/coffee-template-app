@@ -57759,3 +57759,96 @@ no por "0 archivos de storefront en touches" (que habría sido falso: SÍ hay ar
 storefront, todos dentro de `touches:`). Commiteado en `slice/editor-secciones-1`; el merge, cuando
 el owner revise el gate visual (las capturas que este slice no pudo producir, § arriba), lo hace el
 orquestador.
+
+## AVISOS-PRESENTACIONES-RIEL-1 — el aviso de tarjetas rancias deja de disparar bajo la composición «riel»
+
+**Tier 2.** `touches`: `lib/config/avisos-configuracion.ts`, `lib/config/avisos-configuracion.test.ts`,
+`DECISIONS.md`. Base `main` (policy `current-main`), continúa `slice/editor-secciones-1`. Pre-flight:
+árbol limpio, HEAD en `slice/editor-secciones-1` (`53aec9f`), `main` en `9a7ab97`.
+
+### El defecto, confirmado por lectura del código, no por el spec
+
+`avisosDeConfiguracion` (§ CLAUDE.md, "El AVISO DE CONFIGURACIÓN del Dashboard") recorre
+`tarjetasDePresentaciones(pres)` para los avisos #1 (destino sin productos) y #2 (título sin
+imagen) cada vez que `Presentaciones` está visible, sin mirar qué COMPOSICIÓN la dibuja. Medido en
+el código (no asumido del spec): `GrindChooserRiel.tsx` —la composición `riel`, § `CORTE-
+PRESENTACIONES-RIEL-1`— importa `productosDelRiel` de `lib/storefront/presentaciones.ts` y NO
+importa `tarjetasDePresentaciones` (`grep` del símbolo en el archivo: cero apariciones, confirmado
+también por su propio comentario de cabecera, "SE RETIRARON de este componente"); las que SÍ la
+importan son `GrindChooserMosaico.tsx` e `GrindChooserIndice.tsx`. Bajo `riel` la portada pinta el
+CATÁLOGO vía `getCatalog()`, así que un destino rancio o un título sin imagen en los campos
+`label1..4`/`imagen1..4`/`categoria1..4` no es un hueco que el visitante vea — es config muerta
+bajo esa composición, y el aviso le mandaba al dueño de Las Chamisas a revisar un defecto que no
+existe en su tienda.
+
+### El fix — una declaración en POSITIVO, no un `variante !== 'riel'`
+
+El spec pedía explícitamente evitar el literal `'riel'` para que una composición futura que
+TAMPOCO pinte estas tarjetas no reabra el mismo falso aviso. Se declaró
+`VARIANTES_CON_TARJETAS = new Set(['mosaico', 'indice'])` (`lib/config/avisos-configuracion.ts`) y
+el loop de #1/#2 ahora exige `VARIANTES_CON_TARJETAS.has(pres.variante)` además de `visible !==
+false`. Es el mismo criterio de "preferir callar a afirmar sin base" que ya rige `catalogoListo`
+en el mismo módulo: una composición nueva nace AFUERA de la lista y no dispara el aviso hasta que
+alguien la sume a propósito, en vez de que cada composición nueva tenga que acordarse de excluirse.
+Los demás avisos (#8 WhatsApp, `checkout-sin-salida`, #9 pasarela desalineada) no dependen de
+`presentaciones` y no se tocaron.
+
+### Tests
+
+5 tests nuevos en `avisos-configuracion.test.ts` (38 tests totales en el archivo, antes 33):
+`riel` con destino inexistente + título sin imagen → cero avisos de tarjetas; `mosaico` e `indice`
+con los MISMOS defectos → siguen disparando igual que hoy (destino-1 + imagen-1); el aviso de
+WhatsApp sale igual bajo `riel` (no depende de la composición); `riel` + `visible:false` → sigue en
+cero. Verificado por lectura de la lógica (no por correr contra el código viejo con `git stash`,
+evitado a propósito por la pila de stash compartida entre worktrees): antes del fix, el `if` no
+tenía la condición de variante, así que las mismas entradas habrían producido `destino-1`/
+`imagen-1` también bajo `riel` — el nuevo test las habría encontrado en desacuerdo.
+
+### Gate
+
+`npm run gate` (`typecheck && npm test && npm run test:integracion`) en el árbol final:
+`tsc --noEmit` 0 errores · `npm test` 4136/4136 · `npm run test:integracion` 387/387 (Postgres
+efímero real, `:55432`). Las tres capas verdes; ningún archivo fuera de `touches:` cambiado
+(`git status --short`: sólo los dos `.ts` de `lib/config/`).
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos que este diff toca (`avisosDeConfiguracion`, `avisos-configuracion.ts`,
+`VARIANTES_CON_TARJETAS`, `tarjetasDePresentaciones`, `GrindChooserRiel`) contra `CLAUDE.md`:
+
+- **`CLAUDE.md:1911`** cita `` `lib/config/avisos-configuracion.ts:66` `` como la línea donde
+  `avisosDeConfiguracion` "ya ganó un cuarto argumento". **Esa cita YA ESTABA FALSA ANTES de este
+  diff** — medido contra `HEAD` (antes de este slice) la firma vivía en la línea **99**, no 66; mi
+  diff la corre de 99 a **114** (comentario nuevo de 15 líneas netas). El valor de verdad de la
+  cita (falsa) no lo cambió este diff, pero sí empeoró la distancia (99→114 en vez de 99→66). La
+  afirmación en sí (que la función tiene cuatro argumentos) sigue siendo cierta. No se corrige acá
+  — fuera de `touches:`, y es la misma familia que CLAUDE.md ya documenta como su propio modo de
+  falla ("un número en doctrina es una frase con fecha de vencimiento"). Anotado como follow-up
+  abajo.
+- **`CLAUDE.md:2514`** ("`tarjetasDePresentaciones` ... decide el COMPONENTE, no el resolver") y
+  **`CLAUDE.md:3035`** ("Vive en `avisosDeConfiguracion` ... afirmado que con Nayoli sano da CERO
+  avisos") — ninguna de las dos cita una línea ni queda falsa: `tarjetasDePresentaciones` sigue sin
+  cambios, y "Nayoli sano → CERO avisos" sigue verificado (el test del mismo nombre sigue pasando;
+  el `variante` default de Nayoli es `'mosaico'`, dentro del set nuevo).
+- **`CLAUDE.md:1920`** ("los avisos #3/#4 ... siguen SIN CONSTRUIRSE en `avisosDeConfiguracion`") —
+  sigue cierto: este slice no construyó #3/#4, sólo acotó #1/#2 por composición.
+
+Ningún otro grep (`AVISOS-PRESENTACIONES-RIEL`, antes de este asiento) devolvía resultado.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-LINEA-66-RANCIA-1`**: `CLAUDE.md:1911` cita `lib/config/avisos-configuracion.ts:66`
+  para la firma de `avisosDeConfiguracion`; ya estaba rancia antes de este slice (la firma vivía en
+  la 99) y este diff la corre más lejos (ahora 114). La afirmación (cuatro argumentos) sigue siendo
+  cierta — sólo el número envejeció, y venía envejecido de antes. `why_not_now`: fuera de
+  `touches:` de este slice (sólo escribe `lib/config/avisos-configuracion.ts`,
+  `avisos-configuracion.test.ts`, `DECISIONS.md`; corregir una cita de línea en otra sección de
+  CLAUDE.md no es parte del spec).
+
+### Verdict
+
+**COMPLETE.** El diff falla las tres condiciones de la política de merge A por la negativa: sin
+cambio de schema/migración, sin bytes de cliente (el storefront no cambia — `avisosDeConfiguracion`
+es lógica de panel, pura, server-side, que ningún visitante recibe), sin contrato cruzado de
+repositorio. Gate verde en el árbol final, commiteado en `slice/editor-secciones-1`. El orquestador
+hace el merge sin gate del owner.

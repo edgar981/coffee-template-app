@@ -147,6 +147,45 @@ test('Presentaciones OCULTA (visible:false) → sin avisos aunque haya defectos'
   assert.equal(avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
 });
 
+// ── AVISOS-PRESENTACIONES-RIEL-1 · LA COMPOSICIÓN 'riel' NO PINTA TARJETAS ─────────────────────────
+// Bajo 'riel' la portada pinta el CATÁLOGO (`productosDelRiel`, `GrindChooserRiel.tsx`), no las
+// tarjetas configuradas (label/imagen/categoría) — así que sus huecos no son huecos del visitante.
+
+test("variante 'riel' con tarjetas incompletas (destino inexistente Y título sin imagen) → CERO avisos de tarjetas", () => {
+  const c = conPresentaciones({ variante: 'riel', categoria1: 'Café Descafeinado', imagen1: '' });
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS);
+  assert.deepEqual(avisos.filter(a => a.clave.startsWith('presentaciones-')), []);
+});
+
+test("variante 'mosaico' con los MISMOS defectos → los mismos avisos de hoy (destino-1 e imagen-1)", () => {
+  const c = conPresentaciones({ variante: 'mosaico', categoria1: 'Café Descafeinado', imagen1: '' });
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS);
+  assert.deepEqual(
+    avisos.filter(a => a.clave.startsWith('presentaciones-')).map(a => a.clave).sort(),
+    ['presentaciones-destino-1', 'presentaciones-imagen-1'],
+  );
+});
+
+test("variante 'indice' con los MISMOS defectos → también dispara (sólo 'riel' se excluye)", () => {
+  const c = conPresentaciones({ variante: 'indice', categoria1: 'Café Descafeinado', imagen1: '' });
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS);
+  assert.deepEqual(
+    avisos.filter(a => a.clave.startsWith('presentaciones-')).map(a => a.clave).sort(),
+    ['presentaciones-destino-1', 'presentaciones-imagen-1'],
+  );
+});
+
+test("el aviso de WhatsApp sale igual bajo 'riel' — no depende de la composición de Presentaciones", () => {
+  const c = conPresentaciones({ variante: 'riel', categoria1: 'Café Descafeinado', imagen1: '' });
+  const avisos = avisosDeConfiguracion(c, CATS_ALINEADO, true, conWhatsapp(''));
+  assert.deepEqual(avisos.map(a => a.clave), ['negocio-whatsapp']);
+});
+
+test("'riel' con tarjetas incompletas Y sección OCULTA → sigue en CERO (las dos razones de silencio coexisten)", () => {
+  const c = conPresentaciones({ variante: 'riel', visible: false, categoria1: 'Inexistente', imagen1: '' });
+  assert.equal(avisosDeConfiguracion(c, CATS_ALINEADO, true, AJUSTES_SANOS).length, 0);
+});
+
 // ── #8 · WHATSAPP VACÍO ───────────────────────────────────────────────────────────────────────────
 // El checkout promete confirmar el pago por WhatsApp; sin número esa promesa se retira del storefront
 // (§ el gate del checkout) y el dueño tiene que enterarse de por qué.
