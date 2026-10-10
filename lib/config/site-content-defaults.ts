@@ -988,6 +988,24 @@ export interface SuscripcionFaqContent {
 //  · `intro` — la frase en primera persona bajo el H1. Vacío: no se muestra.
 //  · `antojoTitulo` — el encabezado del selector «¿Qué te provoca?» — SÍ tiene default (no es un
 //    dato del dueño como los dos de arriba, es COPY del selector), así que es REQUERIDO.
+// LA COMPOSICIÓN «APERTURA» (§ TIENDA-ONIX-CARTELERA-1, la forma C que el owner eligió sobre la
+// maqueta interactiva). Tres campos nuevos:
+//  · `imagen` — la foto a pantalla completa. OPCIONAL: sin ella, Apertura pinta una superficie de
+//    color tinta con el mismo título (§ el spec, "Sin foto, la apertura es una superficie de color
+//    tinta") — nunca un `<img>` roto ni una foto de stock inventada.
+//  · `rotuloIzquierda`/`rotuloDerecha` — los DOS micro-rótulos en mayúscula sobre la foto (p. ej.
+//    "Cosecha 2026" y el origen). AMBOS opcionales: son decoración, no algo que la página necesite
+//    para existir (§ la frontera fina de defaults-como-fallback) — vacíos, no se muestran.
+//  · `titulo` PASA A OPCIONAL (era requerido) para que Apertura pueda caer a "el nombre del negocio"
+//    cuando está vacío (§ el spec: "vacío → el nombre del negocio") — un fallback que el RESOLVER no
+//    puede dar (no conoce el nombre del negocio; `DEFAULTS` es código estático) y que por tanto
+//    tiene que resolver el COMPONENTE, igual que `logo.alt`/`NosotrosGaleria` ("opcional con
+//    fallback contextual"). «Actual»/«Carta» NO cambian de comportamiento: `TiendaEncabezado.tsx`
+//    aplica su MISMO fallback de siempre (`|| 'Nuestra Tienda'`) a nivel de componente, así que un
+//    `titulo` vacío sigue resolviendo exactamente igual que antes en esas dos composiciones —
+//    byte-idéntico en los dos sentidos: con fila (antes: requerido→default; ahora: opcional→'' en
+//    el resolver→'Nuestra Tienda' en el componente) y sin fila (DEFAULTS.titulo='Nuestra Tienda'
+//    de siempre, inalcanzado por la clasificación requerido/opcional).
 export interface TiendaEncabezadoContent {
   titulo: string;
   // Acompaña al conteo de productos, que sigue siendo DATO vivo (`getCatalog`), nunca contenido:
@@ -998,6 +1016,9 @@ export interface TiendaEncabezadoContent {
   intro: string;
   antojoTitulo: string;
   variante: string;
+  imagen: string;
+  rotuloIzquierda: string;
+  rotuloDerecha: string;
 }
 
 // EL BUSCADOR QUEDA FUERA A PROPÓSITO — DESVIACIÓN MEDIDA, no un campo olvidado. El placeholder de
@@ -1022,6 +1043,12 @@ export interface TiendaCatalogoContent {
   // color por orden sin que nadie edite nada.
   coloresPorProducto: Record<string, string>;
   variante: string;
+  // «TAQUILLA» (§ TIENDA-ONIX-CARTELERA-1): la barra de compra fija del celular, SÓLO con efecto bajo
+  // esa composición (§ el spec, item 6) — pero se edita siempre, mismo criterio que `coloresPorProducto`
+  // bajo «Láminas». Default `true`: un tenant que recién elige «Taquilla» la quiere encendida de
+  // arranque (es la forma recomendada, § la maqueta aprobada "Barra de compra en el celular: Encendida");
+  // Nayoli/«Actual»/«Láminas» nunca la leen, así que el default no les cambia nada.
+  barraFijaMovil: boolean;
 }
 
 // EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL de verdad: se
@@ -1030,11 +1057,19 @@ export interface TiendaCatalogoContent {
 // hay imagen por defecto que mostrar, y una imagen de stock sería una mentira de marca. `cita`/
 // `firma` OPCIONALES: "Nada de citas ni nombres en los defaults" (§ el invariante #44, la misma
 // familia que ya prohíbe reseñas fabricadas — una cita atribuida a alguien es un CLAIM, no copy).
+// LA COMPOSICIÓN «PLANO» (§ TIENDA-ONIX-CARTELERA-1): una foto documental a sangre con un pie en
+// micro-mayúsculas, SIN retrato ni cita atribuida — distinta de «Retrato y cita» (la canónica,
+// renombrada 'retrato' acá). `pie` es el ÚNICO campo nuevo —OPCIONAL, vacío no se muestra, mismo
+// criterio que `cita`/`firma`—; reusa el campo `imagen` que ya existía (misma foto, otro tratamiento
+// visual). `variante` entra como en `tiendaEncabezado`/`tiendaCatalogo`: canónica 'retrato', byte-
+// idéntica sin fila.
 export interface TiendaInterludioContent {
   visible: boolean;
   imagen: string;
   cita: string;
   firma: string;
+  variante: string;
+  pie: string;
 }
 
 // EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL, nace APAGADA
@@ -1043,11 +1078,31 @@ export interface TiendaInterludioContent {
 // franja arriba"); sin imagen, la tarjeta se queda sin esa franja (no se imita con CSS, § la
 // referencia). `frase`/`boton` son REQUERIDOS —a diferencia de la cita del interludio, no son un
 // CLAIM atribuido a nadie, son copy de la propia tienda— así que vacío cae al default neutro.
+// LA COMPOSICIÓN «FRASE Y BOTÓN» (§ TIENDA-ONIX-CARTELERA-1): reusa `frase`/`boton` TAL CUAL —CERO
+// campos nuevos—, sólo que sin la franja de tejido ni el marco de «Costura» (la canónica, renombrada
+// 'costura' acá). `variante`, mismo patrón que el resto: canónica 'costura', byte-idéntica sin fila.
 export interface TiendaCierreContent {
   visible: boolean;
   franjaTejido: string;
   frase: string;
   boton: string;
+  variante: string;
+}
+
+// LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1, sección NUEVA, opcional). REPEATER
+// etiqueta/valor, nace VACÍA —"DEFAULTS VACÍOS: ningún dato de finca vive en el código" (§ el spec)—,
+// mismo criterio que testimonios/#44: ningún dato de finca se hornea. `ocultable:true`, y SE OCULTA
+// ADEMÁS con menos de 3 filas (§ `lib/tienda/creditos.ts`, `creditosVisibles`) — un umbral MÁS
+// ESTRICTO que el hide-on-empty genérico de un repeater (array vacío), que el COMPONENTE aplica
+// además del toggle, no el resolver (mismo patrón que `mostrarSelectorAntojo`/`mostrarCreditos`: una
+// decisión de PRESENTACIÓN, no de modelo).
+export interface TiendaCreditoItem {
+  etiqueta: string;
+  valor: string;
+}
+export interface TiendaCreditosContent {
+  visible: boolean;
+  items: TiendaCreditoItem[];
 }
 
 // Los TRES ítems CONOCIDOS del menú del nav (§ CROMO-MENU-COMO-DATO-1) — set CERRADO: no se
@@ -1811,6 +1866,7 @@ export interface SiteContentData {
   suscripcionFaq: SuscripcionFaqContent;
   tiendaEncabezado: TiendaEncabezadoContent;
   tiendaCatalogo: TiendaCatalogoContent;
+  tiendaCreditos: TiendaCreditosContent;
   tiendaInterludio: TiendaInterludioContent;
   tiendaCierre: TiendaCierreContent;
   menu: MenuContent;
@@ -2341,6 +2397,12 @@ export const DEFAULTS: SiteContentData = {
     intro: '',
     antojoTitulo: '¿Qué te provoca?',
     variante: 'actual',
+    // Los TRES campos de «Apertura» (§ TIENDA-ONIX-CARTELERA-1): los tres VACÍOS — `imagen` sin foto
+    // cae a la superficie de color tinta (§ TiendaEncabezadoContent); `rotuloIzquierda`/`rotuloDerecha`
+    // son decoración opcional, sin default inventado (misma regla que `sticker`/`intro`).
+    imagen: '',
+    rotuloIzquierda: '',
+    rotuloDerecha: '',
   },
   tiendaCatalogo: {
     vacioTitulo: 'Sin resultados',
@@ -2349,6 +2411,17 @@ export const DEFAULTS: SiteContentData = {
     // mapa) asigna colores por orden de catálogo, derivados de SU tema (§ TiendaCatalogoContent).
     coloresPorProducto: {},
     variante: 'actual',
+    // «Taquilla» (§ TIENDA-ONIX-CARTELERA-1): encendida de arranque (§ TiendaCatalogoContent) —
+    // Nayoli/«Actual»/«Láminas» nunca la leen, así que no cambia nada para ellas.
+    barraFijaMovil: true,
+  },
+  // LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1) — nace SIN filas, byte-idéntico sin
+  // fila de SiteContent (ningún tenant ve nada nuevo). `visible:true` es el default de arranque
+  // (como `testimonials`/`suscripcionFaq`): el PISO de 3 filas completas, no este flag, es lo que
+  // decide si algo se muestra con un array casi vacío.
+  tiendaCreditos: {
+    visible: true,
+    items: [],
   },
   // § TIENDA-CHAMISAS-ALBUM-1 — nacen las DOS APAGADAS (`visible:false`): sin fila de SiteContent,
   // ningún tenant ve nada nuevo — byte-idéntico. `cita`/`firma` del interludio VACÍAS a propósito
@@ -2359,12 +2432,19 @@ export const DEFAULTS: SiteContentData = {
     imagen: '',
     cita: '',
     firma: '',
+    // «Plano» (§ TIENDA-ONIX-CARTELERA-1): canónica 'retrato' (renombrada, antes la única); `pie`
+    // vacío, mismo criterio que `cita`/`firma` — sin default inventado.
+    variante: 'retrato',
+    pie: '',
   },
   tiendaCierre: {
     visible: false,
     franjaTejido: '',
     frase: '¿Quieres recibir tu pedido todos los meses? Lo coordinamos por WhatsApp.',
     boton: 'Escríbenos',
+    // «Frase y botón» (§ TIENDA-ONIX-CARTELERA-1): canónica 'costura' (renombrada, antes la única) —
+    // sin campos propios, reusa `frase`/`boton` de arriba.
+    variante: 'costura',
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
   // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
@@ -3136,15 +3216,23 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     label: 'Encabezado de la tienda',
     ocultable: false,
     // 'carta' (§ TIENDA-CHAMISAS-ALBUM-1): la línea «cálida, hecha por mujeres» — H1 en primera
-    // persona, sticker girado, intro, y el selector «¿Qué te provoca?». Segunda clave del set, nunca
-    // reemplaza a 'actual' (§ el spec: "«Actual» sigue siendo el default").
-    variantes: { claves: ['actual', 'carta'], canonica: 'actual' },
+    // persona, sticker girado, intro, y el selector «¿Qué te provoca?». 'apertura' (§
+    // TIENDA-ONIX-CARTELERA-1): la forma C del owner — foto a pantalla completa con el H1 gigante
+    // encima. Nunca reemplazan a 'actual' (§ el spec: "«Actual» sigue siendo el default").
+    variantes: { claves: ['actual', 'carta', 'apertura'], canonica: 'actual' },
+    imagenes: ['imagen'],
     campos: {
-      titulo: 'requerido',
+      // `titulo` PASÓ A OPCIONAL (§ TIENDA-ONIX-CARTELERA-1, ver el docstring de
+      // `TiendaEncabezadoContent`) — "Actual"/"Carta" quedan byte-idénticas vía el fallback que
+      // ahora aplica el COMPONENTE, no el resolver.
+      titulo: 'opcional',
       leyenda: 'requerido',
       sticker: 'opcional',
       intro: 'opcional',
       antojoTitulo: 'requerido',
+      imagen: 'opcional',
+      rotuloIzquierda: 'opcional',
+      rotuloDerecha: 'opcional',
     },
   },
   tiendaCatalogo: {
@@ -3153,8 +3241,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // 'laminas' (§ TIENDA-CHAMISAS-ALBUM-1): un color por café, elegible o por orden de la paleta
     // derivada del tema (§ `mapas`, abajo). Con más de 6 productos cae sola a la grilla de 'actual'
     // (§ `lib/tienda/antojo.ts`, `mostrarSelectorAntojo`) — no es un tercer valor de `variante`, es
-    // una decisión del COMPONENTE sobre los MISMOS dos valores.
-    variantes: { claves: ['actual', 'laminas'], canonica: 'actual' },
+    // una decisión del COMPONENTE sobre los MISMOS dos valores. 'taquilla' (§
+    // TIENDA-ONIX-CARTELERA-1): matriz categoria×peso_gramos derivada SOLA del catálogo
+    // (`lib/tienda/taquilla.ts`); sin matriz válida cae sola a 'actual', mismo criterio que 'laminas'.
+    variantes: { claves: ['actual', 'laminas', 'taquilla'], canonica: 'actual' },
+    // `barraFijaMovil` (§ TIENDA-ONIX-CARTELERA-1, el spec item 6): SÓLO tiene efecto bajo
+    // 'taquilla', pero se edita siempre — mismo criterio que `coloresPorProducto` bajo 'laminas'.
+    booleanos: ['barraFijaMovil'],
     campos: {
       vacioTitulo: 'requerido',
       vacioTexto: 'requerido',
@@ -3163,27 +3256,53 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // clave meta aparte— porque viaja en el MISMO borrador/publish que el resto del Catálogo.
     mapas: ['coloresPorProducto'],
   },
+  // LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1, ver el docstring de
+  // `TiendaCreditosContent` arriba). `ocultable:true`, nace con `items:[]` (DEFAULTS vacíos — ningún
+  // dato de finca en el código, § #44). Repeater `etiqueta`/`valor`, los DOS 'requerido': una fila con
+  // uno de los dos vacío no es media fila mostrable — es el COMPONENTE (`creditosVisibles`,
+  // lib/tienda/creditos.ts) el que exige además el PISO de 3 filas completas para mostrarse, no este
+  // mapa requerido/opcional (que sólo gobierna default-vs-omit por CAMPO, no una regla de CONTEO).
+  tiendaCreditos: {
+    label: 'Créditos: ficha de origen',
+    ocultable: true,
+    imagenes: [],
+    campos: {},
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        etiqueta: 'requerido',
+        valor: 'requerido',
+      },
+    },
+  },
   // § TIENDA-CHAMISAS-ALBUM-1 — Interludio «Retrato y cita»: `ocultable:true`, nace APAGADA
   // (DEFAULTS.tiendaInterludio.visible=false). `imagenes` nombra `imagen` para que el borrado de
   // blobs reemplazados (`imagenesDe`) la vea — sin esto, una foto reemplazada quedaría huérfana en
-  // el storage para siempre (§ CLAUDE.md, "El borrado de blobs por ítem…").
+  // el storage para siempre (§ CLAUDE.md, "El borrado de blobs por ítem…"). 'plano' (§
+  // TIENDA-ONIX-CARTELERA-1): foto documental a sangre + pie, SIN retrato ni cita — reusa `imagen`,
+  // suma `pie` (el único campo nuevo). Canónica renombrada 'retrato' (antes la única, sin nombre).
   tiendaInterludio: {
     label: 'Interludio: retrato y cita',
     ocultable: true,
+    variantes: { claves: ['retrato', 'plano'], canonica: 'retrato' },
     imagenes: ['imagen'],
     campos: {
       imagen: 'opcional',
       cita: 'opcional',
       firma: 'opcional',
+      pie: 'opcional',
     },
   },
   // § TIENDA-CHAMISAS-ALBUM-1 — Cierre «Costura»: `ocultable:true`, nace APAGADA. `franjaTejido` es
   // la franja de tejido de LA PÁGINA (§ el spec, item 5) — vive acá porque Costura es quien la
   // necesita siempre ("la franja arriba"); `frase`/`boton` REQUERIDOS (copy propio de la tienda, no
-  // un claim atribuido a nadie, así que caen al default neutro si quedan vacíos).
+  // un claim atribuido a nadie, así que caen al default neutro si quedan vacíos). 'fraseYBoton' (§
+  // TIENDA-ONIX-CARTELERA-1): CERO campos nuevos — reusa `frase`/`boton` tal cual, sin la franja ni
+  // el marco con filete de «Costura». Canónica renombrada 'costura' (antes la única, sin nombre).
   tiendaCierre: {
     label: 'Cierre: costura',
     ocultable: true,
+    variantes: { claves: ['costura', 'fraseYBoton'], canonica: 'costura' },
     imagenes: ['franjaTejido'],
     campos: {
       franjaTejido: 'opcional',

@@ -26,28 +26,31 @@ test('SECCIONES_TIENDA declara tiendaEncabezado y tiendaCatalogo en la página "
   assert.equal(catalogo!.ocultable, false);
 });
 
-// § TIENDA-CHAMISAS-ALBUM-1 GANÓ la segunda composición de cada sección («Carta»/«Láminas») —
-// este test documentaba la premisa "sólo existe «Actual»" de la tanda anterior, y ESE slice ya
-// anticipaba el cambio: "deja el slot de composición listo para que un slice futuro agregue
-// Cartel/Taquilla sin tocar el resolver". Lo que sigue siendo cierto, y lo que este test afirma
-// ahora, es que «actual» SIGUE siendo la CANÓNICA (el default, byte-idéntico sin fila) — la
-// composición nueva es la SEGUNDA clave, nunca el reemplazo.
-test('REGISTRY.tiendaEncabezado/.tiendaCatalogo: "actual" sigue siendo la CANÓNICA, con una segunda composición sumada', () => {
-  assert.deepEqual(REGISTRY.tiendaEncabezado.variantes?.claves, ['actual', 'carta']);
+// § TIENDA-CHAMISAS-ALBUM-1 sumó la segunda composición de cada sección («Carta»/«Láminas»);
+// § TIENDA-ONIX-CARTELERA-1 sumó la TERCERA («Apertura»/«Taquilla») — este test documentaba la
+// premisa "sólo existe «Actual»" de la tanda original, y esa tanda ya anticipaba el cambio: "deja
+// el slot de composición listo para que un slice futuro agregue Cartel/Taquilla sin tocar el
+// resolver". Lo que sigue siendo cierto, y lo que este test afirma ahora, es que «actual» SIGUE
+// siendo la CANÓNICA (el default, byte-idéntico sin fila) — cada composición nueva es una clave
+// MÁS, nunca el reemplazo.
+test('REGISTRY.tiendaEncabezado/.tiendaCatalogo: "actual" sigue siendo la CANÓNICA, con la tercera composición sumada', () => {
+  assert.deepEqual(REGISTRY.tiendaEncabezado.variantes?.claves, ['actual', 'carta', 'apertura']);
   assert.equal(REGISTRY.tiendaEncabezado.variantes?.canonica, 'actual');
-  assert.deepEqual(REGISTRY.tiendaCatalogo.variantes?.claves, ['actual', 'laminas']);
+  assert.deepEqual(REGISTRY.tiendaCatalogo.variantes?.claves, ['actual', 'laminas', 'taquilla']);
   assert.equal(REGISTRY.tiendaCatalogo.variantes?.canonica, 'actual');
 });
 
-test('cada SeccionConfig de /tienda ofrece «Actual» PRIMERO, y una segunda composición — nunca menos de dos, nunca "actual" fuera del primer lugar', () => {
+test('cada SeccionConfig de /tienda ofrece «Actual» PRIMERO, y ahora TRES composiciones — "actual" nunca fuera del primer lugar', () => {
   const encabezado = SECCIONES_TIENDA.find((c) => c.seccion === 'tiendaEncabezado')!;
   const catalogo = SECCIONES_TIENDA.find((c) => c.seccion === 'tiendaCatalogo')!;
-  assert.equal(encabezado.composiciones?.length, 2);
+  assert.equal(encabezado.composiciones?.length, 3);
   assert.equal(encabezado.composiciones?.[0].value, 'actual');
   assert.equal(encabezado.composiciones?.[1].value, 'carta');
-  assert.equal(catalogo.composiciones?.length, 2);
+  assert.equal(encabezado.composiciones?.[2].value, 'apertura');
+  assert.equal(catalogo.composiciones?.length, 3);
   assert.equal(catalogo.composiciones?.[0].value, 'actual');
   assert.equal(catalogo.composiciones?.[1].value, 'laminas');
+  assert.equal(catalogo.composiciones?.[2].value, 'taquilla');
 });
 
 // ─── SIN FILA → el resultado es el DE HOY (byte-idéntico) ─────────────────────────────────────────
@@ -74,9 +77,15 @@ test('DEFAULTS.tiendaEncabezado/.tiendaCatalogo coinciden con lo que resolverSit
 
 // ─── CAMPOS REQUERIDOS: vacío cae al default (el storefront nunca queda sin texto) ────────────────
 
-test('tiendaEncabezado.titulo/leyenda vacíos caen al default — requerido, nunca en blanco', () => {
+// `titulo` PASÓ A OPCIONAL (§ TIENDA-ONIX-CARTELERA-1, para que "Apertura" pueda caer al nombre del
+// negocio en vez de un texto de código): a nivel de RESOLVER, un `titulo` guardado vacío YA NO cae
+// al default — se omite (`''`), como cualquier campo opcional. El fallback a 'Nuestra Tienda' para
+// «Actual»/«Carta» sigue existiendo, pero se movió al COMPONENTE (`TiendaEncabezado.tsx`), no a este
+// resolver — por eso este test, que mide sólo el resolver, cambia de expectativa. `leyenda` sigue
+// requerida y sigue cayendo al default acá mismo.
+test('tiendaEncabezado.titulo vacío se OMITE en el resolver (opcional, § Apertura); leyenda vacía sigue cayendo al default (requerida)', () => {
   const r = resolverSiteContent({ tiendaEncabezado: { titulo: '', leyenda: '' } });
-  assert.equal(r.tiendaEncabezado.titulo, 'Nuestra Tienda');
+  assert.equal(r.tiendaEncabezado.titulo, '');
   assert.equal(r.tiendaEncabezado.leyenda, 'Origen colombiano');
 });
 
@@ -110,7 +119,9 @@ test('tiendaEncabezado.variante: basura/ausente cae a "actual", nunca lanza', ()
 
 test('tiendaCatalogo.variante: basura/ausente cae a "actual", nunca lanza', () => {
   assert.equal(resolverSiteContent({}).tiendaCatalogo.variante, 'actual');
-  assert.equal(resolverSiteContent({ tiendaCatalogo: { variante: 'taquilla' } }).tiendaCatalogo.variante, 'actual');
+  // 'taquilla' es, desde § TIENDA-ONIX-CARTELERA-1, una clave VÁLIDA (ya no basura) — la basura de
+  // este caso pasa a ser un nombre que el set cerrado nunca tuvo.
+  assert.equal(resolverSiteContent({ tiendaCatalogo: { variante: 'mosaico' } }).tiendaCatalogo.variante, 'actual');
 });
 
 // ─── EL BUSCADOR NO ES CONTENIDO (§ el docstring de TiendaCatalogoContent) — no hay campo que leer ─

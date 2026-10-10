@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaInterludio' | 'tiendaCierre';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1172,7 +1172,7 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // GANÓ una segunda clave en § TIENDA-CHAMISAS-ALBUM-1 («Carta»/«Láminas», la línea «cálida, hecha por
 // mujeres»), así que el label YA NO puede ser 'Actual' a secas para las dos — un mapa por clave,
 // como `LABEL_COMPOSICION_HERO`.
-const LABEL_COMPOSICION_TIENDA_ENCABEZADO: Record<string, string> = { actual: 'Actual', carta: 'Carta' };
+const LABEL_COMPOSICION_TIENDA_ENCABEZADO: Record<string, string> = { actual: 'Actual', carta: 'Carta', apertura: 'Apertura' };
 const ZONAS_TIENDA_ENCABEZADO: ZonaComposicion[] = [
   { campos: ['titulo'], label: 'Título' },
   { campos: ['leyenda'], label: 'Leyenda' },
@@ -1186,16 +1186,54 @@ const ZONAS_TIENDA_ENCABEZADO_CARTA: ZonaComposicion[] = [
   { campos: ['intro'], label: 'Intro en primera persona' },
   { campos: ['antojoTitulo'], label: 'Título del selector' },
 ];
+// LAS ZONAS DE «APERTURA» (§ TIENDA-ONIX-CARTELERA-1): el H1 gigante, los dos micro-rótulos y la
+// foto a pantalla completa — `leyenda`/`sticker`/`intro`/`antojoTitulo` no tienen efecto acá (los
+// lee «Actual»/«Carta»), así que no entran a esta lista de zonas.
+const ZONAS_TIENDA_ENCABEZADO_APERTURA: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['rotuloIzquierda', 'rotuloDerecha'], label: 'Micro-rótulos' },
+  { campos: ['imagen'], label: 'Foto' },
+];
 const OPCIONES_COMPOSICION_TIENDA_ENCABEZADO: ComposicionOpcion[] = REGISTRY.tiendaEncabezado.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_TIENDA_ENCABEZADO[v] ?? v,
-  zonas: v === 'carta' ? ZONAS_TIENDA_ENCABEZADO_CARTA : ZONAS_TIENDA_ENCABEZADO,
+  zonas: v === 'carta' ? ZONAS_TIENDA_ENCABEZADO_CARTA : v === 'apertura' ? ZONAS_TIENDA_ENCABEZADO_APERTURA : ZONAS_TIENDA_ENCABEZADO,
 }));
-const LABEL_COMPOSICION_TIENDA_CATALOGO: Record<string, string> = { actual: 'Actual', laminas: 'Láminas' };
+const LABEL_COMPOSICION_TIENDA_CATALOGO: Record<string, string> = { actual: 'Actual', laminas: 'Láminas', taquilla: 'Taquilla' };
 const ZONAS_TIENDA_CATALOGO: ZonaComposicion[] = [
   { campos: ['vacioTitulo', 'vacioTexto'], label: 'Sin resultados' },
 ];
 const OPCIONES_COMPOSICION_TIENDA_CATALOGO: ComposicionOpcion[] = REGISTRY.tiendaCatalogo.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_TIENDA_CATALOGO[v] ?? v, zonas: ZONAS_TIENDA_CATALOGO,
+}));
+// LA COMPOSICIÓN DEL INTERLUDIO (§ TIENDA-ONIX-CARTELERA-1): «Retrato y cita» (la canónica) sigue sus
+// zonas de siempre; «Plano» cambia `cita`/`firma` por `pie`, reusando `imagen`.
+const LABEL_COMPOSICION_TIENDA_INTERLUDIO: Record<string, string> = { retrato: 'Retrato y cita', plano: 'Plano' };
+const ZONAS_TIENDA_INTERLUDIO_RETRATO: ZonaComposicion[] = [
+  { campos: ['cita'], label: 'Cita' },
+  { campos: ['firma'], label: 'Firma' },
+  { campos: ['imagen'], label: 'Retrato' },
+];
+const ZONAS_TIENDA_INTERLUDIO_PLANO: ZonaComposicion[] = [
+  { campos: ['pie'], label: 'Pie de foto' },
+  { campos: ['imagen'], label: 'Foto' },
+];
+const OPCIONES_COMPOSICION_TIENDA_INTERLUDIO: ComposicionOpcion[] = REGISTRY.tiendaInterludio.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_TIENDA_INTERLUDIO[v] ?? v,
+  zonas: v === 'plano' ? ZONAS_TIENDA_INTERLUDIO_PLANO : ZONAS_TIENDA_INTERLUDIO_RETRATO,
+}));
+// LA COMPOSICIÓN DEL CIERRE (§ TIENDA-ONIX-CARTELERA-1): «Costura» (la canónica) suma la franja de
+// tejido a su zona; «Frase y botón» no tiene campos propios —reusa `frase`/`boton` tal cual—.
+const LABEL_COMPOSICION_TIENDA_CIERRE: Record<string, string> = { costura: 'Costura', fraseYBoton: 'Frase y botón' };
+const ZONAS_TIENDA_CIERRE_COSTURA: ZonaComposicion[] = [
+  { campos: ['frase', 'boton'], label: 'Frase y botón' },
+  { campos: ['franjaTejido'], label: 'Franja de tejido' },
+];
+const ZONAS_TIENDA_CIERRE_FRASEYBOTON: ZonaComposicion[] = [
+  { campos: ['frase', 'boton'], label: 'Frase y botón' },
+];
+const OPCIONES_COMPOSICION_TIENDA_CIERRE: ComposicionOpcion[] = REGISTRY.tiendaCierre.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_TIENDA_CIERRE[v] ?? v,
+  zonas: v === 'fraseYBoton' ? ZONAS_TIENDA_CIERRE_FRASEYBOTON : ZONAS_TIENDA_CIERRE_COSTURA,
 }));
 
 // Título + conteo de productos + leyenda. El CONTEO sigue siendo DATO vivo (`getCatalog`), no
@@ -1210,13 +1248,17 @@ const TIENDA_ENCABEZADO: SeccionConfig = {
   titulo: 'Encabezado de la tienda',
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_TIENDA_ENCABEZADO,
-  imagenes: [],
+  imagenes: [
+    { name: 'imagen', label: 'Foto de fondo', opcional: true },
+  ],
   campos: [
-    { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'titulo', label: 'Título', opcional: true, hint: 'Vacío: se usa el texto por defecto (con la composición "Apertura", el nombre del negocio).' },
     { name: 'leyenda', label: 'Leyenda', hint: 'Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
     { name: 'sticker', label: 'Sticker girado', opcional: true, hint: 'Sólo con la composición "Carta". Un texto corto junto al título, p. ej. "cosecha 2026". Vacío: no se muestra.' },
     { name: 'intro', label: 'Intro en primera persona', opcional: true, textarea: true, hint: 'Sólo con la composición "Carta". Dos líneas como máximo. Vacío: no se muestra.' },
     { name: 'antojoTitulo', label: 'Título del selector', hint: 'Sólo con la composición "Carta", y sólo con 6 productos o menos. Vacío: se usa el texto por defecto.' },
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "Cosecha 2026". Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. el origen. Vacío: no se muestra.' },
   ],
 };
 
@@ -1232,11 +1274,39 @@ const TIENDA_CATALOGO: SeccionConfig = {
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_TIENDA_CATALOGO,
   coloresPorProducto: true,
+  // `barraFijaMovil` (§ TIENDA-ONIX-CARTELERA-1): sólo tiene efecto bajo "Taquilla" — el hint lo dice,
+  // mismo criterio que `coloresPorProducto` bajo "Láminas".
+  booleanos: [
+    { name: 'barraFijaMovil', label: 'Barra de compra fija en el celular', hint: 'Sólo con la composición "Taquilla". Aparece en el celular cuando el botón "Agregar" sale de pantalla.' },
+  ],
   imagenes: [],
   campos: [
     { name: 'vacioTitulo', label: 'Título · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'vacioTexto', label: 'Texto · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
   ],
+};
+
+// LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1) — repeater etiqueta/valor, `ocultable:
+// true`, nace sin filas. El piso de 3 filas completas para mostrarse (§ `creditosVisibles`, lib/
+// tienda/creditos.ts) es del COMPONENTE, no de este editor: con 1 o 2 filas el operador sigue
+// pudiendo verlas y editarlas acá, sólo que la tienda no las muestra todavía.
+const TIENDA_CREDITOS: SeccionConfig = {
+  seccion: 'tiendaCreditos',
+  pagina: 'tienda',
+  titulo: 'Créditos: ficha de origen',
+  ocultable: true,
+  notaVisibilidad: 'Con menos de 3 filas completas, la sección no se muestra aunque el interruptor esté encendido.',
+  imagenes: [],
+  campos: [],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Fila',
+    campos: [
+      { name: 'etiqueta', label: 'Rótulo', tipo: 'texto', resumen: 'principal', hint: 'P. ej. "Origen", "Altitud". Se muestra en mayúscula.' },
+      { name: 'valor', label: 'Valor', tipo: 'texto', resumen: 'detalle', hint: 'P. ej. "San Adolfo, Huila".' },
+    ],
+    max: 8,
+  },
 };
 
 // EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace apagado. Se
@@ -1247,10 +1317,13 @@ const TIENDA_INTERLUDIO: SeccionConfig = {
   pagina: 'tienda',
   titulo: 'Interludio: retrato y cita',
   ocultable: true,
-  imagenes: [{ name: 'imagen', label: 'Retrato', opcional: true }],
+  composiciones: OPCIONES_COMPOSICION_TIENDA_INTERLUDIO,
+  imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
-    { name: 'cita', label: 'Cita', opcional: true, textarea: true, hint: 'En primera persona. Vacío: no se muestra.' },
-    { name: 'firma', label: 'Firma', opcional: true, hint: 'P. ej. "Marcela, vereda El Roble". Vacío: no se muestra.' },
+    { name: 'cita', label: 'Cita', opcional: true, textarea: true, hint: 'Sólo con la composición "Retrato y cita". En primera persona. Vacío: no se muestra.' },
+    { name: 'firma', label: 'Firma', opcional: true, hint: 'Sólo con la composición "Retrato y cita". P. ej. "Marcela, vereda El Roble". Vacío: no se muestra.' },
+    // «Plano» (§ TIENDA-ONIX-CARTELERA-1): una sola foto documental a sangre + su pie.
+    { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Sólo con la composición "Plano". Texto corto en mayúscula, p. ej. "Recolección a mano · marzo–junio". Vacío: no se muestra.' },
   ],
 };
 
@@ -1263,6 +1336,7 @@ const TIENDA_CIERRE: SeccionConfig = {
   pagina: 'tienda',
   titulo: 'Cierre: costura',
   ocultable: true,
+  composiciones: OPCIONES_COMPOSICION_TIENDA_CIERRE,
   notaVisibilidad: 'El botón a WhatsApp sólo aparece si el negocio tiene un número configurado en Configuración.',
   imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true }],
   campos: [
@@ -1295,4 +1369,7 @@ const TIENDA_CIERRE: SeccionConfig = {
 // montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
 // SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
 // no sugerir un orden que el storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_INTERLUDIO, TIENDA_CIERRE, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+// TIENDA_CREDITOS va justo tras TIENDA_CATALOGO (§ TIENDA-ONIX-CARTELERA-1): es la posición real en
+// la página, tanto en «Actual» (donde queda ignorada por su piso de 3 filas, § DEFAULTS vacío) como
+// bajo Apertura/Taquilla/Créditos/Plano/Cierre, el orden del spec.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

@@ -400,6 +400,8 @@ const suscripcionFaqEditableSchema = z.object({
 // con composición (`z.string()`, clampada SOFT por `resolverVariante` al leer, no acá).
 // § TIENDA-CHAMISAS-ALBUM-1 — `sticker`/`intro`/`antojoTitulo`: TRES campos más de la composición
 // «Carta», SOFT como el resto (string, sin `min(1)` — el vacío es legítimo, § el resolver).
+// § TIENDA-ONIX-CARTELERA-1 — `imagen`/`rotuloIzquierda`/`rotuloDerecha`: los TRES campos de la
+// composición «Apertura», SOFT como el resto.
 const tiendaEncabezadoEditableSchema = z.object({
   titulo: z.string().optional(),
   leyenda: z.string().optional(),
@@ -407,32 +409,54 @@ const tiendaEncabezadoEditableSchema = z.object({
   intro: z.string().optional(),
   antojoTitulo: z.string().optional(),
   variante: z.string().optional(),
+  imagen: z.string().optional(),
+  rotuloIzquierda: z.string().optional(),
+  rotuloDerecha: z.string().optional(),
 });
 // `coloresPorProducto` (§ TIENDA-CHAMISAS-ALBUM-1, `SeccionDef.mapas`): `z.record(z.string(),
 // z.string())`, KEY-AGNÓSTICO —MISMO patrón que `variantesBandasEditableSchema`/`esquemasEditableSchema`
 // (abajo)—, SOFT: el valor sobrevive el schema aunque no sea un hex válido; el resolver
 // (`resolverMapaColor`) es quien lo filtra al leer. Sin declararlo, zod lo STRIPPEARÍA al guardar
 // (§ #65-B).
+// `barraFijaMovil` (§ TIENDA-ONIX-CARTELERA-1): el booleano de sección de la barra de compra fija
+// del celular — SOFT como `coloresPorProducto`.
 const tiendaCatalogoEditableSchema = z.object({
   vacioTitulo: z.string().optional(),
   vacioTexto: z.string().optional(),
   coloresPorProducto: z.record(z.string(), z.string()).optional(),
   variante: z.string().optional(),
+  barraFijaMovil: z.boolean().optional(),
+});
+
+// LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1) — repeater etiqueta/valor, SOFT como
+// el resto (sin `min(1)`: el vacío es legítimo, la validación de requeridos es del editor).
+const tiendaCreditosItemSchema = z.object({
+  etiqueta: z.string().optional(),
+  valor: z.string().optional(),
+});
+const tiendaCreditosEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  items: z.array(tiendaCreditosItemSchema).optional(),
 });
 
 // § TIENDA-CHAMISAS-ALBUM-1 — Interludio y Cierre: las DOS secciones nuevas de /tienda. `visible`
 // SOBREVIVE (§ #65-B) como cualquier sección `ocultable`; los campos de texto/imagen son SOFT.
+// `variante`/`pie` (§ TIENDA-ONIX-CARTELERA-1): la composición «Plano».
 const tiendaInterludioEditableSchema = z.object({
   visible: z.boolean().optional(),
   imagen: z.string().optional(),
   cita: z.string().optional(),
   firma: z.string().optional(),
+  variante: z.string().optional(),
+  pie: z.string().optional(),
 });
+// `variante` (§ TIENDA-ONIX-CARTELERA-1): la composición «Frase y botón» — sin campos propios.
 const tiendaCierreEditableSchema = z.object({
   visible: z.boolean().optional(),
   franjaTejido: z.string().optional(),
   frase: z.string().optional(),
   boton: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
@@ -1001,6 +1025,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   tiendaEncabezado: tiendaEncabezadoEditableSchema.optional(),
   tiendaCatalogo: tiendaCatalogoEditableSchema.optional(),
+  tiendaCreditos: tiendaCreditosEditableSchema.optional(),
   tiendaInterludio: tiendaInterludioEditableSchema.optional(),
   tiendaCierre: tiendaCierreEditableSchema.optional(),
   menu: menuEditableSchema.optional(),

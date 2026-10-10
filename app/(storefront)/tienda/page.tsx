@@ -5,6 +5,7 @@ import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
+import TiendaCreditos from '@/components/storefront/tienda/TiendaCreditos';
 import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
 import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
 
@@ -96,25 +97,53 @@ function ShopCorte({ whatsapp }: { whatsapp?: string }) {
   );
 }
 
+// ─── LA RAMA APERTURA (§ TIENDA-ONIX-CARTELERA-1) ──────────────────────────────────────────────────
+// A diferencia de `ShopLegacy`/`ShopCorte`, el encabezado va FUERA de `contenedorClase mx-auto`: la
+// Apertura es una foto a pantalla completa con el H1 encima, y ningún ancho máximo puede contenerla
+// (§ TiendaEncabezado.tsx, `TiendaApertura`). El catálogo (Taquilla u otra) sigue contenido, como en
+// las otras dos ramas — es la pieza que SÍ vive dentro del ancho de lectura de la tienda.
+// INDEPENDIENTE de `navTratamiento.posicion`, como «Carta»/«Láminas»: la Apertura tiene su propio
+// tratamiento visual, no las dos ramas Legacy/Corte.
+function ShopApertura({ whatsapp, negocio }: { whatsapp?: string; negocio?: string }) {
+  const { navTratamiento } = useSiteContent();
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  const offsetClase = navOffsetClase(navTratamiento.posicion);
+
+  return (
+    <div className={offsetClase}>
+      <TiendaEncabezado negocio={negocio} />
+      <div className={`${contenedorClase} mx-auto py-16`}>
+        <TiendaCatalogo whatsapp={whatsapp} />
+      </div>
+    </div>
+  );
+}
+
 // `whatsapp` SE AGREGA COMO PROP (§ TIENDA-CHAMISAS-ALBUM-1) — pasa de mano hasta `TiendaCatalogo`
 // para «Avísame por WhatsApp» en una lámina agotada. Un prop que ninguna rama de «Actual» lee no
 // cambia un solo byte renderizado (no hay HTML por un prop no consumido), así que esto no rompe el
-// byte-idéntico que el docstring de arriba promete.
-function ShopInner({ whatsapp }: { whatsapp?: string }) {
-  const { navTratamiento } = useSiteContent();
+// byte-idéntico que el docstring de arriba promete. `negocio` (§ TIENDA-ONIX-CARTELERA-1) sigue el
+// MISMO criterio — sólo lo consume `TiendaApertura`, para el fallback "vacío → el nombre del
+// negocio" del H1 gigante.
+function ShopInner({ whatsapp, negocio }: { whatsapp?: string; negocio?: string }) {
+  const { navTratamiento, tiendaEncabezado } = useSiteContent();
+  if (tiendaEncabezado.variante === 'apertura') return <ShopApertura whatsapp={whatsapp} negocio={negocio} />;
   return navTratamiento.posicion ? <ShopCorte whatsapp={whatsapp} /> : <ShopLegacy whatsapp={whatsapp} />;
 }
 
-// ─── INTERLUDIO + CIERRE (§ TIENDA-CHAMISAS-ALBUM-1) — fuera de ShopLegacy/ShopCorte a propósito ──
-// Las DOS secciones nuevas se montan DESPUÉS de `ShopInner`, nunca DENTRO de sus wrappers: así
-// ShopLegacy/ShopCorte se quedan byte a byte como estaban (ningún div nuevo entre medio) y las dos
-// secciones se auto-ocultan solas (`seccionEsVisible` + "sin imagen"/nacen apagadas) — Nayoli, sin
-// fila de SiteContent, no gana un solo nodo al DOM. `whatsapp` llega por PROP desde `Shop()` (abajo,
-// único punto de la página con `useSiteSettings()`) hacia `TiendaCierre` y hacia `TiendaCatalogo`
-// (para «Avísame por WhatsApp» en una lámina agotada) — mismo patrón que `SuscripcionPlanes`.
+// ─── CRÉDITOS + INTERLUDIO + CIERRE — fuera de ShopLegacy/ShopCorte a propósito ────────────────────
+// Las TRES secciones se montan DESPUÉS de `ShopInner`, nunca DENTRO de sus wrappers: así
+// ShopLegacy/ShopCorte se quedan byte a byte como estaban (ningún div nuevo entre medio) y las tres
+// secciones se auto-ocultan solas (`seccionEsVisible` + su propio piso/"sin imagen"/nacen apagadas)
+// — Nayoli, sin fila de SiteContent, no gana un solo nodo al DOM. `TiendaCreditos` (§
+// TIENDA-ONIX-CARTELERA-1) entra PRIMERO de las tres — es la posición real del spec, justo bajo el
+// catálogo. `whatsapp` llega por PROP desde `Shop()` (abajo, único punto de la página con
+// `useSiteSettings()`) hacia `TiendaCierre` y hacia `TiendaCatalogo` (para «Avísame por WhatsApp» en
+// una lámina/celda agotada) — mismo patrón que `SuscripcionPlanes`.
 function TiendaAlbumExtra({ whatsapp }: { whatsapp?: string }) {
   return (
     <>
+      <TiendaCreditos />
       <TiendaInterludio />
       <TiendaCierre whatsapp={whatsapp} />
     </>
@@ -127,10 +156,10 @@ export default function Shop() {
   // El fallback de Suspense se renderiza ANTES de que `ShopInner` monte, así que necesita su
   // propio `navOffsetClase` — no puede heredarlo de `ShopInner` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).
   const { navTratamiento } = useSiteContent();
-  const { whatsapp } = useSiteSettings();
+  const { whatsapp, nombre } = useSiteSettings();
   return (
     <Suspense fallback={<div className={`${navOffsetClase(navTratamiento.posicion)} min-h-screen`} />}>
-      <ShopInner whatsapp={whatsapp} />
+      <ShopInner whatsapp={whatsapp} negocio={nombre} />
       <TiendaAlbumExtra whatsapp={whatsapp} />
     </Suspense>
   );

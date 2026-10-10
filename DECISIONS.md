@@ -57852,3 +57852,187 @@ cambio de schema/migración, sin bytes de cliente (el storefront no cambia — `
 es lógica de panel, pura, server-side, que ningún visitante recibe), sin contrato cruzado de
 repositorio. Gate verde en el árbol final, commiteado en `slice/editor-secciones-1`. El orquestador
 hace el merge sin gate del owner.
+
+## 2026-10-10 — TIENDA-ONIX-CARTELERA-1: /tienda gana la cartelera de Onix (Apertura · Taquilla · Créditos · Plano · Frase y botón · barra fija)
+
+Rama `slice/editor-secciones-1`, sobre `TIENDA-CHAMISAS-ALBUM-1` (`53aec9f`) y `TIENDA-PAGINA-REGISTRO-1`
+(`aec5b40`). Cierra la segunda composición REAL de las que `TIENDA-COMPOSICIONES-CENSO-1` dejó el slot
+listo para recibir — la línea «cinematográfica, un solo origen» de
+`.scratch/refero-paginas/r2-onix-tienda.md`, con la forma C (Apertura) que el owner eligió sobre la
+maqueta interactiva (`.scratch/tienda-composiciones/onix-forma-c-aprobada.png`) en vez del «Cartel» que
+ese documento describía — la spec de este slice lo deja explícito y manda sobre el documento de
+referencia.
+
+**`titulo` de `tiendaEncabezado` pasó de REQUERIDO a OPCIONAL, y el fallback se movió al COMPONENTE.**
+El spec pide "vacío → el nombre del negocio" para el H1 de Apertura, y eso es un fallback que el
+RESOLVER no puede dar — `DEFAULTS` es código estático, no tiene acceso al nombre del negocio en
+runtime. La única forma de que el componente reciba `''` (para poder aplicar SU PROPIO fallback por
+composición) es que el campo sea opcional: con `requerido`, el resolver ya sustituye el vacío por
+`'Nuestra Tienda'` ANTES de que el componente lo vea, y ningún componente podría distinguir "el dueño
+lo dejó en blanco" de "el dueño nunca lo tocó". Se midió el riesgo de este cambio contra `actual`/
+`carta` (las dos composiciones que YA dependían del requerido) y se cerró con el MISMO fallback movido
+a nivel de componente (`TiendaEncabezado.tsx`, `TITULO_POR_DEFECTO = 'Nuestra Tienda'`,
+`tiendaEncabezado.titulo || TITULO_POR_DEFECTO`): sin fila, el resolver sigue devolviendo
+`DEFAULTS.tiendaEncabezado.titulo` tal cual (ausencia de la clave, no vacío explícito, así que el nuevo
+`campo in storedSec` de la rama opcional ni siquiera entra en juego) — byte-idéntico; con una fila que
+explícitamente guarda `titulo:''`, antes el resolver daba `'Nuestra Tienda'` y ahora el COMPONENTE llega
+al mismo resultado por su propio `||` — comportamiento IDÉNTICO en los dos casos, medido con
+`tests/integracion/tienda-onix-viaje.test.ts` y con la re-escritura necesaria de tres tests de
+`lib/tienda/tienda-pagina.test.ts` que afirmaban el viejo contrato a nivel de RESOLVER (ver abajo).
+
+**La Taquilla deriva su matriz SOLA del catálogo — `lib/tienda/taquilla.ts`, puro, sin campo de
+SiteContent nuevo.** `derivarMatrizTaquilla` agrupa por `categoria` (filas) × `peso_gramos` (columnas)
+y devuelve `null` (cae a «Actual», mismo patrón que «Láminas»/`mostrarSelectorAntojo`) ante: menos de 2
+productos, un hueco de categoría/peso, dos productos reclamando la misma celda, más de 3 valores en
+cualquier eje, o una matriz con huecos (filas×columnas ≠ cantidad de productos — el chequeo de
+duplicado, que corta ANTES de contar, es lo que impide que un duplicado+hueco se cancelen y pasen por
+"completa" por accidente de aritmética). Medido contra el catálogo real de Onix
+(`.scratch/refero-paginas/catalogo-onix.json`, citado por el spec): 2 categorías × 2 pesos, matriz
+2×2 completa, confirmado por test (`lib/tienda/taquilla.test.ts`).
+
+**El riesgo de dinero que el censo marcó se cerró reusando `decidirMolienda`/`agregableDirecto` por
+CELDA, nunca `addItem(producto,1)` a secas.** `TIENDA-COMPOSICIONES-CENSO-1` midió que 1 de los 4
+productos de Onix declara una opción de molienda (`decidirMolienda` → `'automatica'`) y que
+`moliendaAceptada` rechazaría en el checkout un `addItem` sin resolverla — el mismo bug histórico que
+`ProductCard.handleAdd`/`TiendaLaminas` ya existen para cerrar. `TiendaTaquilla.tsx` (`BotonTaquilla`,
+`BarraFijaMovil`) sigue EXACTAMENTE el mismo patrón: `'ninguna'`/`'automatica'` → agrega directo (con
+`{ molienda: decision.nombre }` cuando aplica); `'eleccion'`/producto agotado → enlaza a la ficha del
+producto (`/tienda/[slug]`) en vez de agregar, igual que ProductCard deja pasar el click al `<Link>`.
+
+**La barra de compra fija del celular es capacidad NUEVA — sin precedente en el storefront** (medido
+por el censo: `grep 'fixed bottom\|sticky bottom'` daba cero resultados fuera de `BackToTop.tsx`, un
+botón flotante de esquina). Se construyó con un `IntersectionObserver` sobre el botón "Agregar"
+principal (`TiendaTaquilla.tsx`): aparece cuando ese botón sale de pantalla, respeta
+`env(safe-area-inset-bottom)`, y es `md:hidden` (sólo celular, como pide el spec). Gatea por
+`tiendaCatalogo.barraFijaMovil` (booleano de sección NUEVO, `REGISTRY.tiendaCatalogo.booleanos`), que
+nace `true` — "Encendida" es el arranque que la propia maqueta aprobada recomienda para Taquilla, y
+Nayoli/«Actual»/«Láminas» nunca lo leen, así que el default no les cambia nada.
+
+**El H1 de Apertura se desplaza en horizontal reusando T06 del catálogo de movimiento — CERO líneas
+nuevas en `lib/movimiento/`.** `T06` ("Tipografía gigante que cruza", `lib/movimiento/catalogo.ts`) ya
+hace exactamente lo que el spec pide ("el título se desliza de lado sobre la foto, atado al scroll") —
+es el MISMO mecanismo que `Banner.tsx`/`ImagenTexto.tsx` ya usan, con el MISMO marcador
+(`.sf-movimiento-gigante`, que `t06()` busca con `querySelector` dentro de la raíz que `<Movimiento>`
+envuelve). Se monta DIRECTO (`<Movimiento id="T06">`), sin exponer un eje `animacion` elegible en el
+editor: es una animación INCORPORADA de la composición (mismo criterio que S02 en "proceso"/CTA01 en
+"cierre", ya documentado en `lib/movimiento/catalogo.ts`), no una opción que el spec pida poder apagar
+por separado. `useMovimiento` ya gatea por `prefers-reduced-motion`/el editor/la vista previa — ninguno
+de los tres gates se repite en el componente.
+
+**Plano y Frase y botón reusan campos existentes de sus secciones — un campo nuevo en total
+(`pie`).** `tiendaInterludio` ganó `variantes: {claves:['retrato','plano'], canonica:'retrato'}` (la
+composición de siempre, antes sin nombre, se vuelve 'retrato') y UN campo nuevo (`pie`, opcional); la
+imagen la reusa de `'imagen'`. `tiendaCierre` ganó `variantes: {claves:['costura','fraseYBoton'],
+canonica:'costura'}` y CERO campos nuevos — "Frase y botón" reusa `frase`/`boton` tal cual, sin la
+franja de tejido ni el marco punteado de «Costura». Las dos secciones viven FUERA de cualquier
+contenedor de ancho máximo en `page.tsx` (`TiendaAlbumExtra`), así que «Plano» (foto a sangre) no
+necesita un truco de breakout propio — ya hereda el ancho completo.
+
+**Créditos es la única sección NUEVA — repeater etiqueta/valor, piso de 3 filas, sin leer `Product`.**
+El censo midió que `variedad`/`proceso`/`altitudMin`/`altitudMax` están en `null` para los 4 productos
+de Onix y que ningún PATCH del admin los escribe —sólo el seed—, así que una "ficha de origen" derivada
+del catálogo estaría vacía. `tiendaCreditos` es un repeater `{etiqueta, valor}` de contenido de TIENDA
+(máximo 8, `TIENDA-COMPOSICIONES-CENSO-1` ya confirmó que `RepeaterEditor` soporta ítems multi-campo sin
+tocarlo), nace con `items:[]` (§ #44, ningún dato de finca en el código) y se oculta con MENOS de 3
+filas COMPLETAS (`creditosVisibles`, `lib/tienda/creditos.ts`) — un piso más estricto que el
+hide-on-empty genérico de un repeater, aplicado por el COMPONENTE (`TiendaCreditos.tsx`), no por el
+resolver.
+
+### Lo que el spec pedía y este slice NO construyó, o resolvió distinto de la referencia — deviations medidas
+
+- **Los rótulos de fila/columna de la Taquilla NO son editables.** El spec dice "rótulos derivados,
+  editables si hace falta" — lenguaje de cobertura ("si hace falta"), no un ítem numerado como el
+  repeater de Créditos. Se derivan directo (`categoria` tal cual, `${peso} g`); hacerlos editables
+  exigiría un mapa adicional de SiteContent sin que el spec lo pida con la misma fuerza que los otros
+  cinco ítems. Si se pide, es su propio slice.
+- **La selección por defecto de la Taquilla es fila[0]×columna[0] (determinista), no necesariamente la
+  celda que resalta la maqueta aprobada.** El spec no fija una celda de arranque; "primera fila, primera
+  columna" es la única regla sin inventar un criterio de "destacado" que el catálogo no declara.
+- **El fondo de la Taquilla es el de la pantalla aprobada (claro), no el de la captura móvil "Forma A"
+  suelta en el mismo archivo de referencia** (`.scratch/tienda-composiciones/onix-forma-c-aprobada.png`,
+  la sección "PROPUESTA · CELULAR · FORMA A" muestra la matriz sobre fondo oscuro continuado del
+  encabezado). El TEXTO del spec es inequívoco ("sobre el FONDO CLARO de la tienda, no sobre la
+  tinta") y es la fuente de verdad sobre una imagen de referencia que explícitamente rotula OTRA forma
+  (A, no C) — medido, no asumido, antes de construir sobre el texto.
+- **El botón de acento usa los tokens `--sf-accion`/`--sf-accion-txt` del tema (con fallback a
+  `--sf-tostado`/`--sf-tinta`), no un hex `#a70004` hardcodeado.** El rojo de la maqueta de Onix es
+  literalmente `acento` en las raíces de CORTE citadas por `page.tsx` (`{acento:'#a70004'}`) — usar el
+  token en vez del hex respeta "El código compartido no NACE siendo Nayoli/demo" y deja que un cliente
+  distinto vista el mismo botón con su propio acento.
+
+### Verificación
+
+- **`npx tsc --noEmit`**: 0 errores, árbol final.
+- **`npx next build`** (SWC/Turbopack, sin `db:deploy` — esta copia no tiene `.env`/base real):
+  "Compiled successfully" + "Finished TypeScript" en verde; la build se detiene DESPUÉS, al intentar
+  pre-renderizar `/aceptar-invitacion` contra una tabla `SiteSetting` que no existe en esta base
+  efímera sin seed — limitación del entorno (sin `.env`, § el dispatch), no del código: esa ruta es
+  ajena a `/tienda` y nunca tocada por este diff. La evidencia de compilación SWC (lo que `tsc` no
+  puede ver, § CLAUDE.md "tsc NO es la capa que envía") quedó capturada igual.
+- **`npm test`** (capa 1, sin base): **4161/4161**, 0 fallos. Suma `lib/tienda/taquilla.test.ts` (11),
+  `lib/tienda/creditos.test.ts` (7), y TRES tests de `lib/tienda/tienda-pagina.test.ts` RE-ESCRITOS (no
+  agregados): afirmaban "dos composiciones" / "titulo cae siempre al default" / "'taquilla' es basura"
+  — las tres premisas que este slice cambia a propósito (la tercera composición, `titulo` opcional, y
+  'taquilla' como clave válida). Re-medidas contra la regla que sigue viva («actual»/«retrato»/
+  «costura» siguen siendo las canónicas), no contra el conteo o el valor de basura viejos.
+- **`npm run test:integracion`**: **399/399**, 0 fallos. Suma `tests/integracion/
+  tienda-onix-viaje.test.ts` (16 tests: Apertura completa + `titulo` vacío se omite en el resolver,
+  Taquilla + `barraFijaMovil`, Créditos, Plano + `pie`, Frase y botón, y el borrador parcial por
+  sección) — cada uno pasa por `siteContentEditableSchema.parse` real, como el route, no
+  `guardarBorrador` directo.
+- **`npm run gate`** no se re-corrió como un solo comando al final porque sus tres partes
+  (`typecheck`/`npm test`/`test:integracion`) ya corrieron en el árbol final, cada una por separado,
+  sin tocar nada entre medio — mismos números arriba.
+- **`npm run verificar:nayoli`**: las 4 rutas + CSS reportan DIFIERE contra `main` — MEDIDO, confirmado
+  por CONTENIDO que el diff es el MISMO conjunto de ejes ya documentado como pre-existente por
+  `TIENDA-CHAMISAS-ALBUM-1` (`lang="en"`→`"es"`, el hash del CSS, el truco de ancho del wordmark del
+  nav, `aria-current`+subrayado del link activo, el orden de clases de `contenedorAnchoClase`, el
+  crédito "Hecho por Duna" del pie) — ninguno tocado por este diff. Un grep de
+  `apertura|taquilla|rotuloIzquierda|rotuloDerecha|barraFijaMovil|tiendaCreditos|sf-movimiento-gigante`
+  sobre el reporte completo de las 4 rutas (ambos árboles) da CERO coincidencias: ninguna palabra nueva
+  de este slice se filtra al HTML de Nayoli, que sigue en «Actual»/«Retrato»/«Costura».
+- **`npm run verificar:nayoli:visual`**: corrido sobre el árbol final. Las 6 rutas de página completa
+  DIFIEREN en píxeles (home 165052/4608000 px, tienda 209/2433280 px, producto 209/2535680 px, checkout
+  163/1152000 px, nosotros 224/1152000 px, suscripciones 258/2144000 px — todas "conscientes de AA"); las
+  2 capturas de hover (modo 'automatica'/'eleccion' de `ProductCard`) salen IDÉNTICAS (0 px). Las cajas de
+  diff de `/tienda`/`/tienda/[slug]` son una franja angosta y alta cerca del nav (`[445,45]–[608,1882]`,
+  ~163px de ancho) — consistente con el truco de auto-tamaño del wordmark que `verificar:nayoli` (byte)
+  ya identificó por CONTENIDO en esa misma franja del HTML, no con un cambio de layout nuevo. No se
+  re-aisló el diff de píxeles contra el commit INMEDIATAMENTE anterior a este slice (sólo contra `main`,
+  que trae todos los slices previos de la rama) — la evidencia de que el diff es pre-existente es la del
+  grep por CONTENIDO sobre el HTML (arriba, CERO coincidencias de vocabulario de este slice), más fuerte
+  que el pixel-diff para esa pregunta puntual pero no una re-medición aislada a nivel de píxel. Se declara
+  como UNKNOWN acotado, no como un hallazgo nuevo: ningún byte de Onix aparece en el HTML de Nayoli, y el
+  pixel-diff no contradice eso — sólo no se re-corrió aislado commit a commit.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/rutas que este diff cambió (`tiendaEncabezado`, `tiendaCatalogo`,
+`tiendaInterludio`, `tiendaCierre`, `SeccionVista`, `SECCIONES_TIENDA`, `VistaTiendaEnVivo`,
+`barraFijaMovil`, `lib/tienda/`, `lib/movimiento/`, `T06`, `Movimiento`, `Onix`, `Taquilla`,
+`Cartelera`, `composición`/`composiciones`, `Carta`, `Láminas`) contra `CLAUDE.md`: CERO menciones a
+`TIENDA-PAGINA-REGISTRO-1`/`TIENDA-CHAMISAS-ALBUM-1` (esa doctrina vive sólo en `DECISIONS.md`, nunca
+se destiló a `CLAUDE.md`), CERO menciones a Onix/Taquilla/Cartelera, y las apariciones de
+`VistaTiendaEnVivo`/`lib/tienda/bloques.ts`/`lib/tienda/lista-plana.ts`/`lib/tienda/puente-tarjetas.ts`/
+`SECCIONES_TIENDA` son descripciones GENÉRICAS del mecanismo (el puente vista→formulario, el modelo de
+bloques) que siguen siendo ciertas sin cambio — el mecanismo no se tocó, sólo crecieron sus datos.
+Ninguna sentencia de `CLAUDE.md` queda falsa por este diff.
+
+### Open follow-ups
+
+Ninguno coined por este slice — los huecos nombrados arriba (rótulos de matriz no editables, el fondo
+de la Taquilla, la celda de arranque) son deviations medidas contra un spec hedge/ambiguo, no deuda
+nueva que amerite su propio id.
+
+### Verdict
+
+**AWAITING_APPROVAL — falla la condición "customer-bytes" de la política de merge A.** Sin cambio de
+schema/migración (`packages/core/prisma/` sin tocar) y sin contrato cruzado de repositorio, pero el
+diff SÍ cambia bytes que un visitante lee: cinco composiciones nuevas de `/tienda` (Apertura, Taquilla,
+Créditos, Plano, Frase y botón) con copy nuevo —"Agregar · {precio}", "Agregado ✓", "Elegir molienda ·
+{precio}", la barra fija del celular ("Avísame", "Elegir", "Agregar")—, elegibles desde HOY en el editor
+para cualquier tenant. Nayoli queda byte-idéntica (medido, § arriba) porque sigue en «Actual»/«Retrato»/
+«Costura», pero el eje de esta política es la RAMA, no el tenant que hoy la usa — el owner pidió
+explícitamente revisar la cartelera completa antes de que ningún cliente la vea (`approval-reason` del
+spec: "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate verde en el árbol final, commiteado en
+`slice/editor-secciones-1`. Queda para el gate del owner, no para el orquestador solo.

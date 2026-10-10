@@ -12,7 +12,9 @@ import type { Product, RoastLevel } from '@/types/product';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import FiltrarOrdenar from '@/components/storefront/tienda/FiltrarOrdenar';
 import TiendaLaminas from '@/components/storefront/tienda/TiendaLaminas';
+import TiendaTaquilla from '@/components/storefront/tienda/TiendaTaquilla';
 import { mostrarSelectorAntojo } from '@/lib/tienda/antojo';
+import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import {
   ordenarCatalogo,
   filtrarCatalogo,
@@ -63,14 +65,22 @@ export default function TiendaCatalogo({ whatsapp }: { whatsapp?: string } = {})
   // «Actual» (§ el spec: "quedan los filtros de «Actual»") — no es un tercer valor de `variante`,
   // es una decisión de este componente sobre los MISMOS dos valores. Mientras el catálogo carga
   // (`null`) cae a «Actual» también: ésas ya tienen su propio estado "Cargando" resuelto.
+  //
+  // «TAQUILLA» (§ TIENDA-ONIX-CARTELERA-1) — MISMO criterio: sin matriz VÁLIDA
+  // (`derivarMatrizTaquilla`, § lib/tienda/taquilla.ts), cae SOLA a «Actual», nunca un tercer valor
+  // de `variante`. Comparte el mismo fetch que «Láminas» (ninguna de las dos composiciones usa el
+  // catálogo filtrado/paginado de «Actual»).
   const [catalog, setCatalog] = useState<Product[] | null>(null);
   useEffect(() => {
-    if (tiendaCatalogo.variante !== 'laminas') return;
+    if (tiendaCatalogo.variante !== 'laminas' && tiendaCatalogo.variante !== 'taquilla') return;
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, [tiendaCatalogo.variante]);
 
   if (tiendaCatalogo.variante === 'laminas' && catalog !== null && mostrarSelectorAntojo(catalog)) {
     return <TiendaLaminas catalog={catalog} coloresPorProducto={tiendaCatalogo.coloresPorProducto} whatsapp={whatsapp} />;
+  }
+  if (tiendaCatalogo.variante === 'taquilla' && catalog !== null && derivarMatrizTaquilla(catalog)) {
+    return <TiendaTaquilla catalog={catalog} whatsapp={whatsapp} barraFijaMovil={tiendaCatalogo.barraFijaMovil} />;
   }
 
   return navTratamiento.posicion ? <CatalogoCorte /> : <CatalogoLegacy />;
