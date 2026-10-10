@@ -1,9 +1,12 @@
 "use client";
 import { Suspense } from 'react';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
+import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
+import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
 
 // ─── LA RAMA LEGACY (§ TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1, § TIENDA-PAGINA-REGISTRO-1) ────────
 // El código de HOY, SIN TOCAR — byte a byte el `ShopInner` que existía antes de
@@ -13,7 +16,7 @@ import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
 // encabezado, el contenedor del catálogo— y los dos componentes son HEADLESS (ver sus propios
 // docstrings), así que la extracción no cambia un solo byte del DOM. `navTratamiento.posicion:false`
 // (Nayoli y todo tenant que no aplicó CORTE) renderiza ESTA función, nunca `ShopCorte` (abajo).
-function ShopLegacy() {
+function ShopLegacy({ whatsapp }: { whatsapp?: string }) {
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
@@ -39,7 +42,7 @@ function ShopLegacy() {
         </div>
 
         <div className={`${contenedorClase} mx-auto py-8`}>
-          <TiendaCatalogo />
+          <TiendaCatalogo whatsapp={whatsapp} />
         </div>
       </div>
   );
@@ -75,7 +78,7 @@ function ShopLegacy() {
 // (uno por componente) habría arriesgado el padding compartido (`py-16` cubre a los dos hoy) por un
 // cálculo que sólo se puede confirmar MIDIENDO; `TiendaEncabezado`/`TiendaCatalogo` son HEADLESS, así
 // que la extracción no mueve un solo byte del DOM.
-function ShopCorte() {
+function ShopCorte({ whatsapp }: { whatsapp?: string }) {
   const { navTratamiento } = useSiteContent();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const offsetClase = navOffsetClase(navTratamiento.posicion);
@@ -86,16 +89,36 @@ function ShopCorte() {
         <TiendaEncabezado />
 
         <div className="mt-10">
-          <TiendaCatalogo />
+          <TiendaCatalogo whatsapp={whatsapp} />
         </div>
       </div>
     </div>
   );
 }
 
-function ShopInner() {
+// `whatsapp` SE AGREGA COMO PROP (§ TIENDA-CHAMISAS-ALBUM-1) — pasa de mano hasta `TiendaCatalogo`
+// para «Avísame por WhatsApp» en una lámina agotada. Un prop que ninguna rama de «Actual» lee no
+// cambia un solo byte renderizado (no hay HTML por un prop no consumido), así que esto no rompe el
+// byte-idéntico que el docstring de arriba promete.
+function ShopInner({ whatsapp }: { whatsapp?: string }) {
   const { navTratamiento } = useSiteContent();
-  return navTratamiento.posicion ? <ShopCorte /> : <ShopLegacy />;
+  return navTratamiento.posicion ? <ShopCorte whatsapp={whatsapp} /> : <ShopLegacy whatsapp={whatsapp} />;
+}
+
+// ─── INTERLUDIO + CIERRE (§ TIENDA-CHAMISAS-ALBUM-1) — fuera de ShopLegacy/ShopCorte a propósito ──
+// Las DOS secciones nuevas se montan DESPUÉS de `ShopInner`, nunca DENTRO de sus wrappers: así
+// ShopLegacy/ShopCorte se quedan byte a byte como estaban (ningún div nuevo entre medio) y las dos
+// secciones se auto-ocultan solas (`seccionEsVisible` + "sin imagen"/nacen apagadas) — Nayoli, sin
+// fila de SiteContent, no gana un solo nodo al DOM. `whatsapp` llega por PROP desde `Shop()` (abajo,
+// único punto de la página con `useSiteSettings()`) hacia `TiendaCierre` y hacia `TiendaCatalogo`
+// (para «Avísame por WhatsApp» en una lámina agotada) — mismo patrón que `SuscripcionPlanes`.
+function TiendaAlbumExtra({ whatsapp }: { whatsapp?: string }) {
+  return (
+    <>
+      <TiendaInterludio />
+      <TiendaCierre whatsapp={whatsapp} />
+    </>
+  );
 }
 
 // useSearchParams() (cat/tostado filters from the URL, dentro de `TiendaCatalogo`) requires a
@@ -104,9 +127,11 @@ export default function Shop() {
   // El fallback de Suspense se renderiza ANTES de que `ShopInner` monte, así que necesita su
   // propio `navOffsetClase` — no puede heredarlo de `ShopInner` (§ NAV-INTERNAS-CLARO-Y-OFFSET-1).
   const { navTratamiento } = useSiteContent();
+  const { whatsapp } = useSiteSettings();
   return (
     <Suspense fallback={<div className={`${navOffsetClase(navTratamiento.posicion)} min-h-screen`} />}>
-      <ShopInner />
+      <ShopInner whatsapp={whatsapp} />
+      <TiendaAlbumExtra whatsapp={whatsapp} />
     </Suspense>
   );
 }

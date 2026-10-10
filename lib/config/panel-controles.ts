@@ -75,6 +75,9 @@ function camposDeSeccion(key: SeccionKey): string[] {
   for (const b of def.booleanos ?? []) campos.add(b);
   if (def.variantes) campos.add('variante');
   for (const e of Object.keys(def.escalares ?? {})) campos.add(e);
+  // MAPAS (§ TIENDA-CHAMISAS-ALBUM-1, `SeccionDef.mapas`): gemelo de ESCALARES arriba, un "campo"
+  // más para este chequeo — hoy sólo `tiendaCatalogo.coloresPorProducto`.
+  for (const m of def.mapas ?? []) campos.add(m);
   if (def.ocultable) campos.add('visible');
   // ESTILOS POR ELEMENTO (§ EDITOR-TIENDA-BARRA-FLOTANTE-1): `def.estilos` declara los elementos de
   // texto de la sección con estilo propio — cada uno es, para este chequeo, un "campo" más,
@@ -158,6 +161,10 @@ function camposDeSeccionEditor(config: SeccionConfig): string[] {
   // <sección>?» que escribe el escalar `variante` — mismo criterio que `visible`/`booleanos`
   // arriba, presencia de la config ⇒ `variante` entra al lado controlado.
   if (config.composiciones) campos.add('variante');
+  // § TIENDA-CHAMISAS-ALBUM-1: `config.coloresPorProducto` declara que esta sección monta
+  // `<ColorPorCafe>` (`TiendaSeccionEditor.tsx`), que escribe el mapa `coloresPorProducto` —
+  // mismo criterio que `composiciones`/`variante` arriba: presencia de la config ⇒ campo controlado.
+  if (config.coloresPorProducto) campos.add('coloresPorProducto');
   for (const bloque of config.bloques ?? []) {
     if (bloque.tipo === 'lista') for (const slot of bloque.slots) campos.add(slot);
   }

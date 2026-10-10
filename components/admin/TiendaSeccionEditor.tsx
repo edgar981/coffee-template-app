@@ -16,6 +16,9 @@ import { useContenedorDunaPortal } from '@/components/admin/dunaPortal';
 import { useSubidaImagen } from '@/components/admin/useSubidaImagen';
 import { esSesionVencida, MSG_SESION_VENCIDA } from '@/lib/api/upload';
 import { getProducts } from '@/lib/api/products';
+import { getSiteContentPublicado } from '@/lib/api/site-content';
+import { RAICES_DEFECTO, type RaicesPaleta } from '@/lib/config/palette-derive';
+import ColorPorCafe from '@/components/admin/ColorPorCafe';
 import type { Product } from '@/types/product';
 import { cn } from '@duna/core/utils';
 import type { SeccionConfig, CampoTexto, CampoImagen, CampoBooleano, SeccionVista } from '@/components/admin/tienda-secciones';
@@ -102,6 +105,30 @@ function cargarCatalogoReal() {
     promesaCatalogoReal = getProducts().catch(() => []);
   }
   return promesaCatalogoReal;
+}
+
+// ── LAS RAÍCES DEL TEMA REAL, PARA LAS SUGERENCIAS DE `ColorPorCafe` (§ TIENDA-CHAMISAS-ALBUM-1) ───
+//
+// MISMO patrón que `cargarCatalogoReal` arriba, misma razón: `PaletaSeccion.tsx` ya tiene el
+// borrador en curso de `content.tema`, pero vive en otro árbol de edición y `TiendaPaginas.tsx`
+// (fuera de `touches:`) no reenvía esas raíces a cada editor. Se usa SÓLO para derivar las
+// SUGERENCIAS del picker de color de `tiendaCatalogo` — una conveniencia de UI, no una fuente de
+// verdad de escritura — así que leer lo PUBLICADO (no el borrador aún sin publicar de Paleta) es
+// una aproximación aceptable: en el peor caso, las sugerencias no reflejan un cambio de paleta
+// todavía sin publicar, y el dueño sigue pudiendo elegir cualquier «Personalizado». Falla suave a
+// `RAICES_DEFECTO` (Nayoli) — las sugerencias nunca deben romper el editor.
+let promesaRaicesTemaReal: Promise<RaicesPaleta> | null = null;
+function cargarRaicesTemaReal() {
+  if (!promesaRaicesTemaReal) {
+    promesaRaicesTemaReal = getSiteContentPublicado()
+      .then((c) => ({
+        fondo: c.tema.fondo ?? RAICES_DEFECTO.fondo,
+        tinta: c.tema.tinta ?? RAICES_DEFECTO.tinta,
+        acento: c.tema.acento ?? RAICES_DEFECTO.acento,
+      }))
+      .catch(() => RAICES_DEFECTO);
+  }
+  return promesaRaicesTemaReal;
 }
 
 // ── EL COMBOBOX DE PRODUCTO · elegir de la lista por nombre + foto, nunca un slug a mano ──────────
@@ -417,15 +444,27 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const { seccion } = config;
   const defaults = DEFAULTS[seccion] as unknown as Record<string, string | boolean>;
 
-  // El catálogo REAL (§ cargarCatalogoReal, arriba) — SÓLO para `spotlight`, el único picker de
-  // producto hoy; las demás secciones nunca disparan este fetch. `productosListos` distingue
-  // "cargando" de "catálogo vacío de verdad" (mismo criterio que `categoriasListas`, arriba).
+  // El catálogo REAL (§ cargarCatalogoReal, arriba) — `spotlight` (el picker de producto) y, desde
+  // § TIENDA-CHAMISAS-ALBUM-1, `tiendaCatalogo` (el picker de color por café, `ColorPorCafe`); las
+  // demás secciones nunca disparan este fetch. `productosListos` distingue "cargando" de "catálogo
+  // vacío de verdad" (mismo criterio que `categoriasListas`, arriba).
   const [catalogoReal, setCatalogoReal] = useState<Product[]>([]);
   const [productosListos, setProductosListos] = useState(false);
   useEffect(() => {
-    if (seccion !== 'spotlight') return;
+    if (seccion !== 'spotlight' && seccion !== 'tiendaCatalogo') return;
     let vivo = true;
     cargarCatalogoReal().then((v) => { if (vivo) { setCatalogoReal(v); setProductosListos(true); } });
+    return () => { vivo = false; };
+  }, [seccion]);
+
+  // LAS RAÍCES DEL TEMA REAL (§ cargarRaicesTemaReal, arriba) — SÓLO `tiendaCatalogo`, para las
+  // sugerencias de `ColorPorCafe`. `null` = todavía sin resolver → `ColorPorCafe` cae a Nayoli por
+  // su propio default (nunca bloquea el render a cambio de un fetch de conveniencia).
+  const [raicesTema, setRaicesTema] = useState<RaicesPaleta | null>(null);
+  useEffect(() => {
+    if (seccion !== 'tiendaCatalogo') return;
+    let vivo = true;
+    cargarRaicesTemaReal().then((v) => { if (vivo) setRaicesTema(v); });
     return () => { vivo = false; };
   }, [seccion]);
 
@@ -2357,9 +2396,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
 
               {/* LA COMPOSICIÓN del hero (§ EDITOR-TIENDA-COMPOSICION-1, REDISENO.md § 4/§ 6): el
                   botón «Composición: <nombre>» abre la vista nueva «¿Cómo se arma tu hero?» — va
-                  ANTES de la lista de zonas porque decide cuáles existen. Sólo el hero la declara
-                  (`config.composiciones`); las otras tres secciones con `variante` siguen sin este
-                  control (§ PENDIENTE_PANEL, panel-controles.ts). */}
+                  ANTES de la lista de zonas porque decide cuáles existen. Sólo el hero usa este
+                  diálogo pesado (`ComposicionHero`, con miniatura + aviso de "se guarda"); las otras
+                  dos secciones con `variante` HOY (§ PENDIENTE_PANEL, panel-controles.ts) siguen sin
+                  él, y `tiendaEncabezado`/`tiendaCatalogo` (§ TIENDA-CHAMISAS-ALBUM-1, abajo) usan un
+                  SELECT nativo en su lugar — dos opciones nada más, sin zonas que avisar. */}
               {seccion === 'hero' && config.composiciones && (
                 <div className="admin-bloque">
                   <button
@@ -2374,6 +2415,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                     </span>
                     <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden />
                   </button>
+                </div>
+              )}
+
+              {/* § TIENDA-CHAMISAS-ALBUM-1 — el SELECT de composición de Encabezado/Catálogo. No se
+                  reusa `ComposicionHero` (su título «¿Cómo se arma tu hero?» está hardcodeado en ese
+                  archivo, fuera de `touches:`): con sólo DOS opciones y sin zonas que avisar, el
+                  select NATIVO es la regla del panel para un set cerrado (§ CLAUDE.md, "Controles de
+                  formulario — el select es NATIVO"), no una ceremonia menor. */}
+              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo') && config.composiciones && config.composiciones.length > 1 && (
+                <div className="admin-bloque">
+                  <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
+                  <select
+                    id="tienda-composicion-select"
+                    className="duna-select"
+                    value={String(form.variante ?? config.composiciones[0]?.value ?? '')}
+                    onChange={(e) => cambiar({ variante: e.target.value })}
+                    style={{ marginTop: 'var(--duna-space-2)' }}
+                  >
+                    {config.composiciones.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                  </select>
                 </div>
               )}
 
@@ -2398,6 +2459,22 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
               {/* § EDITOR-VISUAL-NIVELES-1 — "Alto" (segmentado) y "Fondo" (miniatura + Cambiar +
                   punto focal + Oscurecer segmentado), en ese orden, DESPUÉS de las zonas — el spec. */}
               {seccion === 'hero' && renderAltoYFondo()}
+
+              {/* § TIENDA-CHAMISAS-ALBUM-1 — el color por café, DESPUÉS del select de composición:
+                  sólo tiene efecto bajo «Láminas», pero se edita siempre (§ el docstring de
+                  `TIENDA_CATALOGO` en tienda-secciones.ts). */}
+              {seccion === 'tiendaCatalogo' && config.coloresPorProducto && (
+                <div className="admin-bloque">
+                  <p className="duna-field__label" style={{ marginBottom: 'var(--duna-space-3)' }}>Color por café</p>
+                  <ColorPorCafe
+                    productos={catalogoReal}
+                    productosListos={productosListos}
+                    value={(form.coloresPorProducto as Record<string, string>) ?? {}}
+                    onChange={(next) => cambiar({ coloresPorProducto: next })}
+                    raices={raicesTema ?? undefined}
+                  />
+                </div>
+              )}
 
               {/* Cada bloque es una PIEZA. La `tarjeta` YA es su propia caja (`.bloque-tarjeta`), así
                   que no se re-envuelve —doble caja—; los demás van en la pieza genérica. */}

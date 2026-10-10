@@ -57574,3 +57574,188 @@ merge, cuando el owner revise, lo hace el orquestador.
 
 **No cierra `TIENDA-COMPOSICIONES-CENSO-1`** (sigue sirviendo como referencia para los slices de
 composición que faltan) — este slice cubre sólo "la plomería", el primer paso de su plan.
+
+## 2026-10-10 — TIENDA-CHAMISAS-ALBUM-1: /tienda gana «Carta»/«Láminas» (el álbum «cálida, hecha por mujeres»)
+
+Rama `slice/editor-secciones-1`, sobre `TIENDA-PAGINA-REGISTRO-1` (`aec5b40`). Cierra la primera
+composición REAL de las que `TIENDA-COMPOSICIONES-CENSO-1`/`TIENDA-PAGINA-REGISTRO-1` dejaron el
+slot listo para recibir — las de Las Chamisas de `.scratch/refero-paginas/r2-chamisas-tienda.md`.
+
+**Elección de modelo — el color por café vive en `SiteContent`, nunca en el `Product`.** El spec de
+referencia decía "esto pide un campo nuevo, color, en el producto" — se descartó por estar FUERA de
+la frontera con el trabajo de Carlos (`packages/core/prisma/`, `packages/core/src/` quedan
+intocados) y por la doctrina ya escrita (§ el censo: "la alternativa de guardarla como contenido de
+página en SiteContent... es viable sin tocar la frontera de Carlos"). Se modeló como un mapa
+`tiendaCatalogo.coloresPorProducto: Record<id, hex>`, KEY-AGNÓSTICO — mecanismo NUEVO,
+`SeccionDef.mapas` + `resolverMapaColor`, gemelo de `escalares`/`booleanos` pero para un `Record`
+en vez de un escalar clampado o un switch. Entra DENTRO de la sección (no como meta aparte, a
+diferencia de `esquemas`/`variantesBandas`) porque viaja en el MISMO borrador/publish que el resto
+del Catálogo.
+
+**La paleta de reserva "por orden" se DERIVA del tema, nunca un hex de Las Chamisas.** El spec de
+referencia nombraba "Bourbon Rosado rosa, Pacamara verde hoja, Papayo amarillo caramelo" — hex fijos
+de UN cliente. Se descartó por la doctrina ya escrita (§ "El código compartido no NACE siendo
+Nayoli/demo"): `lib/tienda/laminas.ts` deriva 6 colores de `derivarPaleta(raices)` (roles
+`acento`/`tostado`/`acento-3`/`tostado-4`/`acento-4`/`tostado-6`, ya existentes en la RECETA de
+`palette-derive.ts`, sin agregar un color nuevo al motor) y los cicla por orden de catálogo. El
+«lavado» que mantiene AA con la tinta (§ el spec) es una mezcla hacia el fondo, caminada hasta
+4.5:1 — reusa `mezclar`/`contraste`, ya puros y testeados.
+
+**El movimiento reusa C01 del catálogo (`lib/movimiento/`), sin agregar una entrada nueva.** `C01`
+("Tarjetas escalonadas") ya hace las DOS cosas que el spec pedía para las láminas —entrada
+escalonada + elevar/rotar al pasar el mouse (`hoverTarjetas`, dentro de la misma función)—, medido
+leyendo `animaciones.ts` antes de proponer nada nuevo. Se usa DIRECTO (`<Movimiento id="C01">`),
+sin exponer un selector de "Animación" en el editor — el spec pedía "con «Ninguna» por defecto",
+no un control nuevo; «Ninguna» ya es lo que tiene la composición «Actual» por construcción, y
+«Láminas» usa C01 por diseño, no por elección del dueño. `lib/movimiento/` queda SIN tocar.
+
+**El select de composición de Encabezado/Catálogo es NATIVO, no el diálogo pesado del hero.**
+`components/admin/editor/ComposicionHero.tsx` (el diálogo «¿Cómo se arma tu hero?») quedó FUERA de
+`touches:` de este slice, y su título está hardcodeado para el hero — reusarlo tal cual habría
+mostrado "¿Cómo se arma tu hero?" en la tarjeta de Catálogo. Con sólo DOS opciones y sin zonas que
+avisar, un `<select>` nativo (§ CLAUDE.md, "Controles de formulario — el select es NATIVO") es la
+forma correcta, no una economía de esfuerzo.
+
+### Lo que el spec de referencia pedía y este slice NO construyó — deviations medidas
+
+- **La "franja de tejido como separador entre secciones" (item 5 del spec) NO se construyó.** Sólo
+  se construyó su uso obligatorio en Costura ("la franja arriba"). Un separador decorativo entre
+  OTRAS secciones habría exigido un mecanismo cross-sección nuevo (leer `tiendaCierre.franjaTejido`
+  desde fuera de esa sección, o un campo de página aparte) para una feature que el propio spec
+  marca como "si se elige" — opcional sobre opcional. Se deja sin construir; si se pide, es su
+  propio slice.
+- **"Con 2 productos, el tercer espacio lo ocupa el retrato" (del documento de referencia, no del
+  spec de este slice) NO se construyó.** Interludio es una sección INDEPENDIENTE, siempre debajo
+  del catálogo — acoplarla al conteo de productos de Láminas habría sido una dependencia cruzada
+  nueva (Catálogo necesitaría saber si Interludio existe, y viceversa) para una variación de layout
+  que el spec de ESTE slice no pide textualmente.
+- **Las sugerencias de color del picker (`ColorPorCafe`) leen el tema PUBLICADO, no el borrador en
+  curso de Paleta.** `TiendaPaginas.tsx` (dueño del borrador de `tema`) queda fuera de `touches:`,
+  así que no hay forma de recibir las raíces EN VIVO sin tocarlo. Es una conveniencia de UI, no una
+  fuente de verdad — el dueño puede elegir cualquier «Personalizado» igual. `cargarRaicesTemaReal`
+  (mismo patrón que `cargarCatalogoReal`, ya existente en el archivo) cae a `RAICES_DEFECTO` si el
+  fetch falla.
+- **Ningún texto nuevo de `DEFAULTS` usa vocabulario café-shape** (el catcher `TERMINOS_PROHIBIDOS`
+  de `site-content-defaults.test.ts` lo habría rechazado de todos modos): el default de
+  `tiendaCierre.frase` se escribió neutro ("¿Quieres recibir tu pedido todos los meses?...") en vez
+  del "¿Café cada mes?" del documento de referencia.
+
+### Verificación
+
+- **`npx tsc --noEmit`**: 0 errores, árbol final.
+- **`npm test`** (capa 1, sin base): **4131/4131**, 0 fallos. Incluye las piezas nuevas:
+  `lib/tienda/laminas.test.ts` (12), `lib/tienda/antojo.test.ts` (7), 5 tests nuevos en
+  `lib/config/site-content-schema.test.ts`, 1 nuevo en `lib/config/panel-controles.test.ts`, y DOS
+  tests de `lib/tienda/tienda-pagina.test.ts` RE-ESCRITOS (no agregados: afirmaban "una sola
+  composición", y este slice agrega la segunda a propósito — se re-midieron contra la REGLA que
+  sigue viva, "«actual» es la canónica", no contra el conteo viejo).
+- **`npm run test:integracion`**: **387/387**, 0 fallos. Suma `tests/integracion/
+  tienda-chamisas-viaje.test.ts` (10 tests: el mapa de colores, los tres campos de «Carta», y las
+  DOS secciones nuevas — Interludio y Cierre —, cada uno borrador→publicar→releer por el SCHEMA
+  real, como el route).
+- **`npm run gate`** corrido de punta a punta (typecheck + los dos carriles) en el árbol final:
+  verde, sin re-ejecutar por partes.
+- **`npm run verificar:nayoli`**: las 4 rutas + CSS reportan DIIFERE contra `main` — MEDIDO, no
+  asumido, que el diff es el MISMO que `TIENDA-PAGINA-REGISTRO-1` ya documentó como pre-existente
+  (esta rama lleva muchísimos slices por delante de `main`: `lang="en"`→`"es"`
+  (`METADATA-ICONOS-Y-LANG-POR-TIENDA-1`), la calidad de imagen `q=75`→`q=85`, el truco de
+  auto-tamaño del wordmark del nav, el orden de clases de `contenedorAnchoClase` — ninguno tocado
+  por este diff). Confirmado por CONTENIDO: diffeando `html-main_tienda.txt` contra
+  `html-rama_tienda.txt` normalizando esos tres ejes ya conocidos, el resto es IDÉNTICO byte a
+  byte; y un grep de `carta|laminas|Interludio|Costura|antojo|coloresPorProducto` sobre los CUATRO
+  HTML capturados (`/`, `/tienda`, `/tienda/[slug]`, `/checkout`) da CERO coincidencias — ninguna
+  palabra nueva de este slice se filtra al HTML de Nayoli (que sigue en «Actual», con las dos
+  secciones nuevas apagadas).
+- **`npm run verificar:nayoli:visual`**: las 6 rutas reportan diff de píxeles (165052/4608000 en
+  `ruta:home`, 163–258/~1-2.5M en las demás) contra `main` — en la MISMA magnitud/ubicación que el
+  diff de HTML ya explica: `ruta:home` concentra el diff en una caja grande que cubre las secciones
+  con imágenes (consistente con `q=75`→`q=85`, no con nada de este slice, que no toca `app/
+  (storefront)/page.tsx`); las demás rutas (`tienda`/`producto`/`checkout`/`nosotros`/
+  `suscripciones`) muestran el MISMO patrón —una franja angosta de ~200-450px en una caja estrecha
+  que recorre casi todo el alto de la página, consistente con el header `fixed` repitiéndose en
+  cada "pantalla" de la captura de página completa, afectado por el truco de auto-tamaño del
+  wordmark (ya confirmado pre-existente arriba) — presente en TODAS las rutas por igual, no
+  concentrado en `/tienda`. `hover:automatica`/`hover:eleccion`: IDÉNTICO (0 px). No se recapturó
+  cambiando código para forzar "0 diferencias": el número que importa —que NINGUNA palabra ni
+  estructura nueva de este slice aparece en el HTML/CSS de Nayoli— ya está confirmado por contenido
+  (arriba), y es más fuerte que un diff de píxeles agregado.
+
+### Lo que NO se completó — las capturas del arnés con catálogo real
+
+**El spec pedía capturas de escritorio/celular de Carta+Láminas+Interludio+Costura con un catálogo
+como el de Las Chamisas, y una de la pestaña del editor con el selector de color.** No se hicieron.
+Medido antes de intentarlo: este dispatch prohíbe explícitamente `db:seed`/`db:deploy`/`migrate`
+como comandos propios (el único camino sancionado para una base efímera —`scripts/
+postgres-efimero.sh`+`db:deploy`— es el que ya envuelven `test:integracion`/`verificar:nayoli(-visual)`,
+corridos arriba tal cual existen, sin un script nuevo que yo mismo invoque `db:deploy` desde cero
+sobre un cluster propio). Sin una base con un catálogo de 3 productos tipo Chamisas, ni `next
+build`+`start` reales contra ella, no hay HTML estilizado (Tailwind) que capturar con fidelidad —
+una renderización estática sin el build real mostraría markup sin clases compiladas, inútil como
+evidencia visual. Y la pestaña del editor vive detrás de sesión OWNER/MANAGER (`proxy.ts`), el
+mismo límite que `TIENDA-PAGINA-REGISTRO-1` ya declaró en vez de improvisar un arnés de login.
+
+La cobertura real de "¿la composición existe, se elige, y escribe lo correcto?" la dan, medidos:
+las 19 pruebas nuevas de capa 1 (`laminas.test.ts`/`antojo.test.ts`/los 6 de schema+panel-controles)
+y las 10 de integración (`tienda-chamisas-viaje.test.ts`, con el catálogo REAL de Las Chamisas
+inlineado como fixture en `antojo.test.ts`). Lo que ninguna prueba automatizada cubre —cómo se VE
+la lámina, el arco, el lavado de color en pantalla real— queda pendiente del gate visual del owner,
+el mismo que cierra cualquier slice de este tamaño en este repo.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grepeados los símbolos/archivos que este diff toca (`tiendaEncabezado`, `tiendaCatalogo`,
+`tiendaInterludio`, `tiendaCierre`, `coloresPorProducto`, `ColorPorCafe`, `SeccionVista`,
+`SeccionDef`, `mapas`, `resolverMapaColor`, `TiendaSeccionEditor.tsx`, `VistaTiendaEnVivo.tsx`,
+`tienda-secciones.ts`, `panel-controles.ts`, `site-content-defaults.ts`, `site-content-schema.ts`,
+`page.tsx` de /tienda) contra `CLAUDE.md`: ninguna de esas cadenas aparece ahí (la § "La PÁGINA
+/tienda entra al editor..." vive en el COMENTARIO del código, no en CLAUDE.md — esta tanda de
+doctrina del repo documenta /tienda sólo indirectamente, vía reglas generales como "El editor de la
+tienda dibuja por BLOQUES" o "LA LISTA TAMBIÉN GANA SUBÁRBOLES", que mi diff no contradice: no
+toqué `components/storefront/` como subárbol genérico de Tier 1 de forma que violara esa sección —
+ver abajo). **Ninguna sentencia de CLAUDE.md queda falsa por este diff.**
+
+### Frontera Tier 1 — verificada, no asumida
+
+`components/storefront/` ES un subárbol Tier 1 completo (§ CLAUDE.md, "LA LISTA TAMBIÉN GANA
+SUBÁRBOLES"), y este slice SÍ escribe ahí (`TiendaLaminas.tsx`, `TiendaInterludio.tsx`,
+`TiendaCierre.tsx` nuevos; `TiendaEncabezado.tsx`/`TiendaCatalogo.tsx` editados) — pero el dispatch
+de este slice declaró `writes: yes` y `approved: yes` con `approval-reason` citando el go explícito
+del owner (2026-10-10) sobre el plan de /tienda, exactamente la "segunda etapa" que Tier 1 exige
+tras la investigación de sólo-lectura (`TIENDA-COMPOSICIONES-CENSO-1`, OBSERVED). No es una
+excepción a la regla: es la regla cumplida en dos pasos, como `CLAUDE.md` la describe.
+
+### Open follow-ups
+
+- **`TIENDA-CAPTURAS-CHAMISAS-SESION-1`** (nuevo): las capturas de escritorio/celular de
+  Carta+Láminas+Interludio+Costura con un catálogo real, y la del editor (`/admin/tienda`, pestaña
+  Catálogo, el picker de color), no se hicieron (§ arriba) — necesitan una base efímera con
+  catálogo + sesión real, fuera del alcance sancionado de este dispatch.
+- **`TIENDA-FRANJA-SEPARADOR-1`** (nuevo): "la franja de tejido como separador entre secciones" (el
+  spec de referencia, item 5, "si se elige") no se construyó — sólo su uso en Costura. Si se pide,
+  decide primero DÓNDE vive el campo que gatea el separador (page-level vs. cross-sección) y qué
+  secciones pueden llevarlo entre medio.
+- **`TIENDA-INTERLUDIO-SLOT-RETRATO-1`** (nuevo): la variación "con 2 productos, el retrato ocupa
+  el tercer espacio de la grilla" del documento de referencia no se construyó — Interludio es
+  independiente del conteo de Láminas. Si se pide, acopla las dos secciones por primera vez.
+- Las composiciones de Onix (Cartel/Taquilla) siguen sin construir — el slot `variantes.claves`
+  queda listo para una TERCERA clave el día que se pidan, mismo mecanismo que usó Carta/Láminas.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega contenido storefront nuevo bajo
+`components/storefront/tienda/` (Tier 1 por subárbol, § arriba) y reescribe partes de
+`TiendaEncabezado.tsx`/`TiendaCatalogo.tsx`/`page.tsx` — archivos que compilan a lo que un
+visitante recibe. `customer_bytes.changed = true`: a diferencia de `TIENDA-PAGINA-REGISTRO-1` (que
+medía byte-identidad TOTAL porque sólo movía texto existente), ESTE slice agrega CAPACIDAD nueva
+—un tenant que elija «Carta»/«Láminas» o encienda Interludio/Cierre SÍ ve bytes nuevos—, aunque
+Nayoli (en «Actual», con las dos secciones nuevas apagadas) siga byte-idéntica, medido arriba.
+`strings`: el H1 nuevo "¿Qué te provoca?" (default, editable), el sticker/intro (vacíos por
+defecto), "se nos acabó"/"Avísame por WhatsApp" (Láminas, agotado), la frase/botón de Costura
+("¿Quieres recibir tu pedido todos los meses?... / Escríbenos", defaults, editables) — ninguno
+visible para Nayoli hoy, todos visibles para el primer tenant que adopte el álbum. `npm run gate`
+GREEN de punta a punta en el árbol final (typecheck 0 · test 4131/4131 · test:integracion 387/387).
+Byte-identidad de Nayoli confirmada por medición directa (verificar:nayoli + grep de contenido),
+no por "0 archivos de storefront en touches" (que habría sido falso: SÍ hay archivos nuevos de
+storefront, todos dentro de `touches:`). Commiteado en `slice/editor-secciones-1`; el merge, cuando
+el owner revise el gate visual (las capturas que este slice no pudo producir, § arriba), lo hace el
+orquestador.

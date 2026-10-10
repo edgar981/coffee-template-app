@@ -525,3 +525,42 @@ test('seccionesHome: "cierre" también lleva `visible`, mismo contrato que los d
   });
   assert.equal((parsed.seccionesHome!['inst:cta'] as { visible: boolean }).visible, false);
 });
+
+// ─── § TIENDA-CHAMISAS-ALBUM-1 — el mapa `tiendaCatalogo.coloresPorProducto` ──────────────────────
+
+test('tiendaCatalogo.coloresPorProducto: un mapa id→hex SOBREVIVE al parse (si no, zod lo descartaría al guardar, § #65-B)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaCatalogo: { coloresPorProducto: { prod1: '#f4b3c2', prod2: '#9ac77a' } },
+  });
+  assert.deepEqual(parsed.tiendaCatalogo!.coloresPorProducto, { prod1: '#f4b3c2', prod2: '#9ac77a' });
+});
+
+test('tiendaCatalogo.coloresPorProducto: un valor NO-hex sobrevive el SCHEMA igual (el resolver, no el schema, lo filtra SOFT)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaCatalogo: { coloresPorProducto: { prod1: 'rojo' } },
+  });
+  assert.deepEqual(parsed.tiendaCatalogo!.coloresPorProducto, { prod1: 'rojo' });
+});
+
+test('tiendaEncabezado: sticker/intro/antojoTitulo sobreviven el schema (§ la composición «Carta»)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaEncabezado: { sticker: 'cosecha 2026', intro: 'Lo cultivamos nosotras.', antojoTitulo: '¿Qué te antoja?' },
+  });
+  assert.deepEqual(parsed.tiendaEncabezado, { sticker: 'cosecha 2026', intro: 'Lo cultivamos nosotras.', antojoTitulo: '¿Qué te antoja?' });
+});
+
+// ─── § TIENDA-CHAMISAS-ALBUM-1 — las DOS secciones nuevas: Interludio y Cierre ────────────────────
+
+test('tiendaInterludio: visible/imagen/cita/firma sobreviven el schema completos', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaInterludio: { visible: true, imagen: '/x.jpg', cita: 'Cada taza cuenta una historia.', firma: 'Marcela, vereda El Roble' },
+  });
+  assert.deepEqual(parsed.tiendaInterludio, { visible: true, imagen: '/x.jpg', cita: 'Cada taza cuenta una historia.', firma: 'Marcela, vereda El Roble' });
+});
+
+test('tiendaCierre: visible/franjaTejido/frase/boton sobreviven el schema completos', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaCierre: { visible: true, franjaTejido: '/franja.jpg', frase: 'Te lo apartamos cada mes.', boton: 'Escríbenos' },
+  });
+  assert.deepEqual(parsed.tiendaCierre, { visible: true, franjaTejido: '/franja.jpg', frase: 'Te lo apartamos cada mes.', boton: 'Escríbenos' });
+});

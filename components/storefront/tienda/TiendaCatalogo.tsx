@@ -11,6 +11,8 @@ import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/cat
 import type { Product, RoastLevel } from '@/types/product';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import FiltrarOrdenar from '@/components/storefront/tienda/FiltrarOrdenar';
+import TiendaLaminas from '@/components/storefront/tienda/TiendaLaminas';
+import { mostrarSelectorAntojo } from '@/lib/tienda/antojo';
 import {
   ordenarCatalogo,
   filtrarCatalogo,
@@ -54,8 +56,23 @@ interface ActiveFilter {
 // monta el App Router de Next): el acceso es con `?.`, nunca `searchParams.get(...)` a secas — en la
 // tienda real (dentro del `<Suspense>` de `Shop()`) el contexto SIEMPRE existe, así que el
 // comportamiento ahí no cambia.
-export default function TiendaCatalogo() {
-  const { navTratamiento } = useSiteContent();
+export default function TiendaCatalogo({ whatsapp }: { whatsapp?: string } = {}) {
+  const { navTratamiento, tiendaCatalogo } = useSiteContent();
+  // LA COMPOSICIÓN «LÁMINAS» (§ TIENDA-CHAMISAS-ALBUM-1) — INDEPENDIENTE de `navTratamiento.
+  // posicion`, como «Carta» en `TiendaEncabezado`. Con MÁS de 6 productos cae SOLA a la grilla de
+  // «Actual» (§ el spec: "quedan los filtros de «Actual»") — no es un tercer valor de `variante`,
+  // es una decisión de este componente sobre los MISMOS dos valores. Mientras el catálogo carga
+  // (`null`) cae a «Actual» también: ésas ya tienen su propio estado "Cargando" resuelto.
+  const [catalog, setCatalog] = useState<Product[] | null>(null);
+  useEffect(() => {
+    if (tiendaCatalogo.variante !== 'laminas') return;
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, [tiendaCatalogo.variante]);
+
+  if (tiendaCatalogo.variante === 'laminas' && catalog !== null && mostrarSelectorAntojo(catalog)) {
+    return <TiendaLaminas catalog={catalog} coloresPorProducto={tiendaCatalogo.coloresPorProducto} whatsapp={whatsapp} />;
+  }
+
   return navTratamiento.posicion ? <CatalogoCorte /> : <CatalogoLegacy />;
 }
 

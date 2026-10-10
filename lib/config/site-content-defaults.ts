@@ -979,12 +979,24 @@ export interface SuscripcionFaqContent {
 //
 // `ocultable: false` en las DOS, como el hero y el menú: el catálogo ES la tienda, no una banda que
 // se pueda apagar — no hay `visible` que resolver.
+// LA COMPOSICIÓN «CARTA» (§ TIENDA-CHAMISAS-ALBUM-1, sobre TIENDA-COMPOSICIONES-CENSO-1): la línea
+// «cálida, hecha por mujeres» del álbum de láminas. Tres campos NUEVOS, los tres OPCIONALES — vacío
+// se OMITE, nunca cae a un texto inventado (§ la frontera fina de defaults-como-fallback: "el
+// fallback aplica a lo que la página NECESITA", y un sticker/una intro/el título del selector de
+// antojo son DECORACIÓN, no algo que la página necesite para existir).
+//  · `sticker` — el texto girado junto al H1 (p. ej. "cosecha 2026"). Vacío: no se muestra.
+//  · `intro` — la frase en primera persona bajo el H1. Vacío: no se muestra.
+//  · `antojoTitulo` — el encabezado del selector «¿Qué te provoca?» — SÍ tiene default (no es un
+//    dato del dueño como los dos de arriba, es COPY del selector), así que es REQUERIDO.
 export interface TiendaEncabezadoContent {
   titulo: string;
   // Acompaña al conteo de productos, que sigue siendo DATO vivo (`getCatalog`), nunca contenido:
   // "{N} productos · {leyenda}" (hoy, siempre "Origen colombiano"). Requerido — vacío cae al
   // default, el conteo nunca queda sin su frase.
   leyenda: string;
+  sticker: string;
+  intro: string;
+  antojoTitulo: string;
   variante: string;
 }
 
@@ -1001,7 +1013,41 @@ export interface TiendaEncabezadoContent {
 export interface TiendaCatalogoContent {
   vacioTitulo: string;
   vacioTexto: string;
+  // EL COLOR POR CAFÉ (§ TIENDA-CHAMISAS-ALBUM-1, composición «Láminas»): mapa id-de-producto → hex
+  // de 6 dígitos, KEY-AGNÓSTICO (gemelo de `esquemas`/`variantesBandas`, pero DENTRO de la sección en
+  // vez de meta — § `SeccionDef.mapas`, `resolverMapaColor`). Un producto SIN entrada (o con un
+  // id/hex inválido) toma color por ORDEN de catálogo (`lib/tienda/laminas.ts`, `colorDeLamina`), no
+  // un hex fijo de ningún cliente — la paleta de reserva se DERIVA de `content.tema`. Un producto
+  // BORRADO deja de leerse (el mapa no se poda solo; es basura inerte, no un bug); uno NUEVO toma
+  // color por orden sin que nadie edite nada.
+  coloresPorProducto: Record<string, string>;
   variante: string;
+}
+
+// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL de verdad: se
+// auto-oculta SIN imagen (el componente lo comprueba, § TiendaInterludio.tsx), y nace APAGADA
+// (`visible:false`, `ocultable:true`) para que un tenant que no la toque quede byte-idéntico — NO
+// hay imagen por defecto que mostrar, y una imagen de stock sería una mentira de marca. `cita`/
+// `firma` OPCIONALES: "Nada de citas ni nombres en los defaults" (§ el invariante #44, la misma
+// familia que ya prohíbe reseñas fabricadas — una cita atribuida a alguien es un CLAIM, no copy).
+export interface TiendaInterludioContent {
+  visible: boolean;
+  imagen: string;
+  cita: string;
+  firma: string;
+}
+
+// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL, nace APAGADA
+// (`visible:false`) por la misma razón que el interludio. `franjaTejido` es la franja de tejido de
+// LA PÁGINA /tienda (§ el spec, item 5): vive acá porque Costura es su consumidor obligatorio ("la
+// franja arriba"); sin imagen, la tarjeta se queda sin esa franja (no se imita con CSS, § la
+// referencia). `frase`/`boton` son REQUERIDOS —a diferencia de la cita del interludio, no son un
+// CLAIM atribuido a nadie, son copy de la propia tienda— así que vacío cae al default neutro.
+export interface TiendaCierreContent {
+  visible: boolean;
+  franjaTejido: string;
+  frase: string;
+  boton: string;
 }
 
 // Los TRES ítems CONOCIDOS del menú del nav (§ CROMO-MENU-COMO-DATO-1) — set CERRADO: no se
@@ -1765,6 +1811,8 @@ export interface SiteContentData {
   suscripcionFaq: SuscripcionFaqContent;
   tiendaEncabezado: TiendaEncabezadoContent;
   tiendaCatalogo: TiendaCatalogoContent;
+  tiendaInterludio: TiendaInterludioContent;
+  tiendaCierre: TiendaCierreContent;
   menu: MenuContent;
   footer: FooterContent;
   logo: LogoContent;
@@ -2286,12 +2334,37 @@ export const DEFAULTS: SiteContentData = {
   tiendaEncabezado: {
     titulo: 'Nuestra Tienda',
     leyenda: 'Origen colombiano',
+    // Los TRES campos de la composición «Carta» (§ TIENDA-CHAMISAS-ALBUM-1): `sticker`/`intro`
+    // vacíos (opcionales, sin default inventado); `antojoTitulo` con su copy —es requerido, así que
+    // necesita un default, pero NO se muestra bajo «Actual», sólo bajo «Carta»—.
+    sticker: '',
+    intro: '',
+    antojoTitulo: '¿Qué te provoca?',
     variante: 'actual',
   },
   tiendaCatalogo: {
     vacioTitulo: 'Sin resultados',
     vacioTexto: 'Prueba con otros filtros o términos de búsqueda.',
+    // Sin color elegido para NINGÚN producto por defecto — Nayoli (y todo tenant que no toque este
+    // mapa) asigna colores por orden de catálogo, derivados de SU tema (§ TiendaCatalogoContent).
+    coloresPorProducto: {},
     variante: 'actual',
+  },
+  // § TIENDA-CHAMISAS-ALBUM-1 — nacen las DOS APAGADAS (`visible:false`): sin fila de SiteContent,
+  // ningún tenant ve nada nuevo — byte-idéntico. `cita`/`firma` del interludio VACÍAS a propósito
+  // (§ TiendaInterludioContent, "nada de citas ni nombres en los defaults"); `frase`/`boton` del
+  // cierre SÍ llevan copy neutro (no son un claim atribuido a nadie).
+  tiendaInterludio: {
+    visible: false,
+    imagen: '',
+    cita: '',
+    firma: '',
+  },
+  tiendaCierre: {
+    visible: false,
+    franjaTejido: '',
+    frase: '¿Quieres recibir tu pedido todos los meses? Lo coordinamos por WhatsApp.',
+    boton: 'Escríbenos',
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
   // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
@@ -2589,6 +2662,14 @@ export interface SeccionDef {
   /** Nombres de los campos que son IMÁGENES (blobs). Los lee el borrado de blobs reemplazados
    *  (`imagenesDe`), NO el resolver. Para un repeater la imagen vive en cada item. */
   imagenes?: string[];
+  /** Campos MAPA (Record<string,string>) de sección ADICIONALES (§ TIENDA-CHAMISAS-ALBUM-1) — gemelo
+   *  de `escalares`/`booleanos`, pero para un Record KEY-AGNÓSTICO en vez de un escalar único
+   *  clampado a un set cerrado. Hoy sólo `tiendaCatalogo.coloresPorProducto` (id de producto → hex).
+   *  Resuelto con `resolverMapaColor`: entradas sin hex de 6 dígitos válido se OMITEN (SOFT, nunca
+   *  lanza) — mismo criterio que `resolverEsquemas`/`resolverVariantesBandas`, dominio ABIERTO, sólo
+   *  que ACÁ vive DENTRO de la sección (viaja en su mismo borrador/publish) en vez de ser una clave
+   *  meta aparte. */
+  mapas?: readonly string[];
 }
 
 // Las claves de SECCIÓN (todo `SiteContentData` menos las META `paginas`, `tema`, `cromo`,
@@ -3054,19 +3135,60 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   tiendaEncabezado: {
     label: 'Encabezado de la tienda',
     ocultable: false,
-    variantes: { claves: ['actual'], canonica: 'actual' },
+    // 'carta' (§ TIENDA-CHAMISAS-ALBUM-1): la línea «cálida, hecha por mujeres» — H1 en primera
+    // persona, sticker girado, intro, y el selector «¿Qué te provoca?». Segunda clave del set, nunca
+    // reemplaza a 'actual' (§ el spec: "«Actual» sigue siendo el default").
+    variantes: { claves: ['actual', 'carta'], canonica: 'actual' },
     campos: {
       titulo: 'requerido',
       leyenda: 'requerido',
+      sticker: 'opcional',
+      intro: 'opcional',
+      antojoTitulo: 'requerido',
     },
   },
   tiendaCatalogo: {
     label: 'Catálogo',
     ocultable: false,
-    variantes: { claves: ['actual'], canonica: 'actual' },
+    // 'laminas' (§ TIENDA-CHAMISAS-ALBUM-1): un color por café, elegible o por orden de la paleta
+    // derivada del tema (§ `mapas`, abajo). Con más de 6 productos cae sola a la grilla de 'actual'
+    // (§ `lib/tienda/antojo.ts`, `mostrarSelectorAntojo`) — no es un tercer valor de `variante`, es
+    // una decisión del COMPONENTE sobre los MISMOS dos valores.
+    variantes: { claves: ['actual', 'laminas'], canonica: 'actual' },
     campos: {
       vacioTitulo: 'requerido',
       vacioTexto: 'requerido',
+    },
+    // EL MAPA id-de-producto → color (§ SeccionDef.mapas, arriba). Vive en esta sección —no en una
+    // clave meta aparte— porque viaja en el MISMO borrador/publish que el resto del Catálogo.
+    mapas: ['coloresPorProducto'],
+  },
+  // § TIENDA-CHAMISAS-ALBUM-1 — Interludio «Retrato y cita»: `ocultable:true`, nace APAGADA
+  // (DEFAULTS.tiendaInterludio.visible=false). `imagenes` nombra `imagen` para que el borrado de
+  // blobs reemplazados (`imagenesDe`) la vea — sin esto, una foto reemplazada quedaría huérfana en
+  // el storage para siempre (§ CLAUDE.md, "El borrado de blobs por ítem…").
+  tiendaInterludio: {
+    label: 'Interludio: retrato y cita',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      imagen: 'opcional',
+      cita: 'opcional',
+      firma: 'opcional',
+    },
+  },
+  // § TIENDA-CHAMISAS-ALBUM-1 — Cierre «Costura»: `ocultable:true`, nace APAGADA. `franjaTejido` es
+  // la franja de tejido de LA PÁGINA (§ el spec, item 5) — vive acá porque Costura es quien la
+  // necesita siempre ("la franja arriba"); `frase`/`boton` REQUERIDOS (copy propio de la tienda, no
+  // un claim atribuido a nadie, así que caen al default neutro si quedan vacíos).
+  tiendaCierre: {
+    label: 'Cierre: costura',
+    ocultable: true,
+    imagenes: ['franjaTejido'],
+    campos: {
+      franjaTejido: 'opcional',
+      frase: 'requerido',
+      boton: 'requerido',
     },
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
@@ -3353,6 +3475,14 @@ export function resolverSiteContent(
     // toda sección que no declare el eje).
     if (def.estilos) {
       sec.estilos = resolverEstilosSeccion(storedSec.estilos, def.estilos);
+    }
+
+    // MAPAS (§ TIENDA-CHAMISAS-ALBUM-1): campos Record<string,string> ADICIONALES, por NOMBRE —
+    // gemelo de ESCALARES/BOOLEANOS/ESTILOS arriba. Hoy sólo `tiendaCatalogo.coloresPorProducto`.
+    if (def.mapas) {
+      for (const campo of def.mapas) {
+        sec[campo] = resolverMapaColor(storedSec[campo]);
+      }
     }
 
     out[key] = sec;
@@ -3656,6 +3786,22 @@ const ESQUEMA_IDS = new Set<ClaveEsquema>(['crema', 'superficie', 'oscuro', 'ace
  * NI SIQUIERA aparece en el resultado — es lo que hace que el consumidor la lea como "sin
  * override" (cae a su token canónico de hoy, § el mecanismo de byte-identidad). SOFT, nunca lanza.
  */
+// Resuelve un campo MAPA de SECCIÓN (§ TIENDA-CHAMISAS-ALBUM-1, `SeccionDef.mapas`) — gemelo de
+// `resolverEsquemas` (abajo), mismo criterio SOFT/key-agnóstico, pero el DOMINIO DE VALORES es un hex
+// de 6 dígitos en vez de un set cerrado de ids. Una entrada sin hex válido NI SIQUIERA aparece en el
+// resultado — la misma "sin override" que `resolverEsquemas`, nunca un clamp a una canónica (no hay
+// canónica para un mapa id→color: el fallback "sin color elegido" lo decide el LLAMADOR, por orden
+// de catálogo, § `lib/tienda/laminas.ts`).
+const HEX6_MAPA = /^#[0-9a-fA-F]{6}$/;
+export function resolverMapaColor(stored: unknown): Record<string, string> {
+  const st = esObj(stored) ? stored : {};
+  const out: Record<string, string> = {};
+  for (const [id, val] of Object.entries(st)) {
+    if (typeof val === 'string' && HEX6_MAPA.test(val)) out[id] = val;
+  }
+  return out;
+}
+
 export function resolverEsquemas(stored: unknown): EsquemasContent {
   const st = esObj(stored) ? stored : {};
   const out: EsquemasContent = {};

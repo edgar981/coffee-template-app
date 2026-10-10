@@ -398,15 +398,41 @@ const suscripcionFaqEditableSchema = z.object({
 // /tienda (§ TIENDA-PAGINA-REGISTRO-1): sin `visible` — `REGISTRY.tiendaEncabezado`/`.tiendaCatalogo`
 // son `ocultable: false`, como el hero. `variante` SOBREVIVE al parse como el resto de las secciones
 // con composición (`z.string()`, clampada SOFT por `resolverVariante` al leer, no acá).
+// § TIENDA-CHAMISAS-ALBUM-1 — `sticker`/`intro`/`antojoTitulo`: TRES campos más de la composición
+// «Carta», SOFT como el resto (string, sin `min(1)` — el vacío es legítimo, § el resolver).
 const tiendaEncabezadoEditableSchema = z.object({
   titulo: z.string().optional(),
   leyenda: z.string().optional(),
+  sticker: z.string().optional(),
+  intro: z.string().optional(),
+  antojoTitulo: z.string().optional(),
   variante: z.string().optional(),
 });
+// `coloresPorProducto` (§ TIENDA-CHAMISAS-ALBUM-1, `SeccionDef.mapas`): `z.record(z.string(),
+// z.string())`, KEY-AGNÓSTICO —MISMO patrón que `variantesBandasEditableSchema`/`esquemasEditableSchema`
+// (abajo)—, SOFT: el valor sobrevive el schema aunque no sea un hex válido; el resolver
+// (`resolverMapaColor`) es quien lo filtra al leer. Sin declararlo, zod lo STRIPPEARÍA al guardar
+// (§ #65-B).
 const tiendaCatalogoEditableSchema = z.object({
   vacioTitulo: z.string().optional(),
   vacioTexto: z.string().optional(),
+  coloresPorProducto: z.record(z.string(), z.string()).optional(),
   variante: z.string().optional(),
+});
+
+// § TIENDA-CHAMISAS-ALBUM-1 — Interludio y Cierre: las DOS secciones nuevas de /tienda. `visible`
+// SOBREVIVE (§ #65-B) como cualquier sección `ocultable`; los campos de texto/imagen son SOFT.
+const tiendaInterludioEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  imagen: z.string().optional(),
+  cita: z.string().optional(),
+  firma: z.string().optional(),
+});
+const tiendaCierreEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  franjaTejido: z.string().optional(),
+  frase: z.string().optional(),
+  boton: z.string().optional(),
 });
 
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
@@ -975,6 +1001,8 @@ export const siteContentEditableSchema = z.object({
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   tiendaEncabezado: tiendaEncabezadoEditableSchema.optional(),
   tiendaCatalogo: tiendaCatalogoEditableSchema.optional(),
+  tiendaInterludio: tiendaInterludioEditableSchema.optional(),
+  tiendaCierre: tiendaCierreEditableSchema.optional(),
   menu: menuEditableSchema.optional(),
   footer: footerEditableSchema.optional(),
   logo: logoEditableSchema.optional(),

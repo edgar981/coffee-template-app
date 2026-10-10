@@ -18,6 +18,8 @@ import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionP
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
+import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
+import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
@@ -140,6 +142,14 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // props (como `NosotrosHistoria`/`SuscripcionPasos`) → asignables a `ComponentType`.
   tiendaEncabezado: TiendaEncabezado,
   tiendaCatalogo: TiendaCatalogo,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § TIENDA-CHAMISAS-ALBUM-1 (mismo patrón que
+  // 'tiendaEncabezado'/'tiendaCatalogo' arriba): sumar 'tiendaInterludio'/'tiendaCierre' a
+  // `SeccionVista` vuelve este `Record<SeccionVista, ComponentType>` NO-exhaustivo sin estas dos
+  // líneas. `TiendaCierre` toma `whatsapp` opcional para su CTA; en el preview va sin prop → el
+  // botón se oculta (un `wa.me/` sin número es un botón muerto, mismo criterio que
+  // `SuscripcionPlanes`). Todo-opcional en los dos → asignables a `ComponentType`.
+  tiendaInterludio: TiendaInterludio,
+  tiendaCierre: TiendaCierre,
   nosotrosHistoria: NosotrosHistoria,
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.

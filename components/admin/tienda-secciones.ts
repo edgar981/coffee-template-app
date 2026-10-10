@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaInterludio' | 'tiendaCierre';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -400,6 +400,10 @@ export interface SeccionConfig {
    *  presente, sin una segunda declaración. Ausente = sin control de panel para `variante` (el eje
    *  sigue existiendo en el modelo; sólo `mergePresetEnContent` lo escribe, § `PENDIENTE_PANEL`). */
   composiciones?: ComposicionOpcion[];
+  /** § TIENDA-CHAMISAS-ALBUM-1 — presente ⇒ la cáscara monta `<ColorPorCafe>` (el picker de color
+   *  por producto, con sugerencias de la paleta del tema), que escribe el mapa `coloresPorProducto`
+   *  de esta sección. Hoy sólo `tiendaCatalogo`. */
+  coloresPorProducto?: boolean;
 }
 
 // ── EL PATRÓN GENERAL DE ATENUACIÓN (§ PANEL-EDITOR-HERO-TOGGLES-1, item 1) — REUSABLE por todo
@@ -1163,26 +1167,43 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 };
 
 // LA PÁGINA /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `REGISTRY.tiendaEncabezado`/
-// `.tiendaCatalogo` en site-content-defaults.ts). UNA sola composición, «Actual» — el mismo
-// mecanismo que `hero.composiciones`, con el set `['actual']` de `REGISTRY.tienda*.variantes.claves`:
-// deja el slot de composición listo para que un slice futuro agregue Cartel/Taquilla sin tocar el
-// resolver ni este archivo salvo por sumar la opción nueva.
+// `.tiendaCatalogo` en site-content-defaults.ts). El mecanismo es el mismo que `hero.composiciones`
+// —el `ComposicionOpcion[]` deriva de `REGISTRY.tienda*.variantes.claves`, nunca una segunda lista—;
+// GANÓ una segunda clave en § TIENDA-CHAMISAS-ALBUM-1 («Carta»/«Láminas», la línea «cálida, hecha por
+// mujeres»), así que el label YA NO puede ser 'Actual' a secas para las dos — un mapa por clave,
+// como `LABEL_COMPOSICION_HERO`.
+const LABEL_COMPOSICION_TIENDA_ENCABEZADO: Record<string, string> = { actual: 'Actual', carta: 'Carta' };
 const ZONAS_TIENDA_ENCABEZADO: ZonaComposicion[] = [
   { campos: ['titulo'], label: 'Título' },
   { campos: ['leyenda'], label: 'Leyenda' },
 ];
+// LAS ZONAS DE «CARTA» — sticker/intro son NUEVAS de esta composición (§ TIENDA-CHAMISAS-ALBUM-1);
+// el selector de antojo no es un campo de texto suelto (`antojoTitulo` sí lo es, el resto lo deriva
+// el catálogo real), así que sólo ese título entra como zona de TEXTO.
+const ZONAS_TIENDA_ENCABEZADO_CARTA: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['sticker'], label: 'Sticker girado' },
+  { campos: ['intro'], label: 'Intro en primera persona' },
+  { campos: ['antojoTitulo'], label: 'Título del selector' },
+];
 const OPCIONES_COMPOSICION_TIENDA_ENCABEZADO: ComposicionOpcion[] = REGISTRY.tiendaEncabezado.variantes!.claves.map((v) => ({
-  value: v, label: 'Actual', zonas: ZONAS_TIENDA_ENCABEZADO,
+  value: v, label: LABEL_COMPOSICION_TIENDA_ENCABEZADO[v] ?? v,
+  zonas: v === 'carta' ? ZONAS_TIENDA_ENCABEZADO_CARTA : ZONAS_TIENDA_ENCABEZADO,
 }));
+const LABEL_COMPOSICION_TIENDA_CATALOGO: Record<string, string> = { actual: 'Actual', laminas: 'Láminas' };
 const ZONAS_TIENDA_CATALOGO: ZonaComposicion[] = [
   { campos: ['vacioTitulo', 'vacioTexto'], label: 'Sin resultados' },
 ];
 const OPCIONES_COMPOSICION_TIENDA_CATALOGO: ComposicionOpcion[] = REGISTRY.tiendaCatalogo.variantes!.claves.map((v) => ({
-  value: v, label: 'Actual', zonas: ZONAS_TIENDA_CATALOGO,
+  value: v, label: LABEL_COMPOSICION_TIENDA_CATALOGO[v] ?? v, zonas: ZONAS_TIENDA_CATALOGO,
 }));
 
 // Título + conteo de productos + leyenda. El CONTEO sigue siendo DATO vivo (`getCatalog`), no
 // contenido de este editor. `ocultable: false` — el catálogo es la tienda (§ `PAGINAS`, arriba).
+// Los TRES campos nuevos (§ TIENDA-CHAMISAS-ALBUM-1) sólo tienen efecto bajo la composición «Carta»
+// —lo dice cada hint—, pero se editan siempre: el dato sigue en `content.tiendaEncabezado.*` tanto si
+// la composición activa lo pinta como si no (§ el docstring de `ComposicionHero`, "lo que no se
+// muestra no se borra").
 const TIENDA_ENCABEZADO: SeccionConfig = {
   seccion: 'tiendaEncabezado',
   pagina: 'tienda',
@@ -1193,23 +1214,60 @@ const TIENDA_ENCABEZADO: SeccionConfig = {
   campos: [
     { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'leyenda', label: 'Leyenda', hint: 'Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
+    { name: 'sticker', label: 'Sticker girado', opcional: true, hint: 'Sólo con la composición "Carta". Un texto corto junto al título, p. ej. "cosecha 2026". Vacío: no se muestra.' },
+    { name: 'intro', label: 'Intro en primera persona', opcional: true, textarea: true, hint: 'Sólo con la composición "Carta". Dos líneas como máximo. Vacío: no se muestra.' },
+    { name: 'antojoTitulo', label: 'Título del selector', hint: 'Sólo con la composición "Carta", y sólo con 6 productos o menos. Vacío: se usa el texto por defecto.' },
   ],
 };
 
 // El buscador, los filtros y la grilla. El placeholder del buscador ("Buscar café...") y el
 // catálogo/sus filtros NO son contenido de este editor — ver el docstring de
 // `TiendaCatalogoContent` (site-content-defaults.ts) para el porqué del buscador. Sólo los dos
-// textos del estado vacío son editables.
+// textos del estado vacío son editables, más el COLOR por producto (§ TIENDA-CHAMISAS-ALBUM-1),
+// que sólo tiene efecto bajo «Láminas» pero se edita siempre — mismo criterio que arriba.
 const TIENDA_CATALOGO: SeccionConfig = {
   seccion: 'tiendaCatalogo',
   pagina: 'tienda',
   titulo: 'Catálogo',
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_TIENDA_CATALOGO,
+  coloresPorProducto: true,
   imagenes: [],
   campos: [
     { name: 'vacioTitulo', label: 'Título · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'vacioTexto', label: 'Texto · sin resultados', hint: 'Vacío: se usa el texto por defecto.' },
+  ],
+};
+
+// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace apagado. Se
+// auto-oculta ADEMÁS sin imagen (el componente lo comprueba, § TiendaInterludio.tsx) — el toggle
+// decide la INTENCIÓN del dueño, la foto decide si hay algo que mostrar.
+const TIENDA_INTERLUDIO: SeccionConfig = {
+  seccion: 'tiendaInterludio',
+  pagina: 'tienda',
+  titulo: 'Interludio: retrato y cita',
+  ocultable: true,
+  imagenes: [{ name: 'imagen', label: 'Retrato', opcional: true }],
+  campos: [
+    { name: 'cita', label: 'Cita', opcional: true, textarea: true, hint: 'En primera persona. Vacío: no se muestra.' },
+    { name: 'firma', label: 'Firma', opcional: true, hint: 'P. ej. "Marcela, vereda El Roble". Vacío: no se muestra.' },
+  ],
+};
+
+// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace apagado. La franja de
+// tejido es la imagen de LA PÁGINA (§ el spec, item 5): vive acá porque Costura es su consumidor
+// obligatorio ("la franja arriba"); sin WhatsApp configurado (Configuración del negocio) el botón
+// simplemente no se muestra — eso lo decide el componente, no este editor.
+const TIENDA_CIERRE: SeccionConfig = {
+  seccion: 'tiendaCierre',
+  pagina: 'tienda',
+  titulo: 'Cierre: costura',
+  ocultable: true,
+  notaVisibilidad: 'El botón a WhatsApp sólo aparece si el negocio tiene un número configurado en Configuración.',
+  imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true }],
+  campos: [
+    { name: 'frase', label: 'Frase', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'boton', label: 'Texto del botón', hint: 'Vacío: se usa el texto por defecto.' },
   ],
 };
 
@@ -1237,4 +1295,4 @@ const TIENDA_CATALOGO: SeccionConfig = {
 // montada en el orden real de la home (`spotlight` sigue sin ser miembro de `BANDA_IDS`, §
 // SPOTLIGHT-BANDA-1) — no hay una posición "correcta" que replicar, así que se agrega al final para
 // no sugerir un orden que el storefront no tiene hoy.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_INTERLUDIO, TIENDA_CIERRE, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

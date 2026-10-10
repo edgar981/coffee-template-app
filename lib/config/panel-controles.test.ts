@@ -495,3 +495,13 @@ test('camposLeidosPorTienda() y camposControladosPorPanel() no están vacíos (e
   assert.ok(camposLeidosPorTienda().length > 50);
   assert.ok(camposControladosPorPanel().length > 30);
 });
+
+// § TIENDA-CHAMISAS-ALBUM-1 — `coloresPorProducto` (un MAPA de sección, `SeccionDef.mapas`) entra a
+// los DOS lados por el MISMO mecanismo que `variante`/`escalares`: declarar la config es lo único que
+// hace falta. Si `camposDeSeccion` o `config.coloresPorProducto` dejaran de leerse, `huecosDelPanel()`
+// (arriba) ya lo atraparía — esta aserción sólo nombra el campo para que el próximo lector lo vea sin
+// tener que correr el gate completo.
+test('tiendaCatalogo.coloresPorProducto está LEÍDO y CONTROLADO (el mapa de color por café)', () => {
+  assert.ok(camposLeidosPorTienda().includes('tiendaCatalogo.coloresPorProducto'));
+  assert.ok(camposControladosPorPanel().includes('tiendaCatalogo.coloresPorProducto'));
+});

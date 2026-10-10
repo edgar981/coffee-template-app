@@ -26,20 +26,28 @@ test('SECCIONES_TIENDA declara tiendaEncabezado y tiendaCatalogo en la página "
   assert.equal(catalogo!.ocultable, false);
 });
 
-test('REGISTRY.tiendaEncabezado/.tiendaCatalogo declaran UNA sola composición: "actual"', () => {
-  assert.deepEqual(REGISTRY.tiendaEncabezado.variantes?.claves, ['actual']);
+// § TIENDA-CHAMISAS-ALBUM-1 GANÓ la segunda composición de cada sección («Carta»/«Láminas») —
+// este test documentaba la premisa "sólo existe «Actual»" de la tanda anterior, y ESE slice ya
+// anticipaba el cambio: "deja el slot de composición listo para que un slice futuro agregue
+// Cartel/Taquilla sin tocar el resolver". Lo que sigue siendo cierto, y lo que este test afirma
+// ahora, es que «actual» SIGUE siendo la CANÓNICA (el default, byte-idéntico sin fila) — la
+// composición nueva es la SEGUNDA clave, nunca el reemplazo.
+test('REGISTRY.tiendaEncabezado/.tiendaCatalogo: "actual" sigue siendo la CANÓNICA, con una segunda composición sumada', () => {
+  assert.deepEqual(REGISTRY.tiendaEncabezado.variantes?.claves, ['actual', 'carta']);
   assert.equal(REGISTRY.tiendaEncabezado.variantes?.canonica, 'actual');
-  assert.deepEqual(REGISTRY.tiendaCatalogo.variantes?.claves, ['actual']);
+  assert.deepEqual(REGISTRY.tiendaCatalogo.variantes?.claves, ['actual', 'laminas']);
   assert.equal(REGISTRY.tiendaCatalogo.variantes?.canonica, 'actual');
 });
 
-test('cada SeccionConfig de /tienda ofrece exactamente la opción «Actual» en su composición', () => {
+test('cada SeccionConfig de /tienda ofrece «Actual» PRIMERO, y una segunda composición — nunca menos de dos, nunca "actual" fuera del primer lugar', () => {
   const encabezado = SECCIONES_TIENDA.find((c) => c.seccion === 'tiendaEncabezado')!;
   const catalogo = SECCIONES_TIENDA.find((c) => c.seccion === 'tiendaCatalogo')!;
-  assert.equal(encabezado.composiciones?.length, 1);
+  assert.equal(encabezado.composiciones?.length, 2);
   assert.equal(encabezado.composiciones?.[0].value, 'actual');
-  assert.equal(catalogo.composiciones?.length, 1);
+  assert.equal(encabezado.composiciones?.[1].value, 'carta');
+  assert.equal(catalogo.composiciones?.length, 2);
   assert.equal(catalogo.composiciones?.[0].value, 'actual');
+  assert.equal(catalogo.composiciones?.[1].value, 'laminas');
 });
 
 // ─── SIN FILA → el resultado es el DE HOY (byte-idéntico) ─────────────────────────────────────────
