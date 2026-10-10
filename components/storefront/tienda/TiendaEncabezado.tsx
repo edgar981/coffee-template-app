@@ -105,7 +105,11 @@ function TiendaCarta({
   return (
     <motion.div initial={preview ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
       <div className="flex items-start gap-3 flex-wrap">
-        <h1 className="font-playfair text-4xl lowercase text-[var(--sf-tinta)]">{tiendaEncabezado.titulo}</h1>
+        {/* SIN `lowercase` (§ TIENDA-CHAMISAS-AJUSTES-1, item 6): la minúscula era una sugerencia de
+            DISEÑO para el texto por defecto («nuestros tres cafés»), no una regla que pise lo que el
+            dueño escribe — con la clase puesta, un título guardado en mayúscula ("Nuestros tres
+            cafés") se seguía viendo en minúscula, contra lo que el dueño tecleó y publicó. */}
+        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)]">{tiendaEncabezado.titulo}</h1>
         {tiendaEncabezado.sticker && (
           <span
             className="sf-pildora bg-[var(--sf-tostado)] text-[var(--sf-tinta)] text-xs font-semibold px-3 py-1 rotate-[-8deg] mt-1"
@@ -124,14 +128,23 @@ function TiendaCarta({
           <p className="text-sm font-medium text-[var(--sf-texto)] mb-3">{tiendaEncabezado.antojoTitulo}</p>
           <div className="flex flex-wrap gap-2">
             {pildoras.map((p) => (
+              // `sf-pildora-real` (§ TIENDA-CHAMISAS-AJUSTES-1, item 5), NO `sf-pildora`: éstas son
+              // CHIPS de selección, no botones de chrome — siempre redondeadas, independiente de la
+              // `forma` del tema (`sf-pildora` sigue al radio de botón/chrome, que bajo 'recta'/
+              // 'minima' puede ser casi recto; `sf-pildora-real` vale 9999px en las tres formas,
+              // mismo rol que ya usa `BackToTop.tsx`). El PUNTO del color del café, a saturación
+              // completa (`p.color`), distingue la pastilla del lavado de fondo que ya la tiñe.
               <a
                 key={p.productId}
                 href={`#cafe-${p.slug}`}
-                className="sf-pildora px-4 py-2 text-sm font-medium text-[var(--sf-tinta)] transition-opacity hover:opacity-80"
+                className="sf-pildora-real flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--sf-tinta)] transition-opacity hover:opacity-80"
                 style={{ backgroundColor: lavadoLamina(p.color) }}
               >
-                {p.nombre}
-                {p.notas.length > 0 && <span className="opacity-70"> · {p.notas.join(' · ')}</span>}
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: p.color }} aria-hidden="true" />
+                <span>
+                  {p.nombre}
+                  {p.notas.length > 0 && <span className="opacity-70"> · {p.notas.join(' · ')}</span>}
+                </span>
               </a>
             ))}
           </div>

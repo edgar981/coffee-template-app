@@ -31,6 +31,32 @@ const SORTBY = [
   { value: 'name', label: 'Nombre A–Z' },
 ];
 
+// EL ESTADO DE CARGA DE LA GRILLA (§ TIENDA-CHAMISAS-AJUSTES-1, item 4) — mientras `catalog` sigue en
+// `null`, NINGUNA composición debe mostrar «Sin resultados»: ese mensaje es para un catálogo que YA
+// cargó y está de verdad vacío, no para uno que todavía no respondió. El catálogo se fetchea en un
+// `useEffect` (nunca durante SSR), así que el PRIMER render —servidor y cliente antes de hidratar—
+// siempre tiene `catalog === null`; sin este estado, ESE primer render es el que mostraba «Sin
+// resultados · 0 productos» (medido en vivo por el orquestador antes de este slice). Esqueleto plano,
+// con la MISMA forma de grilla que el catálogo real (misma cantidad de columnas), para que no haya
+// salto de layout cuando los productos llegan.
+const CANTIDAD_SKELETON_CATALOGO = 8;
+
+function CatalogoCargando() {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4" aria-hidden="true">
+      {Array.from({ length: CANTIDAD_SKELETON_CATALOGO }).map((_, i) => (
+        <div key={i} className="animate-pulse overflow-hidden rounded-2xl">
+          <div className="aspect-square bg-[var(--sf-superficie)]" />
+          <div className="space-y-2 p-4">
+            <div className="h-3 w-3/4 rounded bg-[var(--sf-superficie)]" />
+            <div className="h-3 w-1/2 rounded bg-[var(--sf-superficie)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface ActiveFilter {
   key: string;
   label: string;
@@ -189,10 +215,14 @@ function CatalogoLegacy() {
 
       {/* Grid */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-[var(--sf-texto)]">{filtered.length} producto{filtered.length !== 1 ? 's' : ''}</p>
+        {catalog !== null && (
+          <p className="text-sm text-[var(--sf-texto)]">{filtered.length} producto{filtered.length !== 1 ? 's' : ''}</p>
+        )}
       </div>
 
-      {filtered.length === 0 ? (
+      {catalog === null ? (
+        <CatalogoCargando />
+      ) : filtered.length === 0 ? (
         <div className="text-center py-20">
           <Search aria-hidden="true" className="w-10 h-10 text-[var(--sf-tostado-2)] mx-auto mb-3" />
           <p className="font-medium text-[var(--sf-tinta)] mb-1">{tiendaCatalogo.vacioTitulo}</p>
@@ -306,12 +336,16 @@ function CatalogoCorte() {
       )}
 
       <div className="mb-4 mt-6 flex items-center justify-between">
-        <p className="text-sm text-[var(--sf-texto)]">
-          {filtered.length} producto{filtered.length !== 1 ? 's' : ''}
-        </p>
+        {catalog !== null && (
+          <p className="text-sm text-[var(--sf-texto)]">
+            {filtered.length} producto{filtered.length !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
-      {filtered.length === 0 ? (
+      {catalog === null ? (
+        <CatalogoCargando />
+      ) : filtered.length === 0 ? (
         <div className="py-20 text-center">
           <Search aria-hidden="true" className="mx-auto mb-3 h-10 w-10 text-[var(--sf-texto-suave)]" />
           <p className="mb-1 font-medium text-[var(--sf-tinta)]">{tiendaCatalogo.vacioTitulo}</p>

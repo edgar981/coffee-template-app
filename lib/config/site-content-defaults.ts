@@ -1051,12 +1051,17 @@ export interface TiendaCatalogoContent {
   barraFijaMovil: boolean;
 }
 
-// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL de verdad: se
-// auto-oculta SIN imagen (el componente lo comprueba, § TiendaInterludio.tsx), y nace APAGADA
-// (`visible:false`, `ocultable:true`) para que un tenant que no la toque quede byte-idéntico — NO
-// hay imagen por defecto que mostrar, y una imagen de stock sería una mentira de marca. `cita`/
-// `firma` OPCIONALES: "Nada de citas ni nombres en los defaults" (§ el invariante #44, la misma
-// familia que ya prohíbe reseñas fabricadas — una cita atribuida a alguien es un CLAIM, no copy).
+// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1, el toggle REESCRITO en
+// § TIENDA-CHAMISAS-AJUSTES-1) — sección NUEVA, OPCIONAL de verdad: se auto-oculta SIN imagen (el
+// componente lo comprueba, § TiendaInterludio.tsx), y nace ENCENDIDA (`visible:true`,
+// `ocultable:true`) — "publicar = se ve", el mismo mecanismo que `nosotrosCierre`/`tiendaCreditos`:
+// el GATE de verdad es tener contenido (la foto), no un segundo interruptor que el dueño tenga que
+// prender aparte. Un tenant que no la toque queda byte-idéntico igual: NO hay imagen por defecto
+// que mostrar, y una imagen de stock sería una mentira de marca — con `imagen:''` el componente se
+// auto-oculta pase lo que pase `visible`. El interruptor sigue sirviendo para esconder A PROPÓSITO
+// una sección que SÍ tiene contenido (`visible:false` explícito). `cita`/`firma` OPCIONALES: "Nada
+// de citas ni nombres en los defaults" (§ el invariante #44, la misma familia que ya prohíbe
+// reseñas fabricadas — una cita atribuida a alguien es un CLAIM, no copy).
 // LA COMPOSICIÓN «PLANO» (§ TIENDA-ONIX-CARTELERA-1): una foto documental a sangre con un pie en
 // micro-mayúsculas, SIN retrato ni cita atribuida — distinta de «Retrato y cita» (la canónica,
 // renombrada 'retrato' acá). `pie` es el ÚNICO campo nuevo —OPCIONAL, vacío no se muestra, mismo
@@ -1072,12 +1077,18 @@ export interface TiendaInterludioContent {
   pie: string;
 }
 
-// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — sección NUEVA, OPCIONAL, nace APAGADA
-// (`visible:false`) por la misma razón que el interludio. `franjaTejido` es la franja de tejido de
-// LA PÁGINA /tienda (§ el spec, item 5): vive acá porque Costura es su consumidor obligatorio ("la
-// franja arriba"); sin imagen, la tarjeta se queda sin esa franja (no se imita con CSS, § la
-// referencia). `frase`/`boton` son REQUERIDOS —a diferencia de la cita del interludio, no son un
-// CLAIM atribuido a nadie, son copy de la propia tienda— así que vacío cae al default neutro.
+// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1, el toggle REESCRITO en § TIENDA-CHAMISAS-AJUSTES-1)
+// — sección NUEVA, OPCIONAL, nace ENCENDIDA (`visible:true`) por la MISMA razón que el interludio
+// (arriba): el GATE de verdad es tener `frase` —sin ella no hay nada que cerrar con, § `TiendaCierre.
+// tsx`—, no un segundo interruptor. `franjaTejido` es la franja de tejido de LA PÁGINA /tienda (§ el
+// spec, item 5): vive acá porque Costura es su consumidor obligatorio ("la franja arriba"); sin
+// imagen, la tarjeta se queda sin esa franja (no se imita con CSS, § la referencia). `frase` pasó de
+// REQUERIDO a OPCIONAL (§ TIENDA-CHAMISAS-AJUSTES-1): con el toggle ya no bastando para ocultar la
+// sección, un `frase` que cayera a un default neutro NUNCA quedaría vacío, y la sección se mostraría
+// siempre — el mismo defecto, un nivel más abajo. Vacío → no se muestra (mismo patrón que
+// `nosotrosCierre.titulo`), así que Nayoli (que nunca la toca) sigue sin ver nada. `boton` SIGUE
+// REQUERIDO: una vez que `frase` decide que la sección se muestra, el botón necesita SIEMPRE una
+// etiqueta — vacío cae al default neutro «Escríbenos», no es un CLAIM atribuido a nadie.
 // LA COMPOSICIÓN «FRASE Y BOTÓN» (§ TIENDA-ONIX-CARTELERA-1): reusa `frase`/`boton` TAL CUAL —CERO
 // campos nuevos—, sólo que sin la franja de tejido ni el marco de «Costura» (la canónica, renombrada
 // 'costura' acá). `variante`, mismo patrón que el resto: canónica 'costura', byte-idéntica sin fila.
@@ -2423,12 +2434,16 @@ export const DEFAULTS: SiteContentData = {
     visible: true,
     items: [],
   },
-  // § TIENDA-CHAMISAS-ALBUM-1 — nacen las DOS APAGADAS (`visible:false`): sin fila de SiteContent,
-  // ningún tenant ve nada nuevo — byte-idéntico. `cita`/`firma` del interludio VACÍAS a propósito
-  // (§ TiendaInterludioContent, "nada de citas ni nombres en los defaults"); `frase`/`boton` del
-  // cierre SÍ llevan copy neutro (no son un claim atribuido a nadie).
+  // § TIENDA-CHAMISAS-ALBUM-1 — nacen las DOS ENCENDIDAS (`visible:true`, § TIENDA-CHAMISAS-AJUSTES-1:
+  // "publicar = se ve", nunca un segundo interruptor). Sin fila de SiteContent, ningún tenant ve nada
+  // nuevo igual — byte-idéntico: cada sección se auto-oculta por SU PROPIO gate de contenido
+  // (`imagen`/`frase`, ambos vacíos acá). `cita`/`firma` del interludio VACÍAS a propósito
+  // (§ TiendaInterludioContent, "nada de citas ni nombres en los defaults"); `frase` del cierre pasó
+  // a VACÍA también (antes llevaba copy neutro) porque ahora ES el gate de visibilidad —un default no
+  // vacío nunca dejaría ocultar la sección sin fila—; `boton` SIGUE con copy neutro (no es un claim
+  // atribuido a nadie, y sólo se lee una vez que `frase` ya decidió mostrar la sección).
   tiendaInterludio: {
-    visible: false,
+    visible: true,
     imagen: '',
     cita: '',
     firma: '',
@@ -2438,9 +2453,9 @@ export const DEFAULTS: SiteContentData = {
     pie: '',
   },
   tiendaCierre: {
-    visible: false,
+    visible: true,
     franjaTejido: '',
-    frase: '¿Quieres recibir tu pedido todos los meses? Lo coordinamos por WhatsApp.',
+    frase: '',
     boton: 'Escríbenos',
     // «Frase y botón» (§ TIENDA-ONIX-CARTELERA-1): canónica 'costura' (renombrada, antes la única) —
     // sin campos propios, reusa `frase`/`boton` de arriba.
@@ -3275,12 +3290,14 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       },
     },
   },
-  // § TIENDA-CHAMISAS-ALBUM-1 — Interludio «Retrato y cita»: `ocultable:true`, nace APAGADA
-  // (DEFAULTS.tiendaInterludio.visible=false). `imagenes` nombra `imagen` para que el borrado de
-  // blobs reemplazados (`imagenesDe`) la vea — sin esto, una foto reemplazada quedaría huérfana en
-  // el storage para siempre (§ CLAUDE.md, "El borrado de blobs por ítem…"). 'plano' (§
-  // TIENDA-ONIX-CARTELERA-1): foto documental a sangre + pie, SIN retrato ni cita — reusa `imagen`,
-  // suma `pie` (el único campo nuevo). Canónica renombrada 'retrato' (antes la única, sin nombre).
+  // § TIENDA-CHAMISAS-ALBUM-1 — Interludio «Retrato y cita»: `ocultable:true`, nace ENCENDIDA
+  // (§ TIENDA-CHAMISAS-AJUSTES-1, DEFAULTS.tiendaInterludio.visible=true) — el gate real es tener
+  // FOTO (`imagen`, ya 'opcional' acá, comprobado por `TiendaInterludio.tsx`), no un segundo
+  // interruptor. `imagenes` nombra `imagen` para que el borrado de blobs reemplazados (`imagenesDe`)
+  // la vea — sin esto, una foto reemplazada quedaría huérfana en el storage para siempre (§ CLAUDE.md,
+  // "El borrado de blobs por ítem…"). 'plano' (§ TIENDA-ONIX-CARTELERA-1): foto documental a sangre +
+  // pie, SIN retrato ni cita — reusa `imagen`, suma `pie` (el único campo nuevo). Canónica renombrada
+  // 'retrato' (antes la única, sin nombre).
   tiendaInterludio: {
     label: 'Interludio: retrato y cita',
     ocultable: true,
@@ -3293,12 +3310,16 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       pie: 'opcional',
     },
   },
-  // § TIENDA-CHAMISAS-ALBUM-1 — Cierre «Costura»: `ocultable:true`, nace APAGADA. `franjaTejido` es
-  // la franja de tejido de LA PÁGINA (§ el spec, item 5) — vive acá porque Costura es quien la
-  // necesita siempre ("la franja arriba"); `frase`/`boton` REQUERIDOS (copy propio de la tienda, no
-  // un claim atribuido a nadie, así que caen al default neutro si quedan vacíos). 'fraseYBoton' (§
-  // TIENDA-ONIX-CARTELERA-1): CERO campos nuevos — reusa `frase`/`boton` tal cual, sin la franja ni
-  // el marco con filete de «Costura». Canónica renombrada 'costura' (antes la única, sin nombre).
+  // § TIENDA-CHAMISAS-ALBUM-1 — Cierre «Costura»: `ocultable:true`, nace ENCENDIDA
+  // (§ TIENDA-CHAMISAS-AJUSTES-1). `franjaTejido` es la franja de tejido de LA PÁGINA (§ el spec,
+  // item 5) — vive acá porque Costura es quien la necesita siempre ("la franja arriba"). `frase`
+  // pasó de REQUERIDO a OPCIONAL (§ TIENDA-CHAMISAS-AJUSTES-1): es el gate real de la sección
+  // (`TiendaCierre.tsx`, "sin frase no hay nada que cerrar con") — un REQUERIDO nunca queda vacío una
+  // vez resuelto, así que no podría ocultar nada. `boton` SIGUE REQUERIDO (copy propio de la tienda,
+  // no un claim atribuido a nadie, así que cae al default neutro si queda vacío — y sólo se lee una
+  // vez que `frase` ya decidió mostrar la sección). 'fraseYBoton' (§ TIENDA-ONIX-CARTELERA-1): CERO
+  // campos nuevos — reusa `frase`/`boton` tal cual, sin la franja ni el marco con filete de «Costura».
+  // Canónica renombrada 'costura' (antes la única, sin nombre).
   tiendaCierre: {
     label: 'Cierre: costura',
     ocultable: true,
@@ -3306,7 +3327,7 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     imagenes: ['franjaTejido'],
     campos: {
       franjaTejido: 'opcional',
-      frase: 'requerido',
+      frase: 'opcional',
       boton: 'requerido',
     },
   },

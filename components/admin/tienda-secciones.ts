@@ -1309,14 +1309,16 @@ const TIENDA_CREDITOS: SeccionConfig = {
   },
 };
 
-// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace apagado. Se
-// auto-oculta ADEMÁS sin imagen (el componente lo comprueba, § TiendaInterludio.tsx) — el toggle
-// decide la INTENCIÓN del dueño, la foto decide si hay algo que mostrar.
+// EL INTERLUDIO «RETRATO Y CITA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace ENCENDIDO
+// (§ TIENDA-CHAMISAS-AJUSTES-1: "publicar = se ve"). Se auto-oculta SIN imagen (el componente lo
+// comprueba, § TiendaInterludio.tsx) — el toggle sirve para esconder A PROPÓSITO una sección que SÍ
+// tiene foto; la foto decide si hay algo que mostrar.
 const TIENDA_INTERLUDIO: SeccionConfig = {
   seccion: 'tiendaInterludio',
   pagina: 'tienda',
   titulo: 'Interludio: retrato y cita',
   ocultable: true,
+  notaVisibilidad: 'Sin foto, la sección no se muestra aunque el interruptor esté encendido.',
   composiciones: OPCIONES_COMPOSICION_TIENDA_INTERLUDIO,
   imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
@@ -1327,20 +1329,22 @@ const TIENDA_INTERLUDIO: SeccionConfig = {
   ],
 };
 
-// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace apagado. La franja de
-// tejido es la imagen de LA PÁGINA (§ el spec, item 5): vive acá porque Costura es su consumidor
-// obligatorio ("la franja arriba"); sin WhatsApp configurado (Configuración del negocio) el botón
-// simplemente no se muestra — eso lo decide el componente, no este editor.
+// EL CIERRE «COSTURA» (§ TIENDA-CHAMISAS-ALBUM-1) — `ocultable: true`, nace ENCENDIDO
+// (§ TIENDA-CHAMISAS-AJUSTES-1: "publicar = se ve"). La franja de tejido es la imagen de LA PÁGINA
+// (§ el spec, item 5): vive acá porque Costura es su consumidor obligatorio ("la franja arriba");
+// sin WhatsApp configurado el botón NO desaparece — cae a «Ver suscripciones» si esa página está
+// encendida (§ `botonCierre`, lib/tienda/tienda-cierre.ts); eso lo decide el componente, no este
+// editor.
 const TIENDA_CIERRE: SeccionConfig = {
   seccion: 'tiendaCierre',
   pagina: 'tienda',
   titulo: 'Cierre: costura',
   ocultable: true,
   composiciones: OPCIONES_COMPOSICION_TIENDA_CIERRE,
-  notaVisibilidad: 'El botón a WhatsApp sólo aparece si el negocio tiene un número configurado en Configuración.',
+  notaVisibilidad: 'Sin frase, la sección no se muestra aunque el interruptor esté encendido. El botón lleva a WhatsApp si el negocio tiene un número configurado en Configuración; si no, a Suscripciones (cuando esa página esté encendida).',
   imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true }],
   campos: [
-    { name: 'frase', label: 'Frase', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'frase', label: 'Frase', opcional: true, textarea: true, hint: 'Vacío: esta sección NO se muestra.' },
     { name: 'boton', label: 'Texto del botón', hint: 'Vacío: se usa el texto por defecto.' },
   ],
 };

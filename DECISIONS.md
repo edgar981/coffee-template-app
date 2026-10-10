@@ -58036,3 +58036,230 @@ para cualquier tenant. Nayoli queda byte-idéntica (medido, § arriba) porque si
 explícitamente revisar la cartelera completa antes de que ningún cliente la vea (`approval-reason` del
 spec: "LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). Gate verde en el árbol final, commiteado en
 `slice/editor-secciones-1`. Queda para el gate del owner, no para el orquestador solo.
+
+## 2026-10-10 — TIENDA-CHAMISAS-AJUSTES-1: ajustes del demo de Las Chamisas — la vista previa SIGUE sin borrador (bloqueado, fuera de `touches:`), Interludio/Cierre se muestran solos, Costura según la maqueta, el catálogo no "Sin resultados" mientras carga
+
+Rama `slice/editor-secciones-1`, sobre `TIENDA-ONIX-CARTELERA-1` (`bb48e78`). Pre-flight: árbol limpio,
+`HEAD` en `bb48e78`, `main` local 0 adelante / 0 atrás de `origin/main` (`9a7ab97`) — verificado antes de
+tocar nada. Observed-report previo: `TIENDA-COMPOSICIONES-CENSO-1`. Aprobación del owner tras usar
+`/tienda` en el demo de Las Chamisas el 2026-10-10 (la cita completa va en el spec del dispatch).
+
+### Item 1 — LA VISTA PREVIA NO MUESTRA EL BORRADOR DE /tienda: causa medida, fix FUERA de `touches:` y explícitamente prohibido — NO SE TOCÓ
+
+**La causa real, medida, no es nada de lo que este slice puede tocar: `proxy.ts` NUNCA traduce `?editor=1`
+a header para `/tienda`, porque su `matcher` no incluye esa ruta.** `proxy.ts:168-177` lista
+`"/admin(.*)"`, `"/editor(.*)"`, `"/"`, `"/nosotros"`, `"/suscripciones"` y las tres rutas de ícono — **no
+`"/tienda"`**. Next.js sólo invoca el middleware/proxy para rutas que matchean el `matcher`; una request a
+`/tienda?editor=1` nunca pasa por ese archivo, así que el header `x-editor-modo` nunca se escribe, y
+`modoEditorActivo()` (`lib/config/modo-editor-gate.ts:84-89`) devuelve `false` SIEMPRE para `/tienda` —
+sin importar sesión ni rol. Con eso: `EditorPuenteVivo` nunca se monta activo en `/tienda` (layout.tsx:209,
+`activo={enModoEditor}`), así que el canal `postMessage` de contenido en vivo (`TIPO_MENSAJE_CONTENIDO_
+SECCION`, § EDITOR-TIENDA-POSTMESSAGE-1) jamás llega — el iframe del editor para `/tienda` siempre
+muestra lo PUBLICADO, nunca el borrador, pase lo que pase en el panel. Esto explica el reporte completo:
+Encabezado/Catálogo/Interludio/Cierre "no funcionaban" en la vista previa hasta Publicar — los CUATRO,
+no sólo los dos que el owner nombró, porque el mecanismo que falla es genérico, no por-sección (medido
+leyendo `fusionarContenidoSeccion`/`esSeccionDelRegistro`, `lib/storefront/editor-puente.ts`: son
+key-agnósticas sobre el REGISTRY, cubren las cinco secciones de /tienda sin distinción — el defecto no
+está ahí, está en que el mensaje nunca llega).
+
+**Esto NO es un hallazgo nuevo: ya estaba escrito, con el nombre exacto del hueco, desde
+`EDITOR-TIENDA-IFRAME-VISTA-1`** (`DECISIONS.md`, open follow-up `MODO-EDITOR-MATCHER-SUBARBOL-1`): *"si
+una página nueva del storefront gana secciones editables (hoy sólo home/nosotros/suscripciones), su ruta
+necesita sumarse al `matcher` de `proxy.ts` Y a `PaginaKey`/`urlDePagina` — los dos tienen que moverse
+juntos, o el parámetro llegaría a la URL sin que el proxy lo traduzca a header."* `TIENDA-PAGINA-
+REGISTRO-1` (2026-10-10, antes en esta misma rama) movió la MITAD —`PaginaKey`/`urlDePagina`
+(`lib/admin/editor-iframe.ts`) SÍ ganaron `'tienda'`— y dejó la otra mitad sin mover. Es la MISMA familia
+que `TIENDA-SUBARBOL-NO-DISPARABA-1`/`CHECKOUT-SELECTOR-NO-SE-DESMONTA-1` en `CLAUDE.md` (§ Tier 1): una
+advertencia escrita no es un mecanismo, y acá ni siquiera hacía falta un mecanismo automático — el
+open-followup YA decía exactamente qué dos archivos mover juntos, y sólo se movió uno.
+
+**El fix es UNA línea** (`"/tienda"` al array `matcher` de `proxy.ts`) **y está explícitamente prohibido
+para este slice**: el dispatch dice, textual, "NO edites… `proxy.ts` ni autenticación" como frontera dura
+con el trabajo de Carlos, y `proxy.ts` tampoco está en `touches:`. No se tocó. Es un BLOQUEO real sobre
+item 1, no una decisión de alcance: sin esa línea, publicar en `/tienda` seguirá pareciendo la única
+forma de ver un cambio, exactamente como lo reportó el owner.
+
+### Item 2 — Interludio y Cierre se muestran con contenido, sin interruptor aparte
+
+**`DEFAULTS.tiendaInterludio.visible`/`.tiendaCierre.visible` pasaron de `false` a `true`** (nacen
+ENCENDIDAS, como `tiendaCreditos`/`testimonials`/`nosotrosCierre` — "publicar = se ve"). El GATE real de
+cada sección deja de ser el toggle y pasa a ser su contenido:
+
+- **Interludio ya tenía el gate correcto** (`imagen`, opcional, `TiendaInterludio.tsx`: `if
+  (!tiendaInterludio.imagen) return null`) — sólo hacía falta destrabar el `visible` de arranque.
+- **Cierre NO lo tenía: `frase` era `'requerido'`** (`REGISTRY.tiendaCierre.campos`), así que el resolver
+  SIEMPRE lo rellenaba con el default neutro de código ("¿Quieres recibir tu pedido…") — un campo
+  requerido nunca queda vacío tras resolver, así que no podía servir de gate. Se cambió `frase` a
+  `'opcional'` (y `DEFAULTS.tiendaCierre.frase` de ese literal a `''`), igual que `nosotrosCierre.titulo`
+  —el MISMO patrón ya establecido (`nace vacío, hide-on-empty por ESE campo, requerido≠gate")—, y
+  `TiendaCierre.tsx` ganó el chequeo `tiendaCierreVisible(tiendaCierre.frase)` que antes no existía.
+  `boton` SIGUE `'requerido'` (sólo se lee una vez que `frase` ya decidió mostrar la sección).
+
+El toggle (`visible:false` explícito) sigue existiendo y ahora cumple el rol que el spec pide: esconder A
+PROPÓSITO una sección CON contenido — nunca el único camino para mostrar una vacía. Las dos funciones de
+gate (`tiendaInterludioVisible`, `tiendaCierreVisible`) se extrajeron a `lib/tienda/tienda-cierre.ts`
+(puro, capa 1) para poder afirmarlas sin DOM — el mismo criterio que `creditosVisibles` (`lib/tienda/
+creditos.ts`).
+
+**Byte-identidad para Nayoli, medida, no asumida**: sin fila de `SiteContent`, `imagen`/`frase` resuelven
+a `''` igual que antes de este cambio (son campos `opcional`; su AUSENCIA en `storedSec` cae a
+`DEFAULTS`, que ahora también son `''`), así que el chequeo de contenido sigue dando `false` — las dos
+secciones se quedan sin renderizar un solo nodo, exactamente como hoy. Confirmado con
+`tests/integracion/tienda-chamisas-viaje.test.ts` (reescrito, ver Verificación) y con `verificar:nayoli`
+(ningún marcador de Interludio/Cierre/Carta aparece en el HTML de Nayoli, § abajo).
+
+### Item 3 — el Cierre «Costura» según la maqueta aprobada
+
+Comparado pixel a pixel contra `.scratch/tienda-composiciones/maqueta-aprobada.png` (recortes en
+`.scratch/tienda-composiciones/crop-costura*.png`). Tres cambios en `TiendaCierre.tsx`:
+
+- **La tarjeta pasó de `max-w-2xl` centrada a `contenedorAnchoClase(navTratamiento.posicion)`** — el
+  MISMO ancho de contenido que Encabezado/Catálogo/el resto del storefront, el eje ya compartido
+  (`PARIDAD-ANCHO-CONTENIDO-1`), no un ancho inventado para esta sección.
+- **La franja de tejido pasó de `max-w-md` con margen negativo (flotando por encima, inset) a A SANGRE**:
+  `h-10 sm:h-14` (40px celular / 56px escritorio, los números del spec), ancho completo, sin márgenes; el
+  `overflow-hidden` + `rounded-[24px]` del contenedor le da sus esquinas, sin que la franja declare un
+  radio propio — así queda cosida al borde de arriba de la tarjeta, como en la maqueta.
+- **El layout pasó de `text-center` (botón siempre apilado abajo) a fila** (`flex-col …
+  sm:flex-row sm:items-center sm:justify-between`): frase a la izquierda, botón a la derecha; en el
+  celular, uno debajo del otro.
+
+**El botón NUNCA desaparece sin WhatsApp** (el pedido explícito del spec): `botonCierre()` (`lib/tienda/
+tienda-cierre.ts`) decide el destino — con `whatsapp`, usa el texto del dueño (`boton`) hacia `wa.me/`;
+sin él, cae a «Ver suscripciones» hacia `/suscripciones` SI `paginas.suscripciones.visible`; sin ninguna
+de las dos, no hay botón (un enlace muerto es peor que ninguno). El destino decide el ELEMENTO: `/sus­
+cripciones` usa `<Link>` (como el resto de los CTA internos del storefront, § `NosotrosCierre.tsx`);
+WhatsApp sigue siendo `<a>` externo. La MISMA lógica de CTA se aplicó también a «Frase y botón» (antes
+`{whatsapp && …}`, el mismo defecto un nivel más abajo) — su ANCHO no se tocó (`max-w-4xl`, sin maqueta
+que respalde ensancharla).
+
+### Item 4 — el catálogo no muestra «Sin resultados» mientras carga
+
+**Causa medida**: `catalog` nace `null` (`useState<Product[]|null>(null)`) y el `fetch` real vive en un
+`useEffect` — nunca corre durante SSR ni en el primer paint. Antes de este slice, `filtered.length === 0`
+mientras `catalog === null` disparaba el MISMO bloque que un catálogo real y vacío: "Sin resultados" +
+"0 productos". Afecta a CUALQUIER tenant con la composición «Actual»/«Carta» (no sólo a Las Chamisas) —
+confirmado: `verificar:nayoli` (HTML plano, sin JS) mostraba exactamente ese texto en `main` ANTES de
+este slice (medido, § Verificación).
+
+**Fix**: `CatalogoCargando()` (grilla de 8 placeholders `animate-pulse`, misma forma de grilla que la
+real) se muestra mientras `catalog === null`, en `CatalogoLegacy` Y `CatalogoCorte`; el renglón "N
+producto(s)" también se oculta mientras carga (evita el "0 productos" de paso). «Sin resultados» sólo
+sale cuando `catalog !== null && filtered.length === 0` — un catálogo que YA cargó y está de verdad
+vacío.
+
+**Deviation medida, reportada, no un error**: esto CAMBIA el HTML sin-JS de `/tienda` para TODOS los
+tenants, Nayoli incluida — es inevitable: arreglar "no mostrar Sin resultados mientras carga" exige,
+necesariamente, cambiar lo que se muestra durante ese instante. `verificar:nayoli` (texto) por tanto NO
+da 0 diferencias en `/tienda` por esto — medido y aislado, ver Verificación. `verificar:nayoli:visual`
+(screenshot con navegador real) SÍ da el mismo número que ya documentaba `TIENDA-PAGINA-REGISTRO-1`
+(209/2.433.280 px): por el momento en que Playwright dispara la captura, el catálogo YA resolvió, así que
+el estado de carga es invisible a un screenshot — cero diff NUEVO de píxeles.
+
+### Item 5 — las píldoras de «¿Qué te provoca?»
+
+**Causa medida**: usaban `.sf-pildora`, cuyo radio sigue a `--radius-button` del TEMA (`RADIO_UNIFICADO_
+RECTA` bajo 'recta'/'minima' — un radio chico, casi recto; sólo 'suave' da píldora completa,
+`lib/config/formas.ts`). Si el tema de Las Chamisas usa 'recta'/'minima', estos chips SE VEN rectángulos.
+Se cambió a **`.sf-pildora-real`** (9999px en las TRES formas — el mismo rol que ya usa `BackToTop.tsx`
+para "siempre circular, independiente del tema"): son CHIPS de selección, no botones de chrome, así que
+no deben seguir el radio de botón del tema. Se agregó el **punto del color del café** (`<span
+className="h-2 w-2 rounded-full" style={{backgroundColor: p.color}} />`, color SATURADO — el fondo de la
+píldora sigue siendo el lavado, `lavadoLamina(p.color)`). El texto (nombre + notas) NO se tocó — el spec
+sólo pide forma + punto.
+
+### Item 6 — `lowercase` pisaba lo que el dueño escribe
+
+`TiendaEncabezado.tsx`, composición «Carta»: `<h1 className="… lowercase …">{tiendaEncabezado.titulo}</h1>`
+forzaba minúscula SIEMPRE, incluso sobre un título que el dueño guardó y publicó en mayúscula/Title Case.
+Se quitó la clase — era una sugerencia de diseño para el texto por defecto («nuestros tres cafés», ya
+minúscula como literal), no una regla que debiera pisar contenido editable.
+
+**Censo del mismo problema en las demás secciones nuevas de /tienda** (`grep -n "uppercase\|lowercase" `
+sobre los cinco componentes), con el resultado completo — NO se fijó ninguno de los otros, por fuera del
+alcance explícito del item ("revisá… y decilo"):
+
+| archivo:línea | campo editable | clase | ¿el HINT del editor avisa la transformación? |
+| --- | --- | --- | --- |
+| `TiendaEncabezado.tsx` (Carta, ya arreglado) | `titulo` | `lowercase` (retirada) | NO lo avisaba |
+| `TiendaEncabezado.tsx:197` (Apertura) | `rotuloIzquierda`/`rotuloDerecha` | `uppercase` | **SÍ** — hint: "Texto corto en mayúscula, p. ej. …" |
+| `TiendaEncabezado.tsx:205` (Apertura) | `titulo` (el H1 gigante) | `uppercase` | **NO** — el hint sólo dice "Vacío: se usa el texto por defecto (…)" |
+| `TiendaCierre.tsx` (Frase y botón) | `frase` | `uppercase` | **NO** — el hint dice "Vacío: esta sección NO se muestra", nada de mayúscula |
+| `TiendaCreditos.tsx:33` | `etiqueta` (repeater) | `uppercase` | **SÍ** — hint: "…Se muestra en mayúscula." |
+| `TiendaInterludio.tsx:75` (Plano) | `pie` | `uppercase` | **SÍ** — hint: "Texto corto en mayúscula, p. ej. …" |
+
+Los DOS marcados "NO" son el MISMO defecto que el item pidió arreglar (una transformación de caso que
+pisa contenido editable SIN que el editor lo avise), sin arreglar — fuera del pedido explícito de este
+slice, quedan como open follow-up (ver abajo), no silenciados.
+
+### Verificación
+
+- **`npm run typecheck`**: 0 errores, árbol final.
+- **`npm test`** (capa 1, sin base): **4168/4168**, 0 fallos. Suma `lib/tienda/tienda-cierre.test.ts`
+  (8 tests nuevos, las rutas fijas del spec: Interludio sin/con imagen, sin/con frase, `botonCierre` en
+  sus tres ramas).
+- **`npm run test:integracion`**: **403/403**, 0 fallos. `tests/integracion/tienda-chamisas-viaje.test.ts`
+  reescrito (no sólo agregado): las aserciones que afirmaban el contrato viejo (`visible:false` de
+  arranque, el `frase` default con copy) se invirtieron a propósito a lo que este slice cambia; se
+  agregaron los casos nuevos del spec ("Interludio/Cierre publicados con contenido se muestran sin tocar
+  `visible`", `visible:false` explícito sigue escondiendo a propósito).
+- **`npm run gate`**: las tres partes de arriba, mismo árbol, mismos números — no hubo cambios entre
+  correrlas sueltas y el agregado.
+- **`npm run verificar:nayoli`**: `/`, `/tienda/[slug]`, `/checkout` → el diff dentro de `<main>` es
+  EXACTAMENTE cero bytes nuevos de este slice (medido con un diff de texto acotado a `<main>…</main>`,
+  no al documento completo — el documento completo sigue mostrando el ruido acumulado de slices previos
+  de esta rama ya documentado, `lang="en"`→`"es"`, el hash del CSS, el orden de clases de
+  `contenedorAnchoClase`, etc., CLAUDE.md § "lo que está escrito no prueba lo que está corriendo" no
+  aplica acá, es la realidad ya conocida desde `TIENDA-PAGINA-REGISTRO-1`). `/tienda` SÍ difiere dentro
+  de `<main>`, y es EXACTAMENTE el item 4: `main` trae `>0<!-- --> producto<!-- -->s<` y el bloque "Sin
+  resultados"; la rama no trae ninguno de los dos y trae en su lugar 8 nodos `aspect-square` (el
+  esqueleto). Ningún marcador de Interludio/Cierre/Carta (`Escríbenos`, `rounded-[24px]`,
+  `sf-pildora-real`) aparece en el HTML de `/tienda` de NINGUNO de los dos árboles — confirma la
+  byte-identidad del item 2 para Nayoli, que sigue en «Actual».
+- **`npm run verificar:nayoli:visual`**: `ruta:tienda` → 209/2.433.280 px (consciente de AA) — el MISMO
+  número, dígito a dígito, que `TIENDA-PAGINA-REGISTRO-1` ya midió y documentó como pre-existente (la
+  franja angosta cerca del nav). CERO píxeles de diferencia NUEVOS introducidos por este slice en
+  `/tienda`; las demás 5 rutas (home/producto/checkout/nosotros/suscripciones) tampoco se tocaron y
+  muestran sus propios números pre-existentes, no re-medidos acá porque este slice no las toca.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/archivos que este diff cambia (`TiendaCierre`, `TiendaInterludio`, `TiendaEncabezado`,
+`TiendaCatalogo`, `tiendaCierre`, `tiendaInterludio`, `sf-pildora`, `sf-pildora-real`, `tienda-secciones.ts`,
+`site-content-defaults.ts`, `proxy.ts`) contra `CLAUDE.md`: **CERO apariciones de los símbolos propios de
+este slice** (`TiendaCierre`/`TiendaInterludio`/`TiendaEncabezado`/`TiendaCatalogo`/`tiendaCierre`/
+`tiendaInterludio`/`sf-pildora`/`sf-pildora-real`) — nada en `CLAUDE.md` nombra lo que este diff cambia, así
+que no hay sentencia que verificar ahí. `proxy.ts` SÍ aparece (línea 332, § PRECONDICIÓN; líneas
+5329/5913/5919/5931, § el retiro de `/admin/ordenes`) pero las CUATRO son sobre la sesión de `/admin/*` y
+la cadena de seis redirects (`ordenes`/`clientes`/`productos`/`inventario`/`entregas`/`config`) — ninguna
+sobre el `matcher` del modo editor del storefront, y este slice no tocó `proxy.ts`: ninguna sentencia
+queda falsa.
+
+### Open follow-ups
+
+- **`MODO-EDITOR-MATCHER-SUBARBOL-1`** (YA EXISTÍA, no coined acá — se suma evidencia): el fix sigue
+  siendo una línea (`"/tienda"` al `matcher` de `proxy.ts`) y sigue siendo lo único que falta para que la
+  vista previa de /tienda muestre el borrador. Este slice confirma, con un reporte real del owner, que el
+  hueco SÍ muerde en uso real — no es sólo un riesgo teórico ya escrito. Bloqueado para este slice por
+  instrucción explícita del dispatch ("NO edites… proxy.ts") y por no estar en `touches:`.
+- **`TIENDA-ENCABEZADO-APERTURA-TITULO-MAYUSCULA-1`** (nuevo): `TiendaEncabezado.tsx:205`, el H1 gigante
+  de la composición «Apertura» (`tiendaEncabezado.titulo`) se fuerza a `uppercase` sin que el hint del
+  campo en el editor lo avise — el MISMO defecto que el item 6 cerró para «Carta», sin cerrar acá. No se
+  tocó: fuera del pedido explícito del spec ("Quitá el lowercase… revisá… y decilo" — no "arreglalo").
+- **`TIENDA-CIERRE-FRASEYBOTON-MAYUSCULA-1`** (nuevo): `TiendaCierre.tsx`, composición «Frase y botón»,
+  `tiendaCierre.frase` se fuerza a `uppercase` sin aviso en el hint ("Vacío: esta sección NO se muestra",
+  nada de mayúscula). Mismo criterio que el anterior: reportado, no arreglado, por estar fuera del pedido
+  explícito.
+
+### Verdict
+
+**AWAITING_APPROVAL — falla "customer-bytes".** El diff cambia bytes que CUALQUIER visitante de `/tienda`
+lee: el estado de carga del catálogo (item 4, afecta a TODO tenant, Nayoli incluida — medido, confirmado
+arriba), y el comportamiento/visual de Interludio/Cierre/el selector de Carta para cualquier tenant que
+los use. Sin cambio de schema/migración (`packages/core/prisma/` sin tocar) ni contrato cruzado de
+repositorio. Gate verde (typecheck + 4168 + 403) en el árbol final; `verificar:nayoli`/`:visual` corridos
+y su único diff nuevo (item 4, en `/tienda`, sólo en el HTML sin-JS) está medido, aislado y explicado —
+no es ruido. **Item 1 (la causa raíz de "la vista previa no muestra el borrador") NO se resolvió**: está
+bloqueado por una frontera explícita del dispatch (`proxy.ts`) y queda documentado arriba con el fix
+exacto para quien lo retome. Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise,
+lo hace el orquestador.

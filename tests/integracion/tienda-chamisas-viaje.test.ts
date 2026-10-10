@@ -4,6 +4,8 @@ import { prisma } from './fixtures';
 import { siteContentEditableSchema } from '../../lib/config/site-content-schema';
 import { guardarBorrador, publicarSeccion } from '../../lib/config/site-content-write';
 import { readSiteContent } from '../../lib/config/site-content-read';
+import { REGISTRY, seccionEsVisible } from '../../lib/config/site-content-defaults';
+import { tiendaInterludioVisible, tiendaCierreVisible } from '../../lib/tienda/tienda-cierre';
 
 // EL VIAJE DE PUNTA A PUNTA del ÁLBUM DE LÁMINAS (§ TIENDA-CHAMISAS-ALBUM-1): el editor manda el
 // form → el ROUTE lo pasa por `siteContentEditableSchema` → `guardarBorrador` → `publicarSeccion` →
@@ -94,12 +96,33 @@ test('tiendaInterludio de punta a punta: visible/imagen/cita/firma sobreviven bo
   assert.equal(interludio.firma, 'Marcela, vereda El Roble');
 });
 
-test('tiendaInterludio: sin publicar nada, nace APAGADO y sin imagen (byte-idéntico, § nace apagada)', async () => {
+test('tiendaInterludio: sin publicar nada, nace ENCENDIDO pero sin imagen — se oculta SOLO (§ TIENDA-CHAMISAS-AJUSTES-1, byte-idéntico)', async () => {
   const contenido = await readSiteContent();
-  assert.equal(contenido.tiendaInterludio.visible, false);
+  assert.equal(contenido.tiendaInterludio.visible, true);
   assert.equal(contenido.tiendaInterludio.imagen, '');
   assert.equal(contenido.tiendaInterludio.cita, '');
   assert.equal(contenido.tiendaInterludio.firma, '');
+  // El TOGGLE ya no basta para ocultar: el gate real es el contenido.
+  assert.equal(seccionEsVisible(REGISTRY.tiendaInterludio, contenido.tiendaInterludio), true);
+  assert.equal(tiendaInterludioVisible(contenido.tiendaInterludio.imagen), false);
+});
+
+test('tiendaInterludio: publicando SÓLO la imagen (sin tocar `visible`) la sección pasa a mostrarse', async () => {
+  await guardarComoElRoute('tiendaInterludio', { imagen: 'https://blob.example/retrato.jpg' });
+  await publicarSeccion('tiendaInterludio');
+
+  const interludio = (await readSiteContent()).tiendaInterludio;
+  assert.equal(interludio.visible, true); // nunca se tocó — sigue en su default
+  assert.equal(interludio.imagen, 'https://blob.example/retrato.jpg');
+  assert.equal(tiendaInterludioVisible(interludio.imagen), true);
+});
+
+test('tiendaInterludio: `visible:false` explícito esconde A PROPÓSITO una sección CON contenido', async () => {
+  await guardarComoElRoute('tiendaInterludio', { visible: false, imagen: 'https://blob.example/retrato.jpg' });
+  await publicarSeccion('tiendaInterludio');
+
+  const interludio = (await readSiteContent()).tiendaInterludio;
+  assert.equal(seccionEsVisible(REGISTRY.tiendaInterludio, interludio), false);
 });
 
 test('tiendaCierre de punta a punta: visible/franjaTejido/frase/boton sobreviven borrador→publicar→releer', async () => {
@@ -116,18 +139,39 @@ test('tiendaCierre de punta a punta: visible/franjaTejido/frase/boton sobreviven
   assert.equal(cierre.boton, 'Escríbenos ya');
 });
 
-test('tiendaCierre: frase/boton vacíos (requeridos) caen al default; sin publicar nada nace APAGADO', async () => {
+test('tiendaCierre: `frase` vacía (opcional, § TIENDA-CHAMISAS-AJUSTES-1) se OMITE; `boton` vacío (requerido) cae al default; sin publicar nada nace ENCENDIDO pero oculto', async () => {
   const sinFila = await readSiteContent();
-  assert.equal(sinFila.tiendaCierre.visible, false);
-  assert.equal(sinFila.tiendaCierre.frase, '¿Quieres recibir tu pedido todos los meses? Lo coordinamos por WhatsApp.');
+  assert.equal(sinFila.tiendaCierre.visible, true);
+  assert.equal(sinFila.tiendaCierre.frase, '');
   assert.equal(sinFila.tiendaCierre.boton, 'Escríbenos');
+  // El TOGGLE ya no basta para ocultar: el gate real es `frase`.
+  assert.equal(seccionEsVisible(REGISTRY.tiendaCierre, sinFila.tiendaCierre), true);
+  assert.equal(tiendaCierreVisible(sinFila.tiendaCierre.frase), false);
 
   await guardarComoElRoute('tiendaCierre', { visible: true, frase: '', boton: '' });
   await publicarSeccion('tiendaCierre');
   const cierre = (await readSiteContent()).tiendaCierre;
   assert.equal(cierre.visible, true);
-  assert.equal(cierre.frase, sinFila.tiendaCierre.frase);
-  assert.equal(cierre.boton, sinFila.tiendaCierre.boton);
+  assert.equal(cierre.frase, ''); // opcional vacío → se omite, nunca cae a un default inventado
+  assert.equal(cierre.boton, sinFila.tiendaCierre.boton); // requerido vacío → el default neutro
+});
+
+test('tiendaCierre: publicando SÓLO la frase (sin tocar `visible`) la sección pasa a mostrarse', async () => {
+  await guardarComoElRoute('tiendaCierre', { frase: 'Te lo apartamos cada mes.' });
+  await publicarSeccion('tiendaCierre');
+
+  const cierre = (await readSiteContent()).tiendaCierre;
+  assert.equal(cierre.visible, true); // nunca se tocó — sigue en su default
+  assert.equal(cierre.frase, 'Te lo apartamos cada mes.');
+  assert.equal(tiendaCierreVisible(cierre.frase), true);
+});
+
+test('tiendaCierre: `visible:false` explícito esconde A PROPÓSITO una sección CON contenido', async () => {
+  await guardarComoElRoute('tiendaCierre', { visible: false, frase: 'Te lo apartamos cada mes.' });
+  await publicarSeccion('tiendaCierre');
+
+  const cierre = (await readSiteContent()).tiendaCierre;
+  assert.equal(seccionEsVisible(REGISTRY.tiendaCierre, cierre), false);
 });
 
 // ─── EL BORRADOR ES PARCIAL POR SECCIÓN — publicar una no publica las demás ───────────────────────
@@ -140,7 +184,10 @@ test('publicar tiendaCatalogo NO publica tiendaInterludio ni tiendaCierre (el bo
 
   const contenido = await readSiteContent();
   assert.deepEqual(contenido.tiendaCatalogo.coloresPorProducto, { x: '#111111' });
-  // Las otras dos se quedaron en borrador — lo publicado sigue siendo el default de hoy.
-  assert.equal(contenido.tiendaInterludio.visible, false);
-  assert.equal(contenido.tiendaCierre.visible, false);
+  // Las otras dos se quedaron en borrador — lo publicado sigue siendo el default de hoy: ENCENDIDAS
+  // (§ TIENDA-CHAMISAS-AJUSTES-1) pero sin el contenido que se guardó en el borrador sin publicar.
+  assert.equal(contenido.tiendaInterludio.visible, true);
+  assert.equal(contenido.tiendaInterludio.imagen, ''); // el borrador ('/sin-publicar.jpg') NO se publicó
+  assert.equal(contenido.tiendaCierre.visible, true);
+  assert.equal(contenido.tiendaCierre.frase, ''); // el borrador ('Sin publicar.') NO se publicó
 });
