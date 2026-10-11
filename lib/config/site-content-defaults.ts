@@ -882,6 +882,15 @@ export interface NosotrosHistoriaContent {
 // `subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino` — `resolverCtaSeccion` decide el
 // href, `null` = sin botón). `imagenFondo` es el ÚNICO blob de la sección — vacío = fondo sólido
 // (`--sf-tinta-2`, la misma OSCURA canónica que la suscripción cierra la home).
+//
+// `variante` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): SEGUNDA composición — 'linea' (canónica,
+// renombrada; exactamente el render de arriba, byte a byte) | 'fraseYBoton' (la pieza COMPARTIDA
+// `CierreFraseYBoton`, § ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1 — mismo patrón que
+// `tiendaCierre.variante`). CERO campos nuevos: reusa `titulo` COMO LA FRASE («UN SOLO CAFÉ, DE UNA
+// SOLA FINCA.» del spec es el contenido de la maqueta, no un default a hornear — § el código
+// compartido no NACE siendo Nayoli/demo) y `ctaLabel`/`ctaDestino` como el botón; `parrafo`/
+// `imagenFondo` quedan SIN EFECTO bajo esta composición (siguen editables, por si el dueño vuelve a
+// «Imagen de fondo»).
 export interface NosotrosCierreContent {
   visible: boolean;
   titulo: string;
@@ -889,6 +898,7 @@ export interface NosotrosCierreContent {
   ctaLabel: string;
   ctaDestino: string;
   imagenFondo: string;
+  variante: string;
 }
 
 // La GALERÍA de /nosotros: la SEGUNDA sección REPEATER (Testimonios fue la primera), y la que
@@ -976,6 +986,24 @@ export interface NosotrosFichaContent {
   cifra2Rotulo: string;
   cifra3Numero: string;
   cifra3Rotulo: string;
+}
+
+// EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, sobre ONIX-PAGINAS-
+// COMPOSICIONES-CENSO-1 — el owner decidió el 2026-10-11 "cada página con su PROPIO interludio/
+// cierre"). Sección NUEVA, montada con la pieza COMPARTIDA `InterludioPlano`
+// (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) — la MISMA composición «Plano» que `tiendaInterludio`/
+// `suscripcionInterludio`, SIN variante propia: el spec sólo pide «Plano» para esta página también
+// (§ refero-onix-paginas.md, "e. Interludio (tal cual)").
+//
+// NACE ENCENDIDA (`visible:true`) pero AUTO-OCULTA SIN FOTO, mismo mecanismo que
+// `suscripcionInterludio`/`tiendaInterludio`: el gate real es tener `imagen`, no un segundo
+// interruptor. `pie` vacío a propósito —«SAN ADOLFO, HUILA · 1.600 MSNM» del spec es un EJEMPLO de
+// la maqueta, no un dato de negocio para hornear (§ el invariante #44, misma familia que prohíbe
+// citas/firmas fabricadas)—: con `imagen:''` ningún tenant (Nayoli incluida) ve nada nuevo sin fila.
+export interface NosotrosInterludioContent {
+  visible: boolean;
+  imagen: string;
+  pie: string;
 }
 
 // LA PÁGINA /suscripciones — los PLANES como DATO (§ Backlog #49, opción 1). Antes las tarjetas de
@@ -2087,6 +2115,7 @@ export interface SiteContentData {
   nosotrosGaleria: NosotrosGaleriaContent;
   nosotrosEscenas: NosotrosEscenasContent;
   nosotrosFicha: NosotrosFichaContent;
+  nosotrosInterludio: NosotrosInterludioContent;
   nosotrosCierre: NosotrosCierreContent;
   suscripcionApertura: SuscripcionAperturaContent;
   suscripcionPlanes: SuscripcionPlanesContent;
@@ -2183,19 +2212,20 @@ export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 // META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1,
 // § ONIX-NOSOTROS-APERTURA-SINOPSIS-1 y § ONIX-NOSOTROS-ESCENAS-FICHA-1) — GEMELA de `BANDA_IDS`/
 // `OrdenContent` de arriba, para la OTRA página que compone bandas: `app/(storefront)/nosotros/
-// page.tsx`. Son SEIS bandas — la apertura PRIMERO (§ NosotrosAperturaContent, nace OFF), la historia
+// page.tsx`. Son SIETE bandas — la apertura PRIMERO (§ NosotrosAperturaContent, nace OFF), la historia
 // larga, la galería (el masonry de siempre, § NosotrosGaleriaContent), las escenas (§
 // NosotrosEscenasContent, la pieza "Saint Laurent" de la maqueta de Onix — NO reemplaza a la galería
 // en el modelo, las dos conviven como capacidades independientes, § su propio docstring), la ficha
-// (§ NosotrosFichaContent, el capítulo verde), y el CTA de cierre, en ese orden (el cierre AL FINAL,
-// justo antes del pie, § NosotrosCierre.tsx) — el orden de `refero-onix-paginas.md` § /nosotros:
-// apertura → sinopsis → escenas → ficha → interludio (no construido todavía) → cierre. A DIFERENCIA de
-// `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia elegida por el
-// owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo (agregar ese campo y
-// su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN SÍ no vive dentro de
-// `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce), aunque cada id que
-// nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
-export const BANDA_NOSOTROS_IDS = ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre'] as const;
+// (§ NosotrosFichaContent, el capítulo verde), el interludio (§ NosotrosInterludioContent,
+// § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1 — antes "no construido todavía"), y el CTA de cierre, en ese
+// orden (el cierre AL FINAL, justo antes del pie, § NosotrosCierre.tsx) — el orden EXACTO de
+// `refero-onix-paginas.md` § /nosotros: apertura → sinopsis → escenas → ficha → interludio → cierre.
+// A DIFERENCIA de `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia
+// elegida por el owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo
+// (agregar ese campo y su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN
+// SÍ no vive dentro de `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce),
+// aunque cada id que nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
+export const BANDA_NOSOTROS_IDS = ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosInterludio', 'nosotrosCierre'] as const;
 export type BandaNosotrosId = typeof BANDA_NOSOTROS_IDS[number];
 
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
@@ -2600,6 +2630,15 @@ export const DEFAULTS: SiteContentData = {
     cifra2Numero: '', cifra2Rotulo: '',
     cifra3Numero: '', cifra3Rotulo: '',
   },
+  // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1). `imagen`/`pie` VACÍOS a
+  // propósito —«SAN ADOLFO, HUILA · 1.600 MSNM» es el ejemplo de la maqueta, no un dato de negocio a
+  // hornear—: con `imagen:''` el componente se auto-oculta pase lo que pase `visible`, así que
+  // ningún tenant sin fila ve nada nuevo (byte-idéntico).
+  nosotrosInterludio: {
+    visible: true,
+    imagen: '',
+    pie: '',
+  },
   // El CTA de cierre de /nosotros (§ NOSOTROS-COMPOSICION-1). NACE VACÍO — sin `titulo` la banda no
   // se monta (hide-on-empty, § NosotrosCierre.tsx), así que ningún tenant que no la llene cambia un
   // byte, Nayoli incluida.
@@ -2610,6 +2649,9 @@ export const DEFAULTS: SiteContentData = {
     ctaLabel: '',
     ctaDestino: '',
     imagenFondo: '',
+    // «Línea» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): canónica (renombrada, antes la única) —
+    // exactamente el render de arriba. «fraseYBoton» es la pieza compartida `CierreFraseYBoton`.
+    variante: 'linea',
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
   // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
@@ -3522,14 +3564,31 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       cifra3Numero: 'opcional', cifra3Rotulo: 'opcional',
     },
   },
+  // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, ver el docstring de
+  // `NosotrosInterludioContent` arriba). `ocultable: true`, nace ENCENDIDO — el gate real es tener
+  // FOTO, mismo criterio que `suscripcionInterludio`/`tiendaInterludio`. SIN `variantes`: a
+  // diferencia de /tienda, acá sólo existe la composición «Plano» (la pieza `InterludioPlano`), así
+  // que no hay un eje que clampar.
+  nosotrosInterludio: {
+    label: 'Interludio',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      imagen: 'opcional',
+      pie: 'opcional',
+    },
+  },
   // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1). `ocultable: true` + hide-on-empty por
   // `titulo` (el gate vive en `NosotrosCierre.tsx`, no en `seccionEsVisible` — no es un repeater, así
   // que esa función no lo hace sola; el componente chequea `titulo.trim()` además del toggle). TODO
   // opcional, nace vacío: ninguna sección nueva nace con copy de una vertical. `imagenFondo` es el
   // ÚNICO blob — vacío = fondo sólido, sólo esta sección lo lee.
+  // `variantes` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): «Línea» (canónica, renombrada) | «fraseYBoton»
+  // — CERO campos nuevos, reusa `titulo` (como la frase) y `ctaLabel`/`ctaDestino` tal cual.
   nosotrosCierre: {
     label: 'CTA de cierre',
     ocultable: true,
+    variantes: { claves: ['linea', 'fraseYBoton'], canonica: 'linea' },
     imagenes: ['imagenFondo'],
     campos: {
       titulo: 'opcional',

@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosEscenas' | 'nosotrosFicha' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosEscenas' | 'nosotrosFicha' | 'nosotrosInterludio' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1135,19 +1135,57 @@ const NOSOTROS_FICHA: SeccionConfig = {
   ],
 };
 
+// EL INTERLUDIO propio de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, ver el docstring de
+// `NosotrosInterludioContent` en site-content-defaults.ts). `ocultable: true`, nace ENCENDIDO —
+// el gate real es tener FOTO (el componente lo comprueba, § NosotrosInterludio.tsx), mismo
+// criterio que `TIENDA_INTERLUDIO`/`SUSCRIPCION_INTERLUDIO`. SIN `composiciones`: a diferencia de
+// /tienda, acá sólo existe la pieza `InterludioPlano`, así que no hay nada que elegir.
+const NOSOTROS_INTERLUDIO: SeccionConfig = {
+  seccion: 'nosotrosInterludio',
+  pagina: 'nosotros',
+  titulo: 'Interludio',
+  ocultable: true,
+  notaVisibilidad: 'Sin foto, esta sección no se muestra aunque el interruptor esté encendido.',
+  imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
+  campos: [
+    { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 1.600 msnm". Vacío: no se muestra.' },
+  ],
+};
+
+// LA COMPOSICIÓN DEL CIERRE de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): «Línea» (la
+// canónica, renombrada) sigue sus zonas de siempre; «Frase y botón» reusa `titulo` COMO LA FRASE —
+// sin campos propios— mismo patrón que `LABEL_COMPOSICION_TIENDA_CIERRE`/`ZONAS_TIENDA_CIERRE_*`.
+const LABEL_COMPOSICION_NOSOTROS_CIERRE: Record<string, string> = { linea: 'Imagen de fondo', fraseYBoton: 'Frase y botón' };
+const ZONAS_NOSOTROS_CIERRE_LINEA: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Titular' },
+  { campos: ['parrafo'], label: 'Párrafo' },
+  { campos: ['ctaLabel', 'ctaDestino'], label: 'Botón' },
+  { campos: ['imagenFondo'], label: 'Imagen de fondo' },
+];
+const ZONAS_NOSOTROS_CIERRE_FRASEYBOTON: ZonaComposicion[] = [
+  { campos: ['titulo', 'ctaLabel', 'ctaDestino'], label: 'Frase y botón' },
+];
+const OPCIONES_COMPOSICION_NOSOTROS_CIERRE: ComposicionOpcion[] = REGISTRY.nosotrosCierre.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_CIERRE[v] ?? v,
+  zonas: v === 'fraseYBoton' ? ZONAS_NOSOTROS_CIERRE_FRASEYBOTON : ZONAS_NOSOTROS_CIERRE_LINEA,
+}));
+
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda final, antes del pie — titular +
 // párrafo + un botón + imagen de fondo opcional, reusando la GRAMÁTICA visual de
 // `SubscriptionCTALinea` con su propio contenido (§ NosotrosCierre.tsx). `titulo` es el gate de
 // hide-on-empty (vacío → la banda no se muestra); el hint lo dice donde el operador lo ve.
+// `composiciones` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): «Frase y botón» reusa `titulo` como la
+// frase y `ctaLabel`/`ctaDestino` como el botón — el hint de `titulo` lo dice.
 const NOSOTROS_CIERRE: SeccionConfig = {
   seccion: 'nosotrosCierre',
   pagina: 'nosotros',
   titulo: 'CTA de cierre',
   ocultable: true,
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_CIERRE,
   imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
   campos: [
-    { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra.' },
-    { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra. Con la composición "Frase y botón", es la frase del cierre.' },
+    { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, hint: 'Sólo con la composición "Imagen de fondo". Vacío: no se muestra.' },
     { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
     { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
@@ -1632,4 +1670,4 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 // (sin tocar, sigue byte-idéntico) → interludio → preguntas (letra pequeña) → cierre. El spec lo
 // nombra "apertura → taquilla → interludio → letra pequeña → cierre" sin mencionar pasos porque esa
 // sección no cambia de posición — sigue exactamente donde ya estaba.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_ESCENAS, NOSOTROS_FICHA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_ESCENAS, NOSOTROS_FICHA, NOSOTROS_INTERLUDIO, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];

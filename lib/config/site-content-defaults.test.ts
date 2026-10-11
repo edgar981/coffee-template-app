@@ -633,8 +633,8 @@ test('REGISTRY.nosotrosApertura: ocultable, con imagen opcional y los tres campo
   });
 });
 
-test('BANDA_NOSOTROS_IDS: `nosotrosApertura` entra PRIMERO, `nosotrosEscenas`/`nosotrosFicha` entre la galería y el cierre (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
-  assert.deepEqual(BANDA_NOSOTROS_IDS, ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
+test('BANDA_NOSOTROS_IDS: `nosotrosApertura` entra PRIMERO, `nosotrosEscenas`/`nosotrosFicha` entre la galería y el cierre, `nosotrosInterludio` entre la ficha y el cierre (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1, § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1)', () => {
+  assert.deepEqual(BANDA_NOSOTROS_IDS, ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosInterludio', 'nosotrosCierre']);
 });
 
 test('paginas: por default /nosotros está ENCENDIDA', () => {
@@ -833,6 +833,56 @@ test('nosotrosCierre: `ocultable: true`, con `visible` respetando el toggle expl
 test('REGISTRY.nosotrosCierre.imagenes = [imagenFondo] (tripwire del borrado de blobs, § NOSOTROS-COMPOSICION-1)', () => {
   assert.deepEqual(REGISTRY.nosotrosCierre.imagenes, ['imagenFondo']);
   assert.equal(REGISTRY.nosotrosCierre.campos.imagenFondo, 'opcional');
+});
+
+// ── `nosotrosCierre` gana la composición «Frase y botón» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) ───
+
+test('REGISTRY.nosotrosCierre.variantes: "linea" es la canónica (renombrada, antes la única); "fraseYBoton" es la pieza compartida', () => {
+  assert.deepEqual(REGISTRY.nosotrosCierre.variantes, { claves: ['linea', 'fraseYBoton'], canonica: 'linea' });
+});
+
+test('nosotrosCierre.variante: ausente/vacío/null/basura → "linea"; "fraseYBoton" se respeta', () => {
+  assert.equal(resolverVariante(REGISTRY.nosotrosCierre.variantes!, undefined), 'linea');
+  assert.equal(resolverVariante(REGISTRY.nosotrosCierre.variantes!, ''), 'linea');
+  assert.equal(resolverVariante(REGISTRY.nosotrosCierre.variantes!, null), 'linea');
+  assert.equal(resolverVariante(REGISTRY.nosotrosCierre.variantes!, 'basura'), 'linea');
+  assert.equal(resolverVariante(REGISTRY.nosotrosCierre.variantes!, 'fraseYBoton'), 'fraseYBoton');
+});
+
+test('nosotrosCierre.variante: sin nada guardado → "linea" (el default, byte-idéntico); guardado se conserva vía resolverSiteContent', () => {
+  assert.equal(resolverSiteContent({}).nosotrosCierre.variante, 'linea');
+  assert.equal(resolverSiteContent({ nosotrosCierre: { variante: 'fraseYBoton' } }).nosotrosCierre.variante, 'fraseYBoton');
+});
+
+// ── EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) — nace ENCENDIDO, TODO opcional,
+// y se auto-oculta sin `imagen` (en el COMPONENTE, no acá — mismo criterio que `suscripcionInterludio`) ─
+
+test('nosotrosInterludio: sin nada guardado → `imagen`/`pie` VACÍOS (ningún dato de la finca vive en el código)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosInterludio.imagen, '');
+  assert.equal(r.nosotrosInterludio.pie, '');
+});
+
+test('nosotrosInterludio: TODOS los campos son opcionales — un valor guardado se conserva, ninguno cae a un default fabricado', () => {
+  const r = resolverSiteContent({
+    nosotrosInterludio: { imagen: '/cafetal.jpg', pie: 'San Adolfo, Huila · 1.600 msnm' },
+  });
+  assert.equal(r.nosotrosInterludio.imagen, '/cafetal.jpg');
+  assert.equal(r.nosotrosInterludio.pie, 'San Adolfo, Huila · 1.600 msnm');
+});
+
+test('nosotrosInterludio: `ocultable: true`, con `visible` respetando el toggle explícito (el hide-on-empty de `imagen` vive en el COMPONENTE, no acá)', () => {
+  const def = REGISTRY.nosotrosInterludio;
+  assert.equal(def.ocultable, true);
+  assert.equal(seccionEsVisible(def, { visible: true }), true);
+  assert.equal(seccionEsVisible(def, { visible: false }), false);
+});
+
+test('REGISTRY.nosotrosInterludio: SIN `variantes` (sólo existe la composición «Plano»; nada que clampar) y `imagenes = [imagen]` (tripwire del borrado de blobs)', () => {
+  assert.equal(REGISTRY.nosotrosInterludio.variantes, undefined);
+  assert.deepEqual(REGISTRY.nosotrosInterludio.imagenes, ['imagen']);
+  assert.equal(REGISTRY.nosotrosInterludio.campos.imagen, 'opcional');
+  assert.equal(REGISTRY.nosotrosInterludio.campos.pie, 'opcional');
 });
 
 // ── La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1) — 3ª sección repeater, gemela de
@@ -1962,8 +2012,8 @@ test('"video"·reproducir: SIN video subido, la caja (aspect-video) sigue montad
 // persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni
 // "parcial"/"dedup" que ejercer. Lo que SÍ hay que afirmar, igual que del lado de la home: el orden
 // de HOY, y que el dominio es EXHAUSTIVO (nunca se cae una banda).
-test('resolverOrdenNosotros: devuelve las SEIS bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las SIETE bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1, § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosInterludio', 'nosotrosCierre']);
 });
 
 test('resolverOrdenNosotros: el dominio es EXHAUSTIVO — exactamente BANDA_NOSOTROS_IDS, sin faltantes ni de más', () => {

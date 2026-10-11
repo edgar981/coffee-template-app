@@ -7,6 +7,7 @@ import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria'
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosEscenas from '@/components/storefront/nosotros/NosotrosEscenas';
 import NosotrosFicha from '@/components/storefront/nosotros/NosotrosFicha';
+import NosotrosInterludio from '@/components/storefront/nosotros/NosotrosInterludio';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import {
@@ -27,10 +28,11 @@ import {
 // Vive en `lib/config/` (no bajo `components/storefront/nosotros/`) por el mismo motivo que
 // `renderGrindChooser` en `site-content-defaults.test.ts`: SSR a texto vía `renderToStaticMarkup`,
 // sin jsdom (el repo no lo tiene, § CLAUDE.md), y el glob del carril rápido ya cubre
-// `lib/**/*.test.ts`. `NosotrosHistoria`/`NosotrosGaleria`/`NosotrosCierre` son 'use client' sin
-// import server-only (leen `useSiteContent()`/`useIsPreview()`, ambos con provider/default seguros
-// en Node) — página.tsx NO se puede importar acá (arrastra `getSiteContent`/`getSiteSettings`,
-// `server-only`), así que la prueba de byte-identidad se hace contra el ÁRBOL, no contra la ruta.
+// `lib/**/*.test.ts`. `NosotrosHistoria`/`NosotrosGaleria`/`NosotrosCierre`/`NosotrosInterludio` son
+// 'use client' sin import server-only (leen `useSiteContent()`/`useIsPreview()`, ambos con
+// provider/default seguros en Node) — página.tsx NO se puede importar acá (arrastra
+// `getSiteContent`/`getSiteSettings`, `server-only`), así que la prueba de byte-identidad se hace
+// contra el ÁRBOL, no contra la ruta.
 
 // EL ÁRBOL DE AYER: los DOS componentes que `page.tsx` montaba ANTES de § NOSOTROS-COMPOSICION-1 (la
 // historia + la galería, sin el cierre). Es la referencia contra la que se mide la byte-identidad
@@ -50,13 +52,15 @@ function arbolFijo(content: SiteContentData, negocio: string) {
 // compila. `nosotrosGaleria` es la única banda con un prop extra (`negocio`), igual que
 // `presentaciones` en el registro de la home; `nosotrosCierre`/`nosotrosApertura` no toman props,
 // como `nosotrosHistoria`. `nosotrosEscenas`/`nosotrosFicha` (§ ONIX-NOSOTROS-ESCENAS-FICHA-1) tampoco
-// toman props — headless, como `nosotrosHistoria`/`nosotrosCierre`.
+// toman props — headless, como `nosotrosHistoria`/`nosotrosCierre`. `nosotrosInterludio`
+// (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) tampoco — headless, como el resto.
 const BANDAS: Record<BandaNosotrosId, (negocio: string) => React.ReactNode> = {
   nosotrosApertura: () => React.createElement(NosotrosApertura),
   nosotrosHistoria: () => React.createElement(NosotrosHistoria),
   nosotrosGaleria: (negocio) => React.createElement(NosotrosGaleria, { negocio }),
   nosotrosEscenas: () => React.createElement(NosotrosEscenas),
   nosotrosFicha: () => React.createElement(NosotrosFicha),
+  nosotrosInterludio: () => React.createElement(NosotrosInterludio),
   nosotrosCierre: () => React.createElement(NosotrosCierre),
 };
 
@@ -69,8 +73,8 @@ function arbolResuelto(content: SiteContentData, negocio: string) {
   });
 }
 
-test('resolverOrdenNosotros: devuelve las SEIS bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL, escenas y ficha entre la galería y el cierre (§ ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las SIETE bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL, el interludio entre la ficha y el cierre (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosInterludio', 'nosotrosCierre']);
 });
 
 test('el registro bandaId→render es EXHAUSTIVO: toda banda de BANDA_NOSOTROS_IDS tiene una entrada registrada', () => {
@@ -156,6 +160,62 @@ test('NosotrosCierre (banda): sin `ctaLabel`/`ctaDestino` no rinde ningún botó
     React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosCierre) }),
   );
   assert.ok(html.includes('Conocé la finca'));
+  assert.ok(!html.includes('<a '), 'sin CTA resuelto, ningún <a> debe rendir');
+});
+
+// § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1: `nosotrosInterludio` es la SÉPTIMA banda —hide-on-empty,
+// como `nosotrosCierre`—, y `nosotrosCierre` gana la composición «Frase y botón».
+
+test('NosotrosInterludio (banda): sin `imagen` (el default) devuelve null — hide-on-empty', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: DEFAULTS, children: React.createElement(NosotrosInterludio) }),
+  );
+  assert.equal(html, '');
+});
+
+test('NosotrosInterludio (banda): con `imagen` SÍ renderiza — la pieza compartida InterludioPlano, con su pie', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosInterludio: { ...DEFAULTS.nosotrosInterludio, imagen: '/cafetal.jpg', pie: 'San Adolfo, Huila · 1.600 msnm' },
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosInterludio) }),
+  );
+  assert.ok(html.includes('San Adolfo, Huila · 1.600 msnm'), 'el pie debe aparecer');
+});
+
+test('NosotrosCierre (banda): `variante:"fraseYBoton"` rinde `titulo` COMO LA FRASE, vía la pieza compartida CierreFraseYBoton — `parrafo`/`imagenFondo` quedan sin efecto', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosCierre: {
+      ...DEFAULTS.nosotrosCierre,
+      variante: 'fraseYBoton',
+      titulo: 'UN SOLO CAFÉ, DE UNA SOLA FINCA.',
+      parrafo: 'Este párrafo no debe aparecer.',
+      ctaLabel: 'VER EL CAFÉ',
+      ctaDestino: '/tienda',
+      imagenFondo: '/no-deberia-pintarse.jpg',
+    },
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosCierre) }),
+  );
+  assert.ok(html.includes('UN SOLO CAFÉ, DE UNA SOLA FINCA.'), 'la frase (titulo) debe aparecer');
+  assert.ok(html.includes('VER EL CAFÉ'), 'el botón debe aparecer');
+  assert.ok(html.includes('href="/tienda"'), 'el botón debe apuntar a /tienda');
+  assert.ok(!html.includes('Este párrafo no debe aparecer.'), 'parrafo no tiene efecto bajo "fraseYBoton"');
+  assert.ok(!html.includes('no-deberia-pintarse.jpg'), 'imagenFondo no tiene efecto bajo "fraseYBoton"');
+});
+
+test('NosotrosCierre (banda): `variante:"fraseYBoton"` sin `ctaLabel`/`ctaDestino` no rinde ningún botón', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosCierre: { ...DEFAULTS.nosotrosCierre, variante: 'fraseYBoton', titulo: 'UN SOLO CAFÉ, DE UNA SOLA FINCA.' },
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosCierre) }),
+  );
+  assert.ok(html.includes('UN SOLO CAFÉ, DE UNA SOLA FINCA.'));
   assert.ok(!html.includes('<a '), 'sin CTA resuelto, ningún <a> debe rendir');
 });
 

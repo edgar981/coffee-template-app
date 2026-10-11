@@ -8,6 +8,7 @@ import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria"
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 import NosotrosEscenas from "@/components/storefront/nosotros/NosotrosEscenas";
 import NosotrosFicha from "@/components/storefront/nosotros/NosotrosFicha";
+import NosotrosInterludio from "@/components/storefront/nosotros/NosotrosInterludio";
 import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
 import { resolverOrdenNosotros, type BandaNosotrosId } from "@/lib/config/site-content-defaults";
 import { navOffsetClase } from "@/lib/config/themes";
@@ -50,6 +51,7 @@ export default async function NosotrosPage() {
     nosotrosGaleria: () => <NosotrosGaleria negocio={settings.nombre} />,
     nosotrosEscenas: () => <NosotrosEscenas />,
     nosotrosFicha: () => <NosotrosFicha />,
+    nosotrosInterludio: () => <NosotrosInterludio />,
     nosotrosCierre: () => <NosotrosCierre />,
   };
 

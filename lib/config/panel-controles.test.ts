@@ -548,3 +548,31 @@ test('nosotrosEscenas (sección + los 7 campos de ítem) y nosotrosFicha (los 7 
   assert.ok(!huecos.some((h) => h.startsWith('nosotrosEscenas.')));
   assert.ok(!huecos.some((h) => h.startsWith('nosotrosFicha.')));
 });
+
+// § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1 — `nosotrosInterludio` (sección NUEVA, 2 campos) y
+// `nosotrosCierre.variante` (campo NUEVO de una sección ya controlada) tienen control DE ENTRADA
+// (`NOSOTROS_INTERLUDIO` en tienda-secciones.ts, y `NOSOTROS_CIERRE.composiciones`), no como
+// hallazgo tardío — mismo criterio que `tiendaProducto`/`nosotrosEscenas`/`nosotrosFicha` arriba. El
+// trinquete de PENDIENTE_PANEL no se mueve: ninguna entrada nueva.
+test('nosotrosInterludio (sección + sus 2 campos) y nosotrosCierre.variante están LEÍDOS y CONTROLADOS, sin exención nueva', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+
+  assert.ok(leidos.includes('nosotrosInterludio.visible'));
+  assert.ok(controlados.includes('nosotrosInterludio.visible'));
+  for (const campo of ['imagen', 'pie']) {
+    const ruta = `nosotrosInterludio.${campo}`;
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+  }
+
+  assert.ok(leidos.includes('nosotrosCierre.variante'));
+  assert.ok(controlados.includes('nosotrosCierre.variante'));
+
+  assert.ok(!pendientes.has('nosotrosInterludio.visible'));
+  assert.ok(!pendientes.has('nosotrosCierre.variante'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.some((h) => h.startsWith('nosotrosInterludio.')));
+  assert.ok(!huecos.includes('nosotrosCierre.variante'));
+});

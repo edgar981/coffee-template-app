@@ -2430,8 +2430,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): mismo criterio otra vez — en vez de reproducir
                   el hueco ya documentado (`ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1`, donde
                   `composiciones` se declara pero ningún control real lo muestra), 'relato'/'sinopsis'
-                  se suman a este MISMO select nativo — dos opciones, sin zonas que avisar. */}
-              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq' || seccion === 'nosotrosHistoria') && config.composiciones && config.composiciones.length > 1 && (
+                  se suman a este MISMO select nativo — dos opciones, sin zonas que avisar.
+                  'nosotrosCierre' (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): CUARTA vez el mismo criterio
+                  — en vez de reproducir el hueco una quinta, 'linea'/'fraseYBoton' se suman al MISMO
+                  select nativo. */}
+              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq' || seccion === 'nosotrosHistoria' || seccion === 'nosotrosCierre') && config.composiciones && config.composiciones.length > 1 && (
                 <div className="admin-bloque">
                   <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
                   <select

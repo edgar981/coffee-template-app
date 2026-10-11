@@ -15,6 +15,7 @@ import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria'
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosEscenas from '@/components/storefront/nosotros/NosotrosEscenas';
 import NosotrosFicha from '@/components/storefront/nosotros/NosotrosFicha';
+import NosotrosInterludio from '@/components/storefront/nosotros/NosotrosInterludio';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionApertura from '@/components/storefront/suscripciones/SuscripcionApertura';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
@@ -191,6 +192,12 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // vista previa queda en blanco, no rota.
   nosotrosEscenas: NosotrosEscenas,
   nosotrosFicha: NosotrosFicha,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1 (mismo patrón que
+  // 'suscripcionInterludio' arriba): sumar 'nosotrosInterludio' a `SeccionVista` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea. Headless, sin props →
+  // asignable a `ComponentType`. Con `imagen` vacío (el default) el componente devuelve `null` — la
+  // vista previa queda en blanco, no rota.
+  nosotrosInterludio: NosotrosInterludio,
   // NECESARIO POR CONSECUENCIA MECÁNICA de § NOSOTROS-COMPOSICION-1 (mismo patrón que 'origen'/
   // 'spotlight' arriba): sumar `'nosotrosCierre'` a `SeccionVista` (tienda-secciones.ts) para que la
   // banda "CTA de cierre" pueda entrar a `SECCIONES_TIENDA` vuelve este

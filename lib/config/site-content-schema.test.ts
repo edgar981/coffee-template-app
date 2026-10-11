@@ -164,6 +164,21 @@ test('nosotrosCierre: un `ctaDestino` fuera del set cerrado se rechaza (a difere
   assert.throws(() => siteContentEditableSchema.parse({ nosotrosCierre: { ctaDestino: 'https://ejemplo.com' } }));
 });
 
+// ─── § ONIX-NOSOTROS-INTERLUDIO-CIERRE-1: el interludio propio de /nosotros, y la composición
+// «fraseYBoton» del cierre SOBREVIVEN al parse ────────────────────────────────────────────────────
+
+test('nosotrosInterludio: los tres campos SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    nosotrosInterludio: { visible: true, imagen: '/cafetal.jpg', pie: 'SAN ADOLFO, HUILA · 1.600 MSNM' },
+  });
+  assert.deepEqual(parsed.nosotrosInterludio, { visible: true, imagen: '/cafetal.jpg', pie: 'SAN ADOLFO, HUILA · 1.600 MSNM' });
+});
+
+test('nosotrosCierre: `variante` SOBREVIVE al parse como string (clampada por resolverVariante al leer, no acá)', () => {
+  const parsed = siteContentEditableSchema.parse({ nosotrosCierre: { variante: 'fraseYBoton' } });
+  assert.equal(parsed.nosotrosCierre!.variante, 'fraseYBoton');
+});
+
 // ─── § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: la apertura propia de /nosotros, y variante/retratoNombre
 // de la historia SOBREVIVEN al parse ────────────────────────────────────────────────────────────
 

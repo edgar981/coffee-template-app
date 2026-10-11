@@ -8,7 +8,9 @@ import { fadeUp, useProgresoScroll } from "@/lib/animation";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useIsPreview } from "@/components/storefront/PreviewMode";
 import { REGISTRY, seccionEsVisible, resolverCtaSeccion } from "@/lib/config/site-content-defaults";
+import { contenedorAnchoClase } from "@/lib/config/themes";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+import CierreFraseYBoton from "@/components/storefront/tienda/CierreFraseYBoton";
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — la banda final antes del pie, en el
 // mismo lugar donde el tema real cierra la página con titular + párrafo + botón (medido, §
@@ -23,7 +25,7 @@ import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/Camp
 // (`if (!seccionEsVisible(...)) return null; if (!producto) return null;`). Con `titulo` vacío
 // —el default, para todo tenant que no la llene— la banda NO se monta: ningún byte nuevo para nadie.
 export default function NosotrosCierre({ style }: { style?: React.CSSProperties } = {}) {
-  const { nosotrosCierre, paginas } = useSiteContent();
+  const { nosotrosCierre, navTratamiento, paginas } = useSiteContent();
   const preview = useIsPreview();
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
@@ -32,6 +34,23 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
   if (nosotrosCierre.titulo.trim() === "") return null;
 
   const ctaHref = resolverCtaSeccion(nosotrosCierre.ctaLabel, nosotrosCierre.ctaDestino, paginas);
+
+  // LA COMPOSICIÓN «FRASE Y BOTÓN» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): reusa `titulo` COMO LA
+  // FRASE —cero campos nuevos, mismo criterio que `tiendaCierre.variante==='fraseYBoton'` reusando
+  // `frase`/`boton`—; `parrafo`/`imagenFondo` quedan SIN EFECTO bajo esta composición (siguen
+  // editables, por si el dueño vuelve a «Línea»).
+  if (nosotrosCierre.variante === "fraseYBoton") {
+    const cta = ctaHref ? { label: nosotrosCierre.ctaLabel, href: ctaHref } : null;
+    return (
+      <CierreFraseYBoton
+        frase={nosotrosCierre.titulo}
+        cta={cta}
+        preview={preview}
+        anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+      />
+    );
+  }
+
   const tieneImagenFondo = nosotrosCierre.imagenFondo.trim() !== "";
 
   const sectionRef = useRef<HTMLElement>(null);

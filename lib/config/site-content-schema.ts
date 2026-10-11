@@ -385,7 +385,9 @@ const nosotrosFichaEditableSchema = z.object({
 // resolver decide (todos los campos son 'opcional' en REGISTRY, así que vacío queda vacío, nunca
 // cae a un default fabricado). `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, mismo criterio que
 // `subscriptionCTAEditableSchema.ctaSecundarioDestino` — el CTA puede llegar apagado, sin label ni
-// destino. `imagenFondo` es string (path o Blob), como `subscriptionCTA.imagenFondo`.
+// destino. `imagenFondo` es string (path o Blob), como `subscriptionCTA.imagenFondo`. `variante`
+// (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) SOBREVIVE al parse como string (SOFT, clampada por
+// `resolverVariante` al leer, no acá — mismo criterio que `tiendaCatalogo.variante`).
 const nosotrosCierreEditableSchema = z.object({
   visible: z.boolean().optional(),
   titulo: z.string().optional(),
@@ -393,6 +395,16 @@ const nosotrosCierreEditableSchema = z.object({
   ctaLabel: z.string().optional(),
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   imagenFondo: z.string().optional(),
+  variante: z.string().optional(),
+});
+
+// /nosotros — EL INTERLUDIO (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1). SOFT como el resto: una sola
+// composición («Plano», la pieza compartida), sin `variante` que clampar — mismo criterio que
+// `suscripcionInterludioEditableSchema`.
+const nosotrosInterludioEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  imagen: z.string().optional(),
+  pie: z.string().optional(),
 });
 
 // /suscripciones — los PLANES como dato (§ Backlog #49). Encabezado + "Elige tu plan" + `destacadoSlot`
@@ -1119,6 +1131,7 @@ export const siteContentEditableSchema = z.object({
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
   nosotrosEscenas: nosotrosEscenasEditableSchema.optional(),
   nosotrosFicha: nosotrosFichaEditableSchema.optional(),
+  nosotrosInterludio: nosotrosInterludioEditableSchema.optional(),
   nosotrosCierre: nosotrosCierreEditableSchema.optional(),
   suscripcionApertura: suscripcionAperturaEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),

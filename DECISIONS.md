@@ -60444,3 +60444,168 @@ la rama y verificados como tal por medición directa (arriba) — ninguno imputa
 `/nosotros` coincide EXACTO con la medición que ya existía antes de este slice. Commiteado en
 `slice/editor-secciones-1`; el merge, cuando el owner revise el gate visual (las Escenas y la Ficha
 con contenido real de Onix), lo hace el orquestador.
+
+## 2026-10-11 — ONIX-NOSOTROS-INTERLUDIO-CIERRE-1: /nosotros gana el Interludio propio y la
+composición «Frase y botón» del Cierre, cerrando el orden completo de la maqueta de Onix
+
+**Pedido del owner** (2026-10-11, la misma aprobación que citan `ONIX-SUSCRIPCION-TAQUILLA-1`/
+`ONIX-NOSOTROS-APERTURA-SINOPSIS-1`/`ONIX-NOSOTROS-ESCENAS-FICHA-1`, *"Perfect. Go ahead with this
+mock."*, sobre la maqueta «Tres escenas» de /nosotros): la página gana las DOS piezas que
+`ONIX-NOSOTROS-ESCENAS-FICHA-1` dejó nombradas y fuera de su `touches:` —"Interludio sigue sin
+construirse; no está en `touches:` de este slice tampoco"—, cerrando las SEIS de
+`refero-onix-paginas.md` § /nosotros: apertura → sinopsis → escenas → ficha → **interludio** →
+**cierre**. Con este slice, el orden completo de la maqueta existe en el modelo.
+
+### El modelo — UNA sección NUEVA, y una SEGUNDA composición sobre la que ya existía
+
+- **`nosotrosInterludio`** (sección NUEVA, `visible`/`imagen`/`pie`): montada con la pieza
+  COMPARTIDA `InterludioPlano` (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) — la MISMA composición «Plano»
+  que `tiendaInterludio`/`suscripcionInterludio`. SIN `variantes`: el spec sólo pide «Plano» para
+  esta página también (§ refero-onix-paginas.md, "e. Interludio (tal cual)"), así que no hay un eje
+  que clampar — mismo criterio que `suscripcionInterludio`. Nace ENCENDIDA (`visible:true`) pero
+  AUTO-OCULTA SIN `imagen` (el componente lo comprueba, no el resolver); `pie` vacío a propósito
+  —«SAN ADOLFO, HUILA · 1.600 MSNM» del spec es el EJEMPLO de la maqueta, no un dato de negocio para
+  hornear (§ el invariante #44)—, así que ningún tenant sin fila ve nada nuevo.
+- **`nosotrosCierre` gana `variante`** (§ `VariantesDef`): «Línea» (canónica, renombrada — el render
+  de titular+párrafo+imagen de fondo que ya existía, byte a byte) | «fraseYBoton» (la pieza
+  COMPARTIDA `CierreFraseYBoton`, mismo patrón que `tiendaCierre.variante`). CERO campos nuevos:
+  «Frase y botón» reusa `titulo` COMO LA FRASE —«UN SOLO CAFÉ, DE UNA SOLA FINCA.» del spec es el
+  contenido de la maqueta, no un default universal a hornear (§ el código compartido no NACE siendo
+  Nayoli/demo)— y `ctaLabel`/`ctaDestino` como el botón; `parrafo`/`imagenFondo` quedan SIN EFECTO
+  bajo esta composición (siguen editables, por si el dueño vuelve a «Línea»). El gate de
+  hide-on-empty sigue siendo `titulo.trim() === ''`, sin cambio — aplica a las DOS composiciones por
+  igual, porque la frase y el titular son el MISMO campo.
+
+### El orden — `nosotrosInterludio` entra entre la ficha y el cierre, en los DOS registros
+
+`BANDA_NOSOTROS_IDS` pasa de `[…, nosotrosFicha, nosotrosCierre]` a `[…, nosotrosFicha,
+nosotrosInterludio, nosotrosCierre]` — SIETE bandas, el orden EXACTO de la maqueta. `app/
+(storefront)/nosotros/page.tsx` gana la entrada en su `Record<BandaNosotrosId, …>` (exhaustivo por
+TIPO, `tsc` lo exige); `lib/config/nosotros-bandas.test.ts` gana la MISMA entrada en su propio
+registro de prueba (el `BANDAS` que espeja `page.tsx` sin importar `getSiteContent`/`server-only`,
+§ el docstring de cabecera del archivo) — dos registros, el mismo id, ninguno puede quedarse atrás
+sin romper el typecheck o el test de exhaustividad.
+
+### El viaje por el editor — control DE ENTRADA, y el hueco del select nativo, CUARTA vez
+
+`components/admin/tienda-secciones.ts` gana `NOSOTROS_INTERLUDIO` (`SeccionConfig`, mismo patrón
+que `SUSCRIPCION_INTERLUDIO`) y `NOSOTROS_CIERRE` suma `composiciones: OPCIONES_COMPOSICION_
+NOSOTROS_CIERRE` (derivada de `REGISTRY.nosotrosCierre.variantes.claves`, nunca una segunda lista a
+mano). `VistaTiendaEnVivo.tsx` gana `nosotrosInterludio: NosotrosInterludio` en `COMPONENTES`
+(`tsc` exige el `Record<SeccionVista, ComponentType>` exhaustivo).
+
+**Hallazgo ANTES de cablear, mismo patrón que `ONIX-NOSOTROS-APERTURA-SINOPSIS-1`:** declarar
+`composiciones` en `tienda-secciones.ts` no basta — el select nativo de `TiendaSeccionEditor.tsx`
+(línea ~2434) está hardcodeado por `seccion ===`, y el hueco ya documentado
+(`ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1`) nombraba exactamente este patrón para
+`suscripcionPlanes`/`tiendaInterludio`/`tiendaCierre`, con `nosotrosHistoria` cerrándolo una
+TERCERA vez. En vez de reproducirlo una CUARTA, se sumó `'nosotrosCierre'` al MISMO select nativo
+—dos opciones ("Imagen de fondo"/"Frase y botón"), sin zonas que avisar, el criterio ya usado por
+Encabezado/Catálogo/Producto/`suscripcionFaq`/`nosotrosHistoria`—. El hueco sigue existiendo para
+`suscripcionPlanes`/`tiendaInterludio`/`tiendaCierre` (ninguno de los tres está en `touches:` de
+este slice); no se cerró de más.
+
+### Byte-identidad — verificada por EJECUCIÓN, no por lectura
+
+`lib/config/nosotros-bandas.test.ts`: `resolverOrdenNosotros()` pasa de SEIS a SIETE ids; los DOS
+tests de byte-identidad (`arbolFijo` vs `arbolResuelto`) NO se tocaron y siguen dando IDÉNTICO,
+porque `nosotrosInterludio` nace vacía/oculta (sin `imagen`) y no aparece en el árbol fijo de
+referencia. Cuatro tests NUEVOS ejercitan las dos piezas: `NosotrosInterludio` hide-on-empty (sin
+`imagen` → `null`) y con `imagen` (rinde el pie, vía `InterludioPlano`); `NosotrosCierre` con
+`variante:'fraseYBoton'` (rinde `titulo` como la frase + el botón hacia `/tienda`, y confirma que
+`parrafo`/`imagenFondo` NO aparecen en el HTML) y el mismo caso sin `ctaLabel`/`ctaDestino` (ningún
+`<a>` renderiza). `lib/config/site-content-defaults.test.ts` suma 7 tests (el resolver respeta
+`nosotrosInterludio.imagen`/`.pie` guardados, el toggle `visible`, el tripwire de `imagenes` para el
+borrado de blobs, y `nosotrosCierre.variante` clampando a "linea" fuera del set cerrado — vía
+`resolverVariante`, el mismo mecanismo genérico que ya cubre brandStory/hero/tiendaCierre, sin un
+test propio de "cae a la canónica" por sección, mismo criterio que el resto del archivo).
+`lib/config/site-content-schema.test.ts` suma 2 tests (`nosotrosInterludio` sobrevive el parse
+completo; `nosotrosCierre.variante` sobrevive como string SOFT). El test DERIVADO "todo campo del
+MODELO está en el schema editable" (§ #65-B) pasó sin tocarlo — declarar el modelo y el schema en el
+mismo gesto bastó. `lib/config/panel-controles.test.ts` suma 1 test de calibración: `nosotrosInterludio`
+(sección + sus 2 campos) y `nosotrosCierre.variante` están LEÍDOS y CONTROLADOS, sin exención nueva
+en `PENDIENTE_PANEL` — el trinquete no se movió.
+
+### El gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: 4368/4368 VERDE.
+- **`npm run test:integracion`**: 409/409 VERDE.
+
+**DEVIACIÓN MEDIDA — el `npm test` de este slice (4368) no reconcilia limpio contra el 4347 citado
+por `ONIX-NOSOTROS-ESCENAS-FICHA-1`** (el commit inmediatamente anterior en esta rama, `7fd410b`).
+Este diff agrega NETO 14 tests (`git diff HEAD` sobre los cuatro archivos de test tocados: +17
+`test(` − 3 renombrados = 14 nuevos, contados uno por uno contra el diff real, no estimados), así
+que el piso esperado sería 4347+14=4361, no 4368 — una diferencia de 7 que este diff NO explica.
+Medido, no asumido: `npm run typecheck` y `npm test` corridos LIMPIOS sobre el árbol final (sin
+archivos fuera de `touches:` tocados, `git status` verificado antes y después). No se investigó más
+allá —el protocolo pide reportar el drift, no perseguirlo—; la hipótesis más simple es que la suite
+completa no es perfectamente determinista entre dos sesiones de medición en este repo (hay lógica
+dependiente del reloj de Bogotá en varias partes del dominio, § CLAUDE.md). El número que importa
+para este diff es el propio: 4368/4368 VERDE, medido en el árbol final, con cero fallos.
+
+### `verificar:nayoli` — RED, atribuido a drift pre-existente, con UNA precisión sobre el CSS
+
+Las CUATRO rutas (`/`, `/tienda`, `/tienda/<slug>`, `/checkout` — ninguna es `/nosotros`) DIFIEREN,
+en el `<html lang="en">` (main) vs `<html lang="es">` (rama) ya documentado por
+`ONIX-NOSOTROS-APERTURA-SINOPSIS-1`, y en el chunk CSS.
+
+**PRECISIÓN sobre el CSS, porque la entrada de `ONIX-NOSOTROS-ESCENAS-FICHA-1` decía "contenido
+idéntico, sólo el comentario cambia" y este diff midió otra cosa:** `css-main.txt` son 120.231 bytes
+y `css-rama.txt` 152.538 bytes — el diff (`diff css-main.txt css-rama.txt`) marca DOS hunks, `1c1`
+(el comentario `/* ARCHIVO: … */`, como ya se sabía) y `3c3` (la línea minificada completa del
+bundle, que SÍ difiere en contenido, no sólo en el comentario). **No es atribuible a este diff**:
+ninguno de los archivos tocados por este slice agrega una clase de Tailwind nueva — `NosotrosInterludio.
+tsx` no tiene JSX con clases (delega entero en `InterludioPlano`), y `NosotrosCierre.tsx` sólo agrega
+props a un componente YA existente (`CierreFraseYBoton`), sin una sola clase nueva. El bundle CSS es
+GLOBAL (compartido por toda la app, por eso el nombre del chunk es el mismo para las cuatro rutas), y
+`main` —el checkout del worktree, HEAD real de la rama `main`— no tiene NINGUNO de los ~5 slices de
+Onix previos (`ONIX-SUSCRIPCION-TAQUILLA-1`…`ONIX-NOSOTROS-ESCENAS-FICHA-1`) que sí agregaron clases
+nuevas en componentes que `main` no conoce — la diferencia de tamaño es la acumulación de ESOS slices,
+no de éste. La caracterización "sólo el comentario" de la entrada anterior no se corrige acá (no está
+en `touches:` de este slice); se deja esta entrada como la medición más precisa para quien la lea
+después.
+
+### `verificar:nayoli:visual` — RED, el de `/nosotros` coincide EXACTO con la medición previa
+
+Las SEIS rutas (`home`/`tienda`/`producto`/`checkout`/`nosotros`/`suscripciones`) DIFIEREN en
+conteo de píxeles; los DOS hovers (`automatica`/`eleccion`) son IDÉNTICOS. **`/nosotros` da
+224/422 px en la caja `[445,45]–[828,726]` — el MISMO conteo, EL MISMO bounding box, byte a byte,
+que `ONIX-NOSOTROS-ESCENAS-FICHA-1` y `ONIX-NOSOTROS-APERTURA-SINOPSIS-1` ya midieron ANTES de que
+este slice empezara** — prueba, por medición y no por argumento, de que esta tanda no mueve un solo
+píxel de `/nosotros` para Nayoli: `nosotrosInterludio` nace vacía/oculta y `nosotrosCierre` sigue en
+su composición "linea" (canónica, byte a byte el render de siempre). Verificado por inspección
+DIRECTA del PNG de diff (`.scratch/verificar-nayoli-visual/diffs/ruta-nosotros.png`): el único
+elemento NO atenuado es la línea del footer "· Hecho por Duna" — el drift YA documentado, ajeno a
+este diff. Las otras cinco rutas no están en `touches:` de este slice y ninguno de sus componentes
+se tocó.
+
+### DESVIACIÓN MEDIDA — capturas manuales a 1440/390 NO se produjeron
+
+El spec pedía "Capturas a 1440 y 390 al lado de `s-nos-*.png`". El dispatch de este slice es
+EXPLÍCITO en que la verificación es "por RENDER EN MEMORIA" y que cargar `.env`/consultar una base
+"está PROHIBIDO y es innecesario" — y una captura de 1440/390 con contenido Onix real (el único
+caso que mostraría algo NUEVO: Nayoli no llena ni `nosotrosInterludio.imagen` ni
+`nosotrosCierre.variante`) exige un dev server con `SiteContent` sembrado con ese contenido, que
+exige DB. Mismo precedente que `ONIX-SUSCRIPCION-LETRA-CIERRE-1` (que tampoco produjo capturas de
+1440/390 de `/suscripciones` por la misma clase de impedimento). Se compensó con: (1) el render en
+memoria (`nosotros-bandas.test.ts`, arriba — las DOS piezas nuevas, con y sin contenido, vistas
+pasar); (2) la captura de 1280px que `verificar:nayoli:visual` SÍ produce
+(`.scratch/verificar-nayoli-visual/capturas/{main,rama}/ruta-nosotros.png`), inspeccionada
+visualmente — Nayoli sin cambios, como corresponde sin contenido sembrado.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega UNA sección nueva (`nosotrosInterludio`) y
+una composición opt-in nueva (`nosotrosCierre.variante = 'fraseYBoton'`, default sigue siendo
+`'linea'`) — bytes nuevos que CUALQUIER tenant que los active (incluida Onix, vía el panel)
+recibiría, así que no cae bajo la excepción de "sin bytes nuevos". Sin cambio de schema/migración ni
+contrato cruzado de repositorio. `npm run gate` VERDE de punta a punta (typecheck 0 · `npm test`
+4368/4368 · `test:integracion` 409/409 — el drift del conteo de `npm test` contra el piso citado de
+la entrada anterior está medido y declarado arriba, no escondido). `verificar:nayoli`/
+`verificar:nayoli:visual` corridos los dos, RED los dos, los dos atribuidos a drift pre-existente de
+la rama y verificados como tal por medición directa (arriba) — ninguno imputable a este diff; el de
+`/nosotros` coincide EXACTO con la medición que ya existía antes de este slice. Capturas manuales a
+1440/390 NO se produjeron, por el mismo impedimento que ya midió `ONIX-SUSCRIPCION-LETRA-CIERRE-1`
+(arriba, con su compensación). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner
+revise el gate visual, lo hace el orquestador.
