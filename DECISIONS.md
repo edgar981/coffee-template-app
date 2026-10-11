@@ -60935,3 +60935,139 @@ agrupación de "Ficha", el toggle de visibilidad de página). Sin cambio de sche
 contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`; el punto 5 queda
 UNKNOWN — necesita reproducirse contra un navegador y una base reales, fuera del alcance de este
 dispatch.
+
+## 2026-10-11 — HISTORIA-FICHA-DE-FINCA-1: «Nuestra Historia» gana una TERCERA composición, «Ficha
+de finca» — titular + entrada + ficha de 2-6 filas + ilustración de montañas generada del dato (o
+foto), sin tocar las dos existentes
+
+Maqueta aprobada por el owner el 2026-10-11 (investigación con Refero, `.scratch/nayoli-historia/`)
+tras rechazar la dirección de reusar la foto del reverso de la bolsa ("repetía la ficha") y aceptar
+el reemplazo —una ilustración de las montañas de Supatá con la franja de altitud—, literal: *"Yes
+to the Supatá mountain drawing"*.
+
+### La elección de MODELO: campos planos, NO repeater — y no por el motivo de siempre
+
+La bifurcación habitual (§ CLAUDE.md, "La BIFURCACIÓN de cardinalidad") es sobre BYTE-IDENTIDAD:
+un repeater nunca puede dar defaults byte-idénticos (invariante #44). Acá esa razón ni siquiera
+hacía falta MEDIRLA, porque hay una MÁS FUERTE: `seccionEsVisible` aplica `if (def.repeater &&
+!tieneItems) return false` — hide-on-empty que tapa la SECCIÓN ENTERA, no la composición. Un
+repeater en `REGISTRY.brandStory` con `items:[]` (el estado de CUALQUIER tenant que use
+'columnas'/'centrada', que nunca llenan filas) habría OCULTADO brandStory para Nayoli y para TODO
+tenant existente desde el instante en que este slice se mergeara — no una renuncia a
+byte-identidad: una REGRESIÓN real, medida leyendo `site-content-defaults.ts:4874` ANTES de
+escribir una sola línea. Se descartó el repeater por eso, no por el motivo habitual.
+
+Las 2-6 filas son 18 campos planos (`fila1..6Rotulo/Valor/SubLinea`), todos `opcional`, defaults
+vacíos — sin el "2 slots requeridos" de Presentaciones, porque acá no hay ningún tenant vivo que
+necesite 2 filas byte-idénticas por defecto (nadie elige esta composición todavía).
+
+### El editor: «tarjetas» SIEMPRE EXPANDIDAS, no el pliegue de Presentaciones
+
+El spec pedía "tarjetas plegadas como «Preguntas frecuentes»". Medido ANTES de intentarlo: el
+mecanismo real de pliegue (`colapsado`/`quitarTarjeta`/`slotOpcional`/`slotVacio`,
+`TiendaSeccionEditor.tsx` + `lib/tienda/puente-tarjetas.ts`) está hardcodeado DOS veces a
+Presentaciones — `puenteTarjetas = seccion === 'presentaciones'` (el gate del pliegue) y
+`CAMPOS_TARJETA = ['label','copy','categoria','imagen']` dentro de `slotVacio` (los NOMBRES de
+campo que decide si una tarjeta está "vacía", literales de Presentaciones, no derivados de
+`BloqueConfig.campos`). Generalizarlo tocaría el único consumidor real hoy (Presentaciones) con
+riesgo fuera de lo que este slice mide. El slice inmediatamente anterior en esta misma rama
+(`EDITOR-PAGINAS-ONIX-ARREGLOS-1`, punto 4, "Ficha" de `/nosotros`) tocó el MISMO hueco con el
+MISMO resultado: tarjetas-bloque SIN `opcional`, agrupación visual, nunca colapso — precedente
+directo, no una decisión nueva. Las filas 1-2 se titulan "Fila 1"/"Fila 2"; 3-6 llevan
+"(opcional)" en el TEXTO del título, igual que "Plan 2 (opcional)" de `SUSCRIPCION_PLANES`.
+**Desviación declarada del spec** (la letra, no la función: el operador sigue pudiendo dejar una
+fila vacía y que no se muestre — § `filasFicha`, `lib/storefront/historia-ficha.ts`).
+
+### El selector de composición sale GRATIS — y cierra `PANEL-EDITOR-VARIANTES-COMPOSICION-2` para
+brandStory
+
+`debeMostrarSelectorComposicion` (`lib/admin/editor-paginas-onix.ts`, del slice anterior en esta
+misma rama) ya hace aparecer el `<select>` nativo con sólo declarar `config.composiciones` con 2+
+opciones — no hizo falta tocar `TiendaSeccionEditor.tsx`. Declarar `BRAND_STORY.composiciones`
+(tres claves) tuvo un efecto colateral correcto: `panel-controles.ts` deriva `brandStory.variante`
+como CONTROLADO con sólo esa presencia, así que su entrada en `PENDIENTE_PANEL` —viva desde
+`EDITOR-TIENDA-COMPOSICION-1`— se retiró (el trinquete de `PENDIENTE_PANEL` baja de 10 a 9;
+quedan `presentaciones.variante`/`subscriptionCTA.variante`, sin tocar). Es un cierre DE PASO, no
+el objetivo del slice — se documenta para que `panel-controles.test.ts` no vuelva a asumirlo
+pendiente.
+
+### El movimiento: números LOCALES, fuera de `lib/animation.ts`
+
+El spec (de la maqueta) pide 60 ms entre filas / 8px — distinto de `REVELADO_GRUPO_PASO_S` (90ms)/
+`fadeUp` (24px) que el resto de la home comparte a propósito (§ `lib/storefront/revelado-bloque.ts`,
+doctrina explícita contra magnitudes por-sección). `lib/animation.ts` NO está en `touches:` de este
+slice. Precedente ya aceptado en este mismo repo para una granularidad DISTINTA a la de sección
+(`CASCADA_BLOQUE_PASO_S = 0.075`, el cascadeo palabra-por-palabra de "El origen" — una TERCERA
+familia de magnitud, nombrada, conviviendo con `REVELADO_GRUPO_*`): acá la granularidad es
+"fila-dentro-de-una-ficha", no "bloque-de-sección", así que es la MISMA clase de excepción, no una
+nueva. Se declaran como constantes LOCALES dentro de `BrandStoryFichaDeFinca.tsx` (único
+consumidor), no en `lib/animation.ts` — fuera de `touches:`, y sin un segundo consumidor que
+justifique promoverlas.
+
+### La ilustración: geometría FIJA, sólo las etiquetas siguen al dato
+
+`lib/storefront/historia-ficha.ts` (puro, con prueba): la franja de altitud, sus cotas y el punto
+de la finca ocupan una región FIJA del viewBox 540×675 (la de la maqueta aprobada) — NO escalan con
+la magnitud real del rango (una finca 0-100msnm y una 1.000-4.000msnm dibujan la MISMA franja, con
+etiquetas distintas). Es una ilustración estilizada, no un gráfico de elevación a escala; ningún
+tercer dato (la altitud EXACTA de la finca dentro del rango) existe para posicionar el punto con
+precisión, así que su Y es fija dentro de la franja (o en una cresta fija, sin rango) — declarado
+así en el código, no inferido.
+
+**La "estrella de la marca" del spec se simplificó a un glifo "✦" SIEMPRE** (Unicode, sin
+dependencia de asset): `SiteContent.content.logo.icono` es un asset subido (favicon-shape), no un
+glifo recoloreable por `currentColor`/`var(--sf-*)` dentro de este SVG — condicionar el punto a ese
+campo habría exigido una rama `<image>` vs `<text>` sin que el spec defina cómo se ve esa rama.
+Decisión de alcance, no un hallazgo que bloquee nada.
+
+### Byte-identidad — medida en TRES capas, no supuesta
+
+1. `git diff --stat` sobre `BrandStoryColumnas.tsx`/`BrandStoryCentrada.tsx`: **vacío** — cero
+   bytes tocados en los dos únicos componentes que Nayoli (y todo tenant hoy) puede renderizar.
+2. `git diff` sobre `DEFAULTS.brandStory`: sólo ADICIONES — ningún valor existente (`eyebrow`,
+   `titulo`, `parrafo1/2`, `imagen1-4`, `ctaLabel/Destino`, `variante:'columnas'`) cambió.
+3. Render en memoria (`renderToStaticMarkup`, `.scratch/nayoli-historia/verificar-byte-identidad.ts`,
+   no commiteado — gitignored): `variante:'columnas'` y `variante:'centrada'` con `DEFAULTS`
+   renderizan su layout de siempre; `variante:'fichaDeFinca'` con contenido de Nayoli pasado A MANO
+   (nunca sembrado en una base) renderiza título/filas/cotas/rótulo; `medio:'foto'` reusa `imagen1`
+   SIN `sf-radio-imagen`; sin ningún dato, no revienta y omite `<dl>`/`<figcaption>`.
+
+**DESVIACIÓN MEDIDA, no un defecto de este slice:** `npm run verificar:nayoli:visual` (nombrado
+explícitamente por el dispatch como script que SÍ se corre pese a crear su propio worktree/DB
+efímera) reportó diferencias de píxeles en LAS SEIS rutas — pero la comparación es `main` (416
+commits DETRÁS de este HEAD, medido con `git log --oneline main..HEAD | wc -l`) contra esta rama
+completa, no contra el commit inmediatamente anterior de este slice. El diff visual del home cae
+exactamente sobre el collage de 4 fotos de brandStory·columnas (pixel-a-pixel, misma posición/
+tamaño de grilla — consistente con que las FOTOS cambiaron en algún commit previo de la rama, no
+con que la ESTRUCTURA cambiara) y sobre las tarjetas de planes de suscripción (texto reflow, otra
+sección ajena a este slice) — nada que se parezca a contenido de "Ficha de finca" aparece en el
+diff. El script no está diseñado para aislar un slice dentro de una rama 416 commits adelantada;
+su resultado es un hallazgo sobre la RAMA completa (consistente con los ~400 commits de trabajo
+ONIX previo), no sobre este diff. Las tres capas de arriba son la verificación que sí aísla este
+slice.
+
+### El gate
+
+- **`npm test`**: 4421/4421 verde (incluye 21 tests nuevos en `lib/storefront/historia-ficha.test.ts`
+  + 6 nuevos y 2 actualizados en `lib/config/site-content-defaults.test.ts` + 2 nuevos en
+  `lib/config/panel-controles.test.ts`).
+- **`npm run gate`** (typecheck + `npm test` + `test:integracion`, Postgres efímero local): verde —
+  typecheck 0 errores, 4421 + 409 = 4830 tests. Misma desviación ya declarada por el slice anterior
+  de esta rama (`EDITOR-PAGINAS-ONIX-ARREGLOS-1`): el dispatch prohíbe `db:deploy`/`migrate`/`seed`
+  contra bases compartidas; `test:integracion` corre contra un Postgres EFÍMERO LOCAL propio
+  (`initdb` en un temp, destruido al terminar), la excepción que CLAUDE.md ya documenta
+  ("Base efímera local, nunca development") y que el "Cómo lo probás" de ESTE spec pide
+  explícitamente.
+- `npx eslint` sobre los 8 archivos de producción tocados/nuevos: limpio. Los 2 archivos `.test.ts`
+  tocados (`site-content-defaults.test.ts`/`panel-controles.test.ts`) traen 7 errores
+  `react/no-children-prop` — medido con `git diff --stat` por hunk: los SIETE caen fuera de mis
+  hunks (código `React.createElement` pre-existente, nada que este slice escribió).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega una TERCERA composición al selector de
+"Nuestra Historia" en el panel (`/admin/tienda` — bytes que el DUEÑO ve) y, con ella, 27 campos +
+1 escalar nuevos en ese mismo editor. Nayoli queda byte-idéntica en el storefront (medido arriba);
+nadie la eligió todavía. Sin cambio de schema/migración ni contrato cruzado de repositorio.
+Commiteado en `slice/editor-secciones-1`. La elección de Nayoli ("qué datos van en cada fila, qué
+medio usar") es escritura de datos del owner vía el panel, fuera de este slice.
