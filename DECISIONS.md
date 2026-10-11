@@ -60054,3 +60054,224 @@ excepción de "sin bytes nuevos". Sin cambio de schema/migración ni contrato cr
 dos, los dos atribuidos a drift pre-existente de la rama y verificados como tal (arriba) — ninguno
 imputable a este diff. Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
 gate visual, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1: T06 gana `force3D` persistente en los dos
+bordes del scrub, InterludioPlano gana parallax (I03) con margen anti-borde-vacío, y la barra fija de
+compra de Taquilla escapa por portal del containing block que deja la transición de página
+
+**Pedido del owner** (2026-10-11, sobre /tienda de Onix en su celular): *"the label/marquee's
+transition 'FINCA SAN ADOLFO' is like lagged in the mobil version. Also add the parallax effect on
+the 'interlude' image."* — con una captura mostrando la barra «EN GRANO · 250 G — $ 20.000 ·
+AGREGAR» incrustada ENTRE los créditos y el interludio, en vez de flotar contra el borde inferior de
+la pantalla: *"should not it be like a floating section in the bottom of the page?"*
+
+### 1 — EL TIRÓN DE T06: las TRES candidatas nombradas, las TRES medidas, UNA confirmada (parcial)
+
+Arnés aislado en `.scratch/onix-apertura-movil-1/` (mismo patrón que `.scratch/repro-scrolltrigger*.
+html`, citado en `useMovimiento.ts`): un HTML standalone con la MISMA función `t06()`
+(`xPercent:10→-40, ease:'none', scrub:true`), cargando `gsap.min.js`/`ScrollTrigger.min.js` REALES
+del propio `node_modules` — sin DB, sin `.env`, sin red. Playwright (ya instalado en
+`.arnes-tooling/playwright`, reusado), emulación `390×844`/`isMobile`/`hasTouch`, CPU
+`Emulation.setCPUThrottlingRate({rate:4})`. Dos diseños de experimento, por fotograma (rAF): (a)
+scroll conducido desde JS (`window.scrollTo` en un loop con ease, el mismo hilo que lee GSAP) y (b)
+swipe REAL por CDP (`Input.dispatchTouchEvent`, touchStart→10 touchMove→touchEnd, dejando correr la
+inercia nativa ~1.8s), con una carga de fondo opcional (`?busy=1`, ~6ms de trabajo síncrono por
+frame) simulando lo que el arnés aislado no tiene por sí solo (hidratación, otros `Movimiento`
+montados).
+
+**Candidata 2 — `ignoreMobileResize` — DESCARTADA por código, no sólo medición.** GSAP ya pone
+`_ignoreMobileResize = true` por DEFAULT para dispositivos SOLO-touch
+(`ScrollTrigger.js:2035`, `_isTouch = matchMedia('(hover:none),(pointer:coarse)').matches ? 1 : …`),
+confirmado VERDADERO bajo la emulación exacta de este slice (`hoverNone:true, pointerCoarse:true`,
+medido con `page.evaluate`). Y el `ResizeObserver` propio de `useMovimiento.ts`
+(§ MOVIMIENTO-SCROLL-UMBRAL-1, la corrección de FOUT) se autoapaga en el PRIMER evento `scroll` — no
+puede disparar un refresh a mitad de un gesto ya en curso. Ninguno de los dos mecanismos puede
+producir el salto que esta candidata predice.
+
+**Candidata 3 — el costo de pintar un texto ancho — medida y NO sostenida en aislamiento.** Bajo
+CPU×4, 390×844, con y sin el fix de abajo: `frameTimeMs` se mantuvo en 16.6–16.9ms (60fps) en los DOS
+diseños de experimento, `framesSobre33ms: 0` en seis de ocho corridas (`resultado-t06.json`,
+`resultado-t06-touch.json`) — pintar "FINCA SAN ADOLFO" a `clamp(60px,14vw,220px)` sobre `--sf-tinta`
+no satura el presupuesto de frame ni con el throttle. Esto no dice que pintar sea gratis en producción
+(el arnés no tiene el resto de la página compitiendo por el hilo principal) — dice que, EN
+AISLAMIENTO, no es el cuello de botella dominante.
+
+**Candidata 1 — "falta `will-change:transform`" — CIERTA, pero no en la forma literal del nombre.**
+Medido contra el `transform` REAL que GSAP escribe (no contra lo que GSAP "debería" hacer): el
+default `force3D:'auto'` de GSAP SÍ promueve una capa 3D (`translate3d(0,0,0)` de cola, además del
+`translate(X%,Y%)` 2D) durante TODO el tramo activo del scrub — confirmado leyendo
+`gigante.style.transform` en `progreso≈0.0001`, `≈0.5` y `≈0.9999`: los tres llevan `translate3d`.
+**Pero la DESCARTA justo en los DOS bordes EXACTOS** (`progreso===0`, `progreso===1` — medido
+clampeando `scrollY` al `start`/`end` exacto del `ScrollTrigger`): ahí sale `translate(10%, 0%)` /
+`translate(-40%, 0%)` SIN `translate3d`, porque `CSSPlugin.js:1058` resuelve `use3D = force3D===
+'auto' && ratio && ratio!==1 || force3D===true` — `ratio` es el PROGRESO del tween en ese render, no
+un chequeo de transform-origin (la primera lectura del comentario del propio `CSSPlugin.js`
+engaña). El navegador promueve y DESMONTA la capa de composición exactamente al entrar y salir del
+rango del título — el patrón de "layer thrashing" en el momento donde un scroll LENTO (arrancar o
+terminar un gesto, justo donde más se nota un tirón) cruza ese umbral.
+
+**El fix: `force3D: true` explícito en LOS DOS objetos del `fromTo`** (`{xPercent:10, force3D:true}`
+Y `{xPercent:-40, …, force3D:true}`) — medido que el `from` NO hereda el `force3D` del `to` (sin él
+ahí, el borde de ENTRADA se queda en 2D aunque el de salida ya esté arreglado). Con el fix, las CINCO
+posiciones muestreadas (`0`, `≈0`, `mid`, `≈1`, `1`) llevan `translate3d` — las dos degradaciones de
+capa se cierran. **El valor numérico del `translate()` es IDÉNTICO con y sin el fix**, en las mismas
+cinco posiciones y también a 1440×900 (`-14.977%` en ambos) — confirmado por medición, no supuesto:
+el fix cambia la FORMA de la matriz CSS, nunca el desplazamiento.
+
+**Alcance del cambio** (`components/storefront/movimiento/animaciones.ts`, función `t06` — motor
+compartido): afecta a TODO consumidor de `id="T06"`, no sólo a Onix. Censo por grep:
+`Apertura.tsx` (hardcoded, usado por `/tienda`, `/suscripciones`, `/nosotros` de Onix vía la pieza
+compartida), y el marcador `.sf-movimiento-gigante` que el motor busca también lo renderizan
+`components/storefront/secciones/Banner.tsx` e `ImagenTexto.tsx` — secciones de SiteContent
+genéricas donde CUALQUIER tenant puede elegir T06 para una sección tipo "imagen" vía el editor
+(`catalogoMovimientoDeElemento('imagen')` incluye T06). El cambio es puramente un hint de
+composición: no se verificó visualmente en Nayoli porque Nayoli no tiene ninguna sección con T06
+elegido hoy (confirmado: `grep -rn 'id="T06"'` da sólo el call site de Apertura), pero el argumento de
+no-regresión es el MISMO para cualquier consumidor — `force3D` no cambia el `transform()` resultante,
+sólo su representación CSS.
+
+### 2 — Parallax en `InterludioPlano` (I03) — el margen del prototipo, medido, no copiado a ciegas
+
+`InterludioPlano.tsx` (compartida por `TiendaInterludio` variante "plano", `SuscripcionInterludio`, y
+`/nosotros` cuando la adopte) gana `<Movimiento id="I03" as="div" className="absolute inset-0">`
+envolviendo una capa SOBREDIMENSIONADA (`absolute inset-x-0 -top-[12%] -bottom-[12%]`) que contiene
+la `<Image fill>` — el patrón "marco que recorta, imagen que se mueve adentro" ya documentado en
+`animaciones.ts` para I03, y el MISMO margen del prototipo aprobado
+(`docs/movimiento/catalogo-movimiento.html`, `.foto .capa{inset:-12% 0}`).
+
+**Por qué 12% alcanza, con la cuenta:** `i03()` mueve `yPercent -8→8` — ese ±8% es relativo al alto
+de la PROPIA capa, que mide `100%+2×12%=124%` del marco visible. El recorrido, en términos del marco,
+es `8%×1.24≈9.92%` — bajo el margen del 12% en cada lado, con ~2 puntos de colchón. Afirmado dos
+veces: matemáticamente (`lib/movimiento/apertura-interludio-movil.test.ts`, assert puro) y
+visualmente (abajo). `object-cover` garantiza que la capa NUNCA deja hueco por su CONTENIDO (cubre la
+caja entera sea cual sea su proporción); el margen es lo que evita que el MOVIMIENTO exponga el
+borde de esa caja — dos garantías distintas, la una no sustituye a la otra.
+
+**Capturas A MITAD DEL SCROLL** (`.scratch/onix-apertura-movil-1/interludio-midscroll-*.png`, repro
+aislado con la MISMA `i03()`, foto sintética a rayas para que cualquier corte quede obvio, marco
+verde de referencia): **1440×900 y 390×844, los dos SIN borde vacío** arriba ni abajo — la textura
+cubre el marco entero en ambos viewports.
+
+**`Movimiento` siempre monta su wrapper** (confirmado por `renderToStaticMarkup`, sin DB): con `id`
+presente el componente NUNCA hace pass-through, así que la estructura (y por tanto la ausencia de
+huecos) es la MISMA con el motor corriendo, apagado por `prefers-reduced-motion`, o en el editor
+(`useIsPreview()`/`useModoEditorActivo()`) — afirmado en el test nuevo comparando el árbol con y sin
+`PreviewProvider`.
+
+### 3 — La barra fija de Taquilla: el containing block que deja `EntradaPagina`, confirmado por
+MEDICIÓN DIRECTA (y YA documentado por una tanda previa para OTRO componente)
+
+Medido en Chromium real (no supuesto del spec, re-verificado): una animación CSS con
+`animation-fill-mode:both` cuyo keyframe final es literalmente `transform:none` **NO** resuelve a
+`none` en `getComputedStyle` una vez termina — resuelve a `matrix(1,0,0,1,0,0)` (la identidad), y una
+matriz identidad SIGUE siendo "un `transform` distinto de `none`" para la especificación de
+containing block. Repro aislado: un `<div data-entrada-pagina>` con exactamente la regla que
+`cssRevelaPagina()` (`lib/animation.ts`) emite, con un hijo `position:fixed` adentro — tras la
+animación y con `scrollTo(0,1000)`, el hijo "fixed" se mueve CON el scroll (`top` pasa de 8 a 990
+sobre un `bottom:10px`) en vez de quedarse pegado al viewport. Esto es EXACTAMENTE lo que
+`VISTA-RAPIDA-CENTRADA-1` ya midió y documentó (`components/storefront/VistaRapidaProducto.tsx`,
+líneas 59–97) para el `fixed inset-0` de ese modal — mismo mecanismo, mismo archivo causante
+(`EntradaPagina.tsx`/`cssRevelaPagina`), ahora confirmado en un SEGUNDO componente
+(`BarraFijaMovil`, de `TiendaTaquilla.tsx` y `SuscripcionTaquilla.tsx`).
+
+**El fix construido — portal a `document.body`, condicional a `!useIsPreview()`** — MISMO patrón que
+`VistaRapidaProducto.tsx`: en la vista previa del panel (`VistaTiendaEnVivo.tsx`, que monta
+`TiendaCatalogo`→`TiendaTaquilla` y `SuscripcionPlanes`→`SuscripcionTaquilla` bajo el
+`transform:scale(...)` de `EscalaDesktop`), la barra se queda ANIDADA — un portal la escaparía
+también de esa escala, mostrándola a tamaño completo fuera del pane; en la tienda real, escapa a
+`document.body`, fuera de CUALQUIER containing block, presente o futuro. Confirmado por medición
+directa (no sólo por analogía): un nodo hermano de `<body>` con el MISMO `fixed bottom/left` mantiene
+su posición tras `scrollTo(0,1000)` (`top` constante, `692px` en viewport de 720px de alto), mientras
+el mismo nodo anidado bajo el wrapper de `EntradaPagina` se desplaza con el scroll.
+
+**Censo de otros `position:fixed` del storefront** (`grep -rl 'fixed inset\|fixed bottom\|fixed top\|
+fixed left\|fixed right'`): `BackToTop.tsx`, `RielSocial.tsx`, `CartDrawer.tsx`, `NavSearch.tsx`,
+`StoreNav.tsx` — los CINCO se montan DIRECTO en `app/(storefront)/layout.tsx`, como HERMANOS de
+`{children}` (que es lo que `template.tsx`/`EntradaPagina` envuelve) — NUNCA descendientes del
+wrapper con el `transform` colgante, así que NINGUNO tiene el defecto. `VistaRapidaProducto.tsx` ya
+estaba arreglado (slice previo). Los ÚNICOS DOS con el defecto eran las dos `BarraFijaMovil` — los
+dos quedan cerrados.
+
+**LO QUE EL SPEC PEDÍA Y NO SE CONSTRUYÓ — fuera de `touches:`, declarado, no evitado.** El spec pide
+DOS capas: "(a) que la transición de página deje `transform:none` al terminar… (b) que `BarraFijaMovil`
+… se monte con un portal". Se construyó (b) completo. Para (a) se midió una solución CSS viable —
+partir la animación en DOS `@keyframes`/`animation` separados (uno para `opacity` con
+`fill-mode:both`, otro para `transform` SIN fill-mode, apoyado en una regla BASE `transform:none`
+fuera del keyframe) — confirmado por medición que cierra el defecto de raíz (`transform` vuelve al
+literal `none` tras la animación, el hijo "fixed" queda libre) sin cambiar el fade+traslado visible.
+**Pero el archivo que la implementa (`cssRevelaPagina`, `lib/animation.ts`) y su consumidor
+(`components/storefront/EntradaPagina.tsx`) NO están en `touches:` de este slice** (que lista
+`components/storefront/tienda/`, `components/storefront/suscripciones/`,
+`components/storefront/layout/`, `components/storefront/movimiento/`, `lib/movimiento/` —
+`components/storefront/EntradaPagina.tsx` vive suelto en `components/storefront/`, fuera de
+`layout/`; `lib/animation.ts` vive en `lib/`, no en `lib/movimiento/`). Por el contrato del
+dispatch ("YOUR DIFF MUST STAY INSIDE touches…do not widen it yourself"), NO se tocaron. Queda
+abierto como `ONIX-ENTRADAPAGINA-TRANSFORM-NONE-1` (abajo).
+
+### 4 — El conflicto con `lib/tienda/piezas-compartidas.test.ts` — medido, no evitable dentro de
+`touches:`
+
+Ese archivo (fuera de `touches:` de este slice) afirma BYTE-IDENTIDAD del árbol de `InterludioPlano`
+contra el HTML de ANTES de que la pieza existiera como tal (`ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`). El
+caso `interludioPlano` espera `<img/>` como hijo DIRECTO de la `<section>`; con el parallax, el `<img>`
+queda envuelto por el wrapper de `Movimiento` + la capa sobredimensionada — una diferencia INEVITABLE:
+`Movimiento` NUNCA hace pass-through con `id` presente (es su contrato, § el docstring de
+`Movimiento.tsx`), así que NINGUNA forma de cablear I03 ahí puede dejar el `<img>` como hijo directo.
+Confirmado corriendo ese archivo: 9/10 pasan, el único rojo es exactamente ese caso (visto fallar,
+diff mostrado en la terminal: la ÚNICA diferencia son los dos `<div>` nuevos, nada más cambió).
+
+No se tocó `lib/tienda/piezas-compartidas.test.ts` (fuera de `touches:`). Es la ÚNICA causa del
+`npm test` en rojo de este diff (4308/4309). `npm run typecheck` y `npm run test:integracion` están
+limpios (abajo). Queda abierto como `ONIX-PIEZAS-COMPARTIDAS-GOLDEN-INTERLUDIO-1`: alguien con
+`lib/tienda/` en su `touches:` actualiza el string `ANTES.interludioPlano` al árbol nuevo (el mismo
+mecanismo que ya usó ese archivo para registrar la tanda de calidad HD) — es un cambio de UNA línea
+de fixture, no una decisión de producto.
+
+### El gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: 4308/4309 — el ÚNICO rojo es `piezas-compartidas.test.ts`, "interludioPlano", por
+  el conflicto de `touches:` del punto 4 (medido, explicado arriba; no es un defecto de este diff).
+  `lib/movimiento/apertura-interludio-movil.test.ts` (nuevo, 7/7 verde) afirma la estructura de T06 y
+  de I03 por render en memoria, sin DB ni `.env`.
+- **`npm run test:integracion`**: 409/409 verde.
+- **`npm run verificar:nayoli`**: RED — primer intento descartado por una colisión de
+  infraestructura propia: correr `verificar:nayoli` y `verificar:nayoli:visual` A LA VEZ hace que los
+  DOS construyan la rama directo en el working directory compartido — `verificar-nayoli.ts` sólo
+  aísla el worktree de `main`, no el de `rama` — así que compitieron por el mismo `.next` y el
+  primero reventó con "no se encontró build". Re-corrido SOLO: las 4 rutas (`/`, `/tienda`,
+  `/tienda/<slug>`, `/checkout`) difieren, los DOS puntos YA documentados por
+  `ONIX-NOSOTROS-APERTURA-SINOPSIS-1` (`<html lang="en">` vs `"es"`, 4/4 apariciones cada lado;
+  `q=75` vs `q=85` en imágenes) MÁS un tercero nuevo — el bloque `@layer properties` del CSS trae
+  `--tw-scale-x/y/z` en la rama y no en `main` (JIT de Tailwind: alguna OTRA tanda de los 411
+  commits usó una utilidad `scale-*` que main no tiene) — **ninguno de los tres atribuible a este
+  diff**: confirmado por grep directo sobre el output completo de las 4 rutas por los marcadores
+  exactos que mi diff introduce (`sf-movimiento-gigante` ya existía con T06 desde antes;
+  `-top-\[12%\]`, `BarraFijaMovil`, el `aria-pressed` de Taquilla) — **CERO apariciones** en
+  cualquiera de los dos lados, porque Nayoli no renderiza ninguna composición de Onix en estas 4
+  rutas (confirmado también por el visual, abajo). Y mi diff no usa ninguna utilidad `scale-*`.
+- **`npm run verificar:nayoli:visual`**: RED — las SEIS rutas difieren, pero verificado por
+  inspección DIRECTA de los 6 PNG de diff: en `/tienda`, `/tienda/<slug>`, `/checkout`, `/nosotros`,
+  `/suscripciones` el ÚNICO píxel no-atenuado es la línea del footer "· Hecho por Duna" (el MISMO
+  drift ya documentado por `ONIX-NOSOTROS-APERTURA-SINOPSIS-1`); NINGUNA de esas cinco páginas usa
+  las composiciones de Onix que este slice toca (Nayoli no tiene Apertura/Taquilla/InterludioPlano
+  seleccionados — confirmado visualmente, las cinco muestran el layout "actual" de Nayoli, no
+  CORTE). La home difiere de forma sustancial (BrandStory, la tira de confianza, las tarjetas de
+  plan) — tampoco atribuible: la home no está en `touches:` de este slice y ninguno de sus
+  componentes (`HeroCurtina`, trust badges, `Presentaciones`, `SubscriptionCTA`) se tocó; es drift
+  acumulado de la rama contra `main` (411 commits adelante — `git log --oneline main..HEAD | wc -l`).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia comportamiento visible: el parallax nuevo de
+`InterludioPlano` (bytes de render nuevos, la estructura del DOM cambia), la barra flotante de
+Taquilla deja de incrustarse (comportamiento corregido, visible al cliente), y T06 cambia su
+suavidad de scrub en mobile (invisible en desktop, confirmado por medición). Sin cambio de
+schema/migración ni contrato cruzado de repositorio. `npm run gate`: typecheck verde, `npm test`
+4308/4309 (el rojo explicado y fuera de `touches:`, punto 4), `test:integracion` verde.
+`verificar:nayoli:visual` RED, atribuido en su totalidad a drift pre-existente de la rama y a páginas
+de Nayoli que no usan las composiciones tocadas (verificado por inspección directa de los 6 diffs,
+arriba) — ninguna diferencia imputable a este diff. `verificar:nayoli` corrido aparte (tras la
+colisión de infraestructura) — ver resultado arriba. Commiteado en `slice/editor-secciones-1`; el
+merge, cuando el owner revise el gate visual (incluido el parallax y la barra flotante en un celular
+real), lo hace el orquestador.

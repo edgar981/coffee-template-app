@@ -118,14 +118,34 @@ function t05(raiz: HTMLElement, forzar = false) {
  *  `.sf-movimiento-gigante` es un MARCADOR, no una hoja de estilos (§ el docstring de `t04` para
  *  `.sf-movimiento-resaltada`, el mismo patrón): el consumidor (Banner.tsx/ImagenTexto.tsx) decide
  *  la tipografía por Tailwind; esta función sólo mueve lo que encuentra. Sin el marcador (ningún
- *  consumidor lo renderiza para este id) no hay nada que animar — `null`, nunca un error. */
+ *  consumidor lo renderiza para este id) no hay nada que animar — `null`, nunca un error.
+ *
+ *  § ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1 — el diagnóstico completo (las dos candidatas
+ *  DESCARTADAS y la medición de ÉSTA) vive en el asiento de `DECISIONS.md`; acá sólo el resumen de
+ *  lo que cambió. Medido contra el `transform` REAL que GSAP escribe fotograma a fotograma: el
+ *  `force3D:'auto'` default de GSAP SÍ promueve una capa 3D (`translate3d(0,0,0)` de cola) durante
+ *  TODO el tramo activo del scrub (`0 < progreso < 1`) — no es el gap que el nombre de la candidata
+ *  sugiere—, PERO la DESCARTA justo en los DOS BORDES exactos (`progreso===0`, `progreso===1`,
+ *  `CSSPlugin.js`: `use3D = force3D==='auto' && ratio && ratio!==1`): el navegador promueve y
+ *  DESMONTA la capa de composición exactamente al entrar y al salir del rango del título — el
+ *  patrón de "layer thrashing" en el momento donde un scroll lento (el inicio/fin de un gesto, que
+ *  es donde más se nota un tirón) cruza ese umbral. `force3D: true` en AMBOS objetos de `fromTo`
+ *  (el `from` Y el `to`: medido que el `from` NO hereda el `force3D` del `to` — sin él en el
+ *  primero, el borde de ENTRADA sigue en 2D) mantiene la capa SIEMPRE activa, de punta a punta del
+ *  tramo — cierra las dos degradaciones de capa, sin cambiar ni un pixel del resultado visual en
+ *  escritorio (mismo desplazamiento; sólo la forma de la matriz CSS deja de alternar). */
 function t06(raiz: HTMLElement) {
   const gigante = raiz.querySelector<HTMLElement>('.sf-movimiento-gigante');
   if (!gigante) return null;
   return gsap.fromTo(
     gigante,
-    { xPercent: 10 },
-    { xPercent: -40, ease: 'none', scrollTrigger: { trigger: raiz, start: 'top bottom', end: 'bottom top', scrub: true } },
+    { xPercent: 10, force3D: true },
+    {
+      xPercent: -40,
+      ease: 'none',
+      force3D: true,
+      scrollTrigger: { trigger: raiz, start: 'top bottom', end: 'bottom top', scrub: true },
+    },
   );
 }
 

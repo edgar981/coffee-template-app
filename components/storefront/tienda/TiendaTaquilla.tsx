@@ -13,11 +13,13 @@
 // `agregableDirecto`, igual que `ProductCard.handleAdd` — nunca `addItem(producto, 1)` a secas.
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useCartStore } from '@/lib/cartStore';
 import { decidirMolienda } from '@duna/core/moliendas-opciones';
 import { formatCOP } from '@duna/core/utils';
 import { whatsappUrl } from '@/lib/config/site';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { creditosVisibles, filasCompletas } from '@/lib/tienda/creditos';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto, type MatrizTaquilla } from '@/lib/tienda/taquilla';
@@ -33,6 +35,7 @@ interface TiendaTaquillaProps {
 
 export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: TiendaTaquillaProps) {
   const { tiendaCreditos } = useSiteContent();
+  const preview = useIsPreview();
   const matriz = useMemo(() => derivarMatrizTaquilla(catalog), [catalog]);
   const [seleccion, setSeleccion] = useState<{ categoria: string; peso: number } | null>(null);
   const botonRef = useRef<HTMLDivElement | null>(null);
@@ -117,7 +120,21 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
       </div>
 
       {barraFijaMovil && botonFueraDeVista && (
-        <BarraFijaMovil producto={producto} whatsapp={whatsapp} />
+        // § ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1 — PORTAL A `document.body`, condicional a
+        // `!preview`, MISMO patrón que `VistaRapidaProducto.tsx` (§ VISTA-RAPIDA-CENTRADA-1): sin
+        // portal, `EntradaPagina.tsx` (`app/(storefront)/template.tsx`) deja a la banda que envuelve
+        // esta composición con un `transform` COMPUTADO distinto de `none` (la identidad que el
+        // `animation-fill-mode:both` sostiene tras terminar — medido, § `DECISIONS.md`), así que esa
+        // banda se vuelve el bloque contenedor del `fixed` y la barra queda incrustada en la página
+        // en vez de flotar contra la pantalla. En la vista previa del panel (`preview`, `true`) se
+        // queda ANIDADA — ahí el ancestro correcto es el `transform:scale(...)` de `EscalaDesktop`
+        // (§ `VistaTiendaEnVivo.tsx`, que monta este mismo árbol), y un portal la escaparía también
+        // de esa escala.
+        preview ? (
+          <BarraFijaMovil producto={producto} whatsapp={whatsapp} />
+        ) : (
+          createPortal(<BarraFijaMovil producto={producto} whatsapp={whatsapp} />, document.body)
+        )
       )}
     </div>
   );

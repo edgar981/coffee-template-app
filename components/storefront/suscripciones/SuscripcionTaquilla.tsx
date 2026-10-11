@@ -20,9 +20,11 @@
 // regresión del patrón de /tienda.
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { formatCOP } from '@duna/core/utils';
 import { normalizarOpciones } from '@duna/core/moliendas-opciones';
 import { whatsappUrl } from '@/lib/config/site';
+import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto } from '@/lib/tienda/taquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
 import {
@@ -45,6 +47,7 @@ interface SuscripcionTaquillaProps {
 }
 
 export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlanes: c }: SuscripcionTaquillaProps) {
+  const preview = useIsPreview();
   const matriz = useMemo(() => derivarMatrizTaquilla(catalog), [catalog]);
   const [seleccion, setSeleccion] = useState<{ categoria: string; peso: number } | null>(null);
   const [bolsas, setBolsas] = useState(1);
@@ -193,7 +196,18 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
       <div ref={finRef} />
 
       {botonFueraDeVista && !finVisible && (
-        <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} />
+        // § ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1 — MISMO fix y MISMA razón que
+        // `TiendaTaquilla.tsx` (ver su comentario): portal a `document.body` fuera de preview, para
+        // que no quede incrustada por el `transform` que `EntradaPagina.tsx` deja tras su animación
+        // de entrada; en el preview del panel se queda anidada bajo `EscalaDesktop`.
+        preview ? (
+          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} />
+        ) : (
+          createPortal(
+            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} />,
+            document.body,
+          )
+        )
       )}
     </div>
   );
