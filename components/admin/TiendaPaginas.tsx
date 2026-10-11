@@ -29,6 +29,7 @@ import { BibliotecaSecciones } from '@/components/admin/editor/BibliotecaSeccion
 import { InstanciaTarjeta } from '@/components/admin/editor/InstanciaTarjeta';
 import { InstanciaEditorForm } from '@/components/admin/editor/InstanciaEditorForm';
 import { SeparadorAgregar } from '@/components/admin/editor/SeparadorAgregar';
+import { completarResumenPendiente } from '@/components/admin/editor/completar-resumen';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { esMensajeCampoImagenClick } from '@/lib/storefront/editor-puente';
 // `TIPO_MENSAJE_DESHACER`/`esMensajeDeshacer` NO vienen de `lib/storefront/editor-puente.ts`: viven
@@ -154,9 +155,12 @@ export interface TiendaPaginasHandle {
   /** § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — la lista EN PALABRAS de qué va a publicarse AHORA mismo:
    *  compara el borrador fresco (un refetch, para no mostrar un resumen rancio si el dueño editó
    *  desde que `doc` se cargó) contra lo publicado (`GET /api/site-content/publicado`), sección por
-   *  sección, con `resumenCambios` (lib/admin/resumen-cambios.ts). Misma lista de claves que
-   *  `publicarPendientes` va a publicar — el resumen describe EXACTAMENTE lo que el botón hace, ni
-   *  más ni menos. `[]` si no hay nada pendiente (no-op, nunca un fetch de sobra). */
+   *  sección, con `resumenCambios` (lib/admin/resumen-cambios.ts) — § EDITOR-PUBLICAR-CONSISTENTE-1,
+   *  completado con `completarResumenPendiente` para las claves que `resumenCambios` no describe
+   *  ('encabezado'/'menu'/'footer', no son `SeccionVista`). El resultado siempre cubre la MISMA
+   *  lista de claves que `publicarPendientes` va a publicar —nunca MENOS filas que claves
+   *  pendientes— aunque puede traer MÁS (una sección con varios campos cambiados aporta una fila
+   *  por campo). `[]` si no hay nada pendiente (no-op, nunca un fetch de sobra). */
   resumenPendientes: () => Promise<CambioResumen[]>;
   /** § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — navega el panel/lienzo al elemento de un ítem del
    *  resumen, al tocarlo en el popover. `'orden'` vuelve a Inicio (la barra de orden vive ahí, no
@@ -1363,14 +1367,24 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
     // § EDITOR-AGREGAR-SECCION-1 — MISMO criterio que `orden`: `seccionesHomeLocal` puede ir un paso
     // adelante del refetch si el dueño acaba de agregar/editar/duplicar/eliminar una sección.
     if (seccionesHomeLocal) borrador.seccionesHome = seccionesHomeLocal;
-    return resumenCambios(secs, borrador, publicado);
+    const cambios = resumenCambios(secs, borrador, publicado);
+    // § EDITOR-PUBLICAR-CONSISTENTE-1 — ver el docstring de `completarResumenPendiente`:
+    // `resumenCambios` ignora en silencio las claves de cromo ('encabezado'/'menu'/'footer', no son
+    // `SeccionVista`), así que sin esto el popover podía listar MENOS filas que `secs` — el botón
+    // decía «Publicar 1» y el popover «0 cambios sin publicar» (el defecto reportado por el owner al
+    // subir el ícono de la pestaña). `esCromoKey` + `CROMO_TITULOS` son los MISMOS que ya resuelven
+    // el título de cada cromo en el resto de este archivo — ninguna segunda lista.
+    return completarResumenPendiente(secs, cambios, (clave) => (esCromoKey(clave) ? CROMO_TITULOS[clave] : undefined));
   };
 
   // § EDITOR-TIENDA-PUBLICAR-RESUMEN-1 — ver el docstring de `TiendaPaginasHandle.irAItem`.
   // § EDITOR-TIENDA-CROMO-1 — 'encabezado'/'menu'/'footer' abren su nivel de cromo, como
-  // cualquier otro ítem del resumen (aunque `resumenCambios`, fuera de `touches:`, no produzca
-  // filas EN PALABRAS para ellos todavía — § el open follow-up en DECISIONS.md — este camino
-  // sigue sirviendo al deep-link del aviso de configuración y a un resumen futuro que sí los liste).
+  // cualquier otro ítem del resumen. `resumenCambios` (fuera de `touches:`) SIGUE sin producir
+  // filas EN PALABRAS para ellos —eso no cambió—, pero el open follow-up que esto dejaba
+  // (`RESUMEN-CAMBIOS-CROMO-PENDIENTE-1`, DECISIONS.md) YA CERRÓ: `resumenPendientes` (arriba)
+  // completa esas claves con una fila GENÉRICA (§ `completarResumenPendiente`), así que un clic en
+  // la fila de este resumen SIEMPRE tiene algo que mostrar, con el mismo `clave` que `irAItem` ya
+  // sabía resolver.
   const irAItem = useCallback((clave: string) => {
     if (clave === 'orden') { setSeccionActiva(null); return; }
     if (clave === 'tema') return; // el padre cambia de `modo`; este componente no tiene nada que hacer
@@ -1655,6 +1669,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                       onCambio={enviarCromoIframe}
                       onPaso={onPasoSeccion}
                       onEstado={(info) => manejarEstadoCromo('encabezado', info)}
+                      // § EDITOR-PUBLICAR-CONSISTENTE-1 — el camino directo del botón PROPIO (ahora
+                      // visible dentro del editor, § EncabezadoSeccion.tsx) necesita recargar el
+                      // iframe compartido como cualquier otra sección — el lote global ya lo hacía
+                      // vía `recargarIframe()` al final de `publicarPendientes`/`descartarPendientes`.
+                      onCambioPublicado={recargarIframe}
                       // § EDITOR-PANEL-PIEL-1 — las raíces de la paleta REAL de la tienda, para que
                       // `MuestraColor` sugiera el color del badge sobre el tema del cliente, no uno
                       // fijo. Mismo dato que ya baja a `BibliotecaSecciones` más abajo

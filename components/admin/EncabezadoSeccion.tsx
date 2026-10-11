@@ -31,7 +31,17 @@ export interface EncabezadoSeccionHandle {
 }
 
 export interface EncabezadoSeccionProps {
-  /** Ver el docstring de `MenuSeccionProps.enEditor` — mismo contrato. */
+  /** § EDITOR-PUBLICAR-CONSISTENTE-1 — YA NO es "ver el docstring de `MenuSeccionProps.enEditor` —
+   *  mismo contrato" (lo que decía hasta esta tanda): el Encabezado DIVERGE a propósito de
+   *  Menú/Pie. Sigue abriendo/cerrando el nivel por `onAbrir`/`onCerrar` igual que ellos, pero
+   *  CONSERVA sus PROPIOS botones Publicar/Descartar (ver más abajo, en el render) aun con
+   *  `enEditor` en `true` — el mismo contrato que ya tenía `TiendaSeccionEditor.tsx` para las
+   *  secciones regulares (el botón no se apaga por estar dentro del editor de pantalla completa).
+   *  Motivo: el owner reportó (2026-10-10) que esta tarjeta "no tiene botón publicar" al subir el
+   *  ícono de la pestaña — medido: con `enEditor` siempre `true` en su único call site
+   *  (`TiendaPaginas.tsx`), el botón de abajo NUNCA se renderizaba, así que el reporte era exacto.
+   *  Menú/Pie SIGUEN con el comportamiento viejo (§ `MenuSeccionProps.enEditor`) — no era parte de
+   *  este slice, § DECISIONS.md. */
   enEditor?: boolean;
   onAbrir?: () => void;
   onCerrar?: () => void;
@@ -42,6 +52,14 @@ export interface EncabezadoSeccionProps {
   onCambio?: (seccion: 'encabezado' | 'logo', datos: Record<string, unknown>) => void;
   onPaso?: (paso: PasoHistorial) => void;
   onEstado?: (info: { hayBorrador: boolean; estado: EstadoAutoguardado }) => void;
+  /** § EDITOR-PUBLICAR-CONSISTENTE-1 — llamado tras un Publicar/Descartar exitoso DESDE EL BOTÓN
+   *  PROPIO de esta tarjeta (nunca desde el lote global, que ya recarga el iframe por su cuenta en
+   *  `TiendaPaginas.publicarPendientes`/`descartarPendientes`). Mismo contrato que
+   *  `TiendaSeccionEditorProps.onCambioPublicado`: las DOS mutan lo que el visitante ve, así que el
+   *  iframe compartido tiene que recargar en los dos casos. Sin esto, publicar el ícono de la
+   *  pestaña desde este botón dejaría la vista en vivo mostrando el ícono viejo hasta el próximo
+   *  cambio que SÍ recargue. */
+  onCambioPublicado?: () => void;
   /** § EDITOR-PANEL-PIEL-1 — las raíces de la paleta de la tienda (fondo/tinta/acento), para
    *  sugerir el color del badge sobre el tema REAL del cliente, no el de fábrica. `null` en una
    *  raíz = fábrica (§ `RAICES_DEFECTO`, misma resolución que `PaletaSeccion.tsx`); `undefined`
@@ -422,7 +440,7 @@ function estadoDesdeContenido(contenido: ContenidoEncabezado): { form: Form; nav
 }
 
 const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionProps>(function EncabezadoSeccion({
-  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado, tema,
+  enEditor = false, onAbrir, onCerrar, onCambio, onPaso, onEstado, onCambioPublicado, tema,
 }, ref) {
   // § EDITOR-PANEL-PIEL-1 — las sugerencias de `MuestraColor` para el color del badge: las TRES
   // raíces de la paleta, con nombre llano (el spec: "fondo, tinta, acento… con nombre llano"). Null
@@ -635,6 +653,9 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
       }
       if (accion === 'publicar') { setHayBorrador(false); toast.success('Publicado — ya está en vivo.'); }
       else { await cargar(); toast.success('Cambios descartados — volviste a lo publicado.'); }
+      // § EDITOR-PUBLICAR-CONSISTENTE-1 — MISMO criterio que `TiendaSeccionEditor.accionBorrador`:
+      // las DOS mutan lo que el visitante ve, así que el iframe compartido recarga en los dos casos.
+      onCambioPublicado?.();
     } finally { setProcesando(false); }
   };
 
@@ -708,14 +729,18 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
         </div>
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>
           <button type="button" onClick={cerrarEdicion} className="duna-btn duna-btn--secondary">Cerrar</button>
-          {/* § EDITOR-TIENDA-CROMO-1 — ver el comentario de `MenuSeccion.tsx`: dentro del editor
-              de pantalla completa, Publicar/Descartar viven en la barra GLOBAL. */}
-          {!enEditor && hayBorrador && (
+          {/* § EDITOR-PUBLICAR-CONSISTENTE-1 — A DIFERENCIA de `MenuSeccion.tsx`/`FooterSeccion.tsx`
+              (que SÍ apagan su propio Publicar/Descartar dentro del editor de pantalla completa, §
+              el docstring de `EncabezadoSeccionProps.enEditor`), esta tarjeta los CONSERVA siempre
+              que haya borrador — el mismo contrato que `TiendaSeccionEditor.tsx` ya tenía para las
+              secciones regulares. El lote global (`TiendaPaginas.publicarPendientes`) sigue
+              pudiendo publicar 'encabezado' igual que antes; esto sólo agrega el camino directo. */}
+          {hayBorrador && (
             <button type="button" onClick={() => setConfirmandoDescarte(true)} className="duna-btn duna-btn--ghost" disabled={!puedePublicar}>
               Descartar
             </button>
           )}
-          {!enEditor && hayBorrador && (
+          {hayBorrador && (
             <button type="button" onClick={() => accionBorrador('publicar')} className="duna-btn duna-btn--primary" disabled={!puedePublicar}>
               {procesando ? 'Publicando…' : 'Publicar'}
             </button>

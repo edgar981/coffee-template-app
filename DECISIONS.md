@@ -58749,3 +58749,177 @@ medido por grep de contenido (cero coincidencias de vocabulario nuevo) y por `gi
 archivos de las rutas que Nayoli sí renderiza). `npm run gate` GREEN de punta a punta (typecheck 0 ·
 test 4202/4202 · test:integracion 409/409). Commiteado en `slice/editor-secciones-1`; el merge, cuando
 el owner revise el gate visual contra la forma C aprobada, lo hace el orquestador.
+
+## 2026-10-10 — El botón «Publicar» cuenta y publica la MISMA lista; el Encabezado gana su propio botón (`EDITOR-PUBLICAR-CONSISTENTE-1`)
+
+Tier 2, `writes: yes`, aprobado sobre el reporte directo del owner (2026-10-10): al subir el ícono de
+la pestaña en el editor de Onix, «esa sección no tiene botón "publicar" y en el "publicar" que sale
+como para todo el editor, salía el numero "1" como que si había un cambio para publicar pero al hacer
+click decía que 0». El orquestador midió después que el ícono SÍ quedó publicado (el favicon de
+cafe-onix.vercel.app lo sirve) — el defecto es lo que el editor DICE, no lo que hace. La aprobación
+autoriza la escritura, nunca el merge.
+
+### Pre-flight
+
+| chequeo | resultado |
+| --- | --- |
+| rama | `slice/editor-secciones-1`, árbol limpio, `HEAD` en `410055c` (`TIENDA-ONIX-AJUSTES-1`) — verificado con `git status`/`git log` antes de escribir |
+| `lib/config/panel-controles.ts`/`.test.ts` existen (citado en `touches:`) | sí, `find` lo confirma — `panel-controles.ts` NO se tocó (no hace falta: no agrega ni quita ningún campo controlado), sólo `.test.ts` quedó declarado por si hiciera falta y no hizo falta |
+| el id del follow-up que este slice cierra existe en `DECISIONS.md` | sí, `RESUMEN-CAMBIOS-CROMO-PENDIENTE-1`, coined por `EDITOR-TIENDA-CROMO-1` (líneas 50989/51023 de este archivo, antes de este commit) |
+
+### El defecto, medido antes de tocar código
+
+Reproducido en el árbol SIN editar nada: el badge de «Publicar» (`ResumenPublicar.tsx:88`) sale de
+`estadoGlobal.pendientes`, calculado en `TiendaPaginas.tsx` contando `cromoEstado.get('encabezado')?.
+hayBorrador` entre otras claves — y SUBE a 1 en cuanto `logoIcono` cambia (confirmado leyendo
+`EncabezadoSeccion.aplicarCambioForm`/`manejarEstadoCromo`). Lo que PUBLICA (`listaPendientes()`,
+`publicarPendientes()`) usa el MISMO criterio — ésa mitad ya estaba bien. Lo que se ROMPE es el
+TEXTO del popover: `cambios?.length ?? pendientes` (`ResumenPublicar.tsx:102`), donde `cambios` sale
+de `resumenCambios(secs, borrador, publicado)` (`lib/admin/resumen-cambios.ts`, fuera de `touches:`).
+Esa función **ignora en silencio** cualquier clave que no resuelva a una `SeccionConfig` de
+`SECCIONES_TIENDA` ni a `'orden'`/`'tema'`/`'seccionesHome'` (su propio docstring: "no hay cómo
+resumir un cambio cuya forma no se conoce... lanzar dejaría el popover entero sin lista") —
+`'encabezado'`/`'menu'`/`'footer'` NO son `SeccionVista` (medido: `grep -n "'menu'\|'footer'\|'logo'\|
+'encabezado'" components/admin/tienda-secciones.ts` da CERO), así que para esas tres claves
+`resumenCambios` devuelve `[]` SIEMPRE, sea lo que sea que haya cambiado. Con `cambios` no-nulo y
+`cambios.length === 0`, la línea de arriba da `0`, no `pendientes` — el "Publicar 1"/"0 cambios sin
+publicar" exacto que el owner reportó.
+
+**Segunda mitad del reporte, verificada por separado:** `EncabezadoSeccion`, `MenuSeccion` y
+`FooterSeccion` montan SIEMPRE con `enEditor` fijo en `true` en su único call site
+(`TiendaPaginas.tsx:1660`/`1668`/`1836` antes de este commit; `grep -rn "<EncabezadoSeccion\|
+<MenuSeccion\|<FooterSeccion"` confirma que no hay un segundo call site con `enEditor=false`). Los
+TRES ocultan su propio botón Publicar/Descartar con `{!enEditor && hayBorrador && (...)}` — así que
+ese botón es código MUERTO en producción: nunca se renderiza. El owner decía literalmente la verdad
+("esa sección no tiene botón publicar"). `TiendaSeccionEditor.tsx` (las secciones regulares: hero,
+brandStory, etc.) NO tiene ese gate — su Publicar/Descartar es incondicional (`{hayBorrador && (...)}`
+a secas, línea 2350/2355 antes de este commit) — ahí es donde "con el mismo contrato que las demás
+secciones" apunta.
+
+### El fix
+
+Dos piezas, las dos dentro de `components/admin/` (`touches:`):
+
+1. **`components/admin/editor/completar-resumen.ts` (nuevo)** — `completarResumenPendiente
+   (pendientes, cambios, tituloDe)`, PURA: por cada clave de `pendientes` que ninguna fila de
+   `cambios` describe, agrega una fila GENÉRICA (`"Encabezado · cambiado"`) con el título que el
+   llamador resuelve. Nunca toca `lib/admin/resumen-cambios.ts` (fuera de `touches:`) — la brecha se
+   cierra por FUERA, no reescribiendo la función que la abrió. Invariante que afirma el test nuevo
+   (`completar-resumen.test.ts`, 5 casos): el resultado nunca tiene MENOS filas que `pendientes` —
+   puede tener más (una sección con varios campos cambiados sigue aportando varias, eso no cambia,
+   es el comportamiento YA documentado de `ResumenPublicar.tsx` para premiar el detalle).
+2. **`TiendaPaginas.resumenPendientes()`** llama `completarResumenPendiente(secs, resumenCambios(secs,
+   borrador, publicado), (clave) => esCromoKey(clave) ? CROMO_TITULOS[clave] : undefined)` — reusa
+   `esCromoKey`/`CROMO_TITULOS`, ya definidos en el archivo para el resto del cromo; ninguna segunda
+   lista de títulos.
+3. **`EncabezadoSeccion.tsx`** deja de apagar su propio Publicar/Descartar por `enEditor`: los dos
+   botones pasan de `{!enEditor && hayBorrador && (...)}` a `{hayBorrador && (...)}` — el MISMO
+   contrato que `TiendaSeccionEditor.tsx` ya tenía. Gana `onCambioPublicado?: () => void`
+   (mismo nombre/contrato que `TiendaSeccionEditorProps.onCambioPublicado`), invocado en
+   `accionBorrador` tras un publicar/descartar exitoso (las DOS mutan lo que el visitante ve), y
+   `TiendaPaginas.tsx` lo cablea a `recargarIframe` — sin esto, publicar desde el botón propio habría
+   dejado la vista en vivo mostrando el ícono viejo hasta el próximo cambio que sí recargara.
+
+**Alcance DELIBERADAMENTE limitado a Encabezado para la pieza 3** (el pedido explícito del spec: "la
+sección «Encabezado» … gana su botón «Publicar» como las demás"). `MenuSeccion.tsx`/
+`FooterSeccion.tsx` tienen el MISMO gate muerto (medido arriba) y NO se tocaron — ver Open follow-ups.
+La pieza 1+2 (el conteo) SÍ se aplica parejo a las tres (y a cualquier clave futura que
+`resumenCambios` no sepa describir): es un bug del MECANISMO compartido, no de una sección puntual, y
+arreglarlo sólo para 'encabezado' habría dejado a 'menu'/'footer' con el mismo "Publicar 1 → 0
+cambios" que al owner le costó reportar.
+
+**`DetallesSitioSeccion.tsx` NO tiene ninguna de las dos mitades del defecto** (revisado, no tocado):
+su propio Publicar/Descartar ya es incondicional (`{hayBorrador && (...)}`, sin `enEditor`), y no
+participa de `listaPendientes()`/`pendientes` en absoluto — su `sinPublicar` es enteramente su
+flujo propio (`/api/site-content/detalles`), así que no hay conteo global que pueda desincronizarse.
+**`PaletaSeccion.tsx` ('tema') tampoco tiene la mitad del "botón oculto"**: su Publicar/Descartar
+también es incondicional ya desde antes de este slice. Sí entra a `listaPendientes()`/`pendientes`
+(vía `doc.sinPublicar.tema`) y SÍ pasa por `resumenCambios` — pero 'tema' tiene su propia rama
+(`cambiosTema`) en esa función, así que no sufre el "0 filas" de las claves de cromo; queda fuera del
+alcance de este fix por no tener el defecto, no por omisión.
+
+### Gate
+
+| capa | resultado |
+| --- | --- |
+| `npx tsc --noEmit` | 0 errores (corrido dos veces: tras el fix de código y de nuevo tras los ajustes de comentario en `TiendaPaginas.tsx`) |
+| `node --import tsx --test` sobre `completar-resumen.test.ts` + `resumen-cambios.test.ts` + `panel-controles.test.ts` | 5 + 79 nuevos/existentes, 84/84 verde (corrida aislada, antes del gate completo) |
+| `npm test` (capa 1, todo el repo) | **4207/4207** (4202 del piso + 5 tests nuevos de `completar-resumen.test.ts`; CERO regresión) |
+| `npm run test:integracion` | **409/409**, SIN CAMBIO (ningún archivo de `tests/integracion/` en el diff) |
+| `npx next build` (sin `db:deploy` — prohibido en este dispatch) | `✓ Compiled successfully` (SWC) + `Finished TypeScript` (0 errores) — el build FALLA después, al prerenderizar `/aceptar-invitacion`, con `P2021: la tabla SiteSetting no existe` en la base del `.env` local, sin ninguna migración aplicada (consecuencia esperada de no correr `db:deploy`, no un defecto de este diff: verificado que el mismo error ocurre con `git show HEAD:…` de los dos archivos tocados sin ningún cambio, por la misma causa ambiental) |
+| `npx eslint` sobre los 4 archivos tocados/nuevos | Los `react-hooks/refs` de `EncabezadoSeccion.tsx` (líneas 860/869/876/878 tras mi diff) y el warning `no-unused-vars` de `TiendaPaginas.tsx` (línea 886) son PRE-EXISTENTES — confirmado corriendo `git show HEAD:<archivo> \| npx eslint --stdin` sobre el contenido ANTES de mis cambios: el MISMO conteo de 11 errores/6 warnings en `EncabezadoSeccion.tsx` y el mismo warning de `titulo` en `TiendaPaginas.tsx` (desplazado una línea por el import nuevo). Ninguno cae dentro de mis hunks (`git diff HEAD` confirma: mis ediciones en `EncabezadoSeccion.tsx` terminan en la línea 744; los errores están en 850-878, la tarjeta del ícono de la pestaña, que no toqué) |
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff tocó, grepeados LITERALMENTE contra `CLAUDE.md`: `EncabezadoSeccion`
+(0), `onCambioPublicado` (0), `accionBorrador` (0), `resumenPendientes` (0),
+`completarResumenPendiente` (0, símbolo nuevo), `CROMO_TITULOS` (0), `esCromoKey` (0),
+`resumenCambios` (0), `MenuSeccion` (0), `FooterSeccion` (0), `listaPendientes` (0),
+`ResumenPublicar` (0). `TiendaPaginas` aparece **4 veces** (líneas 2811/2820/2902/4367 de
+`CLAUDE.md`) — las cuatro leídas: hablan del lazy-mount de las previews (§ La CASCADA de
+/admin/tienda), del fetch 5→1 del GET, del selector de página SIN GATE, y de la carga del catálogo
+para el combobox de categoría. Ninguna de las cuatro describe el mecanismo que este diff tocó
+(`resumenPendientes`/el botón propio del Encabezado) — **ninguna sentencia de `CLAUDE.md` quedó
+falsa por este cambio.**
+
+### Segundo grep — `DECISIONS.md` (el documento que este diff también cambió)
+
+`RESUMEN-CAMBIOS-CROMO-PENDIENTE-1` tenía exactamente 2 apariciones antes de este commit (líneas
+50989/51023, ambas dentro del asiento de `EDITOR-TIENDA-CROMO-1` que lo coined) — ningún otro asiento
+lo citaba. Las dos siguen siendo ciertas como registro HISTÓRICO de cuándo y por qué se coined; no se
+editaron. Este asiento lo cierra acá, en su propia sección de Open follow-ups, sin tocar el texto
+original — mismo patrón que otros cierres de follow-ups ya usan en este archivo (p. ej. "CERRADO por
+X-1" anotado en una entrada posterior sin reescribir la original).
+
+También se actualizó, DENTRO de `touches:`, el comentario de `irAItem` en `TiendaPaginas.tsx` que
+decía "el open follow-up en DECISIONS.md" sigue abierto — ya no lo está, así que ese comentario
+quedaría falso si no se tocaba; se reescribió para decir que `completarResumenPendiente` ya lo cierra.
+
+### `customer_bytes`
+
+**`changed: false`.** Esto es exclusivamente la herramienta del dueño en `/editor/tienda`: el
+contador del botón «Publicar», el texto del popover, y dos botones nuevos (siempre visibles, nunca
+nuevos en el DOM — ya existían ocultos) dentro de la tarjeta «Encabezado». Cero bytes de
+`app/(storefront)` cambiaron — ningún archivo de `app/(storefront)/`, `components/storefront/` ni
+`packages/core/` está en el diff (confirmado por `git status --short`: sólo
+`components/admin/EncabezadoSeccion.tsx`, `components/admin/TiendaPaginas.tsx`, y los dos archivos
+nuevos bajo `components/admin/editor/`).
+
+**`strings`**: ninguno nuevo de cara al visitante. Los dos botones de Encabezado dicen "Publicar"/
+"Descartar" — el MISMO texto que ya usan las demás secciones (`TiendaSeccionEditor.tsx`,
+`DetallesSitioSeccion.tsx`); la fila genérica del popover ("Encabezado · cambiado") reusa
+`CROMO_TITULOS`, ya existente.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma (`packages/core/` sin tocar), cero
+contrato cross-repo. No se tocó ninguna ruta de `app/api/` ni `lib/config/*-read.ts`/
+`site-settings*.ts` — las dos rutas que este fix usa (`/api/site-content`, `/api/site-content/
+encabezado`) ya existían y no cambiaron de forma.
+
+### Open follow-ups
+
+- **`MENU-FOOTER-PUBLICAR-PROPIO-OCULTO-1`** (coined acá): `MenuSeccion.tsx` y `FooterSeccion.tsx`
+  tienen el MISMO gate muerto que tenía Encabezado (`!enEditor && hayBorrador`, con `enEditor` fijo
+  en `true` en su único call site) — su propio botón Publicar/Descartar nunca se renderiza en
+  producción. No se tocaron en este slice: el pedido explícito era "la sección «Encabezado» … gana
+  su botón", no las otras dos. Si el owner quiere el mismo contrato para Menú/Pie, es el mismo
+  cambio de 2 líneas por archivo (quitar `!enEditor &&`) + cablear `onCambioPublicado` (ninguno de
+  los dos lo tiene hoy).
+- **`RESUMEN-CAMBIOS-CROMO-PENDIENTE-1` — CERRADO por este slice.** El follow-up pedía que
+  `lib/admin/resumen-cambios.ts` ganara una rama para 'encabezado'/'menu'/'footer' "cuando ese
+  archivo entre a `touches:` de un slice futuro" — no entró (sigue fuera de `touches:` de éste
+  también), pero el problema que motivaba el follow-up (el popover sin lista EN PALABRAS para esas
+  tres claves) se cerró por OTRA vía: `completarResumenPendiente` en `components/admin/`. La función
+  original sigue sin una rama propia para cromo; lo que cambió es que ya no hace falta que la tenga
+  para que el popover sea consistente.
+
+### Verdict
+
+**COMPLETE.** Diff acotado a `components/admin/` (2 archivos modificados, 2 nuevos) + este asiento en
+`DECISIONS.md`, dentro de `touches:`. `customer_bytes.changed: false`, sin schema, sin contrato
+cross-repo — las tres condiciones de la política A de merge se verifican limpias contra el diff real,
+no contra lo que el spec decía de sí mismo. Gate verde: `tsc` 0 errores, `npm test` 4207/4207 (+5),
+`npm run test:integracion` 409/409 (sin cambio), `next build` compila (SWC+TS) con la única falla
+posterior siendo ambiental (DB sin migrar, correr `db:deploy` estaba prohibido para este dispatch).
+Comiteado en una rama propia; el merge lo hace el orquestador.
