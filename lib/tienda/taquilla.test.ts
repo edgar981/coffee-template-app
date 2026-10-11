@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { derivarMatrizTaquilla, nombreBaseProducto, celdaDe, MAX_VALORES_POR_EJE } from './taquilla';
+import { derivarMatrizTaquilla, nombreBaseProducto, celdaDe, taquillaActiva, MAX_VALORES_POR_EJE } from './taquilla';
 import { decidirMolienda, agregableDirecto } from '@duna/core/moliendas-opciones';
 import type { Product } from '@/types/product';
 
@@ -74,6 +74,21 @@ test('nombreBaseProducto: corta en " — ", nunca el nombre entero si no hay ray
   assert.equal(nombreBaseProducto('Café Onix — En grano 500 g'), 'Café Onix');
   assert.equal(nombreBaseProducto('Café Onix — Molido 250 g'), 'Café Onix');
   assert.equal(nombreBaseProducto('Sin raya'), 'Sin raya');
+});
+
+// ─── `taquillaActiva` (§ TIENDA-ONIX-AJUSTES-1) — el criterio ÚNICO que decide si la ficha de
+// origen standalone (TiendaCreditos) debe CALLAR porque Taquilla ya la muestra en su columna. ───
+
+test('taquillaActiva: el catálogo real de Onix (matriz 2×2 válida) → true', () => {
+  assert.equal(taquillaActiva(onix()), true);
+});
+
+test('taquillaActiva: un catálogo que cae a Actual (un hueco) → false', () => {
+  assert.equal(taquillaActiva(onix().slice(0, 3)), false);
+});
+
+test('taquillaActiva: catálogo vacío → false', () => {
+  assert.equal(taquillaActiva([]), false);
 });
 
 // ─── LA DECISIÓN DE MOLIENDA POR CELDA (§ TIENDA-COMPOSICIONES-CENSO-1, el riesgo de dinero) ──────

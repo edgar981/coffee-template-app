@@ -58520,3 +58520,232 @@ interesar" (default, editable), ninguno visible para Nayoli hoy, visible para el
 test:integracion 409/409). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
 gate visual (el render en memoria de arriba, § Verificación, más las capturas de navegador real que este
 slice no pudo producir, § "Lo que NO se completó"), lo hace el orquestador.
+
+## 2026-10-10 — TIENDA-ONIX-AJUSTES-1: la ficha de origen baja a la columna de compra, el margen lateral del celular se completa en tres secciones, la foto de la presentación deja de mostrar doble fondo, y los controles nuevos ganan hover/cursor/foco
+
+Rama `slice/editor-secciones-1`, sobre `PRODUCTO-CHAMISAS-LAMINA-1` (`ada7ff5`). Pre-flight: árbol
+limpio, `HEAD` en `ada7ff5`, `main` local 0 adelante / 0 atrás de `origin/main` (`9a7ab97`) — verificado
+antes de tocar nada. Observed-report previo: `TIENDA-COMPOSICIONES-CENSO-1`. Aprobación del owner sobre
+tres diferencias MEDIDAS entre la forma C aprobada (`.scratch/tienda-composiciones/onix-forma-c-
+aprobada.png`) y cómo quedó Onix en vivo (`onix-vivo-hoy-escritorio.png`/`-celular.png`), al configurar
+la tienda en el demo, más el reporte del owner de que "el botón de elegir molienda no tiene nada que
+indique que está activo un hover un cursor pointer" sobre todos los controles nuevos.
+
+### Item 1 — la ficha de origen (Créditos) baja a la columna de compra de Taquilla
+
+**Medido ANTES del fix:** `TiendaCreditos` (el componente standalone) se montaba SIEMPRE después de
+`ShopInner`/`TiendaCatalogo` (§ `TiendaAlbumExtra`, `page.tsx`), centrada en su propio bloque
+`py-16`/`mx-auto max-w-xl` — un bloque APARTE, más abajo de toda la página, nunca dentro de la columna
+de `TiendaTaquilla.tsx`. La forma C aprobada la muestra DEBAJO del botón «Agregar», dentro de la MISMA
+columna que el título/la tabla/el botón.
+
+**El riesgo de duplicarla, resuelto con un criterio ÚNICO, no dos chequeos iguales.** Mover el render a
+`TiendaTaquilla.tsx` sin apagar el standalone la mostraría DOS veces cuando Taquilla está activa. Se
+extrajo `taquillaActiva(catalogo)` (`lib/tienda/taquilla.ts`, pura, capa 1 — wrapper nombrado sobre
+`derivarMatrizTaquilla(catalogo) !== null`, la MISMA pregunta que `TiendaCatalogo.tsx` ya resuelve para
+decidir si monta Taquilla): `TiendaCreditos` ahora fetchea su propio catálogo (SÓLO si
+`tiendaCatalogo.variante === 'taquilla'`, reusando `getCatalog()` memoizado — nunca una segunda request
+de red si `TiendaTaquilla` ya la pidió) y calla si `taquillaActiva(catalog)` es `true`. Mientras el
+catálogo carga (`catalog === null`) se muestra igual — mismo criterio que `TiendaCatalogo` cayendo a
+«Actual» mientras espera el fetch (un parpadeo breve al resolver, no un hueco permanente).
+
+**Cuando la Taquilla NO está activa (otra composición del catálogo), Créditos sigue funcionando como
+hoy** — literal: el `useEffect` nunca dispara su fetch si `tiendaCatalogo.variante !== 'taquilla'`, así
+que `catalog` queda en `null` para siempre y el chequeo de arriba nunca bloquea el render standalone.
+
+Las FILAS (etiqueta/valor) se extrajeron a `CreditosFilas` (export nombrado de `TiendaCreditos.tsx`) —
+la MISMA función renderiza las filas en los dos sitios (el bloque standalone y la columna de Taquilla),
+para que un cambio futuro al marcado de una fila no pueda divergir entre los dos consumidores. La
+standalone sigue envolviéndolas en `mx-auto max-w-xl` (el ancho de lectura angosto, sin cambiar); la
+columna de Taquilla las monta DIRECTO, sin envoltorio de ancho — ya hereda el ancho de su columna.
+
+### Item 2 — el margen lateral del celular, completado en TRES sitios que lo tenían ausente
+
+**Medido, los tres compartían el MISMO defecto: ningún `px-*` en absoluto**, a diferencia del resto de
+la página que ya usa `contenedorAnchoClase(navTratamiento.posicion)` (el eje compartido de
+encabezado/catálogo/cierre «Costura», § CLAUDE.md `PARIDAD-ANCHO-CONTENIDO-1`):
+
+- `TiendaCreditos` (la ficha standalone): `<div className="mx-auto max-w-xl">`, sin padding.
+- `TiendaCierreFraseYBoton` (la composición «Frase y botón»): `<div className="mx-auto flex max-w-4xl
+  ...">`, sin padding.
+- `TiendaInterludio` (la composición «Retrato y cita», default — NO «Plano», que es a sangre a
+  propósito): `<div className="mx-auto flex max-w-sm flex-col ...">`, sin padding.
+
+El fix es el MISMO en los tres: anidar el `max-w-*` angosto existente DENTRO de un
+`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto` — el ancho máximo de página da el margen en
+celular, el `max-w-*` interno sigue acotando el ancho de lectura en escritorio exactamente como antes
+(verificado: el ancho angosto no cambió, sólo se agregó el padding exterior). El ítem del spec sólo
+nombraba Créditos y «Frase y botón» (los dos que se ven en los screenshots de Onix en vivo); se incluyó
+también Interludio porque es el MISMO defecto, en el MISMO archivo que ya estaba en `touches:`
+(`components/storefront/tienda/`), y porque su rama SIN margen es la que alimenta la cita del retrato
+tanto en `/tienda` como en `ProductoLamina.tsx` (`<TiendaInterludio/>` montado tal cual) — el fix cierra
+de una vez el bullet 5 del spec ("en el celular, la cita del retrato queda pegada a los bordes").
+
+### Item 3 — la foto de la presentación: `object-contain` → `object-cover`, no un hex a medida
+
+**Medido antes de decidir** (análisis de píxeles de `onix-vivo-hoy-escritorio.png`, § el scanline
+horizontal/vertical a través del cuadro de la foto): el contenedor (`bg-[var(--sf-superficie)]`) y el
+fondo PROPIO de la foto (un backdrop de estudio con un leve degradado) NO coinciden en tono —
+`(253,251,247)` el contenedor contra `(243,234,219)` el borde de la foto—, y como `object-contain` deja
+letterbox visible en los costados, ese salto de color se ve como DOS rectángulos. Las dos salidas del
+spec ("llena el cuadro sin recortar" / "el fondo coincide") se evaluaron así:
+
+- **"El fondo coincide" se descartó**: exigiría hardcodear un hex (o leer el píxel de cada foto en
+  runtime) que sólo es correcto para ESE backdrop — frágil para la próxima foto de producto con otro
+  fondo de estudio, y una excepción al resto del storefront.
+- **"Llena sin recortar" se eligió, vía `object-cover`** — el MISMO tratamiento que `ProductCard.tsx`
+  ya usa para el catálogo (con el mismo `bg-[var(--sf-superficie)]` de respaldo). El riesgo de "recortar
+  la bolsa" se midió, no se asumió: el mismo scanline mostró que la foto encuadrada por `object-contain`
+  ya es casi cuadrada dentro del cuadro (~440×447 px de una caja ~448×448) y que la bolsa ocupa sólo una
+  fracción central con mucho margen de estudio alrededor — el recorte que `cover` aplicaría (unos pocos
+  píxeles) cae enteramente en ese margen, nunca en la bolsa.
+
+### Item 4 — hover/cursor/foco en TODOS los controles nuevos
+
+Se agregó `cursor-pointer` + un cambio visible al pasar el mouse (oscurecer/aclarar el fondo, o invertir
+borde↔relleno, según el estilo de cada control) + `focus-visible:outline-none focus-visible:ring-2
+focus-visible:ring-offset-2 focus-visible:ring-[...]` (ring-inset para las casillas de la tabla de
+Taquilla, que no tienen margen para un ring con offset) a:
+
+- **Láminas** (`TiendaLaminas.tsx`): el botón «Agregar»/«Elegir molienda» y «Avísame por WhatsApp».
+- **Carta** (`TiendaEncabezado.tsx`): las píldoras «¿Qué te provoca?» — YA tenían `hover:opacity-80`;
+  sólo ganaron `cursor-pointer` + el foco.
+- **Costura y Frase y botón** (`TiendaCierre.tsx`): `BotonCierre`, compartido por las dos composiciones
+  — un solo cambio cubre a las dos.
+- **Taquilla** (`TiendaTaquilla.tsx`): las casillas de precio (`CeldaFila`), el botón principal en sus
+  tres estados (Agregar/Elegir molienda/Avísame), y los mismos tres estados de la barra fija del
+  celular (`BarraFijaMovil`) — no nombrada por el spec, pero es el MISMO control duplicado para móvil;
+  dejarlo sin el fix habría sido una inconsistencia dentro del mismo archivo.
+- **«Lámina abierta»** (`ProductoLamina.tsx`, ya en la rama): los puntos de galería, las píldoras de
+  molienda (con `cursor-not-allowed` preservado para la opción deshabilitada), los botones +/- de
+  cantidad, «Agregar al carrito», «Avísame por WhatsApp», y las nuevas tarjetas de «Te puede
+  interesar» (§ item 5).
+
+### Item 5 — «Lámina abierta» contra la maqueta aprobada
+
+- **El sticker «cosecha 2026»**: vivía DENTRO del wrapper `overflow-hidden` del arco angosto (`w-[70%]`
+  de la tarjeta), como sibling de la `<Image>`. Con un badge GIRADO (`rotate-[8deg]`) cerca del borde de
+  una caja angosta, parte de su geometría rotada cae fuera de esa caja — invisible en escritorio (el
+  arco deja más margen alrededor, así que el badge rotado termina enteramente fuera del área que el
+  `overflow-hidden` no recorta) y cortado en celular (la caja es más angosta, así que sólo una porción
+  del badge cae dentro). Se movió el sticker (y el badge gemelo "se nos acabó") a sibling de la
+  TARJETA ENTERA (`rounded-[24px] p-6 sm:p-8`, que ganó `relative`), no del arco — con margen de sobra
+  en los dos anchos, igual que en la maqueta (el badge flota sobre el fondo lavado de la tarjeta, no
+  sobre la foto).
+- **Las píldoras de notas sin el punto del color del café**: medido con las funciones reales
+  (`lavadoLamina`/`paletaLaminas`, raíces por defecto) — **4 de los 6 colores de la paleta de reserva
+  dan `lavadoLamina(color) === color`** (`lavadoLamina` no mezcla si el color YA pasa AA contra la tinta
+  sin mezclar; medido con `node --import tsx`, visto antes de tocar código). El punto se pinta con
+  `color`; la píldora se pinta con `lavado` — cuando son el MISMO hex, el punto es invisible sobre su
+  propio fondo, aunque el código ya lo dibuje. Fix: un borde `border-[var(--sf-tinta)]/30` en el punto,
+  que lo hace visible SIEMPRE sin tocar `lavadoLamina` (función compartida con otras composiciones,
+  cuyo comportamiento "no mezcla si ya pasa AA" está afirmado por su propio test — `lavadoLamina: un
+  color que YA pasa AA sin mezclar se queda igual (peso 0)` — y es intencional, no el bug).
+- **«Te puede interesar» — tarjetas cuadradas → láminas horizontales**: el grid pasó de
+  `grid-cols-2 sm:grid-cols-3` con una `<Link>` vertical (foto cuadrada arriba, texto abajo) a
+  `grid-cols-1 sm:grid-cols-2` con una `<Link>` horizontal (`flex items-stretch`): un arco chico a la
+  izquierda (`w-28 sm:w-32`, `rounded-t-full`, el MISMO tratamiento que la foto principal, a sangre
+  contra los tres bordes que no son el radio de la tarjeta) y el nombre/la frase/el precio centrados a
+  la derecha — igual que "Los otros dos" de la maqueta aprobada.
+- **La cita del retrato sin margen en celular**: cerrado por el item 2 (`TiendaInterludio`), que
+  `ProductoLamina.tsx` monta tal cual (`<TiendaInterludio/>`, sin copiar su lógica).
+
+### Verificación
+
+- **`npm run typecheck`**: 0 errores, árbol final.
+- **`npm test`** (capa 1, sin base): **4202/4202**, 0 fallos. Delta contra el baseline citado por
+  `PRODUCTO-CHAMISAS-LAMINA-1` (4199): +3, exactamente los tres tests nuevos de `taquillaActiva` en
+  `lib/tienda/taquilla.test.ts` — sin discrepancia, a diferencia de la que ese mismo slice reportó
+  contra SU baseline (`NPM-TEST-BASELINE-74b9dd2-DISCREPANCIA-1`, sigue sin investigar, fuera de
+  `touches:` de este slice).
+- **`npm run test:integracion`**: **409/409**, 0 fallos — SIN cambio contra el baseline (este slice no
+  agregó ningún archivo bajo `tests/integracion/`; las cadenas que mueve — créditos en columna, el
+  `object-fit` de la foto — son de PRESENTACIÓN, sin un gate de servidor que afirmar en el carril).
+- **`npm run gate`** corrido de punta a punta en el árbol final: verde, mismos números que las corridas
+  sueltas de arriba.
+- **`npm run verificar:nayoli`**: las 4 rutas + CSS reportan DIFIERE contra `main` — MEDIDO, CONTENIDO
+  verificado: un grep de `taquilla|Taquilla|Credito|Créditos|lavado|ProductoLamina|interesar` sobre las
+  4 rutas × 2 árboles da **CERO** coincidencias (ninguna palabra de este slice se filtra al HTML de
+  Nayoli); `cursor-pointer`/`object-cover` aparecen el MISMO número de veces en `main` y en la rama
+  (clases ya presentes en código compartido no gateado por composición, p. ej. `ProductCard.tsx`) — no
+  son clases NUEVAS que este diff haya filtrado a Nayoli. Normalizando las dos diferencias YA conocidas
+  (`lang="en"`→`"es"`, el hash del chunk CSS), el resto del diff de `/`, `/tienda` y `/checkout` es
+  el MISMO patrón pre-existente que `TIENDA-CHAMISAS-ALBUM-1`/`TIENDA-ONIX-CARTELERA-1`/
+  `TIENDA-CHAMISAS-AJUSTES-1`/`PRODUCTO-CHAMISAS-LAMINA-1` ya documentaron (orden de clases entre dos
+  builds de Tailwind independientes, `q=75`→`q=85` de `next/image`) — nada de este diff lo explica
+  mejor ni peor que los cuatro slices anteriores. `/tienda/cafe-nayoli-grano-250g` sigue cayendo en el
+  estado "Cargando" antes de hidratar (`<main>` 176/176 caracteres IDÉNTICO entre `main` y la rama).
+- **`npm run verificar:nayoli:visual`**: las 6 rutas DIFIEREN en píxeles. **`ruta:home` →
+  165.052/4.608.000 px (AA) · 174.711 crudo, caja `[105,862]–[1183,3581]` — DÍGITO A DÍGITO la MISMA
+  cifra que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`** (citada idéntica por al menos 6 slices previos de
+  esta rama, ninguno con archivos de storefront en su diff que expliquen `/`). Mi propio diff confirma
+  por qué no puede ser la causa: `git diff --stat ada7ff5 -- .` da EXACTAMENTE los 9 archivos de
+  `touches:` (`components/storefront/tienda/`, `components/storefront/producto/`, `lib/tienda/`) — CERO
+  en `components/storefront/home/`, `StoreNav.tsx`, o cualquier archivo que `/`, `/checkout`,
+  `/nosotros` o `/suscripciones` monten. **`ruta:tienda` → 209/2.433.280 px (AA), caja `[445,45]–
+  [608,1882]`; `ruta:producto` → 209/2.535.680 px (AA), caja `[445,45]–[608,1962]`** — DÍGITO A DÍGITO
+  las MISMAS cifras y cajas que `PRODUCTO-CHAMISAS-LAMINA-1` ya midió ANTES de que este slice tocara un
+  archivo: las dos únicas rutas que mi diff SÍ puede alcanzar no ganaron un solo píxel de drift nuevo.
+  `checkout`/`nosotros`/`suscripciones` (163–258 px cada una, cajas `[445,Y]–[~541-828,Y+10..681]`) caen
+  en la misma familia de magnitud que el resto de la rama ya reporta para esas tres rutas, sin un
+  archivo en mi diff que las alcance. Los 2 hovers (`automatica`/`eleccion`) salen **IDÉNTICOS (0 px)**.
+- **El carril de `node --import tsx`** (sin DB, sin servidor) midió directamente `lavadoLamina` contra
+  `paletaLaminas()` (raíces por defecto) para confirmar el defecto del item 5 ANTES de escribir el fix:
+  4 de 6 colores dan `lavado === color` — el hallazgo que motiva el borde del punto.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Símbolos/rutas que este diff toca, grepeados LITERALMENTE contra `CLAUDE.md` (no contra comentarios de
+código fuente, que es otra cosa): `TiendaCreditos` (0), `CreditosFilas` (0), `taquillaActiva` (0),
+`TiendaTaquilla` (0), `TiendaCierre` (0), `TiendaEncabezado` (0), `TiendaInterludio` (0),
+`TiendaLaminas` (0), `ProductoLamina` (0), `contenedorAnchoClase` (0), `lavadoLamina` (0),
+`derivarMatrizTaquilla` (0), `object-cover` (3).
+
+- **12 de los 13 símbolos dan CERO apariciones en `CLAUDE.md`** — nada que verificar para ésos
+  (incluido `contenedorAnchoClase`: su docstring extenso vive en el código fuente, `lib/config/
+  themes.ts`, no en `CLAUDE.md`; confundir las dos cosas fue un error de la primera redacción de este
+  párrafo, corregido tras correr el grep de verdad).
+- **`object-cover`** aparece 3 veces, las TRES dentro de **§ Backlog #58 "El ENCUADRE de las imágenes
+  SUBIDAS — punto focal, no recorte con caja"** (líneas 1510/1753/1765) y una mención suelta sobre el
+  póster de vídeo de la galería de /nosotros. El backlog describe el recorte de `object-cover` SOBRE
+  CAMPOS `tipo:'imagen'` DE `SiteContent` —hero, brandStory, presentaciones, la galería de /nosotros—,
+  explícitamente "transversal a SiteContent". La imagen que este slice cambió (`TiendaTaquilla.tsx`,
+  `producto.imagen`) es una foto de PRODUCTO/catálogo —`Product.imagen`, el mismo dato que
+  `ProductCard.tsx` ya pinta con `object-cover`—, no un campo de SiteContent: el backlog no la nombra, no
+  la excluye ni la incluye, y mi cambio no la agrega ni la saca de su alcance declarado. **Ninguna
+  sentencia de `CLAUDE.md` queda falsa por este diff.**
+
+### Frontera Tier 1 — verificada, no asumida
+
+Los 9 archivos tocados caen TODOS bajo `components/storefront/` (subárbol Tier 1, bytes del visitante) o
+`lib/tienda/` (archivo suelto ya listado explícitamente en `touches:` del dispatch, consistente con el
+criterio de los slices anteriores de esta rama sobre el mismo directorio). Dispatch declaró `tier: 1`,
+`writes: yes`, `approved: yes`, con `approval-reason` citando el go explícito del owner (2026-10-10)
+sobre TRES diferencias medidas contra la forma C aprobada — la segunda etapa que Tier 1 exige tras la
+investigación de sólo-lectura (`TIENDA-COMPOSICIONES-CENSO-1`, OBSERVED), mismo patrón que los cuatro
+slices anteriores de esta rama.
+
+### Open follow-ups
+
+- **Los DOS `TIENDA-*-MAYUSCULA-1`** (ya coined por `TIENDA-CHAMISAS-AJUSTES-1`, no cerrados acá):
+  `TiendaEncabezado.tsx` («Apertura», H1 forzado a `uppercase` sin aviso en el hint) y
+  `TiendaCierre.tsx` («Frase y botón», `frase` forzada a `uppercase` sin aviso) — ninguno de los dos
+  entraba en el pedido explícito de este spec; siguen reportados, no tocados.
+- **`MODO-EDITOR-MATCHER-SUBARBOL-1`** (ya existía, ya reportado por los últimos tres slices de la
+  rama): sigue sin resolverse — `proxy.ts` sigue fuera de `touches:` y explícitamente prohibido por
+  este dispatch también.
+- **`TIENDA-INTERLUDIO-CIERRE-COMPOSICION-SIN-SELECT-1`** (ya coined, no cerrado): `tiendaInterludio`/
+  `tiendaCierre` siguen sin un control de panel que elija entre sus dos composiciones cada uno.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes que cualquier visitante de Onix (o de
+cualquier tenant que use Taquilla/Carta/Costura/Frase y botón/Lámina abierta) lee: la posición de la
+ficha de origen, el margen lateral en celular, el recorte de la foto de presentación, el hover/foco de
+los controles, y el layout de "Te puede interesar". Sin cambio de schema/migración
+(`packages/core/prisma/` sin tocar) ni contrato cruzado de repositorio. Nayoli («Actual»/«actual»/
+default en las cinco secciones tocadas) queda sin alcanzar ninguna de las ramas que este diff cambió —
+medido por grep de contenido (cero coincidencias de vocabulario nuevo) y por `git diff --stat` (cero
+archivos de las rutas que Nayoli sí renderiza). `npm run gate` GREEN de punta a punta (typecheck 0 ·
+test 4202/4202 · test:integracion 409/409). Commiteado en `slice/editor-secciones-1`; el merge, cuando
+el owner revise el gate visual contra la forma C aprobada, lo hace el orquestador.

@@ -8,9 +8,10 @@ import { motion } from 'framer-motion';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { REGISTRY, seccionEsVisible, type TiendaInterludioContent } from '@/lib/config/site-content-defaults';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 
 export default function TiendaInterludio() {
-  const { tiendaInterludio } = useSiteContent();
+  const { tiendaInterludio, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.tiendaInterludio, tiendaInterludio)) return null;
   // «Opcional de verdad»: el toggle puede estar encendido y aun así no haber nada que mostrar si
@@ -31,16 +32,21 @@ export default function TiendaInterludio() {
       viewport={{ once: true }}
       className="py-16"
     >
-      <div className="mx-auto flex max-w-sm flex-col items-center text-center">
-        <div className="relative w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
-          <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" className="object-cover" />
+      {/* EL MARGEN LATERAL (§ TIENDA-ONIX-AJUSTES-1) — sin él, en el celular la cita quedaba pegada
+          a los dos bordes mientras el resto de la página respeta `contenedorAnchoClase`. El ancho de
+          LECTURA angosto (`max-w-sm`) se queda, anidado adentro. */}
+      <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
+        <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+          <div className="relative w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
+            <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" className="object-cover" />
+          </div>
+          {tiendaInterludio.cita && (
+            <p className="mt-6 font-playfair text-2xl italic text-[var(--sf-tinta)]">&ldquo;{tiendaInterludio.cita}&rdquo;</p>
+          )}
+          {tiendaInterludio.firma && (
+            <p className="mt-3 text-sm text-[var(--sf-texto)]">— {tiendaInterludio.firma}</p>
+          )}
         </div>
-        {tiendaInterludio.cita && (
-          <p className="mt-6 font-playfair text-2xl italic text-[var(--sf-tinta)]">&ldquo;{tiendaInterludio.cita}&rdquo;</p>
-        )}
-        {tiendaInterludio.firma && (
-          <p className="mt-3 text-sm text-[var(--sf-texto)]">— {tiendaInterludio.firma}</p>
-        )}
       </div>
     </motion.section>
   );

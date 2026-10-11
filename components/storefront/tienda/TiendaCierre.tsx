@@ -32,7 +32,7 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
   // mayúscula y un botón fantasma, SIN el marco punteado ni la franja de tejido de «Costura». CERO
   // campos propios: reusa `frase`/`boton` tal cual.
   if (tiendaCierre.variante === 'fraseYBoton') {
-    return <TiendaCierreFraseYBoton tiendaCierre={tiendaCierre} cta={cta} preview={preview} />;
+    return <TiendaCierreFraseYBoton tiendaCierre={tiendaCierre} cta={cta} preview={preview} navTratamiento={navTratamiento} />;
   }
 
   // LA TARJETA ES ANCHA (§ el spec, item 3) — el MISMO ancho de contenido que el resto de la
@@ -91,9 +91,9 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
 function BotonCierre({ cta, preview, relleno }: { cta: CierreCta | null; preview: boolean; relleno: boolean }) {
   if (!cta) return null;
   const clasePiel = relleno
-    ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
-    : 'border border-[var(--sf-tinta)] text-[var(--sf-tinta)]';
-  const clase = `sf-pildora shrink-0 px-6 py-3 text-sm font-medium ${clasePiel}`;
+    ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)] hover:opacity-90'
+    : 'border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
+  const clase = `sf-pildora shrink-0 cursor-pointer px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${clasePiel}`;
   if (cta.href.startsWith('/')) {
     return <Link href={cta.href} className={clase}>{cta.label}</Link>;
   }
@@ -116,11 +116,12 @@ function BotonCierre({ cta, preview, relleno }: { cta: CierreCta | null; preview
 // aprobada (§ item 3); ensancharla también habría sido una decisión visual nueva, sin maqueta que
 // la respalde.
 function TiendaCierreFraseYBoton({
-  tiendaCierre, cta, preview,
+  tiendaCierre, cta, preview, navTratamiento,
 }: {
   tiendaCierre: TiendaCierreContent;
   cta: CierreCta | null;
   preview: boolean;
+  navTratamiento: { posicion: boolean };
 }) {
   return (
     <motion.section
@@ -129,11 +130,17 @@ function TiendaCierreFraseYBoton({
       viewport={{ once: true }}
       className="py-16"
     >
-      <div className="mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-playfair text-3xl uppercase leading-tight text-[var(--sf-tinta)] sm:text-4xl">
-          {tiendaCierre.frase}
-        </p>
-        <BotonCierre cta={cta} preview={preview} relleno={false} />
+      {/* EL MARGEN LATERAL (§ TIENDA-ONIX-AJUSTES-1) — faltaba del todo: en el celular esta banda
+          quedaba pegada a los dos bordes mientras el resto de la página respeta
+          `contenedorAnchoClase`. El `max-w-4xl` del spec (§ el comentario de arriba, "el ancho NO
+          cambia en esta tanda") se queda, anidado adentro. */}
+      <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
+        <div className="mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-playfair text-3xl uppercase leading-tight text-[var(--sf-tinta)] sm:text-4xl">
+            {tiendaCierre.frase}
+          </p>
+          <BotonCierre cta={cta} preview={preview} relleno={false} />
+        </div>
       </div>
     </motion.section>
   );

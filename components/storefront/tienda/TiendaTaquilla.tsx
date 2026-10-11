@@ -17,7 +17,11 @@ import { useCartStore } from '@/lib/cartStore';
 import { decidirMolienda } from '@duna/core/moliendas-opciones';
 import { formatCOP } from '@duna/core/utils';
 import { whatsappUrl } from '@/lib/config/site';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
+import { creditosVisibles, filasCompletas } from '@/lib/tienda/creditos';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto, type MatrizTaquilla } from '@/lib/tienda/taquilla';
+import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
 import type { Product } from '@/types/product';
 
 interface TiendaTaquillaProps {
@@ -28,10 +32,17 @@ interface TiendaTaquillaProps {
 }
 
 export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: TiendaTaquillaProps) {
+  const { tiendaCreditos } = useSiteContent();
   const matriz = useMemo(() => derivarMatrizTaquilla(catalog), [catalog]);
   const [seleccion, setSeleccion] = useState<{ categoria: string; peso: number } | null>(null);
   const botonRef = useRef<HTMLDivElement | null>(null);
   const [botonFueraDeVista, setBotonFueraDeVista] = useState(false);
+  // LA FICHA DE ORIGEN EN LA COLUMNA (§ TIENDA-ONIX-AJUSTES-1, la forma C aprobada) — MISMO criterio
+  // que `TiendaCreditos.tsx` (toggle + piso de 3 filas); el helper compartido `taquillaActiva` (§
+  // lib/tienda/taquilla.ts) es lo que le dice a ESA sección que calle para no duplicarla acá.
+  const filasCreditos = filasCompletas(tiendaCreditos.items);
+  const mostrarCreditos =
+    seccionEsVisible(REGISTRY.tiendaCreditos, tiendaCreditos) && creditosVisibles(tiendaCreditos.items);
 
   useEffect(() => {
     const el = botonRef.current;
@@ -51,6 +62,14 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
   return (
     <div>
       <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
+        {/* LA FOTO LLENA EL CUADRO (§ TIENDA-ONIX-AJUSTES-1) — `object-cover`, NO `object-contain`:
+            el fondo PROPIO de la foto (su propio estudio/backdrop) dejaba de coincidir con
+            `--sf-superficie` del contenedor y se veían DOS rectángulos de fondo distintos. Con
+            `object-cover` la foto SIEMPRE cubre el cuadro entero —nunca queda fondo del contenedor
+            a la vista—, el mismo tratamiento que ya usa `ProductCard.tsx` para el catálogo. Medido
+            contra la foto real de Onix (el boceto de referencia): la bolsa ocupa una fracción chica
+            del centro con mucho margen de estudio alrededor, así que el recorte que `cover` aplica
+            en un cuadro casi-cuadrado no toca la bolsa. */}
         <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden bg-[var(--sf-superficie)]">
           {producto.imagen ? (
             <Image
@@ -59,7 +78,7 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
               alt={producto.nombre}
               fill
               sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-contain transition-opacity duration-200"
+              className="object-cover transition-opacity duration-200"
             />
           ) : null}
         </div>
@@ -77,6 +96,14 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
           <div ref={botonRef} className="mt-6">
             <BotonTaquilla producto={producto} whatsapp={whatsapp} />
           </div>
+
+          {/* LA FICHA DE ORIGEN, DEBAJO DEL BOTÓN (§ TIENDA-ONIX-AJUSTES-1, la forma C aprobada) —
+              EN la columna de compra, no un bloque aparte centrado más abajo de la página. */}
+          {mostrarCreditos && (
+            <div className="mt-8">
+              <CreditosFilas filas={filasCreditos} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -138,7 +165,7 @@ function CeldaFila({
             type="button"
             onClick={() => onElegir({ categoria, peso })}
             aria-pressed={elegida}
-            className={`relative flex min-h-[64px] flex-col items-center justify-center border-l border-t border-[var(--sf-linea)]/20 px-2 py-2 text-center font-playfair text-xl tabular-nums transition-colors sm:min-h-[72px] sm:text-2xl ${
+            className={`relative flex min-h-[64px] cursor-pointer flex-col items-center justify-center border-l border-t border-[var(--sf-linea)]/20 px-2 py-2 text-center font-playfair text-xl tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--sf-acento)] sm:min-h-[72px] sm:text-2xl ${
               elegida
                 ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
                 : 'text-[var(--sf-tinta)] hover:bg-[var(--sf-superficie)]'
@@ -171,7 +198,7 @@ function BotonTaquilla({ producto, whatsapp }: { producto: Product; whatsapp?: s
         href={whatsappUrl(whatsapp, `Hola, ¿cuándo vuelve a haber ${producto.nombre}?`)}
         target="_blank"
         rel="noreferrer"
-        className="sf-pildora block w-full border border-[var(--sf-tinta)] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-tinta)]"
+        className="sf-pildora block w-full cursor-pointer border border-[var(--sf-tinta)] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
       >
         Avísame por WhatsApp
       </a>
@@ -185,7 +212,7 @@ function BotonTaquilla({ producto, whatsapp }: { producto: Product; whatsapp?: s
     return (
       <a
         href={`/tienda/${producto.slug}`}
-        className="sf-pildora block w-full bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))]"
+        className="sf-pildora block w-full cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
       >
         Elegir molienda · {formatCOP(producto.precio)}
       </a>
@@ -202,7 +229,7 @@ function BotonTaquilla({ producto, whatsapp }: { producto: Product; whatsapp?: s
     <button
       type="button"
       onClick={handleAdd}
-      className="sf-pildora block w-full bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity"
+      className="sf-pildora block w-full cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
     >
       {agregado ? 'Agregado ✓' : `Agregar · ${formatCOP(producto.precio)}`}
     </button>
@@ -235,7 +262,7 @@ function BarraFijaMovil({ producto, whatsapp }: { producto: Product; whatsapp?: 
             href={whatsappUrl(whatsapp, `Hola, ¿cuándo vuelve a haber ${producto.nombre}?`)}
             target="_blank"
             rel="noreferrer"
-            className="sf-pildora shrink-0 border border-[var(--sf-fondo)] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-fondo)]"
+            className="sf-pildora shrink-0 cursor-pointer border border-[var(--sf-fondo)] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-fondo)] transition-colors hover:bg-[var(--sf-fondo)] hover:text-[var(--sf-tinta)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-fondo)]"
           >
             Avísame
           </a>
@@ -244,14 +271,14 @@ function BarraFijaMovil({ producto, whatsapp }: { producto: Product; whatsapp?: 
         <button
           type="button"
           onClick={() => addItem(producto, 1, decision.modo === 'automatica' ? { molienda: decision.nombre } : {})}
-          className="sf-pildora shrink-0 bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))]"
+          className="sf-pildora shrink-0 cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
         >
           Agregar
         </button>
       ) : (
         <a
           href={`/tienda/${producto.slug}`}
-          className="sf-pildora shrink-0 bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))]"
+          className="sf-pildora shrink-0 cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
         >
           Elegir
         </a>

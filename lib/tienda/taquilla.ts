@@ -78,3 +78,14 @@ export function nombreBaseProducto(nombre: string): string {
   const i = nombre.indexOf(' — ');
   return i === -1 ? nombre.trim() : nombre.slice(0, i).trim();
 }
+
+/** ¿La Taquilla se MUESTRA con este catálogo? (§ TIENDA-ONIX-AJUSTES-1) — la MISMA pregunta que ya
+ *  resuelve `derivarMatrizTaquilla(catalogo) !== null`, nombrada para que un SEGUNDO consumidor
+ *  (`TiendaCreditos.tsx`, la ficha de origen STANDALONE) pueda hacerse la MISMA pregunta sin repetir
+ *  el criterio a mano. Cuando Taquilla se muestra, YA pinta su propia ficha de origen en la columna
+ *  de compra (§ TiendaTaquilla.tsx) — la standalone debe CALLAR, o la ficha aparecería DOS veces.
+ *  Dos voces del mismo umbral es cómo divergen (§ CLAUDE.md, #39); por eso es UNA función, no dos
+ *  chequeos iguales escritos en dos componentes. */
+export function taquillaActiva(catalogo: readonly Product[]): boolean {
+  return derivarMatrizTaquilla(catalogo) !== null;
+}

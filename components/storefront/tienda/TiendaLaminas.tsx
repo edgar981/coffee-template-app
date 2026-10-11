@@ -97,7 +97,7 @@ function Lamina({ product, color, whatsapp }: { product: Product; color: string;
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="sf-pildora border border-[var(--sf-tinta)] px-4 py-2 text-sm font-medium text-[var(--sf-tinta)]"
+              className="sf-pildora cursor-pointer border border-[var(--sf-tinta)] px-4 py-2 text-sm font-medium text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
             >
               Avísame por WhatsApp
             </a>
@@ -106,7 +106,7 @@ function Lamina({ product, color, whatsapp }: { product: Product; color: string;
           <button
             type="button"
             onClick={handleAdd}
-            className="sf-pildora bg-[var(--sf-tinta)] px-4 py-2 text-sm font-medium text-[var(--sf-fondo)]"
+            className="sf-pildora cursor-pointer bg-[var(--sf-tinta)] px-4 py-2 text-sm font-medium text-[var(--sf-fondo)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
           >
             {agregaDirecto ? 'Agregar' : 'Elegir molienda'}
           </button>

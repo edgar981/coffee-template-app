@@ -137,7 +137,7 @@ function TiendaCarta({
               <a
                 key={p.productId}
                 href={`#cafe-${p.slug}`}
-                className="sf-pildora-real flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--sf-tinta)] transition-opacity hover:opacity-80"
+                className="sf-pildora-real flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--sf-tinta)] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
                 style={{ backgroundColor: lavadoLamina(p.color) }}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: p.color }} aria-hidden="true" />

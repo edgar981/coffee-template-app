@@ -4,18 +4,44 @@
 // SIEMPRE por `page.tsx` (como `TiendaInterludio`/`TiendaCierre`): el gate vive DENTRO del
 // componente —`seccionEsVisible` (el toggle) Y `creditosVisibles` (el piso de 3 filas completas, §
 // lib/tienda/creditos.ts)—, nunca en el llamador.
+//
+// LAS FILAS (`CreditosFilas`, abajo) SON UN EXPORT NOMBRADO (§ TIENDA-ONIX-AJUSTES-1): la forma C
+// aprobada pone la ficha DEBAJO de la tabla de compra, DENTRO de la columna de `TiendaTaquilla.tsx`
+// —no como bloque aparte centrado—, así que ese componente necesita renderizar las MISMAS filas sin
+// un segundo JSX que pudiera divergir del de acá.
+//
+// LA STANDALONE CALLA CUANDO TAQUILLA YA LAS MUESTRA: con `tiendaCatalogo.variante === 'taquilla'` Y
+// una matriz VÁLIDA (`taquillaActiva`, § lib/tienda/taquilla.ts — el criterio ÚNICO, compartido con
+// `TiendaTaquilla.tsx`), esta sección se oculta — mostrarla también acá la duplicaría. Mientras el
+// catálogo carga (`catalog === null`) todavía no se sabe si Taquilla va a montar, así que se muestra
+// igual (mismo criterio que `TiendaCatalogo.tsx` cayendo a «Actual» mientras espera el fetch): el
+// peor caso es un parpadeo breve al resolver, no un hueco permanente. El fetch reusa `getCatalog()`
+// (memoizado a nivel de módulo, § lib/api/products.ts) — nunca una segunda llamada de red: si
+// `TiendaTaquilla` ya lo pidió, esto reutiliza la MISMA promesa.
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
-import { creditosVisibles, filasCompletas } from '@/lib/tienda/creditos';
+import { contenedorAnchoClase } from '@/lib/config/themes';
+import { creditosVisibles, filasCompletas, type CreditoItem } from '@/lib/tienda/creditos';
+import { taquillaActiva } from '@/lib/tienda/taquilla';
+import { getCatalog } from '@/lib/api/products';
+import type { Product } from '@/types/product';
 
 export default function TiendaCreditos() {
-  const { tiendaCreditos } = useSiteContent();
+  const { tiendaCreditos, tiendaCatalogo, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const [catalog, setCatalog] = useState<Product[] | null>(null);
+  useEffect(() => {
+    if (tiendaCatalogo.variante !== 'taquilla') return;
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, [tiendaCatalogo.variante]);
+
   if (!seccionEsVisible(REGISTRY.tiendaCreditos, tiendaCreditos)) return null;
   const filas = filasCompletas(tiendaCreditos.items);
   if (!creditosVisibles(tiendaCreditos.items)) return null;
+  if (catalog !== null && taquillaActiva(catalog)) return null;
 
   return (
     <motion.section
@@ -24,19 +50,36 @@ export default function TiendaCreditos() {
       viewport={{ once: true }}
       className="py-16"
     >
-      <div className="mx-auto max-w-xl">
-        {filas.map((fila, i) => (
-          <div
-            key={`${fila.etiqueta}-${i}`}
-            className="flex items-baseline justify-between gap-6 border-t border-[var(--sf-linea)]/15 py-3 first:border-t-0"
-          >
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-texto-suave)]">
-              {fila.etiqueta}
-            </span>
-            <span className="text-right text-base text-[var(--sf-tinta)]">{fila.valor}</span>
-          </div>
-        ))}
+      {/* EL MARGEN LATERAL (§ TIENDA-ONIX-AJUSTES-1) — `contenedorAnchoClase` es el MISMO eje que el
+          resto de la página (encabezado, catálogo, el cierre «Costura»): sin él, en el celular esta
+          ficha queda pegada al borde de la pantalla mientras todo lo demás respeta el margen. El
+          ancho de LECTURA angosto (`max-w-xl`) se queda, anidado adentro — es una decisión de forma
+          distinta (cuánto mide la columna), no el margen que este fix corrige. */}
+      <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
+        <div className="mx-auto max-w-xl">
+          <CreditosFilas filas={filas} />
+        </div>
       </div>
     </motion.section>
+  );
+}
+
+/** Las filas etiqueta/valor, SIN wrapper de ancho ni margen — el consumidor decide eso (acá, la
+ *  standalone; en `TiendaTaquilla.tsx`, la columna de compra). */
+export function CreditosFilas({ filas }: { filas: readonly CreditoItem[] }) {
+  return (
+    <>
+      {filas.map((fila, i) => (
+        <div
+          key={`${fila.etiqueta}-${i}`}
+          className="flex items-baseline justify-between gap-6 border-t border-[var(--sf-linea)]/15 py-3 first:border-t-0"
+        >
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-texto-suave)]">
+            {fila.etiqueta}
+          </span>
+          <span className="text-right text-base text-[var(--sf-tinta)]">{fila.valor}</span>
+        </div>
+      ))}
+    </>
   );
 }

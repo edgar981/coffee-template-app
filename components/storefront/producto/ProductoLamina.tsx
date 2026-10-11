@@ -81,7 +81,7 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
           {/* LA TARJETA DEL COLOR (§ el spec) — el MISMO arco 4:5 que «Láminas» (TiendaLaminas.tsx),
               sobre el lavado del color de ESTE café, nunca el color pleno (el texto nunca va encima
               del color sin lavar). */}
-          <div className="rounded-[24px] p-6 sm:p-8" style={{ backgroundColor: lavado }}>
+          <div className="relative rounded-[24px] p-6 sm:p-8" style={{ backgroundColor: lavado }}>
             <div className="relative mx-auto w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
               {heroSrc ? (
                 <Image
@@ -95,18 +95,23 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
               ) : (
                 <div className="absolute inset-0 bg-[var(--sf-superficie)]" />
               )}
-              {/* AGOTADO GANA sobre el sticker de la Carta (mismo orden de prioridad que `TiendaLaminas`:
-                  el badge de estado del producto importa más que el sticker de temporada). */}
-              {agotado ? (
-                <span className="sf-pildora absolute top-2 right-2 bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-2.5 py-1 text-xs font-semibold">
-                  se nos acabó
-                </span>
-              ) : tiendaEncabezado.sticker ? (
-                <span className="sf-pildora absolute top-2 right-2 bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-2.5 py-1 text-xs font-semibold rotate-[8deg]">
-                  {tiendaEncabezado.sticker}
-                </span>
-              ) : null}
             </div>
+            {/* EL STICKER/BADGE VIVE SOBRE LA TARJETA ENTERA, NO sobre el arco (§ TIENDA-ONIX-AJUSTES-1)
+                — dentro del arco angosto (`w-[70%]`) y con el `overflow-hidden` que ese arco necesita
+                para recortar la FOTO, un badge girado (`rotate-[8deg]`) queda recortado en el celular
+                y, en escritorio, directamente fuera del área visible (el arco es más angosto que la
+                tarjeta). Como sibling de la tarjeta —no del arco— tiene margen de sobra para mostrarse
+                completo en los dos anchos, igual que en la maqueta aprobada. AGOTADO GANA sobre el
+                sticker de la Carta (mismo orden de prioridad que `TiendaLaminas`). */}
+            {agotado ? (
+              <span className="sf-pildora absolute top-3 right-3 bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-2.5 py-1 text-xs font-semibold sm:top-4 sm:right-4">
+                se nos acabó
+              </span>
+            ) : tiendaEncabezado.sticker ? (
+              <span className="sf-pildora absolute top-3 right-3 rotate-[8deg] bg-[var(--sf-tostado)] text-[var(--sf-tinta)] px-2.5 py-1 text-xs font-semibold sm:top-4 sm:right-4">
+                {tiendaEncabezado.sticker}
+              </span>
+            ) : null}
 
             {/* LAS DEMÁS FOTOS, SIN FLECHAS (§ el spec) — puntos, no un carrusel con flechas. */}
             {galeria.length > 1 && (
@@ -118,7 +123,7 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                     onClick={() => setImgIdx(i)}
                     aria-label={`Foto ${i + 1} de ${galeria.length}`}
                     aria-current={i === imgIdx}
-                    className={`h-2 w-2 rounded-full transition-opacity ${
+                    className={`h-2 w-2 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${
                       i === imgIdx ? 'bg-[var(--sf-tinta)]' : 'bg-[var(--sf-tinta)]/30 hover:bg-[var(--sf-tinta)]/60'
                     }`}
                   />
@@ -141,7 +146,17 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                     className="sf-pildora-real flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[var(--sf-tinta)]"
                     style={{ backgroundColor: lavado }}
                   >
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+                    {/* EL BORDE ES LO QUE HACE VISIBLE EL PUNTO (§ TIENDA-ONIX-AJUSTES-1) — `color` Y
+                        `lavado` pueden ser el MISMO hex: `lavadoLamina` no mezcla si el color YA pasa
+                        el contraste AA sin mezcla (peso se queda en 0), y eso le pasa a varios de la
+                        paleta de reserva (medido: 4 de 6 roles dan `lavado === color`). Sin el borde,
+                        el punto queda del MISMO color que el fondo de la píldora — invisible, aunque
+                        siga siendo "el color del café" por dentro. */}
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full border border-[var(--sf-tinta)]/30"
+                      style={{ backgroundColor: color }}
+                      aria-hidden="true"
+                    />
                     {n}
                   </span>
                 ))}
@@ -174,11 +189,11 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                       disabled={!o.disponible}
                       onClick={() => o.disponible && setMolienda(o.nombre)}
                       title={o.disponible ? undefined : 'Próximamente'}
-                      className={`sf-pildora-real px-4 py-2 text-sm font-medium transition-opacity ${
+                      className={`sf-pildora-real px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${
                         selected
-                          ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
+                          ? 'cursor-pointer bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
                           : o.disponible
-                            ? 'border border-[var(--sf-linea)] text-[var(--sf-tinta)] hover:border-[var(--sf-tinta)]/40'
+                            ? 'cursor-pointer border border-[var(--sf-linea)] text-[var(--sf-tinta)] hover:border-[var(--sf-tinta)]/40'
                             : 'cursor-not-allowed border border-[var(--sf-linea)] text-[var(--sf-tinta)] opacity-40'
                       }`}
                     >
@@ -198,7 +213,7 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                   href={whatsappUrl(whatsapp, `Hola, ¿cuándo vuelve a haber ${product.nombre}?`)}
                   target={preview ? undefined : '_blank'}
                   rel="noreferrer"
-                  className="sf-pildora inline-flex items-center justify-center border border-[var(--sf-tinta)] px-6 py-3 text-sm font-medium text-[var(--sf-tinta)]"
+                  className="sf-pildora inline-flex cursor-pointer items-center justify-center border border-[var(--sf-tinta)] px-6 py-3 text-sm font-medium text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
                 >
                   Avísame por WhatsApp
                 </a>
@@ -208,7 +223,11 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
             ) : (
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-3 rounded-full border border-[var(--sf-linea)] px-2 py-1">
-                  <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} className="p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQty((q) => Math.max(1, q - 1))}
+                    className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-[var(--sf-superficie)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
+                  >
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="w-6 text-center text-sm font-semibold text-[var(--sf-tinta)]">{qty}</span>
@@ -223,7 +242,7 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                         return q + 1;
                       })
                     }
-                    className="p-1.5"
+                    className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-[var(--sf-superficie)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -231,7 +250,7 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                 <button
                   type="button"
                   onClick={handleAdd}
-                  className="sf-pildora flex items-center gap-2 bg-[var(--sf-tinta)] px-6 py-3 text-sm font-medium text-[var(--sf-fondo)]"
+                  className="sf-pildora flex cursor-pointer items-center gap-2 bg-[var(--sf-tinta)] px-6 py-3 text-sm font-medium text-[var(--sf-fondo)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
                 >
                   <ShoppingBag className="h-4 w-4" /> Agregar al carrito
                 </button>
@@ -246,29 +265,38 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
           hay algo que mostrar. No se copia su lógica acá. */}
       <TiendaInterludio />
 
-      {/* «TE PUEDE INTERESAR» — los otros cafés del catálogo, en sus propias láminas de color. */}
+      {/* «TE PUEDE INTERESAR» — los otros cafés del catálogo, en LÁMINAS HORIZONTALES
+          (§ TIENDA-ONIX-AJUSTES-1, la maqueta aprobada): antes eran tarjetas cuadradas con la foto
+          ENTERA; la maqueta las muestra como una fila — la bolsa en un arco CHICO a la izquierda,
+          dentro de un fondo neutro, con el nombre/la frase/el precio a la derecha. Una sola columna
+          en el celular (cada fila ya ocupa el ancho completo); dos en escritorio, como "Los otros
+          dos" de la maqueta. */}
       {relacionados.length > 0 && (
         <div className="py-16">
           <div className={`mx-auto ${contenedorClase}`}>
             <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-tinta)]">{tiendaProducto.teInteresaTitulo}</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {relacionados.map((r) => (
                 <Link
                   key={r.productId}
                   href={`/tienda/${r.slug}`}
-                  className="block rounded-2xl p-4 transition-opacity hover:opacity-90"
+                  className="flex cursor-pointer items-stretch overflow-hidden rounded-[24px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
                   style={{ backgroundColor: lavadoLamina(r.color) }}
                 >
-                  <div className="relative aspect-square overflow-hidden rounded-xl">
+                  {/* EL ARCO CHICO (§ la maqueta): el MISMO tratamiento que la foto principal
+                      (`rounded-t-full`, domo arriba, recto abajo), a sangre contra el borde
+                      izquierdo/arriba/abajo de la tarjeta — el `overflow-hidden` de la tarjeta recorta
+                      sus esquinas al radio de la tarjeta. */}
+                  <div className="relative w-28 shrink-0 overflow-hidden rounded-t-full bg-[var(--sf-superficie)] sm:w-32">
                     {r.imagen ? (
-                      <Image src={r.imagen} alt={r.nombre} fill sizes="(max-width: 640px) 50vw, 20vw" className="object-cover" />
-                    ) : (
-                      <div className="absolute inset-0 bg-[var(--sf-superficie)]" />
-                    )}
+                      <Image src={r.imagen} alt={r.nombre} fill sizes="(max-width: 640px) 112px, 128px" className="object-cover" />
+                    ) : null}
                   </div>
-                  <h3 className="mt-3 font-playfair text-base text-[var(--sf-tinta)]">{r.nombre}</h3>
-                  {r.notas.length > 0 && <p className="text-xs text-[var(--sf-tinta)] opacity-80">{r.notas.join(' · ')}</p>}
-                  <p className="mt-1 text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(r.precio)}</p>
+                  <div className="flex flex-1 flex-col justify-center gap-1 py-5 pr-5 pl-4">
+                    <h3 className="font-playfair text-lg text-[var(--sf-tinta)]">{r.nombre}</h3>
+                    {r.notas.length > 0 && <p className="text-xs text-[var(--sf-tinta)] opacity-80">{r.notas.join(' · ')}</p>}
+                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(r.precio)}</p>
+                  </div>
                 </Link>
               ))}
             </div>
