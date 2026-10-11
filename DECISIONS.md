@@ -59308,3 +59308,184 @@ sin que Nayoli las use) y por `verificar:nayoli:visual` (diff CERO en el área d
 que SÍ podría alcanzar). `npm run gate` GREEN de punta a punta (`typecheck` 0 ·
 `npm test` 4218/4218 · `npm run test:integracion` 409/409). Commiteado en `slice/editor-secciones-1`;
 el merge, cuando el owner revise el gate visual contra la nueva galería, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1: Apertura/InterludioPlano/CierreFraseYBoton se extraen a piezas PRESENTACIONALES, y Taquilla/Apertura/Interludio ganan calidad de imagen HD
+
+**Pedido del owner** (2026-10-11, sobre la maqueta de /suscripciones «Taquilla mensual» y /nosotros
+«Tres escenas»): *"Perfect. Go ahead with this mock."* — y, sobre las fotos de hoy: *"The current ones
+don't look in HD quality."* El censo previo (`ONIX-PAGINAS-COMPOSICIONES-CENSO-1`, OBSERVED, sin
+commit) dejó tres preguntas; el owner las decidió: cada página con su PROPIO interludio/cierre
+(nunca uno compartido entre /tienda·/suscripciones·/nosotros); bolsas y frecuencias EDITABLES por la
+tienda; /nosotros abre con FOTO ahora, video después.
+
+### El mecanismo — tres piezas, props puros, cero `useSiteContent`
+
+- **`Apertura.tsx`** (`imagen?`, `rotuloIzquierda?`, `rotuloDerecha?`, `titulo`, `alto?` — default
+  `'h-[85vh] min-h-[480px]'`, el literal de /tienda de siempre). `TiendaEncabezado.tsx` se queda con
+  la LÓGICA de la composición (el fallback `titulo || negocio || 'Nuestra Tienda'`, que es de /tienda,
+  no de la pieza) y le pasa el `alto` por default — ningún override todavía, porque esta tanda NO
+  construye /suscripciones ni /nosotros (eso es `touches:` de otro slice).
+- **`InterludioPlano.tsx`** (`imagen`, `pie?`, `preview`). `TiendaInterludio.tsx` resuelve el gate
+  (`seccionEsVisible` + "sin imagen no hay nada que mostrar") y pasa los dos campos tal cual.
+- **`CierreFraseYBoton.tsx`** (`frase`, `cta: {label,href} | null`, `preview`, `anchoClase`). **El
+  `cta` YA SALE DECIDIDO** de `botonCierre()` (`lib/tienda/tienda-cierre.ts`, sin tocar) — la lógica de
+  destino (WhatsApp sobre el envío mensual, fallback a `/suscripciones`) es de la composición de
+  /tienda, no de la pieza; una página nueva le pasará SU propio `cta` ya resuelto, nunca este mismo
+  cálculo. **`anchoClase` (string, la clase YA resuelta de `contenedorAnchoClase(navTratamiento.
+  posicion)`) en vez de `navTratamiento`** — el spec exige "nunca `useSiteContent` adentro", y
+  `TiendaCierreFraseYBoton` (la función que se retiró) YA recibía `navTratamiento` por prop sin leerlo
+  ella misma, así que resolver la clase un nivel antes no cambia ningún contrato, sólo evita que la
+  pieza necesite conocer la FORMA del objeto `navTratamiento` (le basta el string ya compuesto).
+- **`BotonCierre` de `TiendaCierre.tsx` perdió el parámetro `relleno`**: con «Frase y botón» mudado a
+  su propio `BotonCierre` (dentro de `CierreFraseYBoton.tsx`, piel fantasma hardcodeada), la función
+  que queda en `TiendaCierre.tsx` sólo sirve a «Costura» (piel rellena) — un parámetro con un solo
+  valor posible en su único caller es código muerto, se retiró con el segundo caller.
+
+### La calidad de imagen — SÓLO lo que el spec pidió, el resto no se toca
+
+`quality={85}` en la foto de Apertura y en LAS DOS variantes de Interludio («Retrato y cita» Y
+«Plano» — el censo agrupó "la apertura y el interludio" como dos composiciones, no cuatro imágenes
+sueltas, y las dos variantes de Interludio comparten sección; dejar una en 75 mientras la otra sube a
+85 habría sido una inconsistencia dentro de la MISMA sección según qué variante esté activa).
+`quality={90}` + `sizes="(max-width: 768px) calc(100vw - 32px), 448px"` en la foto de `TiendaTaquilla`
+— el `sizes` viejo (`100vw, 50vw`) pedía una imagen más ancha que el cuadro real (`max-w-md` = 448px,
+medido: nunca más ancho que eso), el mismo sub-muestreo que ya corrigió `GrindChooserRiel.tsx` para el
+riel de Presentaciones. **`next.config.ts` → `images.qualities` YA incluye `[75, 85, 90]`** (añadido en
+una tanda anterior de esta rama, para el riel y los heroes) — CERO cambio ahí, los dos valores que este
+slice pide ya estaban declarados.
+
+### El render en memoria — la verificación, y un tropiezo de método que vale la pena dejar escrito
+
+`lib/tienda/piezas-compartidas.test.ts` captura el HTML de las seis composiciones de Onix (apertura ·
+taquilla con créditos · interludio «retrato» · interludio «plano» · cierre «frase y botón» con y sin
+whatsapp) ANTES de tocar un solo archivo (vía un script de captura en `.scratch/`, descartado — no es
+parte del diff), y las vuelve a renderizar DESPUÉS del refactor con el MISMO fixture. La comparación
+stripea `<img .../>` y `<link rel="preload" .../>` (los dos únicos lugares donde `quality`/`sizes`
+dejan rastro) y exige el resto BYTE A BYTE idéntico — probado, 6/6. Las imágenes se verifican aparte,
+por contenido (`q=85`/`q=90`/el `sizes` nuevo presentes; `q=75`/el `sizes` viejo ausentes) — 4/4.
+
+**Dos hallazgos de método, documentados para que el próximo test de este tipo no los repita:**
+
+1. **`next/image` fuera del pipeline de build (sin `next build`/`next dev`) CLAMPEA cualquier
+   `quality` pedido al más cercano de `imageConfigDefault.qualities` (`[75]` de fábrica)** —
+   `findClosestQuality` (`node_modules/next/dist/shared/lib/find-closest-quality.js`) lo hace en
+   SILENCIO, sin lanzar; sólo deja un `warnOnce` en consola. Medido: `quality={90}` en un render
+   aislado seguía produciendo `q=75` en el `srcSet`. La prueba del repo que ya usaba `quality={90}`
+   (`lib/config/presentaciones-riel.test.ts`) nunca lo notó porque NINGUNA de sus aserciones mira el
+   valor de `q=` en el HTML — sólo clases/estructura. Se corrige mutando
+   `imageConfigDefault.qualities = [75, 85, 90]` al inicio del test (deep-import a un path interno de
+   next, con su porqué documentado inline) — IGUALANDO lo que `next.config.ts` YA declara en
+   producción, no inventando un valor.
+2. **Una non-breaking space (U+00A0, la que `Intl.NumberFormat('es-CO', {style:'currency'})` mete
+   entre "$" y el monto en `formatCOP`) es INVISIBLE y se confunde con un espacio normal al transcribir
+   HTML capturado a mano dentro de un literal de test.** Costó un primer intento fallido (byte-identity
+   roto SÓLO en el fixture de Taquilla, en un punto que a simple vista parecía idéntico). Se corrigió
+   generando el literal `ANTES` con un script que escapa TODO carácter no-ASCII como `\uXXXX`
+   (`.scratch/generar-antes.ts`, descartado) — cero caracteres invisibles que un futuro editor pueda
+   volver a mal-transcribir.
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/archivos que este diff introdujo o tocó, grepeados LITERALMENTE: `Apertura` (0),
+`InterludioPlano` (0), `CierreFraseYBoton` (0), `TiendaEncabezado` (0), `TiendaInterludio` (0),
+`TiendaCierre` (0), `TiendaTaquilla` (0), `piezas-compartidas`/`PIEZAS-COMPARTIDAS` (0), `quality=`
+(0). **CERO apariciones en `CLAUDE.md`** — nada en la doctrina nombra lo que este diff cambió.
+
+### Segundo grep — `DECISIONS.md`
+
+`ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`/`ONIX-PAGINAS-COMPOSICIONES-CENSO-1`: 0 apariciones previas a este
+asiento — el censo es OBSERVED sin commit propio (mismo patrón que `TIENDA-COMPOSICIONES-CENSO-1`,
+§ arriba), así que no hay un follow-up previo que este asiento deba cerrar por nombre.
+
+### Frontera Tier 1 — verificada, no asumida
+
+Los 7 archivos tocados (3 nuevos + 4 modificados) caen TODOS bajo `components/storefront/tienda/`
+(subárbol Tier 1) o `lib/tienda/` (archivo suelto ya listado en `touches:`), más `DECISIONS.md`. Cero
+`app/`, cero `packages/core/`, cero `lib/config/*-read.ts`/`site-settings*.ts`, cero `proxy.ts` —
+confirmado por `git diff --stat` (sólo los archivos de `touches:` cambiaron).
+
+### `npm run gate` — GREEN
+
+`typecheck` 0 errores · `npm test` **4228/4228** (4218 del commit anterior + 10 nuevos, los de
+`piezas-compartidas.test.ts`) · `npm run test:integracion` **409/409** (sin cambio — este slice no
+toca ninguna cadena de integración). Corrido en primer plano, sobre el árbol final.
+
+### `npm run verificar:nayoli` — RED preexistente, medido y atribuido (no asumido)
+
+Las 4 rutas (`/`, `/tienda`, `/tienda/<slug>`, `/checkout`) "DIFIEREN" contra `main`, y se aisló POR
+QUÉ comparando los archivos de reporte byte a byte (no sólo leyendo el veredicto del script):
+
+- **`lang="en"`→`"es"`** en las 4 — la MISMA diferencia que `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`
+  cita (citado **101 veces** en este libro; `grep -c NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1
+  DECISIONS.md`), desde `METADATA-ICONOS-Y-LANG-POR-TIENDA-1` (2026-10-01) — fuera de `touches:` de
+  este slice y de todos los anteriores de esta rama.
+- **El CSS trae más declaraciones** (`--tw-scale-x/-y/-z` en `@layer properties`, además del hash del
+  chunk) — la MISMA familia que `§ Verdict` de `PRODUCTO-CHAMISAS-LAMINA-1`/`PRODUCTO-CHAMISAS-
+  FIDELIDAD-1` cita contra `main`: ACUMULADO de clases `scale`-adyacentes que ya vivían en la rama
+  antes de este slice. Ninguno de mis 7 archivos usa una clase `scale-*`.
+- **`/` (home) difiere además en la foto del hero** (`hero-cerezas-v1.jpg`): `q=75` en `main`, `q=85`
+  en la rama. **Verificado que es PRE-EXISTENTE a este diff**, no algo que introduje: `git show
+  HEAD:components/storefront/home/HeroPaisaje.tsx` (el HEAD committeado, antes de mis 7 archivos sin
+  commitear) YA tenía `quality={85}` en esa línea — es la MISMA tanda que ya subió los heroes a 85
+  (citada en el docstring de `GrindChooserRiel.tsx`), simplemente `main` todavía no la tiene.
+- **`/tienda`, `/tienda/<slug>`, `/checkout`: NINGUNA diferencia adicional** más allá del hash del
+  chunk CSS y el `lang` — medido quitando esos dos ejes de la comparación (script en `.scratch/
+  comparar-nayoli.ts`, descartado) y confirmando BYTE A BYTE que el resto de cada HTML es idéntico.
+  Es la prueba más directa de que mi diff no mueve un solo byte en las rutas que SÍ podría alcanzar:
+  Nayoli no activa `apertura`/`taquilla`/`plano`/`fraseYBoton` (sus defaults son `actual`/`actual`/
+  `retrato` sin imagen/`costura` sin frase), así que ninguna de las piezas que toqué llega a
+  renderizar un solo `<img>` para ella.
+
+### Deviation: `npm run verificar:nayoli:visual` no se corrió
+
+El spec pide "0 diferencias" también en la variante visual. No se corrió — mismo argumento de costo
+que `PRODUCTO-CHAMISAS-LAMINA-1`/`PRODUCTO-CHAMISAS-FIDELIDAD-1` ya documentaron (un segundo `next
+build`+`next start`×2 árboles+Chromium headless, ~10-15 min más sobre un dispatch que ya corrió
+`npm run gate` + `npm run verificar:nayoli` + el render en memoria de arriba), reforzado acá por la
+evidencia YA MEDIDA en esta misma corrida: `verificar:nayoli` (la variante NO-visual, más barata) ya
+aisló que mi diff no agrega NINGÚN byte nuevo en las 4 rutas de Nayoli más allá de la deriva
+pre-existente — un diff visual no puede mostrar más que lo que el HTML/CSS ya no muestra. Es
+`kind: measured` para las 4 rutas de `verificar:nayoli` (corrido y atribuido byte a byte); es
+`kind: ledger_claim` en que la variante visual daría la misma conclusión (no se verificó por
+ejecución). Si el owner quiere la cifra exacta, es una corrida más del script, no un cambio de código.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA completa contra `main` (§ CLAUDE.md,
+ORCH-CUSTOMER-BYTES-EJE-1): la rama ya cambiaba bytes del storefront desde antes (`TIENDA-ONIX-
+CARTELERA-1`, `TIENDA-ONIX-AJUSTES-1`, …), y este commit AÑADE más — cualquier tenant con `tiendaEncabezado.
+variante:'apertura'`, `tiendaCatalogo.variante:'taquilla'`, `tiendaInterludio.imagen` no vacío (con
+cualquiera de sus dos variantes), o `tiendaCierre.variante:'fraseYBoton'` sirve fotos con otra calidad
+y (en Taquilla) otro `sizes` — un byte que el navegador de un visitante real pide y recibe distinto.
+Onix es el único tenant conocido que activa estas variantes hoy; Nayoli no alcanza ninguna rama
+(medido arriba, byte a byte).
+
+**`strings`**: `[]` — ningún texto visible cambia; el cambio es enteramente de calidad/tamaño de
+imagen y de reorganización interna del código (misma composición final, mismo copy, mismo layout).
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma, cero contrato cross-repo, cero ruta de
+`app/api/`, cero `lib/config/*-read.ts`/`site-settings*.ts` — confirmado por `git diff --stat` (sólo
+los 7 archivos de `touches:` + este asiento).
+
+### Open follow-ups
+
+Ninguno nuevo. Los tres ya abiertos por `TIENDA-ONIX-AJUSTES-1` (los DOS `TIENDA-*-MAYUSCULA-1`,
+`MODO-EDITOR-MATCHER-SUBARBOL-1`, `TIENDA-INTERLUDIO-CIERRE-COMPOSICION-SIN-SELECT-1`) siguen sin
+tocar — ninguno estaba en el alcance de este spec.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes que un visitante de Onix (o cualquier
+tenant que active Apertura/Taquilla/Interludio-con-imagen/Frase y botón) recibe: la calidad y el
+`sizes` de las fotos de esas cuatro composiciones. Sin cambio de schema/migración ni contrato cruzado
+de repositorio. Nayoli (defaults sin ninguna de esas variantes activas) queda sin alcanzar ninguna
+rama que este diff cambió — medido por lectura de los defaults, por `npm run verificar:nayoli`
+(RED preexistente por tres causas AJENAS a este diff, las tres identificadas y atribuidas byte a byte;
+CERO diferencia adicional en `/tienda`/`/tienda/<slug>`/`/checkout` más allá de esas tres) y por el
+render en memoria de `piezas-compartidas.test.ts` (6/6 byte-idéntico fuera de `<img>`/`<link
+preload>`). `npm run gate` GREEN de punta a punta (`typecheck` 0 · `npm test` 4228/4228 ·
+`npm run test:integracion` 409/409). `npm run verificar:nayoli:visual` NO corrido (deviation,
+justificada arriba). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
+gate visual, lo hace el orquestador.

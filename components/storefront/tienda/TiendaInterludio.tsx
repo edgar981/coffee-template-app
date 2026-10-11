@@ -7,8 +7,9 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
-import { REGISTRY, seccionEsVisible, type TiendaInterludioContent } from '@/lib/config/site-content-defaults';
+import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { contenedorAnchoClase } from '@/lib/config/themes';
+import InterludioPlano from '@/components/storefront/tienda/InterludioPlano';
 
 export default function TiendaInterludio() {
   const { tiendaInterludio, navTratamiento } = useSiteContent();
@@ -20,9 +21,10 @@ export default function TiendaInterludio() {
   if (!tiendaInterludio.imagen) return null;
 
   // LA COMPOSICIÓN «PLANO» (§ TIENDA-ONIX-CARTELERA-1) — una foto documental a sangre, con un pie en
-  // micro-mayúsculas; SIN el arco ni la cita atribuida de «Retrato y cita».
+  // micro-mayúsculas; SIN el arco ni la cita atribuida de «Retrato y cita». PIEZA COMPARTIDA
+  // (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1): vive en `InterludioPlano.tsx`, presentacional.
   if (tiendaInterludio.variante === 'plano') {
-    return <TiendaInterludioPlano tiendaInterludio={tiendaInterludio} preview={preview} />;
+    return <InterludioPlano imagen={tiendaInterludio.imagen} pie={tiendaInterludio.pie} preview={preview} />;
   }
 
   return (
@@ -37,8 +39,11 @@ export default function TiendaInterludio() {
           LECTURA angosto (`max-w-sm`) se queda, anidado adentro. */}
       <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
         <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+          {/* QUALITY 85 (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1, el pedido del owner del 2026-10-11) —
+              antes sin `quality` propio (default 75). `85` ya está en `next.config.ts` →
+              `images.qualities`. */}
           <div className="relative w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
-            <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" className="object-cover" />
+            <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" quality={85} className="object-cover" />
           </div>
           {tiendaInterludio.cita && (
             <p className="mt-6 font-playfair text-2xl italic text-[var(--sf-tinta)]">&ldquo;{tiendaInterludio.cita}&rdquo;</p>
@@ -48,41 +53,6 @@ export default function TiendaInterludio() {
           )}
         </div>
       </div>
-    </motion.section>
-  );
-}
-
-// LA COMPOSICIÓN «PLANO» (§ TIENDA-ONIX-CARTELERA-1, el spec: "Foto documental a sangre... 21:9 en
-// desktop y 4:5 en el celular. Pie en micro-mayúsculas"). `page.tsx` monta `TiendaInterludio` FUERA
-// de cualquier contenedor de ancho máximo (§ `TiendaAlbumExtra`), así que esta sección ya hereda el
-// ancho completo de la página sin necesitar un truco de breakout propio.
-function TiendaInterludioPlano({
-  tiendaInterludio, preview,
-}: {
-  tiendaInterludio: TiendaInterludioContent;
-  preview: boolean;
-}) {
-  return (
-    <motion.section
-      initial={preview ? false : { opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="relative aspect-[4/5] w-full overflow-hidden sm:aspect-[21/9]"
-    >
-      <Image
-        src={tiendaInterludio.imagen}
-        alt={tiendaInterludio.pie || ''}
-        fill
-        sizes="100vw"
-        className="object-cover"
-      />
-      {tiendaInterludio.pie && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--sf-tinta)]/70 to-transparent px-6 py-6 sm:px-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)]/90">
-            {tiendaInterludio.pie}
-          </p>
-        </div>
-      )}
     </motion.section>
   );
 }

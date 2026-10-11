@@ -9,9 +9,10 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
-import { REGISTRY, seccionEsVisible, type TiendaCierreContent } from '@/lib/config/site-content-defaults';
+import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import { tiendaCierreVisible, botonCierre, type CierreCta } from '@/lib/tienda/tienda-cierre';
+import CierreFraseYBoton from '@/components/storefront/tienda/CierreFraseYBoton';
 
 const MENSAJE_WHATSAPP = 'Hola, quiero más información sobre el envío mensual.';
 
@@ -30,9 +31,18 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
 
   // LA COMPOSICIÓN «FRASE Y BOTÓN» (§ TIENDA-ONIX-CARTELERA-1) — banda crema con una frase en serif
   // mayúscula y un botón fantasma, SIN el marco punteado ni la franja de tejido de «Costura». CERO
-  // campos propios: reusa `frase`/`boton` tal cual.
+  // campos propios: reusa `frase`/`boton` tal cual. PIEZA COMPARTIDA
+  // (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1): vive en `CierreFraseYBoton.tsx`, presentacional — el
+  // `cta` ya sale DECIDIDO de `botonCierre()` (arriba), que sigue siendo lógica de ESTA composición.
   if (tiendaCierre.variante === 'fraseYBoton') {
-    return <TiendaCierreFraseYBoton tiendaCierre={tiendaCierre} cta={cta} preview={preview} navTratamiento={navTratamiento} />;
+    return (
+      <CierreFraseYBoton
+        frase={tiendaCierre.frase}
+        cta={cta}
+        preview={preview}
+        anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+      />
+    );
   }
 
   // LA TARJETA ES ANCHA (§ el spec, item 3) — el MISMO ancho de contenido que el resto de la
@@ -73,7 +83,7 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
               debajo del otro. Antes: `text-center` con el botón apilado siempre debajo. */}
           <div className="flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-playfair text-xl text-[var(--sf-tinta)] sm:text-2xl">{tiendaCierre.frase}</p>
-            <BotonCierre cta={cta} preview={preview} relleno />
+            <BotonCierre cta={cta} preview={preview} />
           </div>
         </div>
       </div>
@@ -81,19 +91,18 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
   );
 }
 
-/** EL BOTÓN DEL CIERRE (§ el spec, item 3) — SIN WhatsApp cargado, NO desaparece: `botonCierre`
- *  (lib/tienda/tienda-cierre.ts) ya decidió el destino (WhatsApp, /suscripciones, o ninguno); este
- *  componente sólo lo pinta. `relleno` distingue las dos pieles que las dos composiciones ya tenían
- *  (Costura: fondo sólido `--sf-tinta`; Frase y botón: fantasma con borde) — mismo tratamiento visual
- *  de antes, ahora alimentado por el destino compartido. EL DESTINO DECIDE EL ELEMENTO: `/suscripciones`
- *  —una ruta interna— usa `<Link>` (igual que el resto de los CTA del storefront, § `NosotrosCierre.tsx`);
- *  WhatsApp sigue siendo un `<a>` externo, con `target="_blank"` salvo en la vista previa del editor. */
-function BotonCierre({ cta, preview, relleno }: { cta: CierreCta | null; preview: boolean; relleno: boolean }) {
+/** EL BOTÓN DEL CIERRE «COSTURA» (§ el spec, item 3) — SIN WhatsApp cargado, NO desaparece:
+ *  `botonCierre` (lib/tienda/tienda-cierre.ts) ya decidió el destino (WhatsApp, /suscripciones, o
+ *  ninguno); este componente sólo lo pinta, con la piel RELLENA de «Costura» (fondo sólido
+ *  `--sf-tinta`). La piel fantasma de «Frase y botón» (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) vive
+ *  ahora en su propio `BotonCierre` dentro de `CierreFraseYBoton.tsx` — esta función dejó de
+ *  servir a las dos composiciones, así que el parámetro `relleno` que las distinguía se retiró con
+ *  el segundo caller. EL DESTINO DECIDE EL ELEMENTO: `/suscripciones` —una ruta interna— usa
+ *  `<Link>` (igual que el resto de los CTA del storefront, § `NosotrosCierre.tsx`); WhatsApp sigue
+ *  siendo un `<a>` externo, con `target="_blank"` salvo en la vista previa del editor. */
+function BotonCierre({ cta, preview }: { cta: CierreCta | null; preview: boolean }) {
   if (!cta) return null;
-  const clasePiel = relleno
-    ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)] hover:opacity-90'
-    : 'border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
-  const clase = `sf-pildora shrink-0 cursor-pointer px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${clasePiel}`;
+  const clase = 'sf-pildora shrink-0 cursor-pointer px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] bg-[var(--sf-tinta)] text-[var(--sf-fondo)] hover:opacity-90';
   if (cta.href.startsWith('/')) {
     return <Link href={cta.href} className={clase}>{cta.label}</Link>;
   }
@@ -106,42 +115,5 @@ function BotonCierre({ cta, preview, relleno }: { cta: CierreCta | null; preview
     >
       {cta.label}
     </a>
-  );
-}
-
-// LA COMPOSICIÓN «FRASE Y BOTÓN» (§ TIENDA-ONIX-CARTELERA-1, la referencia aprobada: banda plana,
-// sin marco ni franja, frase a la izquierda y el botón fantasma al lado). Headless, como el resto —
-// sin wrapper propio más allá del necesario para esta composición. El ANCHO no cambia en esta tanda
-// (`max-w-4xl`, el literal de siempre): el spec sólo fija el ancho de «Costura» contra la maqueta
-// aprobada (§ item 3); ensancharla también habría sido una decisión visual nueva, sin maqueta que
-// la respalde.
-function TiendaCierreFraseYBoton({
-  tiendaCierre, cta, preview, navTratamiento,
-}: {
-  tiendaCierre: TiendaCierreContent;
-  cta: CierreCta | null;
-  preview: boolean;
-  navTratamiento: { posicion: boolean };
-}) {
-  return (
-    <motion.section
-      initial={preview ? false : { opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="py-16"
-    >
-      {/* EL MARGEN LATERAL (§ TIENDA-ONIX-AJUSTES-1) — faltaba del todo: en el celular esta banda
-          quedaba pegada a los dos bordes mientras el resto de la página respeta
-          `contenedorAnchoClase`. El `max-w-4xl` del spec (§ el comentario de arriba, "el ancho NO
-          cambia en esta tanda") se queda, anidado adentro. */}
-      <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
-        <div className="mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-playfair text-3xl uppercase leading-tight text-[var(--sf-tinta)] sm:text-4xl">
-            {tiendaCierre.frase}
-          </p>
-          <BotonCierre cta={cta} preview={preview} relleno={false} />
-        </div>
-      </div>
-    </motion.section>
   );
 }

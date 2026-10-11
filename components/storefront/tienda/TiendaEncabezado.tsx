@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { getCatalog } from '@/lib/api/products';
 import type { Product } from '@/types/product';
@@ -9,7 +8,7 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { mostrarSelectorAntojo, pildorasAntojo } from '@/lib/tienda/antojo';
 import { lavadoLamina } from '@/lib/tienda/laminas';
-import Movimiento from '@/components/storefront/movimiento/Movimiento';
+import Apertura from '@/components/storefront/tienda/Apertura';
 import type { TiendaEncabezadoContent } from '@/lib/config/site-content-defaults';
 
 // EL FALLBACK DEL TÍTULO (§ TIENDA-ONIX-CARTELERA-1): `titulo` es OPCIONAL desde este slice (ver el
@@ -165,6 +164,12 @@ function TiendaCarta({
 // no un eje `animacion` elegible — el spec no pide que se pueda apagar por separado, y
 // `useMovimiento` ya respeta `prefers-reduced-motion`/el editor/la vista previa sin que este
 // componente repita ninguno de los tres gates.
+//
+// PIEZA COMPARTIDA (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1): el marco (`<section>` + foto + rótulos +
+// `Movimiento`/H1) vive ahora en `components/storefront/tienda/Apertura.tsx`, presentacional —
+// recibe todo por props. ESTA función se queda como la composición de /tienda: resuelve el fallback
+// de título (`titulo || negocio || 'Nuestra Tienda'`, lógica propia de esta sección, no de la
+// pieza) y le pasa a `Apertura` el `alto` de siempre por default (sin override acá).
 function TiendaApertura({
   tiendaEncabezado, negocio,
 }: {
@@ -178,35 +183,11 @@ function TiendaApertura({
   const titulo = tiendaEncabezado.titulo || negocio || TITULO_POR_DEFECTO;
 
   return (
-    <section className="relative flex h-[85vh] min-h-[480px] w-full flex-col overflow-hidden bg-[var(--sf-tinta)]">
-      {tiendaEncabezado.imagen && (
-        <>
-          <Image
-            src={tiendaEncabezado.imagen}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-[var(--sf-tinta)]/40 via-transparent to-[var(--sf-tinta)]/80" />
-        </>
-      )}
-
-      {(tiendaEncabezado.rotuloIzquierda || tiendaEncabezado.rotuloDerecha) && (
-        <div className="relative z-10 flex items-start justify-between px-6 pt-8 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)]/60 sm:px-10">
-          <span>{tiendaEncabezado.rotuloIzquierda}</span>
-          <span>{tiendaEncabezado.rotuloDerecha}</span>
-        </div>
-      )}
-
-      <div className="relative z-10 mt-auto overflow-hidden pb-6 sm:pb-10">
-        <Movimiento id="T06" as="div">
-          <h1 className="sf-movimiento-gigante select-none whitespace-nowrap font-playfair text-[clamp(60px,14vw,220px)] uppercase leading-[0.82] text-[var(--sf-fondo)]">
-            {titulo}
-          </h1>
-        </Movimiento>
-      </div>
-    </section>
+    <Apertura
+      imagen={tiendaEncabezado.imagen}
+      rotuloIzquierda={tiendaEncabezado.rotuloIzquierda}
+      rotuloDerecha={tiendaEncabezado.rotuloDerecha}
+      titulo={titulo}
+    />
   );
 }

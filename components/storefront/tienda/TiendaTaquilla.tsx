@@ -71,13 +71,22 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
             del centro con mucho margen de estudio alrededor, así que el recorte que `cover` aplica
             en un cuadro casi-cuadrado no toca la bolsa. */}
         <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden bg-[var(--sf-superficie)]">
+          {/* CALIDAD 90 + `sizes` REAL (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1, el pedido del owner del
+              2026-10-11) — antes sin `quality` propio (default 75) y con un `sizes` que declaraba
+              100vw/50vw cuando el cuadro mide como máximo 448px (`max-w-md`, con su `mx-auto` sin
+              padding propio): el navegador pedía una imagen de más ancho del que iba a mostrar, el
+              mismo sub-muestreo que ya corrigió `GrindChooserRiel.tsx` para el riel. `90` es el
+              MISMO que ya usa ese riel (por encima del 85 de los heroes) — el empaque de producto es
+              la pieza que esta composición existe para vender. Los dos valores ya están en
+              `next.config.ts` → `images.qualities`. */}
           {producto.imagen ? (
             <Image
               key={producto.id}
               src={producto.imagen}
               alt={producto.nombre}
               fill
-              sizes="(max-width: 768px) 100vw, 50vw"
+              sizes="(max-width: 768px) calc(100vw - 32px), 448px"
+              quality={90}
               className="object-cover transition-opacity duration-200"
             />
           ) : null}
