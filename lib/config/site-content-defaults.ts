@@ -532,8 +532,52 @@ export interface BrandStoryContent {
   // (§ CORTE-BRANDSTORY-COLLAGE-1) es la segunda clave — eyebrow+título centrados, el mismo collage a
   // lo ancho, el párrafo debajo (§ REGISTRY.brandStory.variantes). Escalar de SECCIÓN —como
   // `visible`—, no un `campos`: no lo toca el loop requerido/opcional del resolver. Gemela de
-  // `hero.variante`/`presentaciones.variante`.
+  // `hero.variante`/`presentaciones.variante`. 'fichaDeFinca' (§ HISTORIA-FICHA-DE-FINCA-1) es la
+  // TERCERA clave, ver los campos que siguen.
   variante: string;
+  // ─── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — SÓLO tienen efecto bajo esa composición.
+  // `titulo`/`eyebrow`/`ctaLabel`/`ctaDestino` arriba se REUSAN tal cual (la maqueta aprobada lo pide
+  // así: "Titular, ceja y enlace reusan los campos que ya existen si los hay"); lo que sigue es NUEVO.
+  //
+  // CAMPOS PLANOS, NO REPEATER — y no es la bifurcación habitual de cardinalidad (§ CLAUDE.md, "La
+  // BIFURCACIÓN de cardinalidad"): un repeater en `REGISTRY.brandStory` sería una mina real, no sólo
+  // una renuncia a byte-identidad. `seccionEsVisible` aplica `if (def.repeater && !tieneItems) return
+  // false` — HIDE-ON-EMPTY GANA SOBRE TODO, para la SECCIÓN completa, no por composición. Como
+  // `columnas`/`centrada` nunca llenan un repeater de filas (no tienen de dónde), un repeater acá
+  // OCULTARÍA brandStory para TODA tienda que hoy lo muestra —Nayoli incluida— en el instante en que
+  // esta composición naciera. Por eso las 2-6 filas son 18 campos planos (fila1..6 × rótulo/valor/
+  // subLínea), igual que Presentaciones 2-4 y Origen.
+  //
+  // `entrada` es el párrafo corto de esta composición — DISTINTO de `parrafo1`/`parrafo2` (los de
+  // columnas/centrada): la maqueta lo nombra como un campo propio, no un alias.
+  entrada: string;
+  fila1Rotulo: string; fila1Valor: string; fila1SubLinea: string;
+  fila2Rotulo: string; fila2Valor: string; fila2SubLinea: string;
+  fila3Rotulo: string; fila3Valor: string; fila3SubLinea: string;
+  fila4Rotulo: string; fila4Valor: string; fila4SubLinea: string;
+  fila5Rotulo: string; fila5Valor: string; fila5SubLinea: string;
+  fila6Rotulo: string; fila6Valor: string; fila6SubLinea: string;
+  // El rango de altitud (opcional, los TRES juntos): sin min Y max, no hay franja ni cotas en la
+  // ilustración (§ `lib/storefront/historia-ficha.ts`). TEXTO, no number — mismo criterio que
+  // `OrigenContent.statNumeroN`: el formato ("1.650", con separador de miles) es del dueño, el sistema
+  // no lo valida ni lo calcula.
+  altitudMin: string;
+  altitudMax: string;
+  altitudUnidad: string;
+  // El rótulo superior de la ilustración/foto (p. ej. "Supatá · Cundinamarca") y la identidad del
+  // punto dentro de la franja — nombre + sub-línea (p. ej. "Finca Nayoli" / "vereda Providencia").
+  lugar: string;
+  nombrePunto: string;
+  subLineaPunto: string;
+  // DOS pies DISTINTOS, y confundirlos es fácil: `pieIlustracion` es el texto DIBUJADO DENTRO del SVG
+  // (p. ej. "Castillo · Lavado", la línea inferior de la ilustración — nunca se muestra si el medio es
+  // Foto); `pieMedio` es el `<figcaption>` DEBAJO de la figura entera (ilustración O foto), igual en
+  // los dos medios.
+  pieIlustracion: string;
+  pieMedio: string;
+  // «Medio»: Ilustración (canónica, generada del dato) o Foto (reusa `imagen1`, 4:5, sin radio) — UN
+  // ESCALAR clampado, mismo mecanismo que `marquesina.imagenTipo` (§ REGISTRY.brandStory.escalares).
+  medio: 'ilustracion' | 'foto';
 }
 
 // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, medido: ORIGEN-BANDA-CENSO-1) — grid de 2 fotos + copy
@@ -2453,6 +2497,26 @@ export const DEFAULTS: SiteContentData = {
     ctaDestino: '',
     // La canónica (§ eje 5e, TEMAS-P2-BRANDSTORY-1): Nayoli queda byte-idéntica al collage de hoy.
     variante: 'columnas',
+    // «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — TODOS vacíos: nadie elige esta composición
+    // todavía, y "vacíos o neutros de la plantilla" (§ el spec) descarta cualquier dato de cliente
+    // (la guarda de términos de este archivo lo exige — ver el test "ningún campo de TEXTO menciona
+    // café, Nayoli..."). `medio` cae a su canónica ('ilustracion') como cualquier escalar.
+    entrada: '',
+    fila1Rotulo: '', fila1Valor: '', fila1SubLinea: '',
+    fila2Rotulo: '', fila2Valor: '', fila2SubLinea: '',
+    fila3Rotulo: '', fila3Valor: '', fila3SubLinea: '',
+    fila4Rotulo: '', fila4Valor: '', fila4SubLinea: '',
+    fila5Rotulo: '', fila5Valor: '', fila5SubLinea: '',
+    fila6Rotulo: '', fila6Valor: '', fila6SubLinea: '',
+    altitudMin: '',
+    altitudMax: '',
+    altitudUnidad: '',
+    lugar: '',
+    nombrePunto: '',
+    subLineaPunto: '',
+    pieIlustracion: '',
+    pieMedio: '',
+    medio: 'ilustracion',
   },
   // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). NACE OFF
   // (`visible:false`) — igual que spotlight nació OFF mientras estuvo fuera de `BANDA_IDS`, por la
@@ -3301,14 +3365,24 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // el párrafo cerrando abajo, medida contra `docs/prototipos/cafeone/` (§ su comentario de
     // cabecera en `BrandStoryCentrada.tsx` — qué piezas del prototipo esta variante NO expresa).
     // `BrandStory.tsx` ganó su dispatcher en el mismo slice.
-    // `noUniformes`: NO en NINGUNA de las dos — la banda es de un solo tono sólido
-    // (`bg-[var(--sf-banda,var(--sf-tinta))]`) en las dos composiciones, nunca bi-tonal.
-    variantes: { claves: ['columnas', 'centrada'], canonica: 'columnas' },
+    // `noUniformes`: NO en NINGUNA de las tres — la banda es de un solo tono sólido
+    // (`bg-[var(--sf-banda,var(--sf-tinta))]`) en las tres composiciones, nunca bi-tonal.
+    //
+    // 'fichaDeFinca' (§ HISTORIA-FICHA-DE-FINCA-1) es la TERCERA clave — titular corto + entrada +
+    // ficha de 2-6 filas (rótulo/valor) + una ilustración de montañas (o foto) con la franja de
+    // altitud. Las tiendas que no la elijan quedan byte-idénticas: ninguno de los campos nuevos de
+    // abajo lo leen `BrandStoryColumnas.tsx`/`BrandStoryCentrada.tsx`.
+    variantes: { claves: ['columnas', 'centrada', 'fichaDeFinca'], canonica: 'columnas' },
+    // «Medio» (§ HISTORIA-FICHA-DE-FINCA-1): Ilustración (canónica) o Foto — ESCALAR clampado, mismo
+    // mecanismo que `marquesina.escalares.imagenTipo`. Sin efecto fuera de 'fichaDeFinca'.
+    escalares: { medio: { claves: ['ilustracion', 'foto'], canonica: 'ilustracion' } },
     // CARDINALIDAD VARIABLE 1-4 (§ CORTE-HISTORIA-COLOR-FOTOS-1): `imagen1` REQUERIDO (mínimo una
     // foto — vacía cae al default); `imagen2/3/4` OPCIONALES (vacías se OMITEN, el collage se
     // reacomoda con las que haya — ambos componentes de variante filtran por valor no-vacío). Con
     // las cuatro llenas (Nayoli, y todo tenant que no las vacíe) el resultado es el collage de
     // SIEMPRE, byte-idéntico — el mismo criterio OR/opcional que ya usa `presentaciones` (§ ahí).
+    // Bajo 'fichaDeFinca' con «Medio: Foto», se reusa `imagen1` (4:5, sin radio) — ningún campo-imagen
+    // nuevo.
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -3321,6 +3395,26 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): AMBOS opcionales, vacío = sin botón.
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
+      // «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — TODOS opcionales: con `fichaDeFinca` NO
+      // elegida en ninguna tienda hoy, no hay byte-identidad que proteger con un `requerido`, y
+      // "vacíos o neutros" (§ el spec de este slice) es más simple que inventar un default genérico
+      // por fila. Vacío (rótulo O valor ausentes) → la fila no se muestra (§ `filasFicha`,
+      // lib/storefront/historia-ficha.ts).
+      entrada: 'opcional',
+      fila1Rotulo: 'opcional', fila1Valor: 'opcional', fila1SubLinea: 'opcional',
+      fila2Rotulo: 'opcional', fila2Valor: 'opcional', fila2SubLinea: 'opcional',
+      fila3Rotulo: 'opcional', fila3Valor: 'opcional', fila3SubLinea: 'opcional',
+      fila4Rotulo: 'opcional', fila4Valor: 'opcional', fila4SubLinea: 'opcional',
+      fila5Rotulo: 'opcional', fila5Valor: 'opcional', fila5SubLinea: 'opcional',
+      fila6Rotulo: 'opcional', fila6Valor: 'opcional', fila6SubLinea: 'opcional',
+      altitudMin: 'opcional',
+      altitudMax: 'opcional',
+      altitudUnidad: 'opcional',
+      lugar: 'opcional',
+      nombrePunto: 'opcional',
+      subLineaPunto: 'opcional',
+      pieIlustracion: 'opcional',
+      pieMedio: 'opcional',
     },
   },
   // LA BANDA ORIGEN (§ ORIGEN-BANDA-1, ver el docstring de `OrigenContent` arriba). `ocultable:

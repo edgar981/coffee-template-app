@@ -355,11 +355,14 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
 
   // CERRADO por EDITOR-TIENDA-COMPOSICION-1: `hero.variante` ganó su control (`HERO.composiciones`
   // en tienda-secciones.ts — la vista nueva «¿Cómo se arma tu hero?») — su entrada de exención se
-  // retiró de acá. Las otras TRES secciones con `variante` siguen sin control; su `cierra` se
-  // re-etiquetó de `PANEL-EDITOR-VARIANTES-COMPOSICION-1` (ya usado por ESTE slice, que sólo cubrió
+  // retiró de acá. Las otras TRES secciones con `variante` seguían sin control; su `cierra` se
+  // re-etiquetó de `PANEL-EDITOR-VARIANTES-COMPOSICION-1` (ya usado por ESE slice, que sólo cubrió
   // el hero) a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`, para que el próximo slice que las cierre no
   // cite un id que ya quedó asociado a otro trabajo.
-  { campo: 'brandStory.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
+  //
+  // CERRADO por HISTORIA-FICHA-DE-FINCA-1: `brandStory.variante` ganó su control
+  // (`BRAND_STORY.composiciones` en tienda-secciones.ts — el mismo select nativo, ahora con TRES
+  // claves) — su entrada de exención se retiró de acá. Quedan DOS.
   { campo: 'presentaciones.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
   { campo: 'subscriptionCTA.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
 

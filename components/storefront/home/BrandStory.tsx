@@ -4,6 +4,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import BrandStoryColumnas from "@/components/storefront/home/BrandStoryColumnas";
 import BrandStoryCentrada from "@/components/storefront/home/BrandStoryCentrada";
+import BrandStoryFichaDeFinca from "@/components/storefront/home/BrandStoryFichaDeFinca";
 
 // "Nuestra Historia" — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ eje 5e, CORTE-BRANDSTORY-COLLAGE-1).
 // Hasta este slice `brandStory.variantes.claves` tenía UNA sola clave —la canónica—, así que este
@@ -21,6 +22,9 @@ import BrandStoryCentrada from "@/components/storefront/home/BrandStoryCentrada"
 const VARIANTES: Record<string, typeof BrandStoryColumnas> = {
   columnas: BrandStoryColumnas,
   centrada: BrandStoryCentrada,
+  // «Ficha de finca» (§ HISTORIA-FICHA-DE-FINCA-1): titular corto + entrada + ficha de 2-6 filas +
+  // una ilustración de montañas (o foto). Mismo dispatch, sin tocar el gate de arriba.
+  fichaDeFinca: BrandStoryFichaDeFinca,
 };
 
 export default function BrandStory({ style }: { style?: React.CSSProperties } = {}) {

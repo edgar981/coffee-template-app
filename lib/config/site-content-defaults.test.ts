@@ -1350,23 +1350,62 @@ test('brandStory: una `variante` guardada fuera del set cae a la canónica', () 
   assert.equal(r.brandStory.variante, 'columnas');
 });
 
-test('REGISTRY.brandStory declara `variantes` con DOS claves (columnas/centrada), la canónica "columnas", y SIN `noUniformes` (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
-  assert.deepEqual(REGISTRY.brandStory.variantes, { claves: ['columnas', 'centrada'], canonica: 'columnas' });
+test('REGISTRY.brandStory declara `variantes` con TRES claves (columnas/centrada/fichaDeFinca), la canónica "columnas", y SIN `noUniformes` (§ CORTE-BRANDSTORY-COLLAGE-1, ampliada por § HISTORIA-FICHA-DE-FINCA-1)', () => {
+  assert.deepEqual(REGISTRY.brandStory.variantes, { claves: ['columnas', 'centrada', 'fichaDeFinca'], canonica: 'columnas' });
 });
 
-test('resolverVariante con las claves de brandStory: ausente/vacío/null/basura → "columnas"; "centrada" se respeta (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
+test('resolverVariante con las claves de brandStory: ausente/vacío/null/basura → "columnas"; "centrada"/"fichaDeFinca" se respetan (§ CORTE-BRANDSTORY-COLLAGE-1, § HISTORIA-FICHA-DE-FINCA-1)', () => {
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, undefined), 'columnas');
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, ''), 'columnas');
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, null), 'columnas');
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'foo'), 'columnas');
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'columnas'), 'columnas');
   assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'centrada'), 'centrada');
+  assert.equal(resolverVariante(REGISTRY.brandStory.variantes!, 'fichaDeFinca'), 'fichaDeFinca');
 });
 
 test('brandStory: una `variante` guardada "centrada" se respeta, y resuelve igual que "columnas" (§ CORTE-BRANDSTORY-COLLAGE-1)', () => {
   const r = resolverSiteContent({ brandStory: { variante: 'centrada' } });
   assert.equal(r.brandStory.variante, 'centrada');
 });
+
+// ── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — tercera composición, campos nuevos SIEMPRE
+// vacíos/neutros en DEFAULTS, y SIN efecto sobre columnas/centrada (byte-identidad) ───────────────
+
+test('brandStory: una `variante` guardada "fichaDeFinca" se respeta', () => {
+  const r = resolverSiteContent({ brandStory: { variante: 'fichaDeFinca' } });
+  assert.equal(r.brandStory.variante, 'fichaDeFinca');
+});
+
+test('REGISTRY.brandStory declara el escalar `medio` (ilustracion/foto), canónica "ilustracion"', () => {
+  assert.deepEqual(REGISTRY.brandStory.escalares, { medio: { claves: ['ilustracion', 'foto'], canonica: 'ilustracion' } });
+});
+
+test('brandStory: `medio` ausente/basura → "ilustracion"; "foto" se respeta', () => {
+  assert.equal(resolverSiteContent({}).brandStory.medio, 'ilustracion');
+  assert.equal(resolverSiteContent({ brandStory: { medio: 'basura' } }).brandStory.medio, 'ilustracion');
+  assert.equal(resolverSiteContent({ brandStory: { medio: 'foto' } }).brandStory.medio, 'foto');
+});
+
+test('DEFAULTS.brandStory: los 27 campos nuevos de la ficha de finca nacen VACÍOS — nada que elegir todavía', () => {
+  const b = DEFAULTS.brandStory;
+  assert.equal(b.entrada, '');
+  for (const n of [1, 2, 3, 4, 5, 6] as const) {
+    assert.equal(b[`fila${n}Rotulo`], '');
+    assert.equal(b[`fila${n}Valor`], '');
+    assert.equal(b[`fila${n}SubLinea`], '');
+  }
+  assert.equal(b.altitudMin, '');
+  assert.equal(b.altitudMax, '');
+  assert.equal(b.altitudUnidad, '');
+  assert.equal(b.lugar, '');
+  assert.equal(b.nombrePunto, '');
+  assert.equal(b.subLineaPunto, '');
+  assert.equal(b.pieIlustracion, '');
+  assert.equal(b.pieMedio, '');
+  assert.equal(b.medio, 'ilustracion');
+});
+
 
 // ── EL HERO GANA VARIANTES (§ EJE-5-VARIANTES-HERO): segunda sección con `variantes`, gemela de
 // Presentaciones (§ eje 5e) ──────────────────────────────────────────────────────────────────────

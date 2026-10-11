@@ -185,6 +185,26 @@ const brandStoryEditableSchema = z.object({
   ctaLabel: z.string().optional(),
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   variante: z.string().optional(),
+  // «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — TODOS `z.string()` SOFT, mismo criterio que el
+  // resto de este schema: el resolver decide requerido/opcional, acá sólo hay que sobrevivir el
+  // parse (si no, zod los STRIPPEA en silencio al guardar, § #65-B). `medio` es el escalar
+  // clampado, igual que `marquesinaEditableSchema.imagenTipo`.
+  entrada: z.string().optional(),
+  fila1Rotulo: z.string().optional(), fila1Valor: z.string().optional(), fila1SubLinea: z.string().optional(),
+  fila2Rotulo: z.string().optional(), fila2Valor: z.string().optional(), fila2SubLinea: z.string().optional(),
+  fila3Rotulo: z.string().optional(), fila3Valor: z.string().optional(), fila3SubLinea: z.string().optional(),
+  fila4Rotulo: z.string().optional(), fila4Valor: z.string().optional(), fila4SubLinea: z.string().optional(),
+  fila5Rotulo: z.string().optional(), fila5Valor: z.string().optional(), fila5SubLinea: z.string().optional(),
+  fila6Rotulo: z.string().optional(), fila6Valor: z.string().optional(), fila6SubLinea: z.string().optional(),
+  altitudMin: z.string().optional(),
+  altitudMax: z.string().optional(),
+  altitudUnidad: z.string().optional(),
+  lugar: z.string().optional(),
+  nombrePunto: z.string().optional(),
+  subLineaPunto: z.string().optional(),
+  pieIlustracion: z.string().optional(),
+  pieMedio: z.string().optional(),
+  medio: z.string().optional(),
 });
 
 // ORIGEN (§ ORIGEN-BANDA-1): grid de 2 fotos + copy + 4 pares dato (label/valor) + 3 contadores

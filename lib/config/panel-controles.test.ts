@@ -87,11 +87,15 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 //
 // BAJADO de 11 a 10 por EDITOR-TIENDA-COMPOSICION-1: cerró `hero.variante` (`HERO.composiciones` en
 // tienda-secciones.ts) — la primera de las cuatro entradas de `variante` en ganar control de panel.
-// Las otras tres (`brandStory`/`presentaciones`/`subscriptionCTA.variante`) siguen pendientes, bajo
+// Las otras tres (`brandStory`/`presentaciones`/`subscriptionCTA.variante`) seguían pendientes, bajo
 // `PANEL-EDITOR-VARIANTES-COMPOSICION-2` (§ panel-controles.ts).
+//
+// BAJADO de 10 a 9 por HISTORIA-FICHA-DE-FINCA-1: cerró `brandStory.variante`
+// (`BRAND_STORY.composiciones` en tienda-secciones.ts, ganó su TERCERA clave «Ficha de finca»).
+// Quedan `presentaciones.variante`/`subscriptionCTA.variante`.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 10,
+    PENDIENTE_PANEL.length <= 9,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );
@@ -370,19 +374,57 @@ test('calibración: hero.veloNivel está controlado, sin exención nueva', () =>
 
 // § EDITOR-TIENDA-COMPOSICION-1: `hero.variante` CERRADO — ganó su control (`HERO.composiciones`
 // en tienda-secciones.ts, la vista nueva «¿Cómo se arma tu hero?») y se retiró su exención. Las
-// otras tres secciones con `variante` (`brandStory`/`presentaciones`/`subscriptionCTA`) SIGUEN sin
-// control y SIGUEN en `PENDIENTE_PANEL` (re-etiquetadas a `PANEL-EDITOR-VARIANTES-COMPOSICION-2`,
-// § panel-controles.ts) — este test afirma SÓLO el hero, que es lo que este slice construyó.
+// otras tres secciones con `variante` (`brandStory`/`presentaciones`/`subscriptionCTA`) SEGUÍAN sin
+// control, bajo `PANEL-EDITOR-VARIANTES-COMPOSICION-2` (§ panel-controles.ts) — este test afirmaba
+// SÓLO el hero, que es lo que ESE slice construyó. `brandStory` ya no sigue pendiente (ver el test
+// de HISTORIA-FICHA-DE-FINCA-1, abajo), así que su aserción se retiró de acá.
 test('calibración: hero.variante está controlado por HERO.composiciones — ya no es hueco, ni siquiera SIN exenciones', () => {
   const controlados = camposControladosPorPanel();
   assert.ok(controlados.includes('hero.variante'));
   const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
   assert.ok(!pendientes.has('hero.variante'));
-  assert.ok(pendientes.has('brandStory.variante'), 'brandStory.variante sigue pendiente — este slice no lo tocó');
   assert.ok(pendientes.has('presentaciones.variante'), 'presentaciones.variante sigue pendiente — este slice no lo tocó');
   assert.ok(pendientes.has('subscriptionCTA.variante'), 'subscriptionCTA.variante sigue pendiente — este slice no lo tocó');
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.includes('hero.variante'));
+});
+
+// § HISTORIA-FICHA-DE-FINCA-1: `brandStory.variante` CERRADO — ganó su TERCERA clave («Ficha de
+// finca») y, con ella, `BRAND_STORY.composiciones` en tienda-secciones.ts (el MISMO select nativo
+// que ya mostraba columnas/centrada, ahora con tres opciones). `presentaciones`/`subscriptionCTA`
+// siguen pendientes — este slice no las tocó.
+test('calibración: brandStory.variante está controlado por BRAND_STORY.composiciones — ya no es hueco, ni siquiera SIN exenciones', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('brandStory.variante'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('brandStory.variante'));
+  assert.ok(pendientes.has('presentaciones.variante'), 'presentaciones.variante sigue pendiente — este slice no lo tocó');
+  assert.ok(pendientes.has('subscriptionCTA.variante'), 'subscriptionCTA.variante sigue pendiente — este slice no lo tocó');
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('brandStory.variante'));
+});
+
+// § HISTORIA-FICHA-DE-FINCA-1: los 27 campos nuevos (medio/entrada/las 18 de ficha/el rango/los
+// rótulos de la ilustración) ganan control DE ENTRADA — todos declarados en `BRAND_STORY.campos`,
+// agrupados en bloques (§ tienda-secciones.ts), en el MISMO commit que entran a
+// `REGISTRY.brandStory.campos`/`.escalares`. Ninguno pasa por `PENDIENTE_PANEL`.
+test('calibración: los campos nuevos de «Ficha de finca» están controlados, sin exención nueva', () => {
+  const controlados = new Set(camposControladosPorPanel());
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  const nuevos = [
+    'brandStory.medio', 'brandStory.entrada',
+    'brandStory.fila1Rotulo', 'brandStory.fila1Valor', 'brandStory.fila1SubLinea',
+    'brandStory.fila6Rotulo', 'brandStory.fila6Valor', 'brandStory.fila6SubLinea',
+    'brandStory.altitudMin', 'brandStory.altitudMax', 'brandStory.altitudUnidad',
+    'brandStory.lugar', 'brandStory.nombrePunto', 'brandStory.subLineaPunto',
+    'brandStory.pieIlustracion', 'brandStory.pieMedio',
+  ];
+  for (const campo of nuevos) {
+    assert.ok(controlados.has(campo), `${campo} sin control`);
+    assert.ok(!pendientes.has(campo), `${campo} no debería estar en PENDIENTE_PANEL`);
+  }
+  const huecos = huecosDelPanel({ conExenciones: false });
+  for (const campo of nuevos) assert.ok(!huecos.includes(campo), `${campo} sigue siendo un hueco SIN exenciones`);
 });
 
 // § HERO-FRASE-AL-PIE-Y-PREVIEW-1: `hero.fraseAlPie` estaba declarado en `REGISTRY.hero.campos`

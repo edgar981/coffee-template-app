@@ -691,12 +691,48 @@ const TRUSTBADGES: SeccionConfig = {
   campos: [],
 };
 
+// LAS TRES COMPOSICIONES DE BRAND_STORY (§ HISTORIA-FICHA-DE-FINCA-1, cierra `PANEL-EDITOR-
+// VARIANTES-COMPOSICION-2` PARA ESTA SECCIÓN — las otras dos, `presentaciones`/`subscriptionCTA`,
+// siguen pendientes). `debeMostrarSelectorComposicion` (lib/admin/editor-paginas-onix.ts) hace
+// aparecer el select nativo SOLO con esto declarado — no hace falta tocar `TiendaSeccionEditor.tsx`.
+// Las ZONAS listan los campos COMUNES a 'columnas'/'centrada' (no gatean nada, mismo criterio que
+// `ZONAS_NOSOTROS_HISTORIA_RELATO`); 'fichaDeFinca' trae sus propias zonas, con los campos NUEVOS.
+const LABEL_COMPOSICION_BRAND_STORY: Record<string, string> = { columnas: 'Columnas', centrada: 'Centrada', fichaDeFinca: 'Ficha de finca' };
+const ZONAS_BRAND_STORY_COMUN: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['parrafo1', 'parrafo2'], label: 'Párrafos' },
+  { campos: ['ctaLabel', 'ctaDestino'], label: 'Botón' },
+];
+const ZONAS_BRAND_STORY_FICHA: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['entrada'], label: 'Entrada' },
+  { campos: ['fila1Rotulo', 'fila1Valor', 'fila1SubLinea', 'fila2Rotulo', 'fila2Valor', 'fila2SubLinea', 'fila3Rotulo', 'fila3Valor', 'fila3SubLinea', 'fila4Rotulo', 'fila4Valor', 'fila4SubLinea', 'fila5Rotulo', 'fila5Valor', 'fila5SubLinea', 'fila6Rotulo', 'fila6Valor', 'fila6SubLinea'], label: 'Ficha' },
+  { campos: ['medio', 'lugar', 'nombrePunto', 'subLineaPunto', 'pieIlustracion', 'pieMedio'], label: 'Ilustración o foto' },
+  { campos: ['altitudMin', 'altitudMax', 'altitudUnidad'], label: 'Rango de altitud' },
+  { campos: ['ctaLabel', 'ctaDestino'], label: 'Enlace' },
+];
+const OPCIONES_COMPOSICION_BRAND_STORY: ComposicionOpcion[] = REGISTRY.brandStory.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_BRAND_STORY[v] ?? v,
+  zonas: v === 'fichaDeFinca' ? ZONAS_BRAND_STORY_FICHA : ZONAS_BRAND_STORY_COMUN,
+}));
+
+// El select de «Medio» (§ HISTORIA-FICHA-DE-FINCA-1) — MISMO patrón que
+// `OPCIONES_IMAGEN_TIPO_MARQUESINA`: las claves salen del set cerrado del resolver
+// (`REGISTRY.brandStory.escalares.medio`), este archivo sólo agrega la etiqueta legible.
+const OPCIONES_MEDIO_FICHA_DE_FINCA: { value: string; label: string }[] = [
+  { value: 'ilustracion', label: 'Ilustración' },
+  { value: 'foto', label: 'Foto' },
+];
+
 const BRAND_STORY: SeccionConfig = {
   seccion: 'brandStory',
   pagina: 'home',
   titulo: 'Nuestra Historia',
   ocultable: true,
   bandaId: 'brandStory',
+  composiciones: OPCIONES_COMPOSICION_BRAND_STORY,
   // El collage del storefront (§ CORTE-HISTORIA-COLOR-FOTOS-1): 1 a 4 fotos — imagen1 REQUERIDA
   // (mínimo una); imagen2/3/4 OPCIONALES (vacías no se muestran, el collage se reacomoda con las
   // que haya). Las etiquetas son NEUTRAS, no describen una posición fija (§ HISTORIA-COMO-
@@ -727,16 +763,70 @@ const BRAND_STORY: SeccionConfig = {
   campos: [
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
-    // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón.
-    { name: 'ctaLabel',   label: 'Botón',            opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
-    { name: 'ctaDestino', label: 'Botón · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Sólo con "Columnas"/"Centrada". Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Sólo con "Columnas"/"Centrada". Vacío: no se muestra.' },
+    // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón. Las TRES
+    // composiciones lo reusan (§ HISTORIA-FICHA-DE-FINCA-1: "Titular, ceja y enlace reusan los
+    // campos que ya existen"), así que el hint no se restringe a ninguna.
+    { name: 'ctaLabel',   label: 'Botón / enlace',            opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón / enlace · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+
+    // ─── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — SÓLO tienen efecto con esa composición ────
+    { name: 'medio', label: 'Medio', opciones: OPCIONES_MEDIO_FICHA_DE_FINCA,
+      hint: 'Sólo con la composición "Ficha de finca". Ilustración: se dibuja sola, con los datos de abajo. Foto: usa la Imagen 1 de arriba, en 4:5 sin bordes redondeados.' },
+    { name: 'entrada', label: 'Entrada', opcional: true, textarea: true,
+      hint: 'Sólo con la composición "Ficha de finca". Un párrafo corto (sugerido: hasta 300 caracteres). Vacío: no se muestra.' },
+
+    { name: 'fila1Rotulo', label: 'Rótulo', opcional: true, hint: 'Sólo con la composición "Ficha de finca". Fila sin rótulo o sin valor: no se muestra.' },
+    { name: 'fila1Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila1SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila2Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila2Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila2SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila3Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila3Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila3SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila4Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila4Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila4SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila5Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila5Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila5SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila6Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila6Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila6SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+
+    { name: 'altitudMin', label: 'Altitud mínima', opcional: true, hint: 'Sólo con la composición "Ficha de finca". Ej. "1.650". Sin mínimo Y máximo, la ilustración no dibuja franja.' },
+    { name: 'altitudMax', label: 'Altitud máxima', opcional: true, hint: 'Ej. "2.100".' },
+    { name: 'altitudUnidad', label: 'Unidad', opcional: true, hint: 'Ej. "msnm". Vacío: se muestra sólo el número.' },
+    { name: 'lugar', label: 'Lugar', opcional: true, hint: 'El rótulo superior de la ilustración o la foto. Ej. "Supatá · Cundinamarca". Vacío: no se muestra.' },
+    { name: 'nombrePunto', label: 'Nombre del punto', opcional: true, hint: 'Ej. "Finca Nayoli". Vacío: no se muestra.' },
+    { name: 'subLineaPunto', label: 'Punto · línea pequeña', opcional: true, hint: 'Debajo del nombre. Ej. "vereda Providencia". Vacío: no se muestra.' },
+    { name: 'pieIlustracion', label: 'Pie de la ilustración', opcional: true, hint: 'El texto dibujado al pie del dibujo (no se usa con Foto). Ej. "Castillo · Lavado". Vacío: no se muestra.' },
+    { name: 'pieMedio', label: 'Pie (debajo de la foto o la ilustración)', opcional: true, hint: 'La leyenda bajo toda la figura, en los dos medios. Vacío: no se muestra.' },
   ],
-  // BLOQUES: el COLLAGE (la posición de cada foto se ve en el grid, como en la tienda) + el texto.
+  // BLOQUES: el COLLAGE de siempre + el texto de columnas/centrada + «Ficha de finca» (medio/entrada,
+  // una TARJETA por fila, y el bloque de ilustración/rango) — TODO campo nuevo tiene que estar en
+  // ALGÚN bloque o queda declarado-pero-invisible (§ `lib/tienda/bloques.ts`: sin red de seguridad
+  // una vez que `bloques` existe).
   bloques: [
     { tipo: 'collage', titulo: 'Fotos (1 a 4 — así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2', 'ctaLabel', 'ctaDestino'] },
+    { tipo: 'seccion', campos: ['medio', 'entrada'] },
+    // Las SEIS filas van como tarjetas — mismo patrón visual que `ORIGEN`/`SUSCRIPCION_PLANES` para
+    // slots fijos de una sección que NO es Presentaciones (§ el docstring de `colapsado`,
+    // TiendaSeccionEditor.tsx: el PLIEGUE real —colapsar vacías, "+ Agregar tarjeta", "Quitar"— está
+    // hardcodeado a `seccion === 'presentaciones'` y a los NOMBRES de sus campos; generalizarlo es
+    // deuda fuera de este slice, no algo que debía reproducirse acá). 1-2 sin "(opcional)" en el
+    // título: son las dos que hacen de una ficha una ficha; 3-6 lo declaran en el TEXTO, igual que
+    // "Plan 2 (opcional)" de `SUSCRIPCION_PLANES`.
+    { tipo: 'tarjeta', slot: 1, titulo: 'Fila 1', campos: ['fila1Rotulo', 'fila1Valor', 'fila1SubLinea'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Fila 2', campos: ['fila2Rotulo', 'fila2Valor', 'fila2SubLinea'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Fila 3 (opcional)', campos: ['fila3Rotulo', 'fila3Valor', 'fila3SubLinea'] },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Fila 4 (opcional)', campos: ['fila4Rotulo', 'fila4Valor', 'fila4SubLinea'] },
+    { tipo: 'tarjeta', slot: 5, titulo: 'Fila 5 (opcional)', campos: ['fila5Rotulo', 'fila5Valor', 'fila5SubLinea'] },
+    { tipo: 'tarjeta', slot: 6, titulo: 'Fila 6 (opcional)', campos: ['fila6Rotulo', 'fila6Valor', 'fila6SubLinea'] },
+    { tipo: 'seccion', campos: ['altitudMin', 'altitudMax', 'altitudUnidad', 'lugar', 'nombrePunto', 'subLineaPunto', 'pieIlustracion', 'pieMedio'] },
   ],
 };
 
