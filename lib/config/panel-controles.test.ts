@@ -516,3 +516,35 @@ test('tiendaProducto.teInteresaTitulo y tiendaProducto.variante están LEÍDOS y
   assert.ok(camposLeidosPorTienda().includes('tiendaProducto.variante'));
   assert.ok(camposControladosPorPanel().includes('tiendaProducto.variante'));
 });
+
+// § ONIX-NOSOTROS-ESCENAS-FICHA-1 — `nosotrosEscenas` (repeater, 7 campos de ítem) y `nosotrosFicha`
+// (7 campos planos) son DOS secciones NUEVAS, con control DE ENTRADA (`NOSOTROS_ESCENAS`/
+// `NOSOTROS_FICHA` en tienda-secciones.ts), no como hallazgo tardío — mismo criterio que
+// `tiendaProducto` arriba. El trinquete de PENDIENTE_PANEL no se mueve: ninguna entrada nueva.
+test('nosotrosEscenas (sección + los 7 campos de ítem) y nosotrosFicha (los 7 campos planos) están LEÍDOS y CONTROLADOS, sin exención nueva', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+
+  assert.ok(leidos.includes('nosotrosEscenas.visible'));
+  assert.ok(controlados.includes('nosotrosEscenas.visible'));
+  for (const campo of ['foto', 'titulo', 'descripcion', 'credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor']) {
+    const ruta = `nosotrosEscenas.items.${campo}`;
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+  }
+
+  assert.ok(leidos.includes('nosotrosFicha.visible'));
+  assert.ok(controlados.includes('nosotrosFicha.visible'));
+  for (const campo of ['eyebrow', 'cifra1Numero', 'cifra1Rotulo', 'cifra2Numero', 'cifra2Rotulo', 'cifra3Numero', 'cifra3Rotulo']) {
+    const ruta = `nosotrosFicha.${campo}`;
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+  }
+
+  assert.ok(!pendientes.has('nosotrosEscenas.visible'));
+  assert.ok(!pendientes.has('nosotrosFicha.visible'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.some((h) => h.startsWith('nosotrosEscenas.')));
+  assert.ok(!huecos.some((h) => h.startsWith('nosotrosFicha.')));
+});

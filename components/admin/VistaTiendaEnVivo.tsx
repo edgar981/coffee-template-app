@@ -13,6 +13,8 @@ import Spotlight from '@/components/storefront/home/Spotlight';
 import NosotrosApertura from '@/components/storefront/nosotros/NosotrosApertura';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
+import NosotrosEscenas from '@/components/storefront/nosotros/NosotrosEscenas';
+import NosotrosFicha from '@/components/storefront/nosotros/NosotrosFicha';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionApertura from '@/components/storefront/suscripciones/SuscripcionApertura';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
@@ -181,6 +183,14 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.
   nosotrosGaleria: NosotrosGaleria,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § ONIX-NOSOTROS-ESCENAS-FICHA-1 (mismo patrón que
+  // 'nosotrosCierre'/'origen' arriba): sumar 'nosotrosEscenas'/'nosotrosFicha' a `SeccionVista`
+  // (tienda-secciones.ts) vuelve este `Record<SeccionVista, ComponentType>` NO-exhaustivo sin estas
+  // dos líneas — `tsc` lo rechaza. Los dos son HEADLESS, sin props → asignables a `ComponentType`. Con
+  // `nosotrosEscenas.items`/`tiendaCreditos.items` vacíos (los defaults) las dos devuelven `null` — la
+  // vista previa queda en blanco, no rota.
+  nosotrosEscenas: NosotrosEscenas,
+  nosotrosFicha: NosotrosFicha,
   // NECESARIO POR CONSECUENCIA MECÁNICA de § NOSOTROS-COMPOSICION-1 (mismo patrón que 'origen'/
   // 'spotlight' arriba): sumar `'nosotrosCierre'` a `SeccionVista` (tienda-secciones.ts) para que la
   // banda "CTA de cierre" pueda entrar a `SECCIONES_TIENDA` vuelve este

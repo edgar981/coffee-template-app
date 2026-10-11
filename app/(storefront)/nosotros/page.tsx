@@ -6,6 +6,8 @@ import { getSiteSettings } from "@/lib/config/site-settings";
 import NosotrosApertura from "@/components/storefront/nosotros/NosotrosApertura";
 import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria";
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
+import NosotrosEscenas from "@/components/storefront/nosotros/NosotrosEscenas";
+import NosotrosFicha from "@/components/storefront/nosotros/NosotrosFicha";
 import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
 import { resolverOrdenNosotros, type BandaNosotrosId } from "@/lib/config/site-content-defaults";
 import { navOffsetClase } from "@/lib/config/themes";
@@ -46,6 +48,8 @@ export default async function NosotrosPage() {
     nosotrosApertura: () => <NosotrosApertura negocio={settings.nombre} />,
     nosotrosHistoria: () => <NosotrosHistoria />,
     nosotrosGaleria: () => <NosotrosGaleria negocio={settings.nombre} />,
+    nosotrosEscenas: () => <NosotrosEscenas />,
+    nosotrosFicha: () => <NosotrosFicha />,
     nosotrosCierre: () => <NosotrosCierre />,
   };
 

@@ -925,6 +925,59 @@ export interface NosotrosGaleriaContent {
   items: GaleriaItem[];
 }
 
+// LAS «ESCENAS» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1, reemplaza al masonry de la galería EN
+// LA MAQUETA de Onix — no en el modelo: `nosotrosGaleria` queda intacta, como capacidad aparte). Repeater
+// 1-4, tope 4 (§ refero-onix-paginas.md, "De 1 a 4 escenas"). Cada ítem es el módulo "still → número+
+// título → dos líneas → créditos" de la referencia Saint Laurent Productions: `foto` (REQUERIDA — sin
+// ella la escena no se muestra, § NosotrosEscenas.tsx, mismo criterio que `nosotrosGaleria.items[].url`),
+// `titulo` (REQUERIDO), `descripcion` (opcional, la frase corta de ~2 líneas) y HASTA DOS filas de
+// crédito (`credito1Etiqueta/Valor`, `credito2Etiqueta/Valor`, todas opcionales) — reusan la MISMA forma
+// `{etiqueta, valor}` que `TiendaCreditoItem` (§ abajo) para poder pasar por `filasCompletas`/
+// `CreditosFilas` (lib/tienda/creditos.ts, components/storefront/tienda/TiendaCreditos.tsx) sin una
+// segunda implementación de la fila etiqueta/valor. El NÚMERO visible ("01", "02"…) NO es un campo: se
+// deriva de la POSICIÓN entre las escenas VISIBLES (§ NosotrosEscenas.tsx, mismo criterio que
+// `GrindChooserIndice`/`SuscripcionPasos` — "el número es estructura, no contenido").
+export interface NosotrosEscenaItem {
+  foto: string;
+  titulo: string;
+  descripcion: string;
+  credito1Etiqueta: string;
+  credito1Valor: string;
+  credito2Etiqueta: string;
+  credito2Valor: string;
+}
+export interface NosotrosEscenasContent {
+  visible: boolean;
+  items: NosotrosEscenaItem[];
+}
+
+// LA «FICHA» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1): el capítulo verde de la maqueta, cifras
+// grandes a la izquierda + los créditos de /tienda (`tiendaCreditos`, § TIENDA-ONIX-CARTELERA-1) en
+// colores invertidos a la derecha. NO duplica los créditos como una segunda lista: `NosotrosFicha.tsx`
+// LEE `tiendaCreditos.items` directo —`SiteContentProvider` ya monta TODO el contenido en TODO el
+// storefront, así que /nosotros puede leer una sección de /tienda sin que el dato viva dos veces (§ el
+// censo de este slice)—. Las TRES cifras son slots FIJOS (número + rótulo), no un repeater: un repeater
+// no da defaults byte-idénticos y acá no hace falta cardinalidad variable — la maqueta pide EXACTAMENTE
+// tres. Cada slot es OPCIONAL y se omite solo (`numero` vacío → la cifra no se muestra, § el criterio
+// "slot sobrevive al filtro" de `subscriptionCTA.bullet1..4`), nunca los tres a la vez fuerzan nada.
+//
+// LA VISIBILIDAD de la sección combina DOS gates (§ NosotrosFicha.tsx, mismo patrón que `tiendaCreditos`
+// consigo mismo): el toggle `visible` (§ abajo, ocultable) Y el PISO de `tiendaCreditos`
+// (`creditosVisibles`, § lib/tienda/creditos.ts — menos de 3 filas completas, la ficha se oculta aunque
+// el interruptor esté encendido). Por eso nace `visible:true` —como `nosotrosGaleria`/`tiendaCreditos`,
+// no como `nosotrosApertura`—: con `tiendaCreditos` vacío (Nayoli) el piso YA la mantiene oculta, así
+// que el toggle en `true` no cambia un byte.
+export interface NosotrosFichaContent {
+  visible: boolean;
+  eyebrow: string;
+  cifra1Numero: string;
+  cifra1Rotulo: string;
+  cifra2Numero: string;
+  cifra2Rotulo: string;
+  cifra3Numero: string;
+  cifra3Rotulo: string;
+}
+
 // LA PÁGINA /suscripciones — los PLANES como DATO (§ Backlog #49, opción 1). Antes las tarjetas de
 // plan venían de `SUBSCRIPTION_PLANS` (`lib/mock/subscriptions`, ESTRUCTURA compartida con la home);
 // ahora son contenido editable, y las DOS superficies (esta página Y el teaser de la home) leen esta
@@ -2032,6 +2085,8 @@ export interface SiteContentData {
   nosotrosApertura: NosotrosAperturaContent;
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
+  nosotrosEscenas: NosotrosEscenasContent;
+  nosotrosFicha: NosotrosFichaContent;
   nosotrosCierre: NosotrosCierreContent;
   suscripcionApertura: SuscripcionAperturaContent;
   suscripcionPlanes: SuscripcionPlanesContent;
@@ -2125,17 +2180,22 @@ export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = string[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
-// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1
-// y por § ONIX-NOSOTROS-APERTURA-SINOPSIS-1) — GEMELA de `BANDA_IDS`/`OrdenContent` de arriba, para
-// la OTRA página que compone bandas: `app/(storefront)/nosotros/page.tsx`. Son CUATRO bandas — la
-// apertura PRIMERO (§ NosotrosAperturaContent, nace OFF), la historia larga, la galería, y el CTA de
-// cierre, en ese orden (el cierre AL FINAL, justo antes del pie, § NosotrosCierre.tsx)—. A
-// DIFERENCIA de `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia
-// elegida por el owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo
-// (agregar ese campo y su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN
-// SÍ no vive dentro de `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce),
-// aunque cada id que nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
-export const BANDA_NOSOTROS_IDS = ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre'] as const;
+// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1,
+// § ONIX-NOSOTROS-APERTURA-SINOPSIS-1 y § ONIX-NOSOTROS-ESCENAS-FICHA-1) — GEMELA de `BANDA_IDS`/
+// `OrdenContent` de arriba, para la OTRA página que compone bandas: `app/(storefront)/nosotros/
+// page.tsx`. Son SEIS bandas — la apertura PRIMERO (§ NosotrosAperturaContent, nace OFF), la historia
+// larga, la galería (el masonry de siempre, § NosotrosGaleriaContent), las escenas (§
+// NosotrosEscenasContent, la pieza "Saint Laurent" de la maqueta de Onix — NO reemplaza a la galería
+// en el modelo, las dos conviven como capacidades independientes, § su propio docstring), la ficha
+// (§ NosotrosFichaContent, el capítulo verde), y el CTA de cierre, en ese orden (el cierre AL FINAL,
+// justo antes del pie, § NosotrosCierre.tsx) — el orden de `refero-onix-paginas.md` § /nosotros:
+// apertura → sinopsis → escenas → ficha → interludio (no construido todavía) → cierre. A DIFERENCIA de
+// `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia elegida por el
+// owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo (agregar ese campo y
+// su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN SÍ no vive dentro de
+// `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce), aunque cada id que
+// nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
+export const BANDA_NOSOTROS_IDS = ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre'] as const;
 export type BandaNosotrosId = typeof BANDA_NOSOTROS_IDS[number];
 
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
@@ -2521,6 +2581,24 @@ export const DEFAULTS: SiteContentData = {
     eyebrow: 'Galería',
     titulo: 'Nuestro trabajo en imágenes',
     items: [],
+  },
+  // LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). NACE VACÍA — `items: []`, ningún dato
+  // de finca/proceso vive en el código (mismo criterio que testimonios/#44 y que `nosotrosGaleria`):
+  // hide-on-empty oculta la sección entera sin una sola fila que fabricar.
+  nosotrosEscenas: {
+    visible: true,
+    items: [],
+  },
+  // LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). NACE VACÍA — las tres cifras y el rótulo
+  // son dato de la finca, no copy de template (ningún número de hectáreas/msnm/años se inventa). El
+  // `visible:true` es seguro porque el PISO de `tiendaCreditos` (§ `creditosVisibles`, ambas vacías en
+  // Nayoli) ya mantiene la sección oculta sin que el toggle tenga que ayudar.
+  nosotrosFicha: {
+    visible: true,
+    eyebrow: '',
+    cifra1Numero: '', cifra1Rotulo: '',
+    cifra2Numero: '', cifra2Rotulo: '',
+    cifra3Numero: '', cifra3Rotulo: '',
   },
   // El CTA de cierre de /nosotros (§ NOSOTROS-COMPOSICION-1). NACE VACÍO — sin `titulo` la banda no
   // se monta (hide-on-empty, § NosotrosCierre.tsx), así que ningún tenant que no la llene cambia un
@@ -3403,6 +3481,45 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         url: 'requerido',
         alt: 'opcional',
       },
+    },
+  },
+  // LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). `ocultable: true` + hide-on-empty del
+  // propio repeater (array vacío). `imagenes: ['foto']` nombra el campo-BLOB dentro de cada ítem —
+  // mismo mecanismo que `nosotrosGaleria.imagenes` arriba, repeater-aware: `imagenesDe` itera los
+  // items y junta cada `item.foto`. Sección SIN campos planos (no lleva eyebrow/titulo propio, § el
+  // docstring de `NosotrosEscenasContent` — la maqueta no dibuja un encabezado sobre las escenas).
+  nosotrosEscenas: {
+    label: 'Escenas',
+    ocultable: true,
+    imagenes: ['foto'],
+    campos: {},
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        foto: 'requerido',
+        titulo: 'requerido',
+        descripcion: 'opcional',
+        credito1Etiqueta: 'opcional',
+        credito1Valor: 'opcional',
+        credito2Etiqueta: 'opcional',
+        credito2Valor: 'opcional',
+      },
+    },
+  },
+  // LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). `ocultable: true`, y SE OCULTA ADEMÁS con
+  // menos de 3 créditos completos en `tiendaCreditos` (§ `creditosVisibles`, lib/tienda/creditos.ts) —
+  // el COMPONENTE aplica ese piso además del toggle, no el resolver, mismo criterio que `tiendaCreditos`
+  // consigo misma. Sin `repeater`: las tres cifras son slots FIJOS (número + rótulo), todos opcionales
+  // (vacío → esa cifra no se muestra, § el criterio de `subscriptionCTA.bullet1..4`).
+  nosotrosFicha: {
+    label: 'Ficha de la finca',
+    ocultable: true,
+    imagenes: [],
+    campos: {
+      eyebrow: 'opcional',
+      cifra1Numero: 'opcional', cifra1Rotulo: 'opcional',
+      cifra2Numero: 'opcional', cifra2Rotulo: 'opcional',
+      cifra3Numero: 'opcional', cifra3Rotulo: 'opcional',
     },
   },
   // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1). `ocultable: true` + hide-on-empty por

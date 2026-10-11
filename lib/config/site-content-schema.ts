@@ -349,6 +349,38 @@ const nosotrosGaleriaEditableSchema = z.object({
   items: z.array(galeriaItemSchema).optional(),
 });
 
+// /nosotros — las ESCENAS (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). Repeater con ítems `{foto, titulo,
+// descripcion, credito1Etiqueta/Valor, credito2Etiqueta/Valor}`, todos SOFT (string opcional) — el
+// requerido/opcional real lo decide el REGISTRY/resolver (`foto`/`titulo` ahí son 'requerido'), no el
+// schema, mismo criterio que `galeriaItemSchema`/`tiendaCreditosItemSchema` arriba.
+const nosotrosEscenaItemSchema = z.object({
+  foto: z.string().optional(),
+  titulo: z.string().optional(),
+  descripcion: z.string().optional(),
+  credito1Etiqueta: z.string().optional(),
+  credito1Valor: z.string().optional(),
+  credito2Etiqueta: z.string().optional(),
+  credito2Valor: z.string().optional(),
+});
+const nosotrosEscenasEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  items: z.array(nosotrosEscenaItemSchema).optional(),
+});
+
+// /nosotros — la FICHA (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). Tres cifras FIJAS (número + rótulo), todas
+// string opcional/SOFT — un `numero` vacío omite esa cifra en el render (§ NosotrosFicha.tsx), el
+// schema no lo exige. Sin `items`: no es un repeater (§ el docstring de `NosotrosFichaContent`).
+const nosotrosFichaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  cifra1Numero: z.string().optional(),
+  cifra1Rotulo: z.string().optional(),
+  cifra2Numero: z.string().optional(),
+  cifra2Rotulo: z.string().optional(),
+  cifra3Numero: z.string().optional(),
+  cifra3Rotulo: z.string().optional(),
+});
+
 // /nosotros — el CTA de cierre (§ NOSOTROS-COMPOSICION-1). Todo opcional/SOFT, como el resto: el
 // resolver decide (todos los campos son 'opcional' en REGISTRY, así que vacío queda vacío, nunca
 // cae a un default fabricado). `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, mismo criterio que
@@ -1085,6 +1117,8 @@ export const siteContentEditableSchema = z.object({
   nosotrosApertura: nosotrosAperturaEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
+  nosotrosEscenas: nosotrosEscenasEditableSchema.optional(),
+  nosotrosFicha: nosotrosFichaEditableSchema.optional(),
   nosotrosCierre: nosotrosCierreEditableSchema.optional(),
   suscripcionApertura: suscripcionAperturaEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),

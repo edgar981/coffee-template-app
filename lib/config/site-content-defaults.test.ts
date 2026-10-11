@@ -633,8 +633,8 @@ test('REGISTRY.nosotrosApertura: ocultable, con imagen opcional y los tres campo
   });
 });
 
-test('BANDA_NOSOTROS_IDS: `nosotrosApertura` entra PRIMERO (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1)', () => {
-  assert.deepEqual(BANDA_NOSOTROS_IDS, ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+test('BANDA_NOSOTROS_IDS: `nosotrosApertura` entra PRIMERO, `nosotrosEscenas`/`nosotrosFicha` entre la galería y el cierre (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
+  assert.deepEqual(BANDA_NOSOTROS_IDS, ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
 });
 
 test('paginas: por default /nosotros está ENCENDIDA', () => {
@@ -727,6 +727,78 @@ test('REGISTRY.nosotrosGaleria.imagenes = [url, poster] y url es requerido (trip
   // vídeo se borre con el ítem. Y la url debe ser requerida (sin archivo no hay ítem).
   assert.deepEqual(REGISTRY.nosotrosGaleria.imagenes, ['url', 'poster']);
   assert.equal(REGISTRY.nosotrosGaleria.repeater!.campos.url, 'requerido');
+});
+
+// ── LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1) — repeater 1-4, nace VACÍA ───────
+
+test('nosotrosEscenas: sin nada guardado → items VACÍOS (ningún dato de finca/proceso vive en el código)', () => {
+  assert.deepEqual(resolverSiteContent({}).nosotrosEscenas.items, []);
+});
+
+test('nosotrosEscenas: un ítem guardado resuelve sus 7 campos, foto/titulo requeridos y los 5 restantes opcionales', () => {
+  const r = resolverSiteContent({
+    nosotrosEscenas: {
+      items: [{
+        foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: 'Solo cereza roja.',
+        credito1Etiqueta: 'Cuándo', credito1Valor: 'Marzo – junio',
+        credito2Etiqueta: '', credito2Valor: '',
+      }],
+    },
+  });
+  assert.deepEqual(r.nosotrosEscenas.items, [{
+    foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: 'Solo cereza roja.',
+    credito1Etiqueta: 'Cuándo', credito1Valor: 'Marzo – junio',
+    credito2Etiqueta: '', credito2Valor: '',
+  }]);
+});
+
+test('nosotrosEscenas PRECEDENCIA: items vacío OCULTA aunque visible sea true (hide-on-empty gana) — mismo criterio que nosotrosGaleria', () => {
+  const def = REGISTRY.nosotrosEscenas;
+  assert.equal(def.ocultable, true);
+  assert.equal(seccionEsVisible(def, { visible: true, items: [] }), false);
+  assert.equal(seccionEsVisible(def, { visible: false, items: [{ foto: '/a.jpg' }] }), false);
+  assert.equal(seccionEsVisible(def, { visible: true, items: [{ foto: '/a.jpg' }] }), true);
+});
+
+test('REGISTRY.nosotrosEscenas.imagenes = [foto] y foto/titulo son requeridos (tripwire del borrado de blobs por ítem)', () => {
+  assert.deepEqual(REGISTRY.nosotrosEscenas.imagenes, ['foto']);
+  assert.equal(REGISTRY.nosotrosEscenas.repeater!.campos.foto, 'requerido');
+  assert.equal(REGISTRY.nosotrosEscenas.repeater!.campos.titulo, 'requerido');
+});
+
+// ── LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1) — tres cifras FIJAS, nace VACÍA ─────
+
+test('nosotrosFicha: sin nada guardado → TODO vacío (ningún número de finca vive en el código)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosFicha.eyebrow, '');
+  assert.equal(r.nosotrosFicha.cifra1Numero, '');
+  assert.equal(r.nosotrosFicha.cifra1Rotulo, '');
+  assert.equal(r.nosotrosFicha.cifra2Numero, '');
+  assert.equal(r.nosotrosFicha.cifra3Numero, '');
+});
+
+test('nosotrosFicha: TODOS los campos son opcionales — un valor guardado se conserva, ninguno cae a un default fabricado', () => {
+  const r = resolverSiteContent({
+    nosotrosFicha: {
+      eyebrow: 'La finca en cifras',
+      cifra1Numero: '1.600', cifra1Rotulo: 'msnm',
+      cifra2Numero: '12', cifra2Rotulo: 'hectáreas',
+      cifra3Numero: '52', cifra3Rotulo: 'años',
+    },
+  });
+  assert.equal(r.nosotrosFicha.eyebrow, 'La finca en cifras');
+  assert.equal(r.nosotrosFicha.cifra1Numero, '1.600');
+  assert.equal(r.nosotrosFicha.cifra1Rotulo, 'msnm');
+  assert.equal(r.nosotrosFicha.cifra2Numero, '12');
+  assert.equal(r.nosotrosFicha.cifra3Rotulo, 'años');
+});
+
+test('nosotrosFicha: `ocultable: true`, sin repeater (slots FIJOS, no una lista) — el piso de tiendaCreditos vive en el COMPONENTE, no acá', () => {
+  const def = REGISTRY.nosotrosFicha;
+  assert.equal(def.ocultable, true);
+  assert.equal(def.repeater, undefined);
+  assert.equal(seccionEsVisible(def, { visible: true }), true);
+  assert.equal(seccionEsVisible(def, { visible: false }), false);
 });
 
 // ── El CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — nace VACÍO, TODO opcional ─────────
@@ -1890,8 +1962,8 @@ test('"video"·reproducir: SIN video subido, la caja (aspect-video) sigue montad
 // persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni
 // "parcial"/"dedup" que ejercer. Lo que SÍ hay que afirmar, igual que del lado de la home: el orden
 // de HOY, y que el dominio es EXHAUSTIVO (nunca se cae una banda).
-test('resolverOrdenNosotros: devuelve las CUATRO bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1)', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las SEIS bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, § ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
 });
 
 test('resolverOrdenNosotros: el dominio es EXHAUSTIVO — exactamente BANDA_NOSOTROS_IDS, sin faltantes ni de más', () => {

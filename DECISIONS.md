@@ -60275,3 +60275,172 @@ arriba) — ninguna diferencia imputable a este diff. `verificar:nayoli` corrido
 colisión de infraestructura) — ver resultado arriba. Commiteado en `slice/editor-secciones-1`; el
 merge, cuando el owner revise el gate visual (incluido el parallax y la barra flotante en un celular
 real), lo hace el orquestador.
+
+## 2026-10-11 — ONIX-NOSOTROS-ESCENAS-FICHA-1: /nosotros gana las «Escenas» (cosecha, secado, tostión)
+y la «Ficha» sobre verde con las cifras de la finca y los créditos de origen
+
+**Pedido del owner** (2026-10-11, la misma aprobación que citan `ONIX-SUSCRIPCION-TAQUILLA-1`/
+`ONIX-NOSOTROS-APERTURA-SINOPSIS-1`, *"Perfect. Go ahead with this mock."*, sobre la maqueta «Tres
+escenas» de /nosotros): la página gana las DOS piezas que `ONIX-NOSOTROS-APERTURA-SINOPSIS-1` dejó
+declaradas explícitamente fuera de su `touches:` —"Escenas y Ficha quedan para su propia tanda"—, de
+las cinco que `refero-onix-paginas.md` § /nosotros describe (apertura → sinopsis → escenas → ficha →
+interludio → cierre). Interludio sigue sin construirse; no está en `touches:` de este slice tampoco.
+
+### El modelo — DOS secciones NUEVAS, ninguna reemplaza a la que ya existía
+
+- **`nosotrosEscenas`** (repeater 1-4, tope 4): el módulo "still → número+título → dos líneas →
+  créditos" de la referencia Saint Laurent Productions, citada por `refero-onix-paginas.md`. Cada
+  ítem: `foto` (REQUERIDA — sin ella la escena no se muestra, mismo criterio que
+  `nosotrosGaleria.items[].url`), `titulo` (REQUERIDO), `descripcion` (opcional) y hasta DOS filas de
+  crédito (`credito1Etiqueta/Valor`, `credito2Etiqueta/Valor`, las cuatro opcionales).
+- **`nosotrosFicha`**: el capítulo verde — tres cifras FIJAS (número + rótulo, slots opcionales, NO
+  un repeater — una cardinalidad fija de 3 no necesita la forma de lista) a la izquierda, y los
+  créditos de `tiendaCreditos` en colores invertidos a la derecha.
+
+**`nosotrosGaleria` (el masonry) NO se retira ni se reemplaza.** El spec nombra el SiteContent-key
+`nosotrosEscenas`, distinto de `nosotrosGaleria` — las dos secciones son capacidades INDEPENDIENTES
+que coexisten en `BANDA_NOSOTROS_IDS` (`… nosotrosGaleria, nosotrosEscenas, nosotrosFicha,
+nosotrosCierre`, en el orden de la maqueta tras la galería): un tenant llena una u otra, o ninguna.
+La refero habla de "Escenas reemplaza la galería" en el sentido de DIRECCIÓN DE CONTENIDO para Onix
+(Onix llenará Escenas y dejará Galería vacía), no de retirar una capacidad existente — retirarla
+habría sido ensanchar el alcance de este slice sin que el spec lo pidiera explícitamente.
+
+### Los créditos NO se duplican — se LEEN, dos veces, de la misma fuente
+
+El censo previo (`ONIX-PAGINAS-COMPOSICIONES-CENSO-1`) ya medía que `tiendaCreditos` es un repeater
+etiqueta/valor que NO lee el producto y que `SiteContentProvider` monta TODO el contenido en TODO el
+storefront. Dos consecuencias, cada una en su propia sección:
+
+- **La Ficha LEE `tiendaCreditos.items` directo** (`useSiteContent().tiendaCreditos`), sin su propio
+  campo de créditos — editar "Créditos: ficha de origen" en /tienda actualiza esta banda también, sin
+  una segunda copia del dato que pueda desincronizarse.
+- **Cada Escena empaqueta SUS CUATRO campos planos** (`credito1Etiqueta/Valor`, `credito2Etiqueta/
+  Valor`) en un array `{etiqueta,valor}[]` ad-hoc y lo pasa por `filasCompletas`/`CreditosFilas` (§
+  abajo) — la MISMA función de filtro y el MISMO JSX que /tienda, sin una segunda implementación de
+  "fila etiqueta/valor con borde".
+
+**`CreditosFilas` (`components/storefront/tienda/TiendaCreditos.tsx`) gana `invertido?: boolean`**
+(default `false`, byte-idéntico para sus dos consumidores de hoy — `TiendaCreditos`/`TiendaTaquilla`,
+afirmado en el carril, § abajo). Con `invertido`, los TRES tokens de color (label/valor/filete) pisan
+por el PAR de fondo-oscuro (`--sf-fondo` a distintas opacidades) en vez del par pensado para fondo
+claro — la Ficha vive sobre `--sf-tinta`, y el par de siempre se leería invertido literal.
+
+### El PISO de visibilidad de la Ficha es el MISMO mecanismo que ya usa `tiendaCreditos` consigo misma
+
+`nosotrosFicha` es `ocultable:true` (un toggle propio) Y se oculta ADEMÁS si `tiendaCreditos` no
+llega a `MIN_FILAS_CREDITOS` (3, `lib/tienda/creditos.ts`) — el COMPONENTE aplica ese piso, no el
+resolver, mismo patrón ya documentado para `tiendaCreditos` ("con menos de 3 filas completas, la
+sección no se muestra aunque el interruptor esté encendido"). Nace `visible:true` (no `false` como
+`nosotrosApertura`): como el piso de `tiendaCreditos` ya mantiene la sección oculta con 0 filas
+(Nayoli), el toggle en `true` no cambia un byte — mismo razonamiento que `nosotrosGaleria`/
+`tiendaCreditos`, que también nacen `visible:true` apoyadas en su propio hide-on-empty.
+
+### El NÚMERO visible ("01", "02"…) es estructura, no un campo — y la maqueta lo confirma, no la prosa
+
+El spec dice "el número y el título en serif mayúscula, a 40 px" — una lectura literal sugeriría que
+el número comparte tamaño y tipografía con el título. **La captura real
+(`.scratch/onix-paginas/s-nos-d-1.png`) lo contradice**: "01" es visiblemente más chico y en sans,
+junto a "COSECHA" en serif grande — el MISMO patrón ya establecido en este repo para "un índice de
+posición junto a un título" (`GrindChooserIndice.tsx`: *"Número de POSICIÓN visible (01, 02…), no el
+slot"*; `SuscripcionPasos.tsx`: el "0N" en sans junto al label). Por el criterio **LA MAQUETA MANDA**
+del dispatch, se construyó así: `String(i+1).padStart(2,'0')` en sans/tabular-nums/muted, sin pixel
+nuevo que declarar (reusa una convención existente, no una decisión nueva).
+
+Y el NÚMERO sale de la POSICIÓN ENTRE LAS VISIBLES (`i`, tras filtrar por `foto`), no del slot
+original (`idx`) — mismo criterio que Presentaciones/los bullets de Suscripción: si la escena 1 no
+tiene foto, la escena 2 se numera "01", no "02". El campo editable de cada ítem SÍ usa el slot
+original (`nosotrosEscenas.items.${idx}.titulo`), por la razón de siempre: tiene que seguir apuntando
+a su posición real en el array, no a su posición entre los ítems filtrados. Afirmado en el carril (§
+abajo), con una config de relleno donde la 1ª escena no tiene foto.
+
+### El viaje por el editor — control DE ENTRADA, sin exención nueva
+
+`components/admin/tienda-secciones.ts` gana `NOSOTROS_ESCENAS` (repeater, 7 campos de ítem) y
+`NOSOTROS_FICHA` (7 campos planos), las dos con `pagina:'nosotros'`, sumadas a `SECCIONES_TIENDA`
+entre `NOSOTROS_GALERIA` y `NOSOTROS_CIERRE`. `VistaTiendaEnVivo.tsx` gana las dos entradas en
+`COMPONENTES` (`Record<SeccionVista, ComponentType>` exhaustivo — `tsc` lo exige). El chequeo
+derivado `huecosDelPanel()` (`lib/config/panel-controles.ts`, fuera de `touches:` — no hizo falta
+tocarlo: se deriva de `REGISTRY` + `SECCIONES_TIENDA`, y declarar los dos lados en el mismo gesto
+bastó) corrió VERDE sin ninguna exención nueva en `PENDIENTE_PANEL` — el trinquete (≤10) no se movió.
+Afirmado con una calibración nombrada en `panel-controles.test.ts` (los 14 campos de las dos
+secciones, LEÍDOS y CONTROLADOS, sin exención).
+
+### Byte-identidad — verificada por EJECUCIÓN, no por lectura
+
+`lib/config/nosotros-bandas.test.ts`: `BANDA_NOSOTROS_IDS` pasa de CUATRO a SEIS ids; el árbol
+`arbolFijo` (la referencia congelada de "ayer") NO se tocó —sigue siendo sólo historia+galería— y el
+árbol `arbolResuelto` (registro+resolver, lo que `page.tsx` monta hoy) le sigue dando IDÉNTICO,
+porque `nosotrosEscenas`/`nosotrosFicha` nacen vacías/bajo-el-piso y renderizan `null`. `lib/config/
+nosotros-escenas.test.ts` (NUEVO, 12 tests): hide-on-empty de la sección completa; una escena sin
+foto se omite sin dejar hueco en la numeración; una fila de crédito a medias no se muestra; el piso
+de `tiendaCreditos` gatea la Ficha independiente de sus propias cifras; el toggle de cada sección
+gana sobre el contenido del otro lado; una cifra con `numero` vacío se omite sola. `lib/config/
+site-content-defaults.test.ts`/`site-content-schema.test.ts` (resolver + schema, SOFT, sin strip
+silencioso — el derivado "todo campo del MODELO está en el schema editable" pasó para las dos
+secciones nuevas sin tocarlo, por construcción).
+
+### El gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: 4347/4347 VERDE — de punta a punta, incluido un fixture PRE-EXISTENTE que se
+  cerró de paso (§ abajo).
+- **`npm run test:integracion`**: 409/409 verde.
+
+### `ONIX-PIEZAS-COMPARTIDAS-GOLDEN-INTERLUDIO-1` — CERRADO, el fixture que `ONIX-APERTURA-MOVIL-
+INTERLUDIO-PARALLAX-1` dejó abierto a propósito, citando este `touches:`
+
+El gate inicial corrió con `npm test` en 4346/4347: el ÚNICO rojo era `lib/tienda/piezas-
+compartidas.test.ts`, caso "interludioPlano" — PRE-EXISTENTE, introducido por el commit INMEDIATO
+anterior (`3b8cf66`, `ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1`), que le dio a `InterludioPlano` el
+parallax I03 (el `<img>` deja de ser hijo DIRECTO de la `<section>`, queda envuelto por el wrapper de
+`Movimiento`) sin actualizar este fixture porque **`lib/tienda/` no estaba en su `touches:`** — esa
+misma entrada de DECISIONS.md lo dejó escrito, nombrado y con instrucciones: *"alguien con
+`lib/tienda/` en su `touches:` actualiza el string `ANTES.interludioPlano` al árbol nuevo… es un
+cambio de UNA línea de fixture, no una decisión de producto."*
+
+Confirmado que es PRE-EXISTENTE y no de este diff, por DOS vías: (1) `git status`/`git diff` antes de
+este fix no tocaban ni `InterludioPlano.tsx` ni `piezas-compartidas.test.ts`; (2) `git log --oneline
+-1` sobre cada archivo apunta a commits previos a este slice (`3b8cf66` y `5b1f651`
+respectivamente). Como `lib/tienda/` SÍ está en el `touches:` de ESTE slice —y el propio asiento
+anterior nombra exactamente esta condición como la que lo cerraría—, se actualizó el string
+`ANTES.interludioPlano` al HTML real que `InterludioPlano.tsx` rinde hoy (el wrapper `<div
+class="absolute inset-0"><div class="absolute inset-x-0 -top-[12%] -bottom-[12%]"><img/></div></div>`
+en vez de `<img/>` directo) — visto fallar con el string viejo, verde con el nuevo. `npm test` pasó
+de 4346/4347 a 4347/4347. No es un hallazgo tardío de este slice ni trabajo adyacente que se decidió
+tocar por iniciativa propia: es un ítem YA NOMBRADO, YA RAZONADO y YA ASIGNADO a "quien tenga
+`lib/tienda/` en su `touches:`" — que es exactamente este slice.
+
+### `verificar:nayoli` / `verificar:nayoli:visual` — RED los dos, CERO atribuible a este diff
+
+- **`verificar:nayoli`** (HTML+CSS de `/`, `/tienda`, `/tienda/<slug>`, `/checkout` — NINGUNA de las
+  cuatro es `/nosotros`): las CUATRO difieren, en el ÚNICO punto ya documentado por
+  `ONIX-NOSOTROS-APERTURA-SINOPSIS-1` — `<html lang="en">` (main) vs `<html lang="es">` (rama), de
+  `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, y el nombre del chunk CSS (contenido idéntico, sólo el
+  comentario `/* ARCHIVO: … */` cambia). Ninguna de las cuatro rutas toca `/nosotros` ni ningún
+  archivo de `touches:` de este slice.
+- **`verificar:nayoli:visual`** (píxeles de `/`, `/tienda`, `/tienda/<slug>`, `/checkout`,
+  `/nosotros`, `/suscripciones`): las SEIS difieren. **`/nosotros` da 224/422 px en la caja
+  [445,45]–[828,726] — el MISMO conteo, EL MISMO bounding box, byte a byte, que
+  `ONIX-NOSOTROS-APERTURA-SINOPSIS-1` ya midió ANTES de que este slice empezara** — prueba, por
+  medición y no por argumento, de que esta tanda no mueve un solo píxel de `/nosotros` para Nayoli:
+  `nosotrosEscenas`/`nosotrosFicha` nacen vacías/bajo-el-piso, igual que `nosotrosGaleria`. Verificado
+  por inspección DIRECTA del PNG de diff (`.scratch/verificar-nayoli-visual/diffs/ruta-nosotros.png`):
+  el único elemento NO atenuado es la línea del footer "· Hecho por Duna" — el drift YA documentado,
+  ajeno a este diff. `/tienda`/`/tienda/<slug>`/`/checkout`/`/suscripciones` muestran el mismo patrón
+  (sólo el footer resaltado). `/` difiere de forma sustancial (BrandStory, la tira de confianza, las
+  tarjetas de plan) — tampoco atribuible: la home no está en `touches:` de este slice y ninguno de
+  sus componentes se tocó.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega DOS secciones nuevas de contenido
+(`nosotrosEscenas`, `nosotrosFicha`) — bytes nuevos que cualquier tenant que las active (incluida
+Onix, vía el panel) recibiría, así que no cae bajo la excepción de "sin bytes nuevos". Sin cambio de
+schema/migración ni contrato cruzado de repositorio. `npm run gate` VERDE de punta a punta
+(typecheck 0 errores · `npm test` 4347/4347 · `test:integracion` 409/409), incluido el cierre de un
+fixture pre-existente nombrado por el slice anterior (arriba). `verificar:nayoli`/
+`verificar:nayoli:visual` corridos los dos, RED los dos, los dos atribuidos a drift pre-existente de
+la rama y verificados como tal por medición directa (arriba) — ninguno imputable a este diff; el de
+`/nosotros` coincide EXACTO con la medición que ya existía antes de este slice. Commiteado en
+`slice/editor-secciones-1`; el merge, cuando el owner revise el gate visual (las Escenas y la Ficha
+con contenido real de Onix), lo hace el orquestador.

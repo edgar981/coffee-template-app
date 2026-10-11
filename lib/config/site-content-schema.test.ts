@@ -187,6 +187,42 @@ test('nosotrosHistoria: `variante`/`retratoNombre` SOBREVIVEN al parse (si no, z
   assert.equal(parsed.nosotrosHistoria!.retratoNombre, 'Don Rafael');
 });
 
+// ─── § ONIX-NOSOTROS-ESCENAS-FICHA-1: las escenas (repeater) y la ficha (slots fijos) de /nosotros
+// SOBREVIVEN al parse ────────────────────────────────────────────────────────────────────────────
+
+test('nosotrosEscenas: un ítem con los 7 campos SOBREVIVE al parse completo (si no, zod los descartaría al guardar)', () => {
+  const item = {
+    foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: 'Solo cereza roja.',
+    credito1Etiqueta: 'Cuándo', credito1Valor: 'Marzo – junio',
+    credito2Etiqueta: 'Cómo', credito2Valor: 'A mano',
+  };
+  const parsed = siteContentEditableSchema.parse({ nosotrosEscenas: { visible: true, items: [item] } });
+  assert.deepEqual(parsed.nosotrosEscenas, { visible: true, items: [item] });
+});
+
+test('nosotrosEscenas: una clave de ÍTEM no declarada se descarta (confirma que el strip está activo dentro del repeater)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    nosotrosEscenas: { items: [{ foto: '/x.jpg', titulo: 'Cosecha', basura: 'no-declarada' }] },
+  });
+  assert.deepEqual(parsed.nosotrosEscenas!.items, [{ foto: '/x.jpg', titulo: 'Cosecha' }]);
+});
+
+test('nosotrosFicha: los 7 campos SOBREVIVEN al parse completo (si no, zod los descartaría al guardar)', () => {
+  const body = {
+    visible: true, eyebrow: 'La finca en cifras',
+    cifra1Numero: '1.600', cifra1Rotulo: 'msnm',
+    cifra2Numero: '12', cifra2Rotulo: 'hectáreas',
+    cifra3Numero: '52', cifra3Rotulo: 'años',
+  };
+  const parsed = siteContentEditableSchema.parse({ nosotrosFicha: body });
+  assert.deepEqual(parsed.nosotrosFicha, body);
+});
+
+test('nosotrosFicha: una clave NO declarada se descarta (confirma que el strip está activo)', () => {
+  const parsed = siteContentEditableSchema.parse({ nosotrosFicha: { cifra1Numero: '1.600', basura: 'no-declarada' } });
+  assert.deepEqual(parsed.nosotrosFicha, { cifra1Numero: '1.600' });
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

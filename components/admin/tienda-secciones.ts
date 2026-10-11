@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosEscenas' | 'nosotrosFicha' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1082,6 +1082,59 @@ const NOSOTROS_GALERIA: SeccionConfig = {
   },
 };
 
+// LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1): repeater 1-4 ("Tres escenas" de la
+// maqueta de Onix — cosecha, secado, tostión). Cada ítem es el módulo still→número+título→dos
+// líneas→créditos de la referencia Saint Laurent Productions. `foto`/`titulo` REQUERIDOS —sin foto la
+// escena no se muestra (§ NosotrosEscenas.tsx); `descripcion` y las dos filas de crédito OPCIONALES
+// (1 o 2 filas, § refero-onix-paginas.md). Sin campos de sección: la maqueta no dibuja un encabezado
+// sobre las escenas (§ REGISTRY.nosotrosEscenas, site-content-defaults.ts).
+const NOSOTROS_ESCENAS: SeccionConfig = {
+  seccion: 'nosotrosEscenas',
+  pagina: 'nosotros',
+  titulo: 'Escenas',
+  ocultable: true,
+  notaVisibilidad: 'Sin fotos, esta sección no se muestra.',
+  imagenes: [],
+  campos: [],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Escena',
+    genero: 'f', // "¿Eliminar esta escena?"
+    max: 4,
+    campos: [
+      { name: 'foto', label: 'Foto', tipo: 'imagen', hint: 'Still en 3:2 (4:5 en celular). Sin foto, la escena no se muestra.' },
+      { name: 'titulo', label: 'Título', tipo: 'texto', resumen: 'principal', hint: 'Ej. "Cosecha". Se muestra en mayúscula, junto al número de orden.' },
+      { name: 'descripcion', label: 'Descripción', tipo: 'textarea', opcional: true, resumen: 'detalle', hint: 'Una frase corta, dos líneas aprox. Vacío: no se muestra.' },
+      { name: 'credito1Etiqueta', label: 'Crédito 1 · Rótulo', tipo: 'texto', opcional: true, hint: 'Ej. "Cuándo". Vacío: no se muestra esta fila.' },
+      { name: 'credito1Valor', label: 'Crédito 1 · Valor', tipo: 'texto', opcional: true, hint: 'Ej. "Marzo – junio".' },
+      { name: 'credito2Etiqueta', label: 'Crédito 2 · Rótulo', tipo: 'texto', opcional: true, hint: 'Vacío: no se muestra esta fila.' },
+      { name: 'credito2Valor', label: 'Crédito 2 · Valor', tipo: 'texto', opcional: true },
+    ],
+  },
+};
+
+// LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1): el capítulo verde — tres cifras grandes
+// (número + rótulo, slots FIJOS, todas opcionales) y los créditos de /tienda (`tiendaCreditos`, YA
+// editables en su propia tarjeta) en colores invertidos. No hay campo de créditos acá: `NosotrosFicha.
+// tsx` LEE `tiendaCreditos.items` directo — editarlos es editar "Créditos: ficha de origen" en /tienda.
+const NOSOTROS_FICHA: SeccionConfig = {
+  seccion: 'nosotrosFicha',
+  pagina: 'nosotros',
+  titulo: 'Ficha de la finca',
+  ocultable: true,
+  notaVisibilidad: 'Con menos de 3 filas completas en "Créditos: ficha de origen" (página Tienda), esta sección no se muestra aunque el interruptor esté encendido.',
+  imagenes: [],
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'Ej. "La finca en cifras". Vacío: no se muestra.' },
+    { name: 'cifra1Numero', label: 'Cifra 1 · Número', opcional: true, hint: 'Ej. "1.600". Vacío: no se muestra esta cifra.' },
+    { name: 'cifra1Rotulo', label: 'Cifra 1 · Rótulo', opcional: true, hint: 'Ej. "msnm".' },
+    { name: 'cifra2Numero', label: 'Cifra 2 · Número', opcional: true, hint: 'Vacío: no se muestra esta cifra.' },
+    { name: 'cifra2Rotulo', label: 'Cifra 2 · Rótulo', opcional: true, hint: 'Ej. "hectáreas".' },
+    { name: 'cifra3Numero', label: 'Cifra 3 · Número', opcional: true, hint: 'Vacío: no se muestra esta cifra.' },
+    { name: 'cifra3Rotulo', label: 'Cifra 3 · Rótulo', opcional: true, hint: 'Ej. "años".' },
+  ],
+};
+
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda final, antes del pie — titular +
 // párrafo + un botón + imagen de fondo opcional, reusando la GRAMÁTICA visual de
 // `SubscriptionCTALinea` con su propio contenido (§ NosotrosCierre.tsx). `titulo` es el gate de
@@ -1579,4 +1632,4 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 // (sin tocar, sigue byte-idéntico) → interludio → preguntas (letra pequeña) → cierre. El spec lo
 // nombra "apertura → taquilla → interludio → letra pequeña → cierre" sin mencionar pasos porque esa
 // sección no cambia de posición — sigue exactamente donde ya estaba.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_ESCENAS, NOSOTROS_FICHA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];

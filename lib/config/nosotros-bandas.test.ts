@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import NosotrosApertura from '@/components/storefront/nosotros/NosotrosApertura';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
+import NosotrosEscenas from '@/components/storefront/nosotros/NosotrosEscenas';
+import NosotrosFicha from '@/components/storefront/nosotros/NosotrosFicha';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import {
@@ -47,11 +49,14 @@ function arbolFijo(content: SiteContentData, negocio: string) {
 // …>` exhaustivo por TIPO — si `BANDA_NOSOTROS_IDS` gana un id y nadie lo registra acá, esto NO
 // compila. `nosotrosGaleria` es la única banda con un prop extra (`negocio`), igual que
 // `presentaciones` en el registro de la home; `nosotrosCierre`/`nosotrosApertura` no toman props,
-// como `nosotrosHistoria`.
+// como `nosotrosHistoria`. `nosotrosEscenas`/`nosotrosFicha` (§ ONIX-NOSOTROS-ESCENAS-FICHA-1) tampoco
+// toman props — headless, como `nosotrosHistoria`/`nosotrosCierre`.
 const BANDAS: Record<BandaNosotrosId, (negocio: string) => React.ReactNode> = {
   nosotrosApertura: () => React.createElement(NosotrosApertura),
   nosotrosHistoria: () => React.createElement(NosotrosHistoria),
   nosotrosGaleria: (negocio) => React.createElement(NosotrosGaleria, { negocio }),
+  nosotrosEscenas: () => React.createElement(NosotrosEscenas),
+  nosotrosFicha: () => React.createElement(NosotrosFicha),
   nosotrosCierre: () => React.createElement(NosotrosCierre),
 };
 
@@ -64,8 +69,8 @@ function arbolResuelto(content: SiteContentData, negocio: string) {
   });
 }
 
-test('resolverOrdenNosotros: devuelve las CUATRO bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las SEIS bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL, escenas y ficha entre la galería y el cierre (§ ONIX-NOSOTROS-ESCENAS-FICHA-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosEscenas', 'nosotrosFicha', 'nosotrosCierre']);
 });
 
 test('el registro bandaId→render es EXHAUSTIVO: toda banda de BANDA_NOSOTROS_IDS tiene una entrada registrada', () => {

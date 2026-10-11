@@ -65,19 +65,26 @@ export default function TiendaCreditos() {
 }
 
 /** Las filas etiqueta/valor, SIN wrapper de ancho ni margen — el consumidor decide eso (acá, la
- *  standalone; en `TiendaTaquilla.tsx`, la columna de compra). */
-export function CreditosFilas({ filas }: { filas: readonly CreditoItem[] }) {
+ *  standalone; en `TiendaTaquilla.tsx`, la columna de compra; en `NosotrosFicha.tsx`, § ONIX-
+ *  NOSOTROS-ESCENAS-FICHA-1, la mitad derecha del capítulo verde).
+ *
+ *  `invertido` (default false) swapea los DOS tokens de color por su par de fondo-OSCURO (`--sf-
+ *  fondo`, la crema) en vez de pisar con un hex: la Ficha vive sobre `--sf-tinta` y el par
+ *  texto-suave/tinta de SIEMPRE (pensado para fondo CLARO) se leería invertido literal —texto
+ *  oscuro sobre fondo oscuro—. El filete se invierte por el MISMO motivo (`--sf-fondo`/20 en vez de
+ *  `--sf-linea`/15, mismo % que ya usa el resto de la ficha para "crema al 20%"). */
+export function CreditosFilas({ filas, invertido = false }: { filas: readonly CreditoItem[]; invertido?: boolean }) {
   return (
     <>
       {filas.map((fila, i) => (
         <div
           key={`${fila.etiqueta}-${i}`}
-          className="flex items-baseline justify-between gap-6 border-t border-[var(--sf-linea)]/15 py-3 first:border-t-0"
+          className={`flex items-baseline justify-between gap-6 border-t ${invertido ? 'border-[var(--sf-fondo)]/20' : 'border-[var(--sf-linea)]/15'} py-3 first:border-t-0`}
         >
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-texto-suave)]">
+          <span className={`text-xs font-semibold uppercase tracking-[0.14em] ${invertido ? 'text-[var(--sf-fondo)]/70' : 'text-[var(--sf-texto-suave)]'}`}>
             {fila.etiqueta}
           </span>
-          <span className="text-right text-base text-[var(--sf-tinta)]">{fila.valor}</span>
+          <span className={`text-right text-base ${invertido ? 'text-[var(--sf-fondo)]' : 'text-[var(--sf-tinta)]'}`}>{fila.valor}</span>
         </div>
       ))}
     </>
