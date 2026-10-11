@@ -10,6 +10,7 @@ import GrindChooser from '@/components/storefront/home/GrindChooser';
 import SubscriptionCTA from '@/components/storefront/home/SubscriptionCTA';
 import TestimonialSection from '@/components/storefront/home/TestimonialSection';
 import Spotlight from '@/components/storefront/home/Spotlight';
+import NosotrosApertura from '@/components/storefront/nosotros/NosotrosApertura';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
@@ -169,6 +170,13 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // propio catálogo y usa el primer producto como muestra (§ su docstring, components/storefront/
   // producto/ProductoLamina.tsx). Sin catálogo, se queda en blanco, no rota.
   tiendaProducto: ProductoLaminaVistaPrevia,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § ONIX-NOSOTROS-APERTURA-SINOPSIS-1 (mismo patrón que
+  // 'suscripcionApertura' arriba): sumar 'nosotrosApertura' a `SeccionVista` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea. Toma `negocio` opcional para
+  // el fallback del título; en el preview va sin prop → cae a `TITULO_POR_DEFECTO` ('Nosotros').
+  // Todo-opcional → asignable a `ComponentType`. Con `nosotrosApertura.visible` en `false` (el
+  // default) la vista previa queda en blanco, no rota.
+  nosotrosApertura: NosotrosApertura,
   nosotrosHistoria: NosotrosHistoria,
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.

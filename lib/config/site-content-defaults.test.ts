@@ -576,6 +576,67 @@ test('REGISTRY.nosotrosHistoria.imagenes = [imagen] (tripwire del borrado de blo
   assert.equal(REGISTRY.nosotrosHistoria.campos.imagen, 'opcional');
 });
 
+// ── § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: variante de nosotrosHistoria + retratoNombre ───────────
+
+test('nosotrosHistoria: sin fila, `variante` resuelve a la canónica "relato" (byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosHistoria.variante, 'relato');
+  assert.equal(DEFAULTS.nosotrosHistoria.variante, 'relato');
+});
+
+test('nosotrosHistoria: una `variante` guardada válida ("sinopsis") se respeta; basura cae a la canónica', () => {
+  assert.equal(resolverSiteContent({ nosotrosHistoria: { variante: 'sinopsis' } }).nosotrosHistoria.variante, 'sinopsis');
+  assert.equal(resolverSiteContent({ nosotrosHistoria: { variante: 'no-existe' } }).nosotrosHistoria.variante, 'relato');
+});
+
+test('REGISTRY.nosotrosHistoria declara `variantes` con el set cerrado ["relato","sinopsis"] y la canónica "relato"', () => {
+  assert.deepEqual(REGISTRY.nosotrosHistoria.variantes, { claves: ['relato', 'sinopsis'], canonica: 'relato' });
+});
+
+test('nosotrosHistoria.retratoNombre: OPCIONAL — nace vacío, presente-vacío se respeta, ausente cae al default', () => {
+  assert.equal(DEFAULTS.nosotrosHistoria.retratoNombre, '');
+  const r = resolverSiteContent({ nosotrosHistoria: { retratoNombre: 'Don Rafael' } });
+  assert.equal(r.nosotrosHistoria.retratoNombre, 'Don Rafael');
+  const vacio = resolverSiteContent({ nosotrosHistoria: { retratoNombre: '' } });
+  assert.equal(vacio.nosotrosHistoria.retratoNombre, ''); // opcional presente-vacío → se respeta, no cae a otra cosa
+});
+
+// ── § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: la apertura propia de /nosotros ────────────────────────
+
+test('nosotrosApertura: nace `visible:false` — byte-idéntico, Nayoli no la ve hasta que se prenda', () => {
+  assert.equal(DEFAULTS.nosotrosApertura.visible, false);
+  const r = resolverSiteContent({});
+  assert.equal(r.nosotrosApertura.visible, false);
+});
+
+test('nosotrosApertura: `titulo`/`rotuloDerecha` nacen VACÍOS a propósito (identidad de finca es dato de tenant, no default de template)', () => {
+  assert.equal(DEFAULTS.nosotrosApertura.titulo, '');
+  assert.equal(DEFAULTS.nosotrosApertura.rotuloDerecha, '');
+  assert.equal(DEFAULTS.nosotrosApertura.rotuloIzquierda, 'NOSOTROS');
+});
+
+test('nosotrosApertura: `visible:true` guardado se respeta; los campos opcionales presente-vacío/con-valor se conservan', () => {
+  const r = resolverSiteContent({ nosotrosApertura: { visible: true, titulo: 'La finca', imagen: '/finca.jpg' } });
+  assert.equal(r.nosotrosApertura.visible, true);
+  assert.equal(r.nosotrosApertura.titulo, 'La finca');
+  assert.equal(r.nosotrosApertura.imagen, '/finca.jpg');
+});
+
+test('REGISTRY.nosotrosApertura: ocultable, con imagen opcional y los tres campos de texto opcionales', () => {
+  assert.equal(REGISTRY.nosotrosApertura.ocultable, true);
+  assert.deepEqual(REGISTRY.nosotrosApertura.imagenes, ['imagen']);
+  assert.deepEqual(REGISTRY.nosotrosApertura.campos, {
+    imagen: 'opcional',
+    rotuloIzquierda: 'opcional',
+    rotuloDerecha: 'opcional',
+    titulo: 'opcional',
+  });
+});
+
+test('BANDA_NOSOTROS_IDS: `nosotrosApertura` entra PRIMERO (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1)', () => {
+  assert.deepEqual(BANDA_NOSOTROS_IDS, ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+});
+
 test('paginas: por default /nosotros está ENCENDIDA', () => {
   assert.equal(resolverSiteContent({}).paginas.nosotros.visible, true);
 });
@@ -1829,8 +1890,8 @@ test('"video"·reproducir: SIN video subido, la caja (aspect-video) sigue montad
 // persistido que reordenar, así que el resolver no toma `stored` — no hay "garbage" que limpiar, ni
 // "parcial"/"dedup" que ejercer. Lo que SÍ hay que afirmar, igual que del lado de la home: el orden
 // de HOY, y que el dominio es EXHAUSTIVO (nunca se cae una banda).
-test('resolverOrdenNosotros: devuelve las TRES bandas de /nosotros, en el orden de hoy — el cierre AL FINAL (§ NOSOTROS-COMPOSICION-1)', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las CUATRO bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1)', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
 });
 
 test('resolverOrdenNosotros: el dominio es EXHAUSTIVO — exactamente BANDA_NOSOTROS_IDS, sin faltantes ni de más', () => {

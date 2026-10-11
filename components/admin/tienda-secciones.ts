@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -991,22 +991,65 @@ const SPOTLIGHT: SeccionConfig = {
   ],
 };
 
+// LA APERTURA PROPIA DE /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
+// `NosotrosAperturaContent` en site-content-defaults.ts). `ocultable: true`, nace OFF — el
+// `notaVisibilidad` lo dice, mismo criterio que `SUSCRIPCION_APERTURA`.
+const NOSOTROS_APERTURA: SeccionConfig = {
+  seccion: 'nosotrosApertura',
+  pagina: 'nosotros',
+  titulo: 'Apertura',
+  ocultable: true,
+  notaVisibilidad: 'Apagada de arranque: por defecto, /nosotros no lleva esta banda.',
+  imagenes: [{ name: 'imagen', label: 'Foto de fondo', opcional: true }],
+  campos: [
+    { name: 'titulo', label: 'Título', opcional: true, hint: 'Ej. el nombre de la finca o de quien cultiva. Vacío: se usa el nombre del negocio.' },
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Nosotros". Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 12 ha". Vacío: no se muestra.' },
+  ],
+};
+
+// LA COMPOSICIÓN DE LA HISTORIA de /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): «Relato» (la
+// canónica) sigue sus zonas de siempre; «Sinopsis partida» reusa eyebrow/parrafo1/imagen con otro
+// layout y suma `retratoNombre`, el único campo nuevo. MISMO patrón que
+// `OPCIONES_COMPOSICION_TIENDA_INTERLUDIO`: el VALOR y el orden salen de
+// `REGISTRY.nosotrosHistoria.variantes.claves`, este archivo sólo agrega la etiqueta y las zonas.
+const LABEL_COMPOSICION_NOSOTROS_HISTORIA: Record<string, string> = { relato: 'Relato', sinopsis: 'Sinopsis partida' };
+const ZONAS_NOSOTROS_HISTORIA_RELATO: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Línea superior' },
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['parrafo1', 'parrafo2', 'parrafo3'], label: 'Párrafos' },
+  { campos: ['imagen'], label: 'Imagen' },
+];
+const ZONAS_NOSOTROS_HISTORIA_SINOPSIS: ZonaComposicion[] = [
+  { campos: ['eyebrow'], label: 'Rótulo "Sinopsis"' },
+  { campos: ['parrafo1'], label: 'Párrafo' },
+  { campos: ['imagen'], label: 'Retrato' },
+  { campos: ['retratoNombre'], label: 'Nombre del caficultor' },
+];
+const OPCIONES_COMPOSICION_NOSOTROS_HISTORIA: ComposicionOpcion[] = REGISTRY.nosotrosHistoria.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_HISTORIA[v] ?? v,
+  zonas: v === 'sinopsis' ? ZONAS_NOSOTROS_HISTORIA_SINOPSIS : ZONAS_NOSOTROS_HISTORIA_RELATO,
+}));
+
 // La página /nosotros: la historia larga (la galería variable es su propia sección, tanda 2).
 // `ocultable:false` — el ocultar es a nivel de PÁGINA (el toggle de encender/apagar), no de esta
 // sección. `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL — vacía = la sección de una sola columna de
-// siempre; con foto, compone a dos columnas (§ NosotrosHistoria.tsx).
+// siempre; con foto, compone a dos columnas (§ NosotrosHistoriaRelato.tsx). Bajo «Sinopsis partida»
+// el mismo campo es el retrato a sangre (§ NosotrosHistoriaSinopsis.tsx).
 const NOSOTROS_HISTORIA: SeccionConfig = {
   seccion: 'nosotrosHistoria',
   pagina: 'nosotros',
   titulo: 'Historia',
   ocultable: false,
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_HISTORIA,
   imagenes: [{ name: 'imagen', label: 'Imagen (opcional)' }],
   campos: [
-    { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
-    { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
-    { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
+    { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título ("Relato") o el rótulo "Sinopsis" ("Sinopsis partida"). Vacío: no se muestra.' },
+    { name: 'titulo',   label: 'Título',         hint: 'Sólo tiene efecto con la composición "Relato". Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Con "Sinopsis partida" es el ÚNICO párrafo que se muestra (hasta 3 frases). Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
+    { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
+    { name: 'retratoNombre', label: 'Nombre del caficultor', opcional: true, hint: 'Sólo con la composición "Sinopsis partida": el pie del retrato, "[NOMBRE] · CAFICULTOR". Vacío: el retrato no lleva pie.' },
   ],
 };
 
@@ -1536,4 +1579,4 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 // (sin tocar, sigue byte-idéntico) → interludio → preguntas (letra pequeña) → cierre. El spec lo
 // nombra "apertura → taquilla → interludio → letra pequeña → cierre" sin mencionar pasos porque esa
 // sección no cambia de posición — sigue exactamente donde ya estaba.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];

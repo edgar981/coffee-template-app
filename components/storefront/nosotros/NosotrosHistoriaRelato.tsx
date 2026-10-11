@@ -1,0 +1,120 @@
+"use client";
+
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { fadeUp } from "@/lib/animation";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useIsPreview } from "@/components/storefront/PreviewMode";
+import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
+import { contenedorAnchoClase } from "@/lib/config/themes";
+import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
+
+// LA HISTORIA LARGA de /nosotros — composición CANÓNICA («Relato», § ONIX-NOSOTROS-APERTURA-
+// SINOPSIS-1), extraída VERBATIM de `NosotrosHistoria.tsx` al separar el mecanismo de variantes del
+// dispatcher (mismo patrón que `BrandStory.tsx` → `BrandStoryColumnas.tsx`). El gate de la sección
+// (`ocultable:false`, siempre visible) sigue sin existir — esta sección nunca se apaga; lo único que
+// el DISPATCHER decide es CUÁL composición rinde.
+//
+// `eyebrow` y `parrafo2/3` son opcionales → se omiten vacíos; `titulo` y `parrafo1` vienen
+// resueltos. Preview ESTÁTICO (`whileInView`→`animate` con `initial={false}`), como las secciones de
+// la home, para que la vista en vivo del editor no lo deje invisible.
+//
+// `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL. **Vacía → EXACTAMENTE el render de antes de este
+// slice, byte a byte, FUERA de modo editor** (la bifurcación ocurre ANTES de tocar el layout, así
+// que el árbol de la rama sin imagen es literalmente el JSX de siempre, sólo factorizado en
+// `texto`). Con imagen: composición imagen-con-texto a DOS COLUMNAS en escritorio, apiladas en móvil
+// — medida contra el `image_with_text` con el que abre el about del tema real (§ CENSO-NOSOTROS-
+// TEMA-REAL-1). El `alt=""` es decorativo, mismo criterio que `marquesina.imagen` (Marquesina.tsx):
+// el texto adjunto ya cuenta la historia.
+//
+// SÓLO EN MODO EDITOR (§ EDITOR-TIENDA-CAMPO-EDITABLE-CIERRE-1, cierra `CAMPO-EDITABLE-IMAGEN-
+// SLOT-VACIO-OPCIONAL-1): sin imagen, la rama de UNA columna dejaba de existir todo rastro de dónde
+// clickear para agregar la primera foto. En modo editor, vacía también entra a la rama de DOS
+// columnas —la misma composición que tendría CON imagen— pero la segunda columna es un hueco
+// "Agregar foto" en vez del `<Image>` real. Fuera de modo editor, `activo` es `false` y la condición
+// de arriba (`!tieneImagen && !activo`) sigue cayendo en la rama de SIEMPRE.
+export default function NosotrosHistoriaRelato() {
+  const { nosotrosHistoria, navTratamiento } = useSiteContent();
+  const preview = useIsPreview();
+  const activo = useModoEditorActivo();
+  const { eyebrow, titulo, parrafo1, parrafo2, parrafo3, imagen } = nosotrosHistoria;
+  // `campo` sobrevive al filtro (§ EDITOR-TIENDA-CAMPO-EDITABLE-RESTO-1..N — "slot, no posición"):
+  // si parrafo2 está vacío y parrafo3 no, el campo editable del segundo párrafo VISIBLE tiene que
+  // seguir siendo "parrafo3", no "parrafo2".
+  const parrafos = [
+    { campo: "parrafo1", valor: parrafo1 },
+    { campo: "parrafo2", valor: parrafo2 },
+    { campo: "parrafo3", valor: parrafo3 },
+  ].filter(p => p.valor.trim() !== "");
+  const tieneImagen = imagen.trim() !== "";
+  // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — SÓLO para la rama CON imagen (dos columnas,
+  // abajo). La rama SIN imagen (`max-w-3xl`, unas líneas más abajo) es un CONTENEDOR DE LECTURA
+  // —prosa en una sola columna— que se queda ANGOSTO a propósito, en las DOS geometrías: ensanchar
+  // el ancho de línea de un párrafo de texto corrido lo hace más difícil de leer, no más fiel al
+  // prototipo (§ el spec de este slice, que nombra este caso como excepción legítima).
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+
+  const texto = (
+    <motion.div
+      initial={preview ? false : "hidden"}
+      animate={preview ? "visible" : undefined}
+      whileInView={preview ? undefined : "visible"}
+      viewport={preview ? undefined : { once: true }}
+      variants={fadeUp}
+    >
+      {eyebrow && <p className="text-[var(--sf-acento-texto)] text-xs font-medium tracking-[0.2em] uppercase mb-3"><CampoEditable campo="nosotrosHistoria.eyebrow">{eyebrow}</CampoEditable></p>}
+      {/* h1: es el encabezado principal de la PÁGINA (la home usa h2 por sección). */}
+      <h1 className="text-4xl sm:text-5xl font-playfair text-[var(--sf-tinta)] leading-tight mb-8"><CampoEditable campo="nosotrosHistoria.titulo">{titulo}</CampoEditable></h1>
+      <div className="space-y-6">
+        {parrafos.map((p) => (
+          <p key={p.campo} className="text-[var(--sf-acento-2)]/80 leading-relaxed text-lg">
+            <CampoEditable campo={`nosotrosHistoria.${p.campo}`} multilinea>{p.valor}</CampoEditable>
+          </p>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  if (!tieneImagen && !activo) {
+    return (
+      <section className="py-24 bg-[var(--sf-fondo)]">
+        {/* Contenedor de LECTURA — angosto a propósito, NO `contenedorAnchoClase` (§ arriba). */}
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          {texto}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="py-24 bg-[var(--sf-fondo)]">
+      <div className={`${contenedorClase} mx-auto`}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {texto}
+          {/* RADIO (§ RADIO-TARJETAS-IMAGEN-1): `sf-radio-imagen`, no `rounded-2xl` crudo — gate del
+              owner, "un poco de redondeo pero sólo a las card de imágenes", y ésta es "la foto de
+              historia" que nombró. Fallback 1rem = el mismo `--radius-2xl` que `rounded-2xl` ya
+              resolvía bajo Suave → byte-idéntico para Nayoli. */}
+          <motion.div
+            initial={preview ? false : { opacity: 0, scale: 0.95 }}
+            animate={preview ? { opacity: 1, scale: 1 } : undefined}
+            whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
+            viewport={preview ? undefined : { once: true }}
+            transition={preview ? undefined : { duration: 0.6 }}
+            className="relative aspect-[3/4] overflow-hidden sf-radio-imagen"
+          >
+            {tieneImagen ? (
+              <CampoEditable campo="nosotrosHistoria.imagen" tipo="imagen">
+                <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+              </CampoEditable>
+            ) : (
+              // SÓLO EN MODO EDITOR (§ arriba, el docstring de cabecera): sin imagen Y fuera de modo
+              // editor esta rama es inalcanzable (`!tieneImagen && !activo` ya retornó arriba).
+              <HuecoImagenOpcional campo="nosotrosHistoria.imagen" className="absolute inset-0" />
+            )}
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -164,6 +164,29 @@ test('nosotrosCierre: un `ctaDestino` fuera del set cerrado se rechaza (a difere
   assert.throws(() => siteContentEditableSchema.parse({ nosotrosCierre: { ctaDestino: 'https://ejemplo.com' } }));
 });
 
+// ─── § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: la apertura propia de /nosotros, y variante/retratoNombre
+// de la historia SOBREVIVEN al parse ────────────────────────────────────────────────────────────
+
+test('nosotrosApertura: los cuatro campos SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    nosotrosApertura: { visible: true, imagen: '/x.jpg', rotuloIzquierda: 'NOSOTROS', rotuloDerecha: 'SAN ADOLFO, HUILA · 12 HA', titulo: 'La finca' },
+  });
+  assert.deepEqual(parsed.nosotrosApertura, {
+    visible: true, imagen: '/x.jpg', rotuloIzquierda: 'NOSOTROS', rotuloDerecha: 'SAN ADOLFO, HUILA · 12 HA', titulo: 'La finca',
+  });
+});
+
+test('nosotrosApertura: una clave NO declarada se descarta (confirma que el strip está activo)', () => {
+  const parsed = siteContentEditableSchema.parse({ nosotrosApertura: { titulo: 'La finca', basura: 'no-declarada' } });
+  assert.deepEqual(parsed.nosotrosApertura, { titulo: 'La finca' });
+});
+
+test('nosotrosHistoria: `variante`/`retratoNombre` SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
+  const parsed = siteContentEditableSchema.parse({ nosotrosHistoria: { variante: 'sinopsis', retratoNombre: 'Don Rafael' } });
+  assert.equal(parsed.nosotrosHistoria!.variante, 'sinopsis');
+  assert.equal(parsed.nosotrosHistoria!.retratoNombre, 'Don Rafael');
+});
+
 // ─── EL DERIVADO (§ Backlog #65-B, FIX 3): modelo ⊆ schema, sin una tercera lista a mano ─────────
 // Los tests de arriba prueban ÍTEM POR ÍTEM lo que sobrevive/se rechaza (la mitad de repeater). Éste
 // cierra la OTRA brecha —la que costó #65-B—: que TODO campo de PRIMER NIVEL del modelo esté en el

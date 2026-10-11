@@ -2426,8 +2426,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   PRODUCTO-CHAMISAS-LAMINA-1) se suma al MISMO select nativo por la MISMA razón: dos
                   opciones, sin zonas que avisar. 'suscripcionFaq' (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1)
                   también: 'tarjetas'/'letraPequena' leen los MISMOS campos (`titulo` + el repeater),
-                  así que no hay zonas que distingan — el mismo criterio exacto. */}
-              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq') && config.composiciones && config.composiciones.length > 1 && (
+                  así que no hay zonas que distingan — el mismo criterio exacto. 'nosotrosHistoria'
+                  (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): mismo criterio otra vez — en vez de reproducir
+                  el hueco ya documentado (`ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1`, donde
+                  `composiciones` se declara pero ningún control real lo muestra), 'relato'/'sinopsis'
+                  se suman a este MISMO select nativo — dos opciones, sin zonas que avisar. */}
+              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq' || seccion === 'nosotrosHistoria') && config.composiciones && config.composiciones.length > 1 && (
                 <div className="admin-bloque">
                   <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
                   <select

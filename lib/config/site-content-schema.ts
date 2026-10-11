@@ -301,8 +301,22 @@ const testimonialsEditableSchema = z.object({
   items: z.array(testimonialItemSchema).optional(),
 });
 
+// /nosotros — LA APERTURA PROPIA (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
+// `NosotrosAperturaContent`, site-content-defaults.ts). SOFT como el resto — gemela de
+// `suscripcionAperturaEditableSchema`.
+const nosotrosAperturaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  imagen: z.string().optional(),
+  rotuloIzquierda: z.string().optional(),
+  rotuloDerecha: z.string().optional(),
+  titulo: z.string().optional(),
+});
+
 // /nosotros — la historia larga. `imagen` (§ NOSOTROS-COMPOSICION-1) es OPCIONAL, string (path o
 // URL de Blob, como cualquier otra imagen de sección) — vacía = la composición de una sola columna.
+// `variante`/`retratoNombre` (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): SOBREVIVEN al parse como string,
+// SOFT — `resolverVariante` clampa `variante` al leer, no acá (mismo criterio que
+// `brandStoryEditableSchema.variante`).
 const nosotrosHistoriaEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -311,6 +325,8 @@ const nosotrosHistoriaEditableSchema = z.object({
   parrafo2: z.string().optional(),
   parrafo3: z.string().optional(),
   imagen: z.string().optional(),
+  variante: z.string().optional(),
+  retratoNombre: z.string().optional(),
 });
 
 // /nosotros — la galería (repeater con tipo imagen). Encabezado opcional + un ARRAY de ítems `{ url,
@@ -1066,6 +1082,7 @@ export const siteContentEditableSchema = z.object({
   spotlight: spotlightEditableSchema.optional(),
   subscriptionCTA: subscriptionCTAEditableSchema.optional(),
   testimonials: testimonialsEditableSchema.optional(),
+  nosotrosApertura: nosotrosAperturaEditableSchema.optional(),
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
   nosotrosCierre: nosotrosCierreEditableSchema.optional(),

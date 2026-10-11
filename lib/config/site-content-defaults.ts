@@ -805,6 +805,35 @@ export interface TestimonialsContent {
   items: TestimonialItem[];
 }
 
+// LA APERTURA PROPIA DE /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, sobre ONIX-PAGINAS-
+// COMPOSICIONES-CENSO-1 — el owner aprobó el 2026-10-11 la maqueta «Tres escenas» de Onix con esta
+// pieza al tope de la página, FOTO ahora, vídeo después). Sección NUEVA, propia — contenido PROPIO,
+// montada con la pieza COMPARTIDA `components/storefront/tienda/Apertura.tsx` (§ ONIX-PAGINAS-
+// PIEZAS-COMPARTIDAS-1), SIN override de `alto` (el spec: "la de /tienda tal cual" — a diferencia de
+// `suscripcionApertura`, que SÍ ajusta a 70svh).
+//
+// NACE OFF (`visible: false`), MISMA razón MECÁNICA que `suscripcionApertura` (ver su docstring,
+// abajo): la pieza `Apertura` SIEMPRE pinta algo —una superficie de color tinta con el título, aun
+// sin foto—, así que un default `visible: true` metería un banner nuevo en la página de TODO tenant
+// sin fila. `ocultable: true` para que el dueño la prenda.
+//
+// `titulo` es OPCIONAL, a diferencia de `suscripcionApertura.titulo` ("CADA MES" — una palabra
+// genérica de cadencia, sin dato de negocio que resolver). El spec de esta sección pide el nombre de
+// quien cultiva («provisional "LA FINCA"»): eso ES identidad de un tenant café/finca, y hornearlo en
+// `DEFAULTS` violaría la misma regla que ya mantiene vacíos a `tiendaEncabezado.rotuloIzquierda/
+// Derecha` — el catcher de términos prohibidos (§ MARCA-DE-CLIENTE-EN-EL-REPO-1,
+// `site-content-defaults.test.ts`) lo confirmó fallando contra "LA FINCA" antes de este fix. Vacío
+// → el componente cae al nombre del negocio (`negocio || 'Nosotros'`), MISMO mecanismo que
+// `TiendaApertura` (`titulo || negocio || 'Nuestra Tienda'`) — el fallback vive en el COMPONENTE
+// (`NosotrosApertura.tsx`), no en `DEFAULTS`.
+export interface NosotrosAperturaContent {
+  visible: boolean;
+  imagen: string;
+  rotuloIzquierda: string;
+  rotuloDerecha: string;
+  titulo: string;
+}
+
 // LA PÁGINA /nosotros — el relato largo (la home lleva el ANZUELO: el collage de 4 fotos fijas de
 // brandStory; la historia completa vive acá). Es una sección MÁS del mismo `content` JSON —la
 // "página" es una agrupación de CONFIG (§ tienda-secciones `pagina`), no un anidado en el dato—.
@@ -818,6 +847,16 @@ export interface TestimonialsContent {
 // compone a DOS COLUMNAS (texto | imagen) en escritorio, apiladas en móvil — la MISMA composición
 // imagen-con-texto con la que abre el about del tema real (medido, § CENSO-NOSOTROS-TEMA-REAL-1,
 // `image_with_text`). Sin ella, Nayoli (y cualquier tenant que no la llene) no cambia un solo byte.
+//
+// `variante`/`retratoNombre` (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): SEGUNDA composición, gemela de
+// `brandStory.variante`/`tiendaInterludio.variante`. 'relato' es la CANÓNICA — exactamente el
+// render de arriba, byte a byte, extraído a `NosotrosHistoriaRelato.tsx` sin tocar una línea.
+// 'sinopsis' («Sinopsis partida», § el spec) REUSA `eyebrow` (el rótulo «SINOPSIS»), `parrafo1` (el
+// ÚNICO párrafo que se muestra) e `imagen` (el retrato a sangre) — ninguno de los tres es un campo
+// nuevo; `parrafo2`/`parrafo3` quedan SIN EFECTO bajo esta composición (siguen editables, § "lo que
+// no se muestra no se borra"). `retratoNombre` es el ÚNICO campo nuevo: opcional, alimenta el pie
+// del retrato («[NOMBRE] · CAFICULTOR») — vacío, el retrato no lleva pie (criterio OR/opcional de
+// siempre, no un claim fabricado de dueño).
 export interface NosotrosHistoriaContent {
   visible: boolean;
   eyebrow: string;
@@ -826,6 +865,8 @@ export interface NosotrosHistoriaContent {
   parrafo2: string;
   parrafo3: string;
   imagen: string;
+  variante: string;
+  retratoNombre: string;
 }
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda que cierra la página, justo
@@ -1988,6 +2029,7 @@ export interface SiteContentData {
   spotlight: SpotlightContent;
   subscriptionCTA: SubscriptionCTAContent;
   testimonials: TestimonialsContent;
+  nosotrosApertura: NosotrosAperturaContent;
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
   nosotrosCierre: NosotrosCierreContent;
@@ -2083,16 +2125,17 @@ export type BandaId = typeof BANDA_IDS[number];
 export type OrdenContent = string[];
 export const ORDEN_DEFAULT: BandaId[] = [...BANDA_IDS];
 
-// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1)
-// — GEMELA de `BANDA_IDS`/`OrdenContent` de arriba, para la OTRA página que compone bandas:
-// `app/(storefront)/nosotros/page.tsx`. Son TRES bandas —la historia larga, la galería, y el CTA de
+// META de ORDEN de /nosotros (§ NOSOTROS-SISTEMA-DE-BANDAS-1, ampliada por § NOSOTROS-COMPOSICION-1
+// y por § ONIX-NOSOTROS-APERTURA-SINOPSIS-1) — GEMELA de `BANDA_IDS`/`OrdenContent` de arriba, para
+// la OTRA página que compone bandas: `app/(storefront)/nosotros/page.tsx`. Son CUATRO bandas — la
+// apertura PRIMERO (§ NosotrosAperturaContent, nace OFF), la historia larga, la galería, y el CTA de
 // cierre, en ese orden (el cierre AL FINAL, justo antes del pie, § NosotrosCierre.tsx)—. A
 // DIFERENCIA de `orden` (home), acá NO hay campo en `SiteContentData` que persista una secuencia
 // elegida por el owner — no hay fila que reordenar todavía, ni control en el panel para hacerlo
 // (agregar ese campo y su control es su PROPIO slice, ya anotado en su momento). Por eso el ARRAY EN
 // SÍ no vive dentro de `SiteContentData` (es sólo el conjunto cerrado de ids que la página conoce),
 // aunque cada id que nombra SÍ es una sección real de `SiteContentData`/`SeccionKey`.
-export const BANDA_NOSOTROS_IDS = ['nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre'] as const;
+export const BANDA_NOSOTROS_IDS = ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre'] as const;
 export type BandaNosotrosId = typeof BANDA_NOSOTROS_IDS[number];
 
 // LA CANÓNICA DE DARKNESS POR BANDA (§ eje 5, cierra la mina del nav abierta por el orden-como-dato).
@@ -2437,6 +2480,20 @@ export const DEFAULTS: SiteContentData = {
     titulo: 'Lo que dicen nuestros clientes',
     items: [], // VACÍO a propósito (§ SiteContent — el repeater): sin claims falsos en defaults; hide-on-empty oculta
   },
+  // LA APERTURA PROPIA DE /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
+  // `NosotrosAperturaContent` arriba). `visible: false` — "por defecto la página queda como hoy";
+  // Nayoli no la ve hasta que el dueño la prenda. `rotuloIzquierda:'NOSOTROS'` nombra la PÁGINA (como
+  // `suscripcionApertura.rotuloIzquierda:'SUSCRIPCIÓN'`), no el negocio — genérico, no café-shape.
+  // `rotuloDerecha`/`titulo` vacíos a propósito: el spec los pide con identidad de finca ("SAN
+  // ADOLFO, HUILA · 12 HA" / "LA FINCA"), que es dato de TENANT, no default de template — Onix los
+  // llena desde el panel; `titulo` vacío cae al nombre del negocio (§ el docstring de arriba).
+  nosotrosApertura: {
+    visible: false,
+    imagen: '',
+    rotuloIzquierda: 'NOSOTROS',
+    rotuloDerecha: '',
+    titulo: '',
+  },
   // El relato largo de la página /nosotros. El default REUSA el texto real de brandStory (no se
   // fabrica copy); `parrafo3` nace vacío para que el owner expanda. La galería variable NO va acá:
   // entra como su propia sección en la tanda 2 (§ /nosotros — la galería).
@@ -2451,6 +2508,10 @@ export const DEFAULTS: SiteContentData = {
     parrafo3: '',
     // Vacío → composición de una sola columna, byte-idéntica a antes de § NOSOTROS-COMPOSICION-1.
     imagen: '',
+    // «Relato» (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1) es la CANÓNICA — exactamente lo de arriba, byte
+    // a byte. `retratoNombre` vacío: sólo tiene efecto bajo «Sinopsis partida».
+    variante: 'relato',
+    retratoNombre: '',
   },
   // La galería de /nosotros. Encabezado con defaults de COPY (se muestran sólo cuando hay fotos, por
   // hide-on-empty); `items` VACÍO —las fotos de la finca son DATO del owner, no hay imagen que
@@ -3285,11 +3346,33 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       },
     },
   },
+  // LA APERTURA PROPIA DE /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
+  // `NosotrosAperturaContent` en site-content-defaults.ts). `ocultable: true` para que el dueño la
+  // prenda.
+  nosotrosApertura: {
+    label: 'Apertura',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      imagen: 'opcional',
+      rotuloIzquierda: 'opcional',
+      rotuloDerecha: 'opcional',
+      // OPCIONAL (§ el docstring de `NosotrosAperturaContent`): vacío cae al nombre del negocio, no
+      // a un literal de finca fabricado.
+      titulo: 'opcional',
+    },
+  },
   nosotrosHistoria: {
     label: 'Historia',
     ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.nosotros.visible), no de esta sección
+    // VARIANTES DE COMPOSICIÓN (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): 'relato' es la canónica —el
+    // layout de HOY, verbatim—. 'sinopsis' («Sinopsis partida») reusa eyebrow/parrafo1/imagen con otro
+    // layout; `retratoNombre` SÓLO tiene efecto bajo ella. `NosotrosHistoria.tsx` ganó su dispatcher
+    // en este mismo slice (gemelo de `BrandStory.tsx`).
+    variantes: { claves: ['relato', 'sinopsis'], canonica: 'relato' },
     // `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL — vacío = la composición de una sola columna de
-    // siempre; con foto, la sección pasa a imagen-con-texto (§ NosotrosHistoria.tsx).
+    // siempre; con foto, la sección pasa a imagen-con-texto (§ NosotrosHistoriaRelato.tsx). Bajo
+    // 'sinopsis' el mismo campo es el retrato a sangre (§ NosotrosHistoriaSinopsis.tsx).
     imagenes: ['imagen'],
     campos: {
       eyebrow: 'opcional',
@@ -3298,6 +3381,7 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       parrafo2: 'opcional',
       parrafo3: 'opcional',
       imagen: 'opcional',
+      retratoNombre: 'opcional',
     },
   },
   nosotrosGaleria: {

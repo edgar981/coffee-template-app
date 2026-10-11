@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSiteContent } from "@/lib/config/site-content";
 import { getSiteSettings } from "@/lib/config/site-settings";
+import NosotrosApertura from "@/components/storefront/nosotros/NosotrosApertura";
 import NosotrosHistoria from "@/components/storefront/nosotros/NosotrosHistoria";
 import NosotrosGaleria from "@/components/storefront/nosotros/NosotrosGaleria";
 import NosotrosCierre from "@/components/storefront/nosotros/NosotrosCierre";
@@ -25,11 +26,14 @@ export const metadata: Metadata = { title: "Nosotros" };
 // de `resolverOrden` de la home, § site-content-defaults.ts) decide la SECUENCIA y `BANDAS` (acá, no
 // en `lib/` — mismo sitio que la home) es el REGISTRO bandaId→render, exhaustivo por TIPO
 // (`Record<BandaNosotrosId, …>`: agregar un id a `BANDA_NOSOTROS_IDS` sin registrarlo acá rompe el
-// typecheck). `nosotrosGaleria` es la ÚNICA banda con un prop extra (`negocio`), igual que
-// `presentaciones` en la home. `nosotrosCierre` (§ NOSOTROS-COMPOSICION-1) cierra la página, al final
-// —justo antes del pie global del layout—: es hide-on-empty (§ NosotrosCierre.tsx), así que un tenant
-// que no la llene no ve nada nuevo — la salida sigue byte-idéntica para todo tenant que no edite
-// nada (afirmado en `lib/config/nosotros-bandas.test.ts`).
+// typecheck). `nosotrosGaleria`/`nosotrosApertura` son las bandas con un prop extra (`negocio`),
+// igual que `presentaciones` en la home. `nosotrosCierre` (§ NOSOTROS-COMPOSICION-1) cierra la
+// página, al final —justo antes del pie global del layout—: es hide-on-empty (§ NosotrosCierre.tsx),
+// así que un tenant que no la llene no ve nada nuevo — la salida sigue byte-idéntica para todo
+// tenant que no edite nada (afirmado en `lib/config/nosotros-bandas.test.ts`). `nosotrosApertura`
+// (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1) abre la página, PRIMERO: nace `visible:false` (hide-on-off,
+// no hide-on-empty — la pieza compartida `Apertura` siempre pinta algo), así que un tenant sin fila
+// no ve nada nuevo tampoco; su `negocio` sólo alimenta el fallback del título (§ NosotrosApertura.tsx).
 export default async function NosotrosPage() {
   const content = await getSiteContent();
   if (!content.paginas.nosotros.visible) redirect("/");
@@ -39,6 +43,7 @@ export default async function NosotrosPage() {
   const [settings, enModoEditor] = await Promise.all([getSiteSettings(), modoEditorActivo()]);
 
   const BANDAS: Record<BandaNosotrosId, () => React.ReactNode> = {
+    nosotrosApertura: () => <NosotrosApertura negocio={settings.nombre} />,
     nosotrosHistoria: () => <NosotrosHistoria />,
     nosotrosGaleria: () => <NosotrosGaleria negocio={settings.nombre} />,
     nosotrosCierre: () => <NosotrosCierre />,

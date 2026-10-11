@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import NosotrosApertura from '@/components/storefront/nosotros/NosotrosApertura';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
@@ -45,8 +46,10 @@ function arbolFijo(content: SiteContentData, negocio: string) {
 // EL REGISTRO bandaId→render, construido igual que `page.tsx` lo construye: `Record<BandaNosotrosId,
 // …>` exhaustivo por TIPO — si `BANDA_NOSOTROS_IDS` gana un id y nadie lo registra acá, esto NO
 // compila. `nosotrosGaleria` es la única banda con un prop extra (`negocio`), igual que
-// `presentaciones` en el registro de la home; `nosotrosCierre` no toma props, como `nosotrosHistoria`.
+// `presentaciones` en el registro de la home; `nosotrosCierre`/`nosotrosApertura` no toman props,
+// como `nosotrosHistoria`.
 const BANDAS: Record<BandaNosotrosId, (negocio: string) => React.ReactNode> = {
+  nosotrosApertura: () => React.createElement(NosotrosApertura),
   nosotrosHistoria: () => React.createElement(NosotrosHistoria),
   nosotrosGaleria: (negocio) => React.createElement(NosotrosGaleria, { negocio }),
   nosotrosCierre: () => React.createElement(NosotrosCierre),
@@ -61,8 +64,8 @@ function arbolResuelto(content: SiteContentData, negocio: string) {
   });
 }
 
-test('resolverOrdenNosotros: devuelve las TRES bandas de /nosotros, en el orden de hoy — el cierre AL FINAL', () => {
-  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
+test('resolverOrdenNosotros: devuelve las CUATRO bandas de /nosotros, en el orden de hoy — la apertura PRIMERO, el cierre AL FINAL', () => {
+  assert.deepEqual(resolverOrdenNosotros(), ['nosotrosApertura', 'nosotrosHistoria', 'nosotrosGaleria', 'nosotrosCierre']);
 });
 
 test('el registro bandaId→render es EXHAUSTIVO: toda banda de BANDA_NOSOTROS_IDS tiene una entrada registrada', () => {
@@ -149,4 +152,104 @@ test('NosotrosCierre (banda): sin `ctaLabel`/`ctaDestino` no rinde ningún botó
   );
   assert.ok(html.includes('Conocé la finca'));
   assert.ok(!html.includes('<a '), 'sin CTA resuelto, ningún <a> debe rendir');
+});
+
+// § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: `nosotrosApertura` es la CUARTA banda, hide-on-OFF (no
+// hide-on-empty) — la pieza compartida `Apertura` SIEMPRE pinta algo, así que el gate es el toggle.
+
+test('NosotrosApertura (banda): con `visible:false` (el default) devuelve null — hide-on-off', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: DEFAULTS, children: React.createElement(NosotrosApertura) }),
+  );
+  assert.equal(html, '');
+});
+
+test('NosotrosApertura (banda): con `visible:true` SÍ renderiza — el rótulo izquierdo, y el título cae al NEGOCIO (titulo vacío por defecto)', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosApertura: { ...DEFAULTS.nosotrosApertura, visible: true },
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: content,
+      children: React.createElement(NosotrosApertura, { negocio: 'Café Nayoli' }),
+    }),
+  );
+  assert.ok(html.includes('Café Nayoli'), 'sin `titulo` (vacío por defecto), cae al nombre del negocio');
+  assert.ok(html.includes(DEFAULTS.nosotrosApertura.rotuloIzquierda), 'el rótulo izquierdo debe aparecer');
+});
+
+test('NosotrosApertura (banda): `titulo` guardado manda sobre el negocio; sin ninguno de los dos cae a "Nosotros"', () => {
+  const conTitulo: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosApertura: { ...DEFAULTS.nosotrosApertura, visible: true, titulo: 'La finca' },
+  };
+  const htmlConTitulo = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: conTitulo,
+      children: React.createElement(NosotrosApertura, { negocio: 'Café Nayoli' }),
+    }),
+  );
+  assert.ok(htmlConTitulo.includes('La finca'), 'el título guardado manda sobre el negocio');
+  assert.ok(!htmlConTitulo.includes('Café Nayoli'), 'con título guardado, el negocio no aparece');
+
+  const sinNinguno: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosApertura: { ...DEFAULTS.nosotrosApertura, visible: true },
+  };
+  const htmlSinNinguno = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: sinNinguno, children: React.createElement(NosotrosApertura) }),
+  );
+  assert.ok(htmlSinNinguno.includes('Nosotros'), 'sin título ni negocio, cae a la última red ("Nosotros")');
+});
+
+// § ONIX-NOSOTROS-APERTURA-SINOPSIS-1: `NosotrosHistoria` gana un DISPATCHER de composición
+// (gemelo de `BrandStory.tsx`). «Relato» (la canónica) ya está cubierto por los dos tests de
+// byte-identidad de arriba (el árbol resuelto pasa por el dispatcher y sigue idéntico al árbol
+// fijo de ayer); lo que falta es ejercitar «Sinopsis partida».
+
+test('NosotrosHistoria (dispatcher): `variante:"sinopsis"` rinde el rótulo, el único párrafo, y OMITE parrafo2/parrafo3', () => {
+  const content: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, variante: 'sinopsis', parrafo2: 'Este párrafo no debe aparecer.' },
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosHistoria) }),
+  );
+  assert.ok(html.includes(DEFAULTS.nosotrosHistoria.eyebrow), 'el rótulo (eyebrow) debe aparecer');
+  assert.ok(html.includes(DEFAULTS.nosotrosHistoria.parrafo1), 'el párrafo único debe aparecer');
+  assert.ok(!html.includes('Este párrafo no debe aparecer.'), 'parrafo2 no tiene efecto bajo "sinopsis"');
+  assert.ok(!html.includes(DEFAULTS.nosotrosHistoria.titulo), 'el título de "Relato" no tiene efecto bajo "sinopsis"');
+});
+
+test('NosotrosHistoria (dispatcher): "sinopsis" con `retratoNombre` rinde el pie "[NOMBRE] · CAFICULTOR"; vacío, SIN pie', () => {
+  const contentConNombre: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, variante: 'sinopsis', retratoNombre: 'Don Rafael' },
+  };
+  const htmlConNombre = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: contentConNombre, children: React.createElement(NosotrosHistoria) }),
+  );
+  assert.ok(htmlConNombre.includes('Don Rafael'), 'el nombre debe aparecer');
+  assert.ok(htmlConNombre.includes('CAFICULTOR'), 'el sufijo del pie debe aparecer');
+
+  const contentSinNombre: SiteContentData = {
+    ...DEFAULTS,
+    nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, variante: 'sinopsis', retratoNombre: '' },
+  };
+  const htmlSinNombre = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: contentSinNombre, children: React.createElement(NosotrosHistoria) }),
+  );
+  assert.ok(!htmlSinNombre.includes('CAFICULTOR'), 'sin nombre, el retrato no lleva pie');
+});
+
+test('NosotrosHistoria (dispatcher): una `variante` fuera del set cerrado cae a "relato" (la red del `?? NosotrosHistoriaRelato`)', () => {
+  const content = {
+    ...DEFAULTS,
+    nosotrosHistoria: { ...DEFAULTS.nosotrosHistoria, variante: 'basura' },
+  } as SiteContentData;
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(NosotrosHistoria) }),
+  );
+  assert.ok(html.includes(DEFAULTS.nosotrosHistoria.titulo), 'una variante desconocida debe caer a "Relato"');
 });

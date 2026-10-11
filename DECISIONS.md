@@ -59938,3 +59938,119 @@ los dos EXPLÍCITAMENTE prohibidos para este slice. Se compensó con la captura 
 ruta-suscripciones.png`, inspeccionada visualmente — estructura y contenido correctos) y con el
 carril de render en memoria (`letra-pequena.test.ts`). Commiteado en `slice/editor-secciones-1`; el
 merge, cuando el owner revise el gate visual, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-NOSOTROS-APERTURA-SINOPSIS-1: /nosotros abre con la Apertura propia y la «Sinopsis partida» de Onix
+
+**Pedido del owner** (2026-10-11, la misma aprobación que citan `ONIX-SUSCRIPCION-TAQUILLA-1`/
+`ONIX-SUSCRIPCION-LETRA-CIERRE-1`, *"Perfect. Go ahead with this mock."*, sobre la maqueta «Tres
+escenas» de /nosotros): la página gana las DOS primeras piezas de ese flujo —apertura propia y
+«Sinopsis partida»—, de las cinco que `refero-onix-paginas.md` § /nosotros describe (apertura →
+sinopsis → escenas → ficha → interludio → cierre). Escenas y Ficha quedan para su propia tanda —no
+están en `touches:` de este slice—; interludio y cierre ya existían (`NosotrosCierre`, sin
+interludio propio todavía).
+
+### El modelo — una sección NUEVA, y una SEGUNDA composición sobre la que ya existía
+
+- **`nosotrosApertura`** (sección NUEVA): monta la pieza COMPARTIDA `Apertura`
+  (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1), SIN override de `alto` (el spec: "la de /tienda tal cual" —
+  a diferencia de `suscripcionApertura`, que ajusta a 70svh). Nace `visible:false`, MISMO mecanismo
+  que `suscripcionApertura`: la pieza siempre pinta algo (tinta llana sin foto), así que el gate es
+  el TOGGLE, no "¿hay imagen?" — byte-idéntico sin fila.
+- **`nosotrosHistoria` gana `variante`** ('relato' canónica, byte-idéntica — extraída VERBATIM a
+  `NosotrosHistoriaRelato.tsx` | 'sinopsis', opt-in): CERO campos nuevos de contenido reusado —
+  `eyebrow` pasa de kicker sobre el H1 a rótulo «SINOPSIS»; `parrafo1` pasa de ser el primero de
+  hasta tres a ser el ÚNICO que se muestra (`parrafo2`/`parrafo3` quedan SIN EFECTO bajo "sinopsis",
+  siguen editables para cuando el dueño vuelva a "Relato"); `imagen` pasa de foto-con-texto a
+  retrato-a-sangre — MISMO patrón de reuso que `tiendaInterludio` ("Retrato y cita" ↔ "Plano",
+  reusando `imagen` entre las dos). El ÚNICO campo nuevo es `retratoNombre` (opcional): alimenta el
+  pie del retrato, «[NOMBRE] · CAFICULTOR» — vacío, sin pie (criterio opcional de siempre, no un
+  claim fabricado, § el invariante #44).
+
+### El título de la apertura NO se hornea — el catcher de términos prohibidos lo atrapó
+
+El spec cita literal los valores de la maqueta: rótulos «NOSOTROS» / «SAN ADOLFO, HUILA · 12 HA»,
+título «LA FINCA». Poner "LA FINCA"/"SAN ADOLFO, HUILA · 12 HA" en `DEFAULTS` —**medido, no
+asumido**: `npm test` falló contra ese primer intento, `DEFAULTS: ningún campo de TEXTO menciona
+café... ni finca...` (`site-content-defaults.test.ts`), con `nosotrosApertura.titulo` señalado— es
+exactamente la clase de defecto que esa prueba existe para atrapar: identidad de UN tenant café/finca
+hecha default del TEMPLATE. Se corrigió siguiendo el patrón YA establecido por
+`tiendaEncabezado.rotuloIzquierda/Derecha` (vacíos por default) y `TiendaApertura`'s
+`titulo || negocio || 'Nuestra Tienda'`: `nosotrosApertura.titulo`/`rotuloDerecha` nacen VACÍOS;
+`NosotrosApertura.tsx` resuelve `titulo || negocio || 'Nosotros'` (negocio llega por PROP desde el
+server, como ya hace `NosotrosGaleria`). `rotuloIzquierda:'NOSOTROS'` SÍ queda de default — nombra la
+PÁGINA, no el negocio, mismo criterio que `suscripcionApertura.rotuloIzquierda:'SUSCRIPCIÓN'`. Onix
+llena `rotuloDerecha`/`titulo` desde el panel con sus datos reales.
+
+### El viaje por el editor — `nosotrosHistoria` deja de ser un hueco de composición
+
+`components/admin/tienda-secciones.ts` gana `NOSOTROS_APERTURA` (sin `composiciones`, una sola
+pieza) y `NOSOTROS_HISTORIA` suma `composiciones: OPCIONES_COMPOSICION_NOSOTROS_HISTORIA` (derivada
+de `REGISTRY.nosotrosHistoria.variantes.claves`, nunca una segunda lista) + el campo
+`retratoNombre`. **Hallazgo antes de cablear, mismo patrón que `ONIX-SUSCRIPCION-LETRA-CIERRE-1`:**
+declarar `composiciones` en `tienda-secciones.ts` no basta — el select nativo de
+`TiendaSeccionEditor.tsx` (línea ~2430) está hardcodeado por `seccion ===`, y sin sumar
+`'nosotrosHistoria'` ahí el operador no tendría de dónde elegir "Relato"/"Sinopsis partida" (el
+MISMO hueco documentado en `ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1` para
+`suscripcionPlanes`/`tiendaInterludio`/`tiendaCierre`). En vez de reproducirlo una cuarta vez, se
+sumó `'nosotrosHistoria'` al MISMO select nativo — dos opciones, sin zonas que avisar, el criterio ya
+usado por Encabezado/Catálogo/Producto/`suscripcionFaq`. `VistaTiendaEnVivo.tsx` gana
+`nosotrosApertura: NosotrosApertura` en `COMPONENTES` (`tsc` exige el `Record<SeccionVista,
+ComponentType>` exhaustivo).
+
+### `app/(storefront)/nosotros/page.tsx` — el orden
+
+`BANDA_NOSOTROS_IDS` pasa de `[nosotrosHistoria, nosotrosGaleria, nosotrosCierre]` a
+`[nosotrosApertura, nosotrosHistoria, nosotrosGaleria, nosotrosCierre]` — la apertura PRIMERO,
+siguiendo el orden del spec. `NosotrosApertura` recibe `negocio={settings.nombre}` (como
+`NosotrosGaleria`) para su fallback de título.
+
+### Byte-identidad — verificada por EJECUCIÓN, no por lectura
+
+`lib/config/nosotros-bandas.test.ts` (7 tests nuevos, 14 en total): las DOS pruebas de
+byte-identidad existentes (`arbolFijo` vs `arbolResuelto`) siguen pasando SIN TOCARSE — el árbol
+resuelto ahora incluye `nosotrosApertura` vía `resolverOrdenNosotros()`, y como nace
+`visible:false` renderiza `null`, así que el HTML sigue idéntico al árbol fijo de ayer. Se suman:
+`NosotrosApertura` hide-on-off (visible:false → null; visible:true → rótulo+título) y el fallback de
+título (titulo guardado manda > negocio > "Nosotros"); el dispatcher de `NosotrosHistoria` bajo
+"sinopsis" (rótulo+párrafo único, parrafo2/3 SIN efecto, titulo de "Relato" SIN efecto; el pie con/
+sin `retratoNombre`); y la red `?? NosotrosHistoriaRelato` ante una `variante` basura. `lib/config/
+site-content-defaults.test.ts` (10 tests nuevos) y `site-content-schema.test.ts` (3 tests nuevos)
+cubren el resolver/schema de las dos secciones. `lib/config/panel-controles.test.ts` — el chequeo
+DERIVADO ("todo campo que la tienda lee tiene su control, y viceversa") pasó SIN TOCAR el archivo:
+los campos nuevos (`nosotrosApertura.*`, `nosotrosHistoria.variante`/`.retratoNombre`) quedaron
+controlados por construcción, al declarar `REGISTRY` y `SECCIONES_TIENDA` en el mismo gesto.
+
+### El gate
+
+`npm run gate` GREEN de punta a punta: `typecheck` 0 errores · `npm test` 4302/4302 · `npm run
+test:integracion` 409/409. `npm run verificar:nayoli` y `npm run verificar:nayoli:visual` CORRIDOS
+LOS DOS: ambos RED, los dos atribuidos a drift YA documentado de slices previos de esta rama (410
+commits adelante de `main` — `git log --oneline main..HEAD | wc -l`), NO a este diff:
+
+- `verificar:nayoli` (HTML+CSS de `/`, `/tienda`, `/tienda/<slug>`, `/checkout`): el primer punto de
+  divergencia es `<html lang="en">` (main) vs `<html lang="es">` (rama) — de
+  `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, ya en la rama antes de este slice; el segundo es
+  `q=75` vs `q=85` en las imágenes — de `ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`. Ninguna de las dos rutas
+  comparadas toca `/nosotros` ni ningún archivo de `touches:` de este slice.
+- `verificar:nayoli:visual` (píxeles de `/`, `/tienda`, `/tienda/<slug>`, `/checkout`, `/nosotros`,
+  `/suscripciones`): las SEIS rutas difieren, `/nosotros` incluida (224/422 px en una caja
+  [445,45]–[828,726]) — **verificado por inspección visual directa de los PNG de diff**
+  (`.scratch/verificar-nayoli-visual/diffs/ruta-nosotros.png` y `ruta-suscripciones.png`, además de
+  `ruta-checkout.png` para confirmar el patrón): en las TRES imágenes el ÚNICO elemento resaltado
+  (no atenuado) es la misma línea del pie de página, "· Hecho por Duna" — un crédito del footer
+  COMPARTIDO por las seis rutas, ajeno a este diff (`footer.creditoDunaVisible`, ya controlado desde
+  antes de esta tanda, § `panel-controles.test.ts`). El resto de cada captura —incluida la banda de
+  Apertura/Sinopsis de `/nosotros`, apagada por default— aparece ATENUADO (idéntico). Mismo patrón
+  que `ONIX-SUSCRIPCION-LETRA-CIERRE-1` ya documentó para el mismo artefacto.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega una sección nueva (`nosotrosApertura`, nace
+`visible:false`, verificado por render en memoria) y una composición opt-in nueva
+(`nosotrosHistoria.variante = 'sinopsis'`, default sigue siendo `'relato'`) — bytes nuevos que
+CUALQUIER tenant que los active (incluida Onix, vía el panel) recibiría, así que no cae bajo la
+excepción de "sin bytes nuevos". Sin cambio de schema/migración ni contrato cruzado de repositorio.
+`npm run gate` GREEN (arriba). `verificar:nayoli`/`verificar:nayoli:visual` corridos los dos, RED los
+dos, los dos atribuidos a drift pre-existente de la rama y verificados como tal (arriba) — ninguno
+imputable a este diff. Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
+gate visual, lo hace el orquestador.
