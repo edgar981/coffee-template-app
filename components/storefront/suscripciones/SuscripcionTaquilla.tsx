@@ -19,6 +19,7 @@
 // van `disabled` + tachadas. Es una diferencia DELIBERADA entre las dos composiciones, no una
 // regresión del patrón de /tienda.
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatCOP } from '@duna/core/utils';
@@ -27,6 +28,12 @@ import { whatsappUrl } from '@/lib/config/site';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto } from '@/lib/tienda/taquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
+import {
+  visibilidadBarraFija,
+  altoPublicadoBarraFija,
+  DURACION_BARRA_FIJA_S,
+  VAR_ALTO_BARRA_FIJA,
+} from '@/lib/storefront/barra-fija';
 import {
   bolsasDeTaquilla,
   frecuenciasDeTaquilla,
@@ -55,16 +62,35 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
   const [moliendaElegida, setMoliendaElegida] = useState<string | null>(null);
 
   const botonRef = useRef<HTMLDivElement | null>(null);
-  const [botonFueraDeVista, setBotonFueraDeVista] = useState(false);
+  // § ONIX-BARRA-FLOTANTE-MOVIL-1 — MISMO fix que `TiendaTaquilla.tsx`: `visibilidadBarraFija`
+  // (lib/storefront/barra-fija.ts) reemplaza al `IntersectionObserver`+`!entry.isIntersecting`, que
+  // no distinguía "todavía no llegué" de "ya pasé" el botón.
+  const [barraFijaVisible, setBarraFijaVisible] = useState(false);
   const finRef = useRef<HTMLDivElement | null>(null);
   const [finVisible, setFinVisible] = useState(false);
+  // `montado` — MISMO resguardo que `TiendaTaquilla.tsx` (ver su comentario): sin él,
+  // `createPortal(..., document.body)` se alcanzaría en CADA render —incluido el del servidor,
+  // donde `document` no existe— porque la barra ya no depende de `botonFueraDeVista` para montarse.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guarda de montaje estándar, § TopBar.tsx
+    setMontado(true);
+  }, []);
 
   useEffect(() => {
     const el = botonRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const obs = new IntersectionObserver(([entry]) => setBotonFueraDeVista(!entry.isIntersecting), { threshold: 0 });
-    obs.observe(el);
-    return () => obs.disconnect();
+    if (!el || typeof window === 'undefined') return;
+    const evaluar = () => {
+      const rect = el.getBoundingClientRect();
+      setBarraFijaVisible((antes) => visibilidadBarraFija(rect, window.innerHeight, antes));
+    };
+    evaluar();
+    window.addEventListener('scroll', evaluar, { passive: true });
+    window.addEventListener('resize', evaluar);
+    return () => {
+      window.removeEventListener('scroll', evaluar);
+      window.removeEventListener('resize', evaluar);
+    };
   }, [matriz]);
 
   // LA BARRA FIJA SE OCULTA «AL LLEGAR A LAS PREGUNTAS» (§ el spec, item 5): este sentinel marca el
@@ -105,6 +131,10 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
   const mensaje = mensajeTaquilla({ nombreProducto, bolsas: bolsasActivas, peso: activa.peso, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva });
   const creditos = creditosDeTaquilla(c);
   const agotado = !producto.disponible;
+  // § ONIX-BARRA-FLOTANTE-MOVIL-1 — la barra se oculta mientras el botón principal se ve O al
+  // llegar a las preguntas (`finVisible`, § el sentinel de abajo); las dos razones de ocultarse
+  // se combinan ACÁ, una sola vez, en vez de en el JSX.
+  const mostrarBarra = barraFijaVisible && !finVisible;
 
   return (
     <div>
@@ -195,20 +225,26 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
       <div ref={finRef} />
 
-      {botonFueraDeVista && !finVisible && (
+      {
         // § ONIX-APERTURA-MOVIL-INTERLUDIO-PARALLAX-1 — MISMO fix y MISMA razón que
         // `TiendaTaquilla.tsx` (ver su comentario): portal a `document.body` fuera de preview, para
         // que no quede incrustada por el `transform` que `EntradaPagina.tsx` deja tras su animación
         // de entrada; en el preview del panel se queda anidada bajo `EscalaDesktop`.
+        //
+        // § ONIX-BARRA-FLOTANTE-MOVIL-1 — SIEMPRE montada (ya no condicionada a
+        // `botonFueraDeVista && !finVisible`): la visibilidad se combina en `mostrarBarra` (arriba)
+        // y se pasa como prop, para que `BarraFijaMovil` pueda deslizarse en vez de aparecer de
+        // golpe por un remontaje.
         preview ? (
-          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} />
+          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra} />
         ) : (
+          montado &&
           createPortal(
-            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} />,
+            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra} />,
             document.body,
           )
         )
-      )}
+      }
     </div>
   );
 }
@@ -305,21 +341,54 @@ function BotonPedir({
 }
 
 // LA BARRA FIJA DEL CELULAR (§ el spec, item 5) — resumen + "Pedir". Se oculta mientras el botón
-// principal está a la vista y al llegar a las preguntas (§ el padre, `finVisible`). `md:hidden`
-// como `BarraFijaMovil` de `TiendaTaquilla.tsx`.
+// principal está a la vista y al llegar a las preguntas (§ el padre, `mostrarBarra`). `md:hidden`
+// como `BarraFijaMovil` de `TiendaTaquilla.tsx`. FLOTANTE y SIEMPRE MONTADA, con la misma mecánica
+// de publicación del alto — ver el docstring de cabecera de esa función en `TiendaTaquilla.tsx`;
+// no se repite acá para no mantener DOS copias del mismo porqué.
 function BarraFijaMovil({
-  resumen, agotado, whatsapp, mensaje,
+  resumen, agotado, whatsapp, mensaje, visible,
 }: {
   resumen: string;
   agotado: boolean;
   whatsapp?: string;
   mensaje: string;
+  visible: boolean;
 }) {
-  if (!whatsapp) return null;
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof document === 'undefined') return;
+    const publicar = () => {
+      const alto = visible ? el.offsetHeight + (Number.parseFloat(getComputedStyle(el).bottom) || 0) : 0;
+      document.documentElement.style.setProperty(VAR_ALTO_BARRA_FIJA, altoPublicadoBarraFija(visible, alto));
+    };
+    publicar();
+    window.addEventListener('resize', publicar);
+    return () => {
+      window.removeEventListener('resize', publicar);
+      document.documentElement.style.setProperty(VAR_ALTO_BARRA_FIJA, '0px');
+    };
+  }, [visible]);
+
+  if (!whatsapp) return null; // § el spec, item 2: "Si no hay número de WhatsApp, el botón no aparece"
+
+  const tabProps = visible ? {} : { tabIndex: -1 };
+
   return (
-    <div
-      className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-[var(--sf-linea)]/20 bg-[var(--sf-tinta)] px-4 py-3 md:hidden"
-      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    <motion.div
+      ref={ref}
+      aria-hidden={!visible}
+      initial={false}
+      animate={{ opacity: visible ? 1 : 0, y: visible ? 0 : 16 }}
+      transition={{ duration: DURACION_BARRA_FIJA_S }}
+      className={`fixed inset-x-3 z-30 flex items-center justify-between gap-3 sf-borde border-[var(--sf-linea)]/20 bg-[var(--sf-tinta)] px-4 py-3 shadow-xl md:hidden ${
+        visible ? '' : 'pointer-events-none'
+      }`}
+      style={{
+        bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+        borderRadius: 'var(--radius-2xl, var(--sf-pildora, 9999px))',
+      }}
     >
       <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[var(--sf-fondo)]">{resumen}</span>
       {agotado ? (
@@ -329,11 +398,12 @@ function BarraFijaMovil({
           href={whatsappUrl(whatsapp, mensaje)}
           target="_blank"
           rel="noreferrer"
+          {...tabProps}
           className="sf-pildora shrink-0 cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
         >
           Pedir
         </a>
       )}
-    </div>
+    </motion.div>
   );
 }

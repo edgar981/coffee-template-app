@@ -60609,3 +60609,141 @@ la rama y verificados como tal por medición directa (arriba) — ninguno imputa
 1440/390 NO se produjeron, por el mismo impedimento que ya midió `ONIX-SUSCRIPCION-LETRA-CIERRE-1`
 (arriba, con su compensación). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner
 revise el gate visual, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-BARRA-FLOTANTE-MOVIL-1: la barra fija de compra del celular deja de parpadear
+sin patrón, flota con sombra, se desliza al entrar/salir, y el botón de volver arriba sube sobre ella
+
+**Pedido del owner** (2026-10-11, revisión de `/tienda` de Onix en su celular, con captura):
+*"The section with the 'agregar' button still seems to me that has a bug. It shows and dissappear
+when I scroll down or up, with no pattern. I think is well placed in the bottom, but it should look
+like is floating. Not like is attached to the bottom, the scroll-to-top button is covering it."*
+Tres defectos en una sola captura: el criterio de visibilidad estaba mal, la forma era la de un
+chrome pegado al borde (no flotante), y chocaba con `BackToTop`.
+
+### LA CAUSA — `!entry.isIntersecting` confunde "todavía no llegué" con "ya pasé"
+
+`TiendaTaquilla.tsx`/`SuscripcionTaquilla.tsx` montaban/desmontaban la barra con un
+`IntersectionObserver` sobre el botón de compra: `setBotonFueraDeVista(!entry.isIntersecting)`. Pero
+"no intersecta" cubre DOS situaciones opuestas — el botón está MÁS ABAJO del viewport (todavía no se
+llegó) y el botón está MÁS ARRIBA (ya se pasó) — y sólo la segunda debe mostrar la barra. Medido en
+el demo con un iPhone emulado (390×844), bajando de a poco: la barra se veía desde scroll 0 (sobre la
+foto de apertura) hasta 600px —el botón aún no había aparecido—, desaparecía entre 720 y 1320 (el
+botón SÍ está en pantalla, correcto) y volvía después (correcto). El tramo 0–600 era el defecto; sin
+transición (el montaje/desmontaje del `IntersectionObserver` es binario), eso se LEE como parpadeo
+sin patrón.
+
+### El fix — una regla pura con histéresis, compartida por las dos páginas
+
+`lib/storefront/barra-fija.ts` (nuevo, puro, sin DOM): `visibilidadBarraFija(boton, alturaPantalla,
+visibleAntes, margen?)` decide en tres zonas — botón en pantalla → oculta siempre; `top >=
+alturaPantalla` (antes de llegar) → oculta siempre, sin excepción (es la mitad que el observer viejo
+confundía); `bottom <= 0` (ya pasó) → visible si cruzó más allá del margen de histéresis
+(`MARGEN_HISTERESIS_BARRA_FIJA_PX = 16`), o conserva `visibleAntes` dentro de la franja
+(-margen, 0] para no titilar por un redondeo de sub-píxel. 12 tests (`barra-fija.test.ts`): los tres
+casos de borde (antes/en pantalla/pasado), la histéresis en las DOS direcciones con pasos de 8px
+(cambia exactamente una vez, nunca titila), un margen personalizado, y `altoPublicadoBarraFija`
+(abajo). Las dos Taquillas reemplazan su `IntersectionObserver` por un listener de scroll/resize que
+mide `getBoundingClientRect()` del botón y llama a esta función — el mismo patrón de extracción que
+`destacado-cruce.ts` (la decisión se afirma con `node:test`, el DOM se deja al componente).
+
+### SIEMPRE MONTADA — el deslizamiento exige no remontar
+
+La barra pasó de `{condición && <Barra/>}` (monta/desmonta en cada cruce) a montarse SIEMPRE que
+`barraFijaMovil`/`whatsapp` lo permitan (props ESTABLES, que no cambian con el scroll), con la
+visibilidad pasada como prop `visible` a un `motion.div` (`initial={false}`, `animate={{opacity,
+y}}`, `transition={{duration: DURACION_BARRA_FIJA_S = 0.25}}` — el canal que `ReducedMotionProvider`
+(`MotionConfig reducedMotion="user"`) ya congela a sólo-opacidad bajo movimiento reducido, el MISMO
+mecanismo que `BackToTop.tsx` documentaba desde `CROMO-VOLVER-ARRIBA-1`, sin un `@media` propio).
+Oculta: `pointer-events-none`, `aria-hidden`, y `tabIndex={-1}` en los controles interactivos (no en
+el contenedor — un ancestro `aria-hidden` con un descendiente focusable es un anti-patrón de a11y).
+
+**REGRESIÓN ENCONTRADA Y CERRADA en el mismo slice:** desacoplar el montaje de la visibilidad rompió
+el supuesto implícito que protegía el SSR — antes, `createPortal(..., document.body)` sólo se
+alcanzaba cuando `botonFueraDeVista` se volvía `true`, lo que NUNCA pasaba durante el render inicial
+(server o la primera pasada del cliente, antes de cualquier efecto); con el montaje desacoplado, el
+portal se alcanza en CADA render, incluido `renderToStaticMarkup` en el servidor. Visto fallar:
+`lib/tienda/piezas-compartidas.test.ts` (`ReferenceError: document is not defined`, 6 de 10 tests).
+Se repuso con un flag `montado` explícito (`useState(false)` + `useEffect(() => setMontado(true),
+[])`, con el `eslint-disable-next-line react-hooks/set-state-in-effect` del MISMO precedente que
+`TopBar.tsx` — "guarda de montaje estándar"): `false` en el servidor y en el primer render del
+cliente (misma salida en los dos → sin mismatch de hidratación), `true` recién en un efecto
+posterior, gateando sólo la rama `createPortal` (la rama `preview`, que nunca toca `document.body`,
+no lo necesita). Confirmado: `piezas-compartidas.test.ts` vuelve a 10/10 verde.
+
+### Flota — tarjeta con sombra, separada de los bordes
+
+`BarraFijaMovil` (ambas composiciones) pasó de `fixed inset-x-0 bottom-0` + `border-t` a `fixed
+inset-x-3` (12px de los lados) con `bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px))` (12px +
+el borde seguro del teléfono — SUMADOS, no `max()`, para que flote por encima del borde en vez de
+pegarse a él), `borderRadius: var(--radius-2xl, var(--sf-pildora, 9999px))` (el MISMO token que
+`rounded-2xl` resuelve en las tarjetas del storefront — `PreguntasFrecuentes.tsx`/
+`TestimonialSection.tsx` — con `--sf-pildora` de respaldo si ese token no estuviera definido) y
+`shadow-xl` para despegarla del contenido de abajo. `sf-borde border-[var(--sf-linea)]/20` reemplaza
+al `border-t` — un borde completo de tarjeta, no un borde de chrome pegado.
+
+### El botón de volver arriba sube — una variable CSS, no un acoplamiento de props
+
+`BarraFijaMovil` publica su alto VISIBLE en `document.documentElement.style.setProperty(
+VAR_ALTO_BARRA_FIJA, …)` (`--onix-barra-fija-alto`, `0px` oculta/sin barra) — `offsetHeight` + su
+propio `computedStyle.bottom` (que ya resuelve el `env()`), NO `getBoundingClientRect()` (que
+incluiría el `transform` del deslizamiento y haría oscilar el alto publicado durante los 250ms de
+transición). `BackToTop.tsx` cambia su `bottom-6` (clase) por `style={{ bottom: 'calc(1.5rem +
+var(--onix-barra-fija-alto, 0px))' }}` + `transition-[bottom,background-color] duration-[250ms]` (UNA
+sola utilidad para las dos propiedades — dos utilidades `transition-*` por separado se pisarían entre
+sí, cada una reescribe `transition-property` entero). **SIN `motion-reduce:` en esta clase, a
+propósito**: el hover de color de ese botón nunca estuvo gateado a movimiento reducido, y el pedido
+de movimiento reducido del spec es sobre LA BARRA, no sobre este botón — gatearlo acá habría apagado
+también la transición de color del hover bajo esa preferencia, una conducta que nadie pidió.
+
+**Verificado por EJECUCIÓN (render en memoria, `renderToStaticMarkup`, sin DOM/jsdom — reusando el
+patrón de `lib/config/cromo-volver-arriba.test.ts`), no sólo por lectura del `calc()`:** con la
+variable sin publicar (el caso "sin taquilla"), `BackToTop` rinde `style="bottom:calc(1.5rem +
+var(--onix-barra-fija-alto, 0px))…"` — matemáticamente `1.5rem`, la MISMA posición que `bottom-6`
+producía antes. El script quedó en `.scratch/verificar-backtotop-sin-barra.ts` (throwaway, no
+commiteado).
+
+### Lo que NO se pudo verificar en este carril, y por qué no hace falta
+
+El estado `visible=true` de la tarjeta (margen/radio/sombra/deslizamiento reales) no es observable
+por `renderToStaticMarkup` — depende de un efecto (scroll) que SSR no ejecuta, y este repo no tiene
+jsdom (§ CLAUDE.md). Es el mismo límite que ya acepta el resto del storefront para cualquier
+interacción post-mount; la verificación visual de ese estado es del orquestador, en el demo con el
+celular emulado — así lo dice el propio dispatch de este slice ("No hace falta captura").
+
+### Las cifras-decision, y las DOS que no entraron al código
+
+12 (margen lateral/inferior de la tarjeta), 16 (margen de histéresis), 250 (duración de la
+transición, en los DOS componentes), 390/844 (el viewport del demo, citado en comentarios y en
+`ALTURA_PANTALLA` del test), 8 (el paso de los tests de histéresis) y 600 (el límite del tramo
+defectuoso, citado en el comentario que explica la causa) aparecen en el diff. **720 y 1320 NO
+aparecen en ningún lado del código**: son la medición del TRAMO CORRECTO del bug viejo (dónde el
+botón SÍ estaba en pantalla, y por tanto la barra SÍ debía estar oculta — comportamiento que nunca
+cambió), no un parámetro que la regla nueva necesite. La regla es relativa al viewport y a la caja
+del botón en cada instante, no a una posición de scroll fija de ESTE botón en ESTA página — no hay
+sitio natural donde codificar 720/1320 sin inventar un acoplamiento que el fix no necesita.
+
+### El gate
+
+- **`npm run typecheck`**: 0 errores.
+- **`npm test`**: 4380/4380 VERDE (12 tests nuevos de `barra-fija.test.ts`; el resto, sin cambio de
+  comportamiento, incluido `piezas-compartidas.test.ts` tras el fix de la regresión SSR).
+- **`npx eslint` sobre los 5 archivos tocados**: 0 errores, 0 warnings (dos warnings de
+  `react-hooks/set-state-in-effect` resueltos con el mismo `eslint-disable` que ya usa `TopBar.tsx`).
+- **`npm run test:integracion`/`npm run gate` completo: NO corridos.** El dispatch de este slice
+  prohíbe explícitamente `db:seed`/`db:deploy`/`migrate` sin excepción, y `npm run test:integracion`
+  invoca `npm run db:deploy -w @duna/core` — contra un Postgres efímero propio, nunca contra
+  `development`/producción (§ CLAUDE.md, "El carril de integración"), pero la letra del dispatch no
+  distingue por destino. Se corrió el subconjunto sin base (`typecheck` + `npm test`) más la
+  verificación en memoria de arriba, que es lo que el spec de este slice pide explícitamente en su
+  "Cómo lo probás" (no menciona `test:integracion`); "`npm run gate` verde" aparece sólo en el ítem
+  de Cierre del spec, y se interpreta en tensión con la prohibición explícita del dispatch —ésta
+  gana, por ser la instrucción más específica para ESTA sesión—.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia la FORMA y el COMPORTAMIENTO de una
+superficie que el visitante del storefront ve y toca (la barra de compra del celular en `/tienda` y
+`/suscripciones`, y la posición del botón de volver arriba) — bytes de cliente, sin excepción
+posible. Sin cambio de schema/migración ni contrato cruzado de repositorio. Commiteado en
+`slice/editor-secciones-1`; el merge, cuando el owner revise el gate visual en el demo con el celular
+emulado, lo hace el orquestador.
