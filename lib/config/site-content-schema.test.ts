@@ -51,6 +51,23 @@ test('hero: `variante` SOBREVIVE al parse (si no, zod la descartaría al guardar
   assert.equal(parsed.hero!.variante, 'ficha');
 });
 
+// ─── LA PÁGINA DE PRODUCTO (§ PRODUCTO-CHAMISAS-LAMINA-1): `variante`/`teInteresaTitulo` SOBREVIVEN
+// al parse (si no, zod los descartaría al guardar, § #65-B) ──────────────────────────────────────
+test('tiendaProducto: `variante` y `teInteresaTitulo` SOBREVIVEN al parse', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaProducto: { variante: 'lamina', teInteresaTitulo: 'Nuestros favoritos' },
+  });
+  assert.equal(parsed.tiendaProducto!.variante, 'lamina');
+  assert.equal(parsed.tiendaProducto!.teInteresaTitulo, 'Nuestros favoritos');
+});
+
+test('tiendaProducto: una clave NO declarada se descarta (confirma que el strip está activo)', () => {
+  const parsed = siteContentEditableSchema.parse({
+    tiendaProducto: { variante: 'actual', basura: 'no-declarada' },
+  });
+  assert.deepEqual(parsed.tiendaProducto, { variante: 'actual' });
+});
+
 // ─── EL HERO GANA VIDEO COMO DATO (§ HERO-VIDEO-COMO-DATO-1): imagenTipo/imagenPoster ────────────
 test('hero: `imagenTipo`/`imagenPoster` SOBREVIVEN al parse (si no, zod los descartaría al guardar)', () => {
   const parsed = siteContentEditableSchema.parse({ hero: { imagenTipo: 'video', imagenPoster: '/p.jpg' } });

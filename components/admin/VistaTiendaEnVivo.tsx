@@ -21,6 +21,7 @@ import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
 import TiendaCreditos from '@/components/storefront/tienda/TiendaCreditos';
 import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
 import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
+import { ProductoLaminaVistaPrevia } from '@/components/storefront/producto/ProductoLamina';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
@@ -156,6 +157,15 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // `SuscripcionPlanes`). Todo-opcional en los dos → asignables a `ComponentType`.
   tiendaInterludio: TiendaInterludio,
   tiendaCierre: TiendaCierre,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § PRODUCTO-CHAMISAS-LAMINA-1 (mismo patrón que
+  // 'tiendaEncabezado'/'tiendaCatalogo' arriba): sumar 'tiendaProducto' a `SeccionVista` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea — `tsc` lo rechaza. A
+  // diferencia de las demás secciones de /tienda, la página de producto no tiene un componente
+  // headless propio para esta ranura (su composición real exige un `product`/`catalog` que el árbol
+  // de preview, sin ruta, no tiene) — `ProductoLaminaVistaPrevia` es la envoltura que se fetchea su
+  // propio catálogo y usa el primer producto como muestra (§ su docstring, components/storefront/
+  // producto/ProductoLamina.tsx). Sin catálogo, se queda en blanco, no rota.
+  tiendaProducto: ProductoLaminaVistaPrevia,
   nosotrosHistoria: NosotrosHistoria,
   // La galería toma `negocio` opcional para el fallback del alt; en el preview va sin prop (el alt de
   // un preview no se usa). Todo-opcional → asignable a ComponentType.

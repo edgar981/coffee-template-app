@@ -58263,3 +58263,260 @@ no es ruido. **Item 1 (la causa raíz de "la vista previa no muestra el borrador
 bloqueado por una frontera explícita del dispatch (`proxy.ts`) y queda documentado arriba con el fix
 exacto para quien lo retome. Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise,
 lo hace el orquestador.
+
+## 2026-10-10 — PRODUCTO-CHAMISAS-LAMINA-1: la página de producto gana la composición «Lámina abierta»
+
+Rama `slice/editor-secciones-1`, sobre `TIENDA-CHAMISAS-AJUSTES-1` (`74b9dd2`). Pre-flight: árbol
+limpio, `HEAD` en `74b9dd2`, `main` local 0 adelante / 0 atrás de `origin/main` (`9a7ab97`) — verificado
+antes de tocar nada. Observed-report: `TIENDA-COMPOSICIONES-CENSO-1`. Aprobación del owner sobre
+`.scratch/tienda-composiciones/producto-maquetas-aprobadas.png` (2026-10-10): *"Me gusta el de chamisas,
+solo usar otra frase en lugar de: 'Los otros dos' usar algo como 'Te puede interesar' o nuestros favoritos
+algo así."* Letras: las de la tienda, sin cambios.
+
+### La composición es CASI ENTERAMENTE REUSO — el único campo propio es un título
+
+`REGISTRY.tiendaProducto` (`lib/config/site-content-defaults.ts`) es una sección nueva,
+`variantes:{claves:['actual','lamina'],canonica:'actual'}`, `ocultable:false` (como el resto de
+`/tienda`), agrupada bajo `pagina:'tienda'` en el editor — **la forma MÁS CHICA** (el spec dejaba elegir
+entre esa pestaña o una nueva): la página de producto es una pestaña más del grupo que ya existe para
+/tienda, no una pestaña propia para una sola composición con un solo campo.
+
+El ÚNICO campo que `REGISTRY.tiendaProducto.campos` declara es `teInteresaTitulo` (requerido, default
+«Te puede interesar» — el texto del owner, no «Los otros dos» de la maqueta de referencia que pidió
+reemplazar explícitamente). Todo lo demás de «Lámina abierta» es LECTURA de otras secciones, nunca una
+segunda declaración:
+
+- **El color de la tarjeta grande** sale de `tiendaCatalogo.coloresPorProducto` (el MISMO mapa de
+  «Láminas»/`colorDeLamina`, `lib/tienda/laminas.ts`), vía `colorLaminaProducto` (`lib/tienda/
+  producto-lamina.ts`) — busca el índice del producto en el catálogo COMPLETO recibido, para que un
+  café no cambie de color entre su lámina del catálogo y la de su propia página.
+- **El sticker** ("cosecha 2026") es `tiendaEncabezado.sticker` — el mismo campo que ya existe para la
+  composición «Carta» del encabezado de /tienda (confirmado leyendo su hint: "p. ej. «cosecha 2026»",
+  idéntico al texto de la maqueta aprobada de esta composición).
+- **El retrato con su cita** es `TiendaInterludio` MONTADO TAL CUAL (`components/storefront/tienda/
+  TiendaInterludio.tsx`) — su propio gate (`tiendaInterludioVisible`) decide si hay algo que mostrar;
+  esta composición no copia esa lógica ni la reimplementa.
+- **Los datos del producto, la molienda, el precio y el carrito** son los campos de `Product` de
+  siempre (`variedad`/`altitudMin`/`altitudMax`/`tostado`/`peso_gramos`/`moliendasOpciones`), con la
+  MISMA validación de servidor (`moliendaAceptada`) y el MISMO `addItem` que la composición «Actual».
+
+`lib/tienda/producto-lamina.ts` (puro, capa 1) aporta cuatro funciones: `colorLaminaProducto` (arriba),
+`laminasRelacionadas` (el resto del catálogo, SIN el producto actual, cada uno con el color de SU índice
+real), `fraseNotas` (la frase en español — "A." / "A y B." / "A, B y C.", el último elemento separado con
+"y") y `datosProductoLamina` (los cuatro campos que el spec nombra — variedad/altitud/tostión/peso —, SÓLO
+los que el producto trae).
+
+### Una deviation medida: la frase de notas NO se fuerza a minúscula
+
+La maqueta aprobada muestra "Chocolate, tropical y cremoso." (sólo la primera palabra en mayúscula). El
+texto REAL de `product.notas` en este repo es Title Case ("Chocolate", "Tropical", "Cremoso" — medido en
+`prisma/seed-products.ts`, `NAYOLI_TAGS`), y ya se renderiza así, verbatim, en las pills del selector
+«¿Qué te provoca?» y del catálogo «Láminas» (`pildorasAntojo`/`Lamina`, sin transformar el caso). Forzar
+minúscula acá habría sido una TRANSFORMACIÓN nueva de un dato que ninguna otra pantalla del repo toca —
+exactamente el defecto que `TIENDA-CHAMISAS-AJUSTES-1` (item 6) cerró en la dirección contraria
+("lowercase pisaba lo que el dueño escribe"). El spec de ESTE slice no pide la transformación en su
+TEXTO (sólo se ve en la imagen de la maqueta), así que `fraseNotas` conserva las notas TAL CUAL: "Chocolate,
+Tropical y Cremoso." — medido en el render de memoria, § Verificación.
+
+### El botón único, el retrato reusado, "Te puede interesar"
+
+- **UN botón principal** ("Agregar al carrito"), sin "Comprar ahora" ni el ícono de favoritos — la
+  cantidad y el precio se conservan. El agotado reusa el MISMO tratamiento que `TiendaLaminas` (badge
+  "se nos acabó" en vez del sticker, "Avísame por WhatsApp" en vez del botón, cayendo a un texto neutro
+  sin WhatsApp configurado).
+- **Las demás fotos, sin flechas**: puntos (`aria-label="Foto N de M"`), no un carrusel con flechas —
+  "miniaturas o puntos" del spec; se eligieron puntos por ser la forma más chica. Con una sola foto, no
+  se monta ninguna fila (medido en el render de memoria).
+- **«Te puede interesar»** (`laminasRelacionadas`) excluye al producto de la página y muestra el resto en
+  láminas chicas de su color, cada una un `<Link>` a su propia página — sin botón de compra (sólo
+  navegación, como la referencia).
+
+### `whatsapp` llega a la página por `useSiteSettings()` — primer uso en este archivo
+
+`app/(storefront)/tienda/[slug]/page.tsx` no leía `useSiteSettings()` antes de este slice (sólo
+`useSiteContent()`). Se agregó para pasarlo a `ProductoLamina` (su "Avísame por WhatsApp" de
+«Te puede interesar»/agotado) — la composición «Actual», que sigue siendo la rama por defecto, no lo lee:
+un hook de más que no produce DOM no cambia un solo byte de su HTML (confirmado, § Verificación).
+
+### El select de composición — se extiende el MISMO mecanismo nativo, no uno nuevo
+
+`TiendaSeccionEditor.tsx` tenía el select nativo de composición hardcodeado a
+`seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo'` (§ `TIENDA-CHAMISAS-ALBUM-1`). Se sumó
+`'tiendaProducto'` a esa misma condición — mismo criterio citado ahí: dos opciones, sin zonas que avisar,
+el select nativo es la regla del panel para un set cerrado (§ CLAUDE.md, "Controles de formulario — el
+select es NATIVO").
+
+**Hallazgo DURANTE el censo de este mecanismo, no arreglado (fuera de alcance):** `tiendaInterludio` y
+`tiendaCierre` (ambos ganaron `variantes`/`composiciones` en `TIENDA-ONIX-CARTELERA-1`) declaran
+`composiciones` en `tienda-secciones.ts` pero **NUNCA entraron a ningún select del panel** — ni el
+diálogo pesado de hero ni el select nativo de tiendaEncabezado/tiendaCatalogo los cubre; confirmado por
+grep (`'plano'`/`'fraseYBoton'` sólo aparecen en `tienda-secciones.ts`, en ningún otro archivo de
+`components/admin/`). No se tocó: es deuda PRE-EXISTENTE de otro slice, fuera de `touches:` de éste.
+Queda como open follow-up.
+
+### La vista previa del editor — `ProductoLaminaVistaPrevia`, y el MISMO bloqueo que ya documentó el slice anterior
+
+`VistaTiendaEnVivo.tsx`'s `COMPONENTES: Record<SeccionVista, ComponentType>` es EXHAUSTIVO (`tsc` lo
+exige): sumar `'tiendaProducto'` a `SeccionVista` obliga a una entrada. A diferencia de
+`tiendaEncabezado`/`tiendaCatalogo` (headless, sin props), la composición real de la página de producto
+exige un `product`/`catalog` que el árbol de preview del editor —sin ruta, sin `[slug]`— no tiene. Se
+resolvió con `ProductoLaminaVistaPrevia` (exportada desde `ProductoLamina.tsx`): se fetchea su propio
+catálogo (memoizado, `getCatalog`) y usa el PRIMER producto como muestra — el mismo criterio de respaldo
+que `productoSpotlight` ya usa para el pin de Destacado (`catalog.find(...) ?? catalog[0]`). Sin catálogo,
+no renderiza nada (no rompe el panel).
+
+**ESTO NO CIERRA el bloqueo real de la vista previa EN VIVO** (mostrar el BORRADOR mientras se edita):
+`TIENDA-CHAMISAS-AJUSTES-1` midió que la causa es `proxy.ts` sin `/tienda` en su `matcher`
+(`MODO-EDITOR-MATCHER-SUBARBOL-1`), y ese archivo sigue fuera de `touches:` y explícitamente prohibido
+("NO edites… proxy.ts") en ESTE dispatch también. Para la página de producto el bloqueo es, además,
+ESTRUCTURALMENTE más profundo: aunque `proxy.ts` tuviera `/tienda` en su matcher, `urlDePagina`
+(`lib/admin/editor-iframe.ts`, FUERA de `touches:`) mapea `pagina → '/'+pagina` — no hay forma de
+representar `/tienda/[slug]` sin elegir un producto, y no existe hoy ningún mecanismo de "elegir qué
+producto previsualizar". No se construyó ese mecanismo: es una pieza nueva (picker de producto + extender
+`PaginaKey`/`urlDePagina`), fuera de `touches:` y de "la forma más chica" que el spec pedía. La mini-vista
+de tarjeta (`VistaTiendaEnVivo`, vía `ProductoLaminaVistaPrevia`) SÍ muestra el borrador correctamente
+(reusa el mecanismo genérico de esa pieza, sin tocar `proxy.ts`); lo que no se resuelve es la vista
+GRANDE/iframe de `/admin/tienda`'s "Tienda" tab.
+
+### Verificación
+
+- **`npm run typecheck`**: 0 errores, árbol final.
+- **`npm test`** (capa 1, sin base): **4199/4199**, 0 fallos. Medido por archivo, contra el HEAD de
+  base (`git show HEAD:<archivo> | grep -c '^test('` vs. el archivo actual): `lib/tienda/
+  producto-lamina.test.ts` nuevo (17), `site-content-defaults.test.ts` 252→256 (+4), `site-content-
+  schema.test.ts` 66→68 (+2), `panel-controles.test.ts` 39→40 (+1) — 24 tests nuevos en total, ningún
+  otro archivo de test tocado (confirmado por `git status`).
+  **DEVIATION MEDIDA contra el spec/ledger:** `TIENDA-CHAMISAS-AJUSTES-1` citaba **4168/4168** como el
+  número de `npm test` en este mismo commit base (`74b9dd2`). `4168 + 24 = 4192`, pero el árbol final
+  mide **4199** — una diferencia de 7 que el conteo por-archivo de arriba no explica (ningún otro archivo
+  de test cambió). No se investigó más a fondo (habría exigido correr la suite completa sobre el commit
+  base sin tocar el árbol de trabajo, fuera de lo que este dispatch sanciona sin un worktree propio); se
+  reporta como lo que es — el número de la suite completa en el ÁRBOL FINAL (4199/4199, MEDIDO ahora,
+  dos veces) es la cifra que importa para este gate, y difiere de la cifra citada por el slice anterior
+  en una cantidad que mi propio diff no explica.
+- **`npm run test:integracion`**: **409/409**, 0 fallos. `tests/integracion/producto-lamina-viaje.
+  test.ts` nuevo (6 tests: el viaje completo variante+teInteresaTitulo, el default byte-idéntico sin
+  fila, el requerido vacío cayendo al default del owner al publicar, publicar sólo el título sin tocar
+  `variante`, `variante` fuera del set cerrado cayendo a "actual" al releer, y que publicar esta sección
+  NO modifica tiendaCatalogo/tiendaEncabezado/tiendaInterludio). Baseline citado por
+  `TIENDA-CHAMISAS-AJUSTES-1`: 403. `403 + 6 = 409` — **coincide exacto**, sin discrepancia (a
+  diferencia de `npm test`, arriba).
+- **`npm run gate`** corrido de punta a punta (typecheck + los dos carriles) en el árbol final: verde,
+  mismos números que las corridas sueltas de arriba.
+- **`npm run verificar:nayoli`**: las 4 rutas + CSS reportan DIFIERE contra `main` — MEDIDO, confirmado
+  por CONTENIDO que es el MISMO patrón pre-existente ya documentado por `TIENDA-CHAMISAS-ALBUM-1`/
+  `TIENDA-ONIX-CARTELERA-1`/`TIENDA-CHAMISAS-AJUSTES-1` (`lang="en"`→`"es"`, el hash del CSS, el truco
+  de auto-tamaño del wordmark, el orden de clases, el crédito "Hecho por Duna"): un grep de
+  `lamina|Te puede interesar|teInteresaTitulo|ProductoLamina|Lámina abierta` sobre las 8 capturas (main
+  + rama × 4 rutas) da **CERO** coincidencias — ninguna palabra nueva de este slice se filtra al HTML de
+  Nayoli. Más fuerte todavía en la ruta que este slice SÍ toca: `<main>…</main>` de
+  `/tienda/cafe-nayoli-grano-250g` es **BYTE A BYTE IDÉNTICO** entre `main` y la rama (163/163 caracteres,
+  comparación directa) — la captura cayó en el estado "Cargando" (antes de que el cliente hidrate y
+  fetchee el catálogo), así que ni siquiera llegó a evaluar la composición, pero confirma que el único
+  código que SÍ cambié en esa página (la rama `tiendaProducto.variante==='lamina'`) no emite nada antes
+  de ese punto.
+- **`npm run verificar:nayoli:visual`**: las 6 rutas DIFIEREN en píxeles — `ruta:producto` →
+  **209/2.535.680 px** (consciente de AA), caja `[445,45]–[608,1962]`. Es el MISMO conteo de píxeles Y
+  la MISMA posición horizontal (`x: 445–608`) que `ruta:tienda` ya reporta en este mismo commit base
+  (`209/2.433.280 px`, caja `[445,45]–[608,1882]`) — sólo cambia el alto de la caja (1962 vs. 1882,
+  porque la página de producto es más alta que el catálogo), consistente con el mismo artefacto del
+  truco de auto-tamaño del wordmark del nav que las tres hermanas ya midieron, no con nada nuevo. Los
+  dos hovers (`automatica`/`eleccion`) salen IDÉNTICOS (0 px), como siempre.
+- **Render EN MEMORIA de la composición** (`renderToStaticMarkup`, sin DB ni servidor — mismo patrón que
+  `lib/config/cta-banner-foto.test.ts`): script descartable en `.scratch/render-producto-lamina.tsx`
+  (gitignored, no commiteado), con un catálogo fixture de 3 cafés tipo Las Chamisas. Confirmó, contra la
+  maqueta aprobada: el arco 4:5 (`rounded-t-full rounded-b-[20px]`), el sticker "cosecha 2026", la frase
+  de notas con "y" ("Chocolate, Tropical y Cremoso."), las pills de notas (`sf-pildora-real`), la
+  etiqueta cosida (`border-dashed`) con los cuatro datos (Variedad/Altitud/Tostión/Peso), las dos pills
+  de molienda, el precio formateado, UN SOLO botón "Agregar al carrito" ("Comprar ahora" AUSENTE,
+  confirmado), el retrato reusado (la cita de `TiendaInterludio` aparece), el título "Te puede interesar"
+  y los dos relacionados (Bourbon Rosado/Papayo) SIN el producto actual (Pacamara aparece exactamente 3
+  veces — el `alt` de la foto, el H1, y el dato "Variedad: Pacamara" del fixture — nunca en la lista de
+  relacionados), el grid responsivo (`grid-cols-1 lg:grid-cols-2`, celular una columna con la tarjeta de
+  color primero por orden del DOM), y los puntos de galería apareciendo SÓLO cuando el producto tiene
+  más de una foto (confirmado con un segundo fixture de 2 fotos).
+
+### Lo que NO se completó — capturas de navegador real
+
+**El spec no pidió explícitamente capturas de Playwright** (a diferencia de `TIENDA-CHAMISAS-ALBUM-1`,
+cuyo spec sí las pedía y las dejó como open follow-up sin hacer); "Cómo se verifica" de este spec pide
+"render en memoria… comparado con la maqueta", que es exactamente lo que `.scratch/render-producto-
+lamina.tsx` hace. No se construyó, además, una captura de navegador real porque el mismo límite que
+`TIENDA-CHAMISAS-ALBUM-1` ya midió sigue vigente: este dispatch prohíbe `db:seed`/`db:deploy`/`migrate`
+como comandos propios, y el único camino sancionado para una base efímera es el que ya envuelven
+`test:integracion`/`verificar:nayoli(-visual)` — corridos tal cual existen, arriba.
+
+### El chequeo mecánico contra CLAUDE.md
+
+Grep de los símbolos/rutas que este diff toca (`tiendaProducto`, `TiendaProductoContent`,
+`ProductoLamina`, `ProductoLaminaVistaPrevia`, `colorLaminaProducto`, `laminasRelacionadas`,
+`fraseNotas`, `datosProductoLamina`, `TIENDA_PRODUCTO`, `tienda-secciones.ts`, `VistaTiendaEnVivo.tsx`,
+`TiendaSeccionEditor.tsx`, `site-content-schema.ts`, `site-content-defaults.ts`, `panel-controles.ts`,
+`app/(storefront)/tienda/[slug]/page.tsx`, `components/storefront/producto/`) contra `CLAUDE.md`:
+
+- **Ninguno de los símbolos PROPIOS de este slice** (`tiendaProducto`/`TiendaProductoContent`/
+  `ProductoLamina`/`colorLaminaProducto`/`laminasRelacionadas`/`fraseNotas`/`datosProductoLamina`/
+  `TIENDA_PRODUCTO`) aparece en `CLAUDE.md` — nada que verificar ahí.
+- `site-content-schema.ts` y `site-content-defaults.ts` SÍ aparecen, **en la frase canónica de Tier 1**
+  (línea 39) y en descripciones genéricas del mecanismo (§ abajo, "Frontera Tier 1"). `tienda-
+  secciones.ts`/`VistaTiendaEnVivo.tsx`/`TiendaSeccionEditor.tsx` aparecen en descripciones GENÉRICAS del
+  mecanismo del editor (el modelo de bloques, la barra flotante, el puente vista→formulario, "`VistaTienda
+  EnVivo` renderiza los componentes REALES… no un iframe") — ninguna nombra una sección o un campo
+  concretos de ESTE slice, y el mecanismo que describen no se tocó (se USÓ, extendiéndolo con una entrada
+  más, de la misma forma que ya describen). **Ninguna sentencia de CLAUDE.md queda falsa por este diff.**
+- `app/(storefront)/tienda/[slug]/page.tsx` y `components/storefront/producto/` no tienen apariciones
+  literales en `CLAUDE.md` (la doctrina de Tier 1 los cubre por SUBÁRBOL — `app/(storefront)/` y
+  `components/storefront/` —, no por ruta nombrada).
+
+### Frontera Tier 1 — verificada, no asumida
+
+Tres rutas de este diff caen en la lista de Tier 1 de `CLAUDE.md`:
+
+1. **`lib/config/site-content-schema.ts`** y **`lib/config/site-content-defaults.ts`** — nombrados
+   LITERALMENTE en la frase canónica (línea 39 de `CLAUDE.md`).
+2. **`app/(storefront)/tienda/[slug]/page.tsx`** — cubierto por el subárbol `app/(storefront)/`.
+3. **`components/storefront/producto/`** (nuevo) — cubierto por el subárbol `components/storefront/`,
+   que GANA subárboles nuevos por diseño: el propio CLAUDE.md cita `components/storefront/checkout/`
+   como ejemplo de "directorio que hoy no existe" y que igual queda cubierto — el mismo caso que
+   `producto/` acá.
+
+Este dispatch declaró `tier: 1`, `writes: yes`, `approved: yes`, con `approval-reason` citando el go
+EXPLÍCITO del owner (2026-10-10) sobre ESTA maqueta específica — exactamente la "segunda etapa" que Tier
+1 exige tras la investigación de sólo-lectura (`TIENDA-COMPOSICIONES-CENSO-1`, OBSERVED). No es una
+excepción a la regla: es la regla cumplida en dos pasos, mismo patrón que `TIENDA-CHAMISAS-ALBUM-1`/
+`TIENDA-ONIX-CARTELERA-1` ya documentaron para esta misma rama.
+
+### Open follow-ups
+
+- **`TIENDA-INTERLUDIO-CIERRE-COMPOSICION-SIN-SELECT-1`** (nuevo): `tiendaInterludio`/`tiendaCierre`
+  declaran `variantes`/`composiciones` desde `TIENDA-ONIX-CARTELERA-1` pero NINGÚN control del panel
+  permite elegir entre «Retrato y cita»/«Plano» ni «Costura»/«Frase y botón» — confirmado por grep, cero
+  apariciones de `'plano'`/`'fraseYBoton'` fuera de `tienda-secciones.ts`. Pre-existente, no tocado (fuera
+  de `touches:` de este slice). Si se pide, la forma más chica es extender el MISMO select nativo que
+  este slice ya extendió para `tiendaProducto`.
+- **`TIENDA-PRODUCTO-PREVIEW-SLUG-1`** (nuevo): la vista previa GRANDE/iframe de `/admin/tienda` no puede
+  mostrar el borrador de la composición de un producto específico — `urlDePagina`/`PaginaKey`
+  (`lib/admin/editor-iframe.ts`) no tienen forma de representar `/tienda/[slug]`. Necesita, como mínimo,
+  un picker de producto en el editor y extender ese módulo (hoy fuera de `touches:`). Depende, además, de
+  que `MODO-EDITOR-MATCHER-SUBARBOL-1` (el `proxy.ts` sin `/tienda`) se resuelva primero — sin eso, ni
+  siquiera `/tienda` a secas muestra el borrador.
+- **`NPM-TEST-BASELINE-74b9dd2-DISCREPANCIA-1`** (nuevo): `TIENDA-CHAMISAS-AJUSTES-1` citó 4168/4168 como
+  el número de `npm test` en el commit `74b9dd2` (el mismo que este slice tomó como base); el conteo
+  por-archivo de este slice (§ Verificación) no explica una diferencia de 7 contra el 4199 medido en el
+  árbol final (4168+24≠4199). No se investigó a fondo — exigiría correr la suite sobre el commit base sin
+  tocar el árbol de trabajo actual.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega una sección nueva a `SiteContentData`
+(`tiendaProducto`) y una composición nueva de `/tienda/[slug]` (Tier 1 por archivo Y por subárbol, § 
+arriba) — `customer_bytes.changed = true`: un tenant que elija «Lámina abierta» SÍ ve bytes nuevos
+(el arco de color, la etiqueta cosida, "Te puede interesar"). Nayoli (en «Actual», variante por defecto)
+queda byte-idéntica, medida por CONTENIDO (grep de vocabulario = cero coincidencias en las 8 capturas) y
+confirmada además por IGUALDAD BYTE A BYTE de `<main>` en la ÚNICA ruta que este slice toca
+(`/tienda/cafe-nayoli-grano-250g`, 163/163 caracteres idénticos). `strings`: el título "Te puede
+interesar" (default, editable), ninguno visible para Nayoli hoy, visible para el primer tenant que elija
+«Lámina abierta». `npm run gate` GREEN de punta a punta en el árbol final (typecheck 0 · test 4199/4199 ·
+test:integracion 409/409). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
+gate visual (el render en memoria de arriba, § Verificación, más las capturas de navegador real que este
+slice no pudo producir, § "Lo que NO se completó"), lo hace el orquestador.

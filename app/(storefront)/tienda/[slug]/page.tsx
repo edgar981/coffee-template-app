@@ -35,7 +35,9 @@ import { entradaHeroInicial, heroDeGaleria } from "@/lib/storefront/pdp-galeria"
 import { clasesBotonesCompra, claseBotonFavoritos } from "@/lib/storefront/pdp-botones";
 import GaleriaProducto from "@/components/storefront/pdp/GaleriaProducto";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { contenedorAnchoClase, navOffsetClase } from "@/lib/config/themes";
+import ProductoLamina from "@/components/storefront/producto/ProductoLamina";
 
 interface ProductPageProps {
   params: Promise<{
@@ -59,7 +61,15 @@ export default function ProductPage({
   const { addItem } = useCartStore();
   // § PARIDAD-PDP-BOTONES-1 (`lib/storefront/pdp-botones.ts`): la jerarquía/color de los dos botones
   // de compra sigue al eje EXISTENTE `tema.origenAccion`, no un campo nuevo de SiteContent.
-  const { tema, navTratamiento } = useSiteContent();
+  // `tiendaProducto` (§ PRODUCTO-CHAMISAS-LAMINA-1): la composición elegida para ESTA página —
+  // «Actual» (byte-idéntica, lo de siempre abajo) o «Lámina abierta» (`ProductoLamina`, montada más
+  // abajo con el producto/catálogo que esta página ya resolvió).
+  const { tema, navTratamiento, tiendaProducto } = useSiteContent();
+  // `whatsapp` (§ PRODUCTO-CHAMISAS-LAMINA-1): sólo lo consume «Lámina abierta», para «Avísame por
+  // WhatsApp» en un café agotado de "Te puede interesar" — mismo patrón que `TiendaLaminas`/
+  // `TiendaCierre`. La composición «Actual», de abajo, no lo lee: un hook de más sin renderizar nada
+  // no cambia un solo byte de su HTML.
+  const { whatsapp } = useSiteSettings();
   // § DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1: cantidad/favoritos se suman a la misma función, con
   // el mismo gate `tema.origenAccion` — Nayoli y el resto quedan byte a byte en lo de siempre.
   const { primario: claseBotonComprar, secundario: claseBotonAgregar, cantidad: claseCantidad, cantidadBoton: claseCantidadBoton } = clasesBotonesCompra(tema.origenAccion);
@@ -208,6 +218,17 @@ export default function ProductPage({
         </nav>
       </div>
 
+      {/* § PRODUCTO-CHAMISAS-LAMINA-1 — la composición elegida decide el resto de la página; el
+          breadcrumb de arriba es compartido por las dos. «Lámina abierta» recibe el `product`/
+          `catalog` que esta página YA resolvió (sin `product` no se habría llegado hasta acá, § el
+          early-return "Producto no encontrado" de arriba) — nunca un segundo fetch ni una segunda
+          resolución de "no encontrado". `key={product.id}` fuerza un remonte limpio al navegar de un
+          producto a otro por «Te puede interesar» (sin él, `qty`/`molienda`/`imgIdx` del producto
+          anterior sobrevivirían en el nuevo). */}
+      {tiendaProducto.variante === 'lamina' ? (
+        <ProductoLamina key={product.id} product={product} catalog={catalog} whatsapp={whatsapp} />
+      ) : (
+        <>
       {/* Product */}
       <div className={`mx-auto ${contenedorClase} pb-16`}>
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
@@ -445,6 +466,8 @@ export default function ProductPage({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

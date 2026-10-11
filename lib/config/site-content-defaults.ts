@@ -1100,6 +1100,29 @@ export interface TiendaCierreContent {
   variante: string;
 }
 
+// LA PÁGINA DE PRODUCTO (`/tienda/[slug]`) ENTRA AL EDITOR (§ PRODUCTO-CHAMISAS-LAMINA-1, sobre
+// TIENDA-COMPOSICIONES-CENSO-1). `ocultable:false` — como `tiendaEncabezado`/`tiendaCatalogo`, la
+// página de producto ES la tienda, no una banda que se pueda apagar. Agrupada bajo `pagina:'tienda'`
+// (§ tienda-secciones.ts): es la forma MÁS CHICA — reusa la pestaña que ya existe para /tienda en vez
+// de abrir una pestaña nueva para una sola composición con un solo campo propio.
+//
+// LA COMPOSICIÓN «LÁMINA ABIERTA» (`variante:'lamina'`) es casi enteramente REUSO, no dato nuevo:
+// el color por café es `tiendaCatalogo.coloresPorProducto` (el MISMO mapa que «Láminas»); el sticker
+// es `tiendaEncabezado.sticker` (el de la composición «Carta», "cosecha 2026"); el retrato con su
+// cita es `TiendaInterludio` montado tal cual; los datos del producto (variedad/altitud/tostión/
+// peso), la molienda, el precio y el carrito son los campos de `Product` de siempre. El ÚNICO campo
+// propio de esta sección es el título de "Te puede interesar" — el resto de la composición no tiene
+// de dónde sacar un campo nuevo que no sea ya dato de otra sección o del producto.
+//
+// `teInteresaTitulo` REQUERIDO: es copy del storefront (no un dato atribuido a nadie), así que un
+// vacío cae al default del owner (2026-10-10, sobre la maqueta aprobada): «Te puede interesar» —
+// no "Los otros dos" (el texto de la maqueta de referencia, que el owner pidió reemplazar
+// explícitamente por ser demasiado literal al conteo de productos).
+export interface TiendaProductoContent {
+  teInteresaTitulo: string;
+  variante: string;
+}
+
 // LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1, sección NUEVA, opcional). REPEATER
 // etiqueta/valor, nace VACÍA —"DEFAULTS VACÍOS: ningún dato de finca vive en el código" (§ el spec)—,
 // mismo criterio que testimonios/#44: ningún dato de finca se hornea. `ocultable:true`, y SE OCULTA
@@ -1880,6 +1903,7 @@ export interface SiteContentData {
   tiendaCreditos: TiendaCreditosContent;
   tiendaInterludio: TiendaInterludioContent;
   tiendaCierre: TiendaCierreContent;
+  tiendaProducto: TiendaProductoContent;
   menu: MenuContent;
   footer: FooterContent;
   logo: LogoContent;
@@ -2460,6 +2484,13 @@ export const DEFAULTS: SiteContentData = {
     // «Frase y botón» (§ TIENDA-ONIX-CARTELERA-1): canónica 'costura' (renombrada, antes la única) —
     // sin campos propios, reusa `frase`/`boton` de arriba.
     variante: 'costura',
+  },
+  // § PRODUCTO-CHAMISAS-LAMINA-1 — «Actual» es la canónica (byte-idéntica sin fila); «Lámina abierta»
+  // reusa casi todo de otras secciones (§ TiendaProductoContent), así que el ÚNICO default propio es
+  // el título de "Te puede interesar" — el texto que el owner pidió (2026-10-10).
+  tiendaProducto: {
+    teInteresaTitulo: 'Te puede interesar',
+    variante: 'actual',
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
   // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
@@ -3329,6 +3360,19 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       franjaTejido: 'opcional',
       frase: 'opcional',
       boton: 'requerido',
+    },
+  },
+  // La página de producto (§ PRODUCTO-CHAMISAS-LAMINA-1, ver el docstring de `TiendaProductoContent`
+  // arriba). `ocultable:false` como el resto de /tienda. UN campo propio —el resto de la composición
+  // «Lámina abierta» reusa `tiendaCatalogo.coloresPorProducto`/`tiendaEncabezado.sticker`/
+  // `tiendaInterludio`, ninguno declarado acá de nuevo.
+  tiendaProducto: {
+    label: 'Página de producto',
+    ocultable: false,
+    variantes: { claves: ['actual', 'lamina'], canonica: 'actual' },
+    imagenes: [],
+    campos: {
+      teInteresaTitulo: 'requerido',
     },
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se

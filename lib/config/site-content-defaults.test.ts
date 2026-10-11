@@ -97,6 +97,31 @@ test('carrito.variante guardado fuera del set cerrado cae al default, dentro de 
   assert.equal(r.carrito.variante, 'anclado');
 });
 
+// § PRODUCTO-CHAMISAS-LAMINA-1 — `tiendaProducto` (la página `/tienda/[slug]`), mismo patrón que
+// `carrito`/`tiendaEncabezado`/`tiendaCatalogo`: «Actual» es la canónica, byte-idéntica sin fila.
+test('sin nada guardado → tiendaProducto cae a los defaults (actual, byte-idéntico)', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.tiendaProducto, DEFAULTS.tiendaProducto);
+  assert.equal(r.tiendaProducto.variante, 'actual');
+});
+
+test('tiendaProducto.variante guardado explícito ("lamina") sobrevive la resolución completa', () => {
+  const r = resolverSiteContent({ tiendaProducto: { variante: 'lamina' } });
+  assert.equal(r.tiendaProducto.variante, 'lamina');
+});
+
+test('tiendaProducto.variante guardado fuera del set cerrado cae al default, dentro de la resolución completa', () => {
+  const r = resolverSiteContent({ tiendaProducto: { variante: 'cartel' } });
+  assert.equal(r.tiendaProducto.variante, 'actual');
+});
+
+test('tiendaProducto.teInteresaTitulo es REQUERIDO: vacío cae al default del owner ("Te puede interesar"); con valor, se respeta', () => {
+  const vacio = resolverSiteContent({ tiendaProducto: { teInteresaTitulo: '' } });
+  assert.equal(vacio.tiendaProducto.teInteresaTitulo, 'Te puede interesar');
+  const conValor = resolverSiteContent({ tiendaProducto: { teInteresaTitulo: 'Nuestros favoritos' } });
+  assert.equal(conValor.tiendaProducto.teInteresaTitulo, 'Nuestros favoritos');
+});
+
 // § CROMO-NAV-DIRECCION-SCROLL-1: `navTratamiento.direccion` es un CAMPO nuevo de una meta que YA
 // estaba cableada (§ CROMO-NAV-TRATAMIENTO-1) -- sin fila, byte-idéntica al default (`false`, el nav
 // no reacciona a la dirección del scroll); con un valor guardado, ese valor sobrevive, INDEPENDIENTE

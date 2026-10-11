@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1235,6 +1235,17 @@ const OPCIONES_COMPOSICION_TIENDA_CIERRE: ComposicionOpcion[] = REGISTRY.tiendaC
   value: v, label: LABEL_COMPOSICION_TIENDA_CIERRE[v] ?? v,
   zonas: v === 'fraseYBoton' ? ZONAS_TIENDA_CIERRE_FRASEYBOTON : ZONAS_TIENDA_CIERRE_COSTURA,
 }));
+// LA COMPOSICIÓN DE LA PÁGINA DE PRODUCTO (§ PRODUCTO-CHAMISAS-LAMINA-1): «Lámina abierta» tiene UN
+// solo campo propio (`teInteresaTitulo`) — el resto de la composición reusa campos de OTRAS secciones
+// (§ el docstring de `REGISTRY.tiendaProducto` en site-content-defaults.ts), así que no hay una zona
+// de texto más que nombrar acá.
+const LABEL_COMPOSICION_TIENDA_PRODUCTO: Record<string, string> = { actual: 'Actual', lamina: 'Lámina abierta' };
+const ZONAS_TIENDA_PRODUCTO: ZonaComposicion[] = [
+  { campos: ['teInteresaTitulo'], label: '"Te puede interesar"' },
+];
+const OPCIONES_COMPOSICION_TIENDA_PRODUCTO: ComposicionOpcion[] = REGISTRY.tiendaProducto.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_TIENDA_PRODUCTO[v] ?? v, zonas: ZONAS_TIENDA_PRODUCTO,
+}));
 
 // Título + conteo de productos + leyenda. El CONTEO sigue siendo DATO vivo (`getCatalog`), no
 // contenido de este editor. `ocultable: false` — el catálogo es la tienda (§ `PAGINAS`, arriba).
@@ -1349,6 +1360,23 @@ const TIENDA_CIERRE: SeccionConfig = {
   ],
 };
 
+// LA PÁGINA DE PRODUCTO (§ PRODUCTO-CHAMISAS-LAMINA-1) — `ocultable: false`, como el resto de
+// /tienda: la página de un producto no se apaga entera. El ÚNICO campo editable es el título de
+// "Te puede interesar"; el resto de la composición «Lámina abierta» (el color del café, el sticker,
+// el retrato) reusa el dato de las otras cuatro secciones de /tienda, así que no hay nada más que
+// ofrecer acá.
+const TIENDA_PRODUCTO: SeccionConfig = {
+  seccion: 'tiendaProducto',
+  pagina: 'tienda',
+  titulo: 'Página de producto',
+  ocultable: false,
+  composiciones: OPCIONES_COMPOSICION_TIENDA_PRODUCTO,
+  imagenes: [],
+  campos: [
+    { name: 'teInteresaTitulo', label: 'Título · "Te puede interesar"', hint: 'Sólo con la composición "Lámina abierta". Encabeza los otros cafés al final de la página de producto. Vacío: se usa el texto por defecto.' },
+  ],
+};
+
 // El ORDEN es el orden en la pantalla. Las de la home primero (en el orden de la home), después las de
 // /nosotros, y por último /suscripciones (planes → pasos → FAQ, el orden en que aparecen en la página);
 // el editor las agrupa por `pagina` en pestañas.
@@ -1376,4 +1404,9 @@ const TIENDA_CIERRE: SeccionConfig = {
 // TIENDA_CREDITOS va justo tras TIENDA_CATALOGO (§ TIENDA-ONIX-CARTELERA-1): es la posición real en
 // la página, tanto en «Actual» (donde queda ignorada por su piso de 3 filas, § DEFAULTS vacío) como
 // bajo Apertura/Taquilla/Créditos/Plano/Cierre, el orden del spec.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+//
+// TIENDA_PRODUCTO va AL FINAL del grupo `tienda` (§ PRODUCTO-CHAMISAS-LAMINA-1), no intercalada entre
+// las otras cuatro: a diferencia de ellas, no es una sección de la página /tienda misma — es
+// `/tienda/[slug]`, agrupada bajo la MISMA pestaña por ser la forma más chica (§ el spec), no porque
+// comparta posición en una sola página con las demás.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

@@ -2422,8 +2422,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   reusa `ComposicionHero` (su título «¿Cómo se arma tu hero?» está hardcodeado en ese
                   archivo, fuera de `touches:`): con sólo DOS opciones y sin zonas que avisar, el
                   select NATIVO es la regla del panel para un set cerrado (§ CLAUDE.md, "Controles de
-                  formulario — el select es NATIVO"), no una ceremonia menor. */}
-              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo') && config.composiciones && config.composiciones.length > 1 && (
+                  formulario — el select es NATIVO"), no una ceremonia menor. 'tiendaProducto' (§
+                  PRODUCTO-CHAMISAS-LAMINA-1) se suma al MISMO select nativo por la MISMA razón: dos
+                  opciones, sin zonas que avisar. */}
+              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto') && config.composiciones && config.composiciones.length > 1 && (
                 <div className="admin-bloque">
                   <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
                   <select

@@ -505,3 +505,14 @@ test('tiendaCatalogo.coloresPorProducto está LEÍDO y CONTROLADO (el mapa de co
   assert.ok(camposLeidosPorTienda().includes('tiendaCatalogo.coloresPorProducto'));
   assert.ok(camposControladosPorPanel().includes('tiendaCatalogo.coloresPorProducto'));
 });
+
+// § PRODUCTO-CHAMISAS-LAMINA-1 — `tiendaProducto` es una sección NUEVA con `variantes` (como
+// `tiendaEncabezado`/`tiendaCatalogo`) y UN campo propio (`teInteresaTitulo`). Mismo criterio que la
+// aserción de arriba: si `TIENDA_PRODUCTO.composiciones`/`.campos` (tienda-secciones.ts) dejaran de
+// declararse, `huecosDelPanel()` ya lo atraparía — esto sólo nombra los dos campos.
+test('tiendaProducto.teInteresaTitulo y tiendaProducto.variante están LEÍDOS y CONTROLADOS', () => {
+  assert.ok(camposLeidosPorTienda().includes('tiendaProducto.teInteresaTitulo'));
+  assert.ok(camposControladosPorPanel().includes('tiendaProducto.teInteresaTitulo'));
+  assert.ok(camposLeidosPorTienda().includes('tiendaProducto.variante'));
+  assert.ok(camposControladosPorPanel().includes('tiendaProducto.variante'));
+});

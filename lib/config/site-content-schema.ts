@@ -459,6 +459,14 @@ const tiendaCierreEditableSchema = z.object({
   variante: z.string().optional(),
 });
 
+// La página de producto (§ PRODUCTO-CHAMISAS-LAMINA-1): sin `visible` —`REGISTRY.tiendaProducto` es
+// `ocultable: false`, como el resto de /tienda. `variante` SOBREVIVE al parse como el resto de las
+// secciones con composición (`z.string()`, clampada SOFT por `resolverVariante` al leer, no acá).
+const tiendaProductoEditableSchema = z.object({
+  teInteresaTitulo: z.string().optional(),
+  variante: z.string().optional(),
+});
+
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
 // de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
 const paginasEditableSchema = z.object({
@@ -1028,6 +1036,7 @@ export const siteContentEditableSchema = z.object({
   tiendaCreditos: tiendaCreditosEditableSchema.optional(),
   tiendaInterludio: tiendaInterludioEditableSchema.optional(),
   tiendaCierre: tiendaCierreEditableSchema.optional(),
+  tiendaProducto: tiendaProductoEditableSchema.optional(),
   menu: menuEditableSchema.optional(),
   footer: footerEditableSchema.optional(),
   logo: logoEditableSchema.optional(),
