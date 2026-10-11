@@ -8,7 +8,9 @@ import { navOffsetClase } from "@/lib/config/themes";
 import SuscripcionApertura from "@/components/storefront/suscripciones/SuscripcionApertura";
 import SuscripcionPlanes from "@/components/storefront/suscripciones/SuscripcionPlanes";
 import SuscripcionPasos from "@/components/storefront/suscripciones/SuscripcionPasos";
+import SuscripcionInterludio from "@/components/storefront/suscripciones/SuscripcionInterludio";
 import PreguntasFrecuentes from "@/components/storefront/PreguntasFrecuentes";
+import SuscripcionCierre from "@/components/storefront/suscripciones/SuscripcionCierre";
 
 // El layout del storefront aplica `%s · {nombre}` desde SiteSetting → "Suscripciones · {nombre}".
 export const metadata: Metadata = { title: "Suscripciones" };
@@ -37,9 +39,14 @@ export const metadata: Metadata = { title: "Suscripciones" };
 // sin el caso especial de `spotlight`/`featured`): "Ir a la sección" deja de aterrizar sólo al TOPE de
 // la página y apunta al nodo real. Sólo se emite con sesión OWNER/MANAGER verificada
 // (`modoEditorActivo()`); tráfico público no gana ni un atributo de más.
-type SuscripcionesBandaId = 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq';
+//
+// § ONIX-SUSCRIPCION-LETRA-CIERRE-1 — `suscripcionInterludio`/`suscripcionCierre` se SUMAN al final
+// del flujo: apertura → planes/taquilla → pasos (SIN TOCAR, sigue en su lugar) → interludio →
+// preguntas (letra pequeña, opt-in dentro de `suscripcionFaq`) → cierre, el orden de la maqueta
+// (§ el spec, item 4 — que no nombra "pasos" porque esa sección no cambia de posición).
+type SuscripcionesBandaId = 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre';
 
-const ORDEN: readonly SuscripcionesBandaId[] = ['suscripcionApertura', 'suscripcionPlanes', 'suscripcionPasos', 'suscripcionFaq'];
+const ORDEN: readonly SuscripcionesBandaId[] = ['suscripcionApertura', 'suscripcionPlanes', 'suscripcionPasos', 'suscripcionInterludio', 'suscripcionFaq', 'suscripcionCierre'];
 
 export default async function SuscripcionesPage() {
   const content = await getSiteContent();
@@ -51,9 +58,11 @@ export default async function SuscripcionesPage() {
     suscripcionApertura: () => <SuscripcionApertura />,
     suscripcionPlanes: () => <SuscripcionPlanes whatsapp={settings.whatsapp} />,
     suscripcionPasos: () => <SuscripcionPasos />,
+    suscripcionInterludio: () => <SuscripcionInterludio />,
     // EL `<main>` SOBREVIVE de `Contenido.tsx` (byte-idéntico): envolvía la FAQ, no una convención
     // de esta página — se conserva con la banda que lo necesita, no se pierde en la reescritura.
     suscripcionFaq: () => <main className="bg-[var(--sf-fondo)]"><PreguntasFrecuentes /></main>,
+    suscripcionCierre: () => <SuscripcionCierre />,
   };
 
   const bandaNodo = (id: SuscripcionesBandaId) => {

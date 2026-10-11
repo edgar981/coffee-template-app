@@ -2424,8 +2424,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   select NATIVO es la regla del panel para un set cerrado (§ CLAUDE.md, "Controles de
                   formulario — el select es NATIVO"), no una ceremonia menor. 'tiendaProducto' (§
                   PRODUCTO-CHAMISAS-LAMINA-1) se suma al MISMO select nativo por la MISMA razón: dos
-                  opciones, sin zonas que avisar. */}
-              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto') && config.composiciones && config.composiciones.length > 1 && (
+                  opciones, sin zonas que avisar. 'suscripcionFaq' (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1)
+                  también: 'tarjetas'/'letraPequena' leen los MISMOS campos (`titulo` + el repeater),
+                  así que no hay zonas que distingan — el mismo criterio exacto. */}
+              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq') && config.composiciones && config.composiciones.length > 1 && (
                 <div className="admin-bloque">
                   <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
                   <select

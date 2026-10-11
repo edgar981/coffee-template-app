@@ -402,9 +402,19 @@ const suscripcionPasosEditableSchema = z.object({
   paso4Label: z.string().optional(), paso4Desc: z.string().optional(),
 });
 
+// /suscripciones — EL INTERLUDIO (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1). SOFT como el resto: una sola
+// composición («Plano», la pieza compartida), sin `variante` que clampar.
+const suscripcionInterludioEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  imagen: z.string().optional(),
+  pie: z.string().optional(),
+});
+
 // /suscripciones — la FAQ (§ SUSCRIPCIONES-FAQ-DATO-1). Sección repeater: encabezado (`titulo`) + un
 // ARRAY de ítems `{ question, answer }`. Cada ítem SOFT: strings opcionales — la validación de
 // requeridos (question, answer) es del EDITOR, no del schema (loader SOFT), como testimonios.
+// `variante` (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1) SOBREVIVE al parse como string (SOFT, clampada por
+// `resolverVariante` al leer, no acá — mismo criterio que `tiendaCatalogo.variante`).
 const suscripcionFaqItemSchema = z.object({
   question: z.string().optional(),
   answer: z.string().optional(),
@@ -413,6 +423,17 @@ const suscripcionFaqEditableSchema = z.object({
   visible: z.boolean().optional(),
   titulo: z.string().optional(),
   items: z.array(suscripcionFaqItemSchema).optional(),
+  variante: z.string().optional(),
+});
+
+// /suscripciones — EL CIERRE (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1). `ctaDestino` del SET CERRADO
+// `MENU_CTA_DESTINOS`, mismo criterio que `nosotrosCierreEditableSchema.ctaDestino` — el CTA puede
+// llegar apagado, sin label ni destino.
+const suscripcionCierreEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  frase: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
 });
 
 // /tienda (§ TIENDA-PAGINA-REGISTRO-1): sin `visible` — `REGISTRY.tiendaEncabezado`/`.tiendaCatalogo`
@@ -1051,7 +1072,9 @@ export const siteContentEditableSchema = z.object({
   suscripcionApertura: suscripcionAperturaEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
+  suscripcionInterludio: suscripcionInterludioEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
+  suscripcionCierre: suscripcionCierreEditableSchema.optional(),
   tiendaEncabezado: tiendaEncabezadoEditableSchema.optional(),
   tiendaCatalogo: tiendaCatalogoEditableSchema.optional(),
   tiendaCreditos: tiendaCreditosEditableSchema.optional(),

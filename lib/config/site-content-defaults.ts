@@ -1006,6 +1006,24 @@ export interface SuscripcionPasosContent {
   paso4Label: string; paso4Desc: string;
 }
 
+// EL INTERLUDIO de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, sobre ONIX-PAGINAS-
+// COMPOSICIONES-CENSO-1 — el owner decidió el 2026-10-11 "cada página con su PROPIO interludio/
+// cierre"). Sección NUEVA, montada con la pieza COMPARTIDA `InterludioPlano`
+// (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) — la MISMA composición «Plano» que `tiendaInterludio`, SIN
+// variante propia: a diferencia de /tienda (canónica 'retrato' + 'plano'), acá sólo existe «Plano»,
+// la única forma que el spec pide, así que no hay un segundo valor que clampar.
+//
+// NACE ENCENDIDA (`visible:true`) pero AUTO-OCULTA SIN FOTO, mismo mecanismo que `tiendaInterludio`
+// (§ su docstring, arriba): el gate real es tener `imagen`, no un segundo interruptor. `pie` vacío a
+// propósito —"SECADO AL SOL · SAN ADOLFO" del spec es un EJEMPLO de la maqueta, no un dato de
+// negocio para hornear (§ el invariante #44, misma familia que prohíbe citas/firmas fabricadas)—:
+// con `imagen:''` ningún tenant (Nayoli incluida) ve nada nuevo sin fila.
+export interface SuscripcionInterludioContent {
+  visible: boolean;
+  imagen: string;
+  pie: string;
+}
+
 // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1, sobre § Backlog #49 y § SiteContent — el
 // repeater). Antes vivía en `constants/subscription-faq.ts` (RETIRADO): cuatro preguntas con
 // respuestas FALSAS —"pausar… desde tu cuenta" (la ruta `/cuenta` está borrada), "el cobro se
@@ -1020,10 +1038,31 @@ export interface SuscripcionFaqItem {
   answer: string;
 }
 
+// `variante` (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1): 'tarjetas' (canónica, byte-idéntica, la de hoy) |
+// 'letraPequena' (la maqueta de Onix — columna de 720px, filetes de los créditos, una abierta a la
+// vez). CERO campos nuevos: las dos composiciones leen `titulo` + `items[].question/.answer` tal
+// cual — sólo cambia CÓMO se dibuja, nunca el dato.
 export interface SuscripcionFaqContent {
   visible: boolean;
   titulo: string;
   items: SuscripcionFaqItem[];
+  variante: string;
+}
+
+// EL CIERRE de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1) — misma razón que el interludio
+// arriba: contenido PROPIO de esta página, montado con la pieza COMPARTIDA `CierreFraseYBoton`
+// (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1), SIN variante propia. `frase` es el gate real de la sección
+// (mismo criterio que `tiendaCierre.frase`, "sin frase no hay nada que cerrar con") — un REQUERIDO
+// nunca queda vacío una vez resuelto, así que no podría ocultar nada; por eso es OPCIONAL. «¿SOLO
+// UNA BOLSA?»/«IR A LA TIENDA» del spec son el contenido que la maqueta de ONIX muestra, no un
+// default universal a hornear para todo tenant (§ el código compartido no NACE siendo Nayoli/demo):
+// NACE VACÍA, como `nosotrosCierre`. `ctaDestino` es del SET CERRADO `MENU_CTA_DESTINOS`
+// (§ OPCIONES_CTA_DESTINO, tienda-secciones.ts) — editable, no fijo a `/tienda`.
+export interface SuscripcionCierreContent {
+  visible: boolean;
+  frase: string;
+  ctaLabel: string;
+  ctaDestino: string;
 }
 
 // LA PÁGINA /tienda ENTRA AL EDITOR (§ TIENDA-PAGINA-REGISTRO-1, sobre TIENDA-COMPOSICIONES-CENSO-1).
@@ -1955,7 +1994,9 @@ export interface SiteContentData {
   suscripcionApertura: SuscripcionAperturaContent;
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
+  suscripcionInterludio: SuscripcionInterludioContent;
   suscripcionFaq: SuscripcionFaqContent;
+  suscripcionCierre: SuscripcionCierreContent;
   tiendaEncabezado: TiendaEncabezadoContent;
   tiendaCatalogo: TiendaCatalogoContent;
   tiendaCreditos: TiendaCreditosContent;
@@ -2485,6 +2526,16 @@ export const DEFAULTS: SiteContentData = {
     paso3Label: 'Confirmamos tu pedido', paso3Desc: 'Te avisamos antes de que se procese, para que nunca haya sorpresas.',
     paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido a todo el país.',
   },
+  // EL INTERLUDIO de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+  // `SuscripcionInterludioContent` arriba). `imagen`/`pie` VACÍOS a propósito —"SECADO AL SOL · SAN
+  // ADOLFO" es el ejemplo de la maqueta, no un dato de negocio a hornear—: con `imagen:''` el
+  // componente se auto-oculta pase lo que pase `visible`, así que ningún tenant sin fila ve nada
+  // nuevo (byte-idéntico).
+  suscripcionInterludio: {
+    visible: true,
+    imagen: '',
+    pie: '',
+  },
   // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1). NACE VACÍA a propósito: las cuatro
   // respuestas del `constants/subscription-faq.ts` retirado eran FALSAS —prometían pausar "desde tu
   // cuenta" (ruta borrada), cobro mensual recurrente y cambio "desde el siguiente ciclo" (no hay
@@ -2492,10 +2543,23 @@ export const DEFAULTS: SiteContentData = {
   // copian. `titulo` conserva el único literal que el componente viejo pintaba (el `<h2>` fijo), sin
   // ningún claim. El owner carga preguntas REALES por el editor; hasta entonces, hide-on-empty oculta
   // la sección y /preguntas-frecuentes redirige (§ faqSuscripcionesVisible).
+  // `variante: 'tarjetas'` (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1): la canónica, byte-idéntica a lo de
+  // hoy — "letraPequena" es opt-in del dueño.
   suscripcionFaq: {
     visible: true,
     titulo: 'Preguntas frecuentes',
     items: [],
+    variante: 'tarjetas',
+  },
+  // EL CIERRE de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+  // `SuscripcionCierreContent` arriba). NACE VACÍO —sin `frase` la sección no se monta, hide-on-empty
+  // de contenido, mismo mecanismo que `tiendaCierre`/`nosotrosCierre`—: «¿SOLO UNA BOLSA?»/«IR A LA
+  // TIENDA» del spec son el contenido de la maqueta, no un default para hornear en todo despliegue.
+  suscripcionCierre: {
+    visible: true,
+    frase: '',
+    ctaLabel: '',
+    ctaDestino: '',
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1): el texto EXACTO de hoy (`ShopLegacy`/`ShopCorte`, antes de
   // este slice) — byte-idéntico sin fila de SiteContent sembrada. El placeholder del buscador
@@ -3338,13 +3402,29 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       paso4Label: 'requerido', paso4Desc: 'requerido',
     },
   },
+  // EL INTERLUDIO de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+  // `SuscripcionInterludioContent` arriba). `ocultable: true`, nace ENCENDIDA — el gate real es tener
+  // FOTO, mismo criterio que `tiendaInterludio`. SIN `variantes`: a diferencia de /tienda, acá sólo
+  // existe la composición «Plano» (la pieza `InterludioPlano`), así que no hay un eje que clampar.
+  suscripcionInterludio: {
+    label: 'Interludio',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      imagen: 'opcional',
+      pie: 'opcional',
+    },
+  },
   // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1). REPEATER, gemela de `testimonials`: un
   // encabezado (`titulo`) + una LISTA de preguntas. `question`/`answer` LOS DOS requeridos —una
   // pregunta sin respuesta es un hueco, no media FAQ—. `ocultable:true`: un cliente puede querer los
   // planes y los pasos sin una FAQ, además del gate de PÁGINA (`paginas.suscripciones.visible`).
+  // `variantes` (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1): 'tarjetas' (canónica) | 'letraPequena' — CERO
+  // campos nuevos, las dos leen `titulo`/`items` tal cual.
   suscripcionFaq: {
     label: 'Preguntas frecuentes',
     ocultable: true,
+    variantes: { claves: ['tarjetas', 'letraPequena'], canonica: 'tarjetas' },
     campos: {
       titulo: 'requerido',
     },
@@ -3354,6 +3434,20 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         question: 'requerido',
         answer: 'requerido',
       },
+    },
+  },
+  // EL CIERRE de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+  // `SuscripcionCierreContent` arriba). `ocultable: true`, nace ENCENDIDO — el gate real es tener
+  // `frase` (como `tiendaCierre`). `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, editable con
+  // `OPCIONES_CTA_DESTINO` (tienda-secciones.ts). SIN `variantes`: una sola composición.
+  suscripcionCierre: {
+    label: 'Cierre',
+    ocultable: true,
+    imagenes: [],
+    campos: {
+      frase: 'opcional',
+      ctaLabel: 'opcional',
+      ctaDestino: 'opcional',
     },
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `TiendaEncabezadoContent`/

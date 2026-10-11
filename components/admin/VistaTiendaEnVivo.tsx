@@ -16,6 +16,8 @@ import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
 import SuscripcionApertura from '@/components/storefront/suscripciones/SuscripcionApertura';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
+import SuscripcionInterludio from '@/components/storefront/suscripciones/SuscripcionInterludio';
+import SuscripcionCierre from '@/components/storefront/suscripciones/SuscripcionCierre';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
@@ -189,10 +191,17 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // (un `wa.me/` sin número es un botón muerto). Todo-opcional → asignable a ComponentType.
   suscripcionPlanes: SuscripcionPlanes,
   suscripcionPasos: SuscripcionPasos,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § ONIX-SUSCRIPCION-LETRA-CIERRE-1 (mismo patrón que
+  // 'suscripcionApertura' arriba): sumar 'suscripcionInterludio'/'suscripcionCierre' a `SeccionVista`
+  // vuelve este `Record<SeccionVista, ComponentType>` NO-exhaustivo sin estas dos líneas. Headless,
+  // sin props → asignables a `ComponentType`. Con `imagen`/`frase` vacíos (los defaults) las dos
+  // devuelven `null` — la vista previa queda en blanco, no rota.
+  suscripcionInterludio: SuscripcionInterludio,
   // PreguntasFrecuentes sólo lee `useSiteContent()` (§ SUSCRIPCIONES-FAQ-EDITOR-1, verificado leyendo
   // la cadena entera: sin `useSiteSettings` ni otro hook con provider propio) — cubierto por el
   // `SiteContentProvider` de acá abajo, sin prop adicional.
   suscripcionFaq: PreguntasFrecuentes,
+  suscripcionCierre: SuscripcionCierre,
 };
 
 export interface VistaTiendaProps {

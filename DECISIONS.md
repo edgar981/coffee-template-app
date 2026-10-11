@@ -59745,3 +59745,196 @@ acumulado de +40 commits previos de esta rama, ninguno mío); el segundo a la mi
 causas, verificado además por inspección visual directa de las capturas (sin diferencia de
 contenido). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el gate
 visual, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-SUSCRIPCION-LETRA-CIERRE-1: /suscripciones termina como la maqueta (interludio, letra pequeña y cierre propios, con destino editable)
+
+**Pedido del owner** (2026-10-11, sobre la maqueta «Taquilla mensual» — la misma aprobación que
+`ONIX-SUSCRIPCION-TAQUILLA-1` cita, *"Perfect. Go ahead with this mock."*): la página gana las tres
+piezas que faltaban del flujo completo —interludio, «letra pequeña» (FAQ desplegable) y cierre—,
+cerrando el orden `apertura → taquilla → interludio → letra pequeña → cierre` de
+`.scratch/onix-paginas/refero-onix-paginas.md`, § d/e.
+
+### El modelo — dos secciones NUEVAS, cero campos nuevos en la tercera
+
+- **`suscripcionInterludio`** (sección NUEVA): `visible` (default `true`, § el mismo mecanismo que
+  `tiendaInterludio` — el gate real es tener FOTO, no el toggle), `imagen`, `pie`. SIN `variantes`:
+  a diferencia de `tiendaInterludio` (canónica 'retrato' + 'plano'), acá sólo existe la pieza
+  `InterludioPlano`, así que no hay un eje de composición que declarar. `pie` nace VACÍO —"SECADO AL
+  SOL · SAN ADOLFO" del spec es el EJEMPLO de la maqueta, no un dato de negocio para hornear (misma
+  familia que el invariante #44: nada de citas/pies fabricados en los defaults).
+- **`suscripcionCierre`** (sección NUEVA): `visible` (default `true`), `frase` (gate real de la
+  sección, como `tiendaCierre.frase` — "sin frase no hay nada que cerrar con"), `ctaLabel`,
+  `ctaDestino` (del SET CERRADO `MENU_CTA_DESTINOS`, el mismo `OPCIONES_CTA_DESTINO` que ya usa
+  `nosotrosCierre`). NACE VACÍA —«¿SOLO UNA BOLSA?»/«IR A LA TIENDA» son el contenido de la maqueta
+  de Onix, no un default universal (§ El código compartido no NACE siendo Nayoli/demo)—, así que
+  Nayoli (y cualquier tenant sin fila) no ve nada nuevo.
+- **`suscripcionFaq` gana `variante`** ('tarjetas' canónica, byte-idéntica | 'letraPequena', opt-in):
+  CERO campos nuevos — las dos composiciones leen `titulo`/`items[].question/.answer` tal cual, sólo
+  cambia CÓMO se dibujan. Es la MISMA forma que `tiendaEncabezado`/`tiendaCatalogo`/`tiendaProducto`:
+  dos opciones sin zonas que avisar → select NATIVO, no el diálogo pesado del hero.
+
+### `PreguntasFrecuentes.tsx` — la composición «Letra pequeña»
+
+Columna de 720px, pregunta en sans mayúscula de 12px (+0.14em) con un indicador "+/–" (serif,
+`font-playfair`), respuesta a 15px, los MISMOS filetes que `CreditosFilas`
+(`border-t border-[var(--sf-linea)]/15 … first:border-t-0` — el spec lo pide explícito, "lleva los
+filetes de los créditos"). **Sólo una abierta a la vez**: `siguienteAbierta` (`lib/storefront/
+letra-pequena.ts`, puro) replica el JS de la maqueta (cerrar TODAS, abrir la clickeada sólo si no
+era ya la abierta) — mismo invariante, sin un Set de abiertas posible porque el estado es un único
+índice nullable. La primera pregunta arranca ABIERTA (medido contra la maqueta:
+`aria-expanded="true"` en el primer `<button>`), a diferencia del precedente `SeccionPreguntas.tsx`
+(`components/storefront/secciones/Preguntas.tsx`, que arranca con todo cerrado) — composición
+distinta, estado inicial distinto, cada una fiel a su propia referencia.
+
+**Accesibilidad, mismo precedente que `SeccionPreguntas.tsx`** (el único acordeón con
+`aria-expanded` que ya vivía en el repo, verificado antes de escribir el propio): `aria-expanded`/
+`aria-controls` en el botón, `role="region"`/`aria-labelledby` en el panel. `CampoEditable` anidado
+dentro de un `<button>` tiene precedente idéntico en ese mismo componente (su `ContenidoPregunta`),
+así que no es un patrón nuevo arriesgado.
+
+### El viaje por `TiendaSeccionEditor`/`VistaTiendaEnVivo`/`SECCIONES_TIENDA`
+
+`components/admin/tienda-secciones.ts` gana `SUSCRIPCION_INTERLUDIO`/`SUSCRIPCION_CIERRE`
+(`SeccionConfig`, sin `composiciones` — una sola pieza cada una) y `SUSCRIPCION_FAQ` suma
+`composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_FAQ` (derivada de
+`REGISTRY.suscripcionFaq.variantes.claves`, nunca una segunda lista). **Hallazgo antes de cablear:**
+el select nativo de composición en `TiendaSeccionEditor.tsx` (línea ~2428) estaba hardcodeado a
+`seccion === 'tiendaEncabezado' || 'tiendaCatalogo' || 'tiendaProducto'` — declarar `composiciones`
+en `tienda-secciones.ts` satisface el chequeo mecánico de `panel-controles.ts`
+(`camposDeSeccionEditor`: "presencia de `config.composiciones` ⇒ `variante` controlado"), pero el
+PROPIO patrón de `suscripcionPlanes`/`tiendaInterludio`/`tiendaCierre` (de slices anteriores) muestra
+que esa presencia NO garantiza un control real en el UI —esas tres secciones llevan `composiciones`
+con `zonas` desde que nacieron y NINGUNA tiene un select o diálogo que las muestre, porque el único
+disparador de ese diálogo es `seccion === 'hero'`—. Para `suscripcionFaq`, en vez de reproducir ese
+hueco heredado, se sumó `'suscripcionFaq'` a la condición del select nativo (dos opciones, sin zonas
+que avisar — el MISMO criterio que ya vale para Encabezado/Catálogo/Producto): el owner SÍ puede
+elegir «Letra pequeña» desde el panel, no sólo publicando con `mergePresetEnContent`.
+`components/admin/TiendaSeccionEditor.tsx` es el único archivo de esta tanda que toca una condición
+ya existente en vez de sumar una entrada nueva — dentro de `touches:` (`components/admin/`).
+
+`VistaTiendaEnVivo.tsx` gana `suscripcionInterludio: SuscripcionInterludio` y
+`suscripcionCierre: SuscripcionCierre` en `COMPONENTES` (`tsc` exige el `Record<SeccionVista,
+ComponentType>` exhaustivo — sin estas dos líneas el build fallaría, no sólo el preview).
+
+### `app/(storefront)/suscripciones/page.tsx` — el orden
+
+`ORDEN` pasa de `[apertura, planes, pasos, faq]` a `[apertura, planes, pasos, interludio, faq,
+cierre]`. **`suscripcionPasos` NO se mueve** — el spec nombra el orden de la maqueta como "apertura →
+taquilla → interludio → letra pequeña → cierre" sin mencionar "pasos" porque esa sección es AJENA al
+flujo nuevo (la maqueta reemplaza "¿Cómo funciona?" por los créditos DENTRO de la Taquilla, pero eso
+es contenido de la composición "Taquilla" de `suscripcionPlanes`, ya resuelto por
+`ONIX-SUSCRIPCION-TAQUILLA-1` — no de esta tanda): moverla habría sido un cambio de bytes para
+Nayoli (que sigue viendo "¿Cómo funciona?" en su posición de siempre bajo la composición "Tarjetas")
+sin que el spec lo pidiera.
+
+### Byte-identidad — verificada por EJECUCIÓN, no por lectura
+
+`lib/storefront/letra-pequena.test.ts` (8 tests, nuevo): la regla pura `siguienteAbierta` (3 casos)
++ byte-identidad de la composición 'tarjetas' (reconstruye en memoria, vía `renderToStaticMarkup`
+sin jsdom, la JSX EXACTA que `PreguntasFrecuentes.tsx` montaba antes de este slice, y la compara
+contra el componente de HOY con `variante:'tarjetas'` — IDÉNTICAS) + el render de 'letraPequena'
+(sólo una `aria-expanded="true"` a la vez; la respuesta de las preguntas cerradas ni se monta; lleva
+el filete de los créditos y la columna de 720px) + hide-on-empty en los dos variantes.
+`suscripcionInterludio`/`suscripcionCierre` se verificaron por LECTURA de su gate (mismo patrón ya
+afirmado por `tiendaInterludio.test.ts`/`tiendaCierre.test.ts` para el mecanismo idéntico — no se
+duplicó ese test para la copia de /suscripciones, que reusa el MISMO `seccionEsVisible` + el MISMO
+chequeo `!imagen`/`!frase.trim()`).
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Grepeados LITERALMENTE los símbolos que este diff introdujo o tocó: `suscripcionInterludio` (sólo mi
+propio texto), `suscripcionCierre` (sólo mi propio texto), `letraPequena` (sólo mi propio texto),
+`PreguntasFrecuentes` (10 apariciones, ninguna describe su composición interna — todas sobre el
+mecanismo de campo editable y los tres importadores, sin falsear), `TiendaSeccionEditor` (7
+apariciones, todas sobre el mecanismo genérico de bloques/cáscara — mi único cambio ahí es sumar una
+sección a una condición existente, no alterar el mecanismo que esas líneas describen),
+`VistaTiendaEnVivo` (4 apariciones, describen el `Record<SeccionVista, ComponentType>` genérico —
+mi cambio es sumarle dos entradas más, el mismo patrón que esas líneas ya documentan para
+`origen`/`spotlight`/`nosotrosCierre`). Ninguna sentencia de `CLAUDE.md` queda falseada por este
+diff. La única sentencia YA falsa sobre esta página (`CLAUDE.md:2986`, "Contenido.tsx cliente")
+viene de `ONIX-SUSCRIPCION-TAQUILLA-1` (su propio open follow-up
+`CLAUDE-MD-SUSCRIPCIONES-CONTENIDO-SENTENCE-1`) — este diff no la agrava ni la toca.
+
+### Segundo grep — `DECISIONS.md`
+
+`ONIX-SUSCRIPCION-LETRA-CIERRE-1`: 0 apariciones previas a este asiento (ledger-id nuevo, se apoya
+en `ONIX-PAGINAS-COMPOSICIONES-CENSO-1`, ya citado por `ONIX-SUSCRIPCION-TAQUILLA-1`).
+
+### Frontera Tier 1 — verificada, no asumida
+
+Los 9 archivos tocados (4 nuevos + 5 modificados) caen bajo `app/(storefront)/suscripciones/`,
+`components/storefront/`, `lib/storefront/`, `components/admin/`, `lib/config/site-content-
+defaults.ts`, `lib/config/site-content-schema.ts`, más este asiento — todos nombrados LITERAL en
+`touches:`. `git status --short` confirma exactamente esos 9 archivos; cero `app/api/`, cero
+`packages/core/`, cero `lib/config/*-read.ts`/`site-settings*.ts`, cero `proxy.ts`, cero migración/
+schema Prisma.
+
+### `npm run gate` — GREEN
+
+`typecheck` 0 errores · `npm test` **4277/4277** (8 nuevos, `lib/storefront/letra-pequena.test.ts`
+— baseline inferido 4269, no re-medido por separado antes de editar: es el único archivo de test que
+este slice agrega) · `npm run test:integracion` **409/409** (sin cambio — este slice no toca ninguna
+cadena de integración, ni se le pidió una). Corrido en primer plano sobre el árbol final.
+
+### `npm run verificar:nayoli` — RED preexistente, medido y atribuido
+
+Las 4 rutas (`/`, `/tienda`, `/tienda/<slug>`, `/checkout`) "DIFIEREN" contra `main` — **ninguna de
+las 4 renderiza nada de este slice** (`/suscripciones`/`/preguntas-frecuentes` no están en el set de
+rutas que este script mide). Medido en el HTML: `lang="en"` (main) vs. `lang="es"` (rama), el hash
+del chunk CSS, `q=75` (main) vs. `q=85` (rama) en el hero, y `"max-w-6xl mx-auto"` →
+`"mx-auto max-w-6xl"` en `StoreNav` — las MISMAS cuatro causas que `ONIX-SUSCRIPCION-TAQUILLA-1` ya
+atribuyó a slices previos de esta rama. `git diff --stat HEAD -- components/storefront/layout/
+StoreNav.tsx` da VACÍO (no está en mi `git status`) mientras `git log --oneline main..HEAD --
+'**/StoreNav.tsx'` da **45** commits — uno más que los "+40" del asiento anterior, consistente con
+los commits que entraron a la rama entre medio (`ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`,
+`ONIX-SUSCRIPCION-TAQUILLA-1`). Ninguna de las cuatro causas está en `touches:` de este slice.
+
+### `npm run verificar:nayoli:visual` — RED preexistente, atribuido por inspección DIRECTA de imagen
+
+Corrido completo (6 rutas + 2 hovers, Playwright/Chromium headless). Los dos hovers: **IDÉNTICOS**.
+Las 6 rutas "DIFIEREN", con cajas de diff pequeñas (163–258 px sobre >1M px cada una, salvo `home`
+que hereda el diff grande ya atribuido al hero `q=75→85`). **Inspección visual DIRECTA de los PNG de
+diff** (no sólo el conteo de píxeles): las cajas de `/tienda`, `/producto`, `/checkout`,
+`/nosotros` y `/suscripciones` marcan EXACTAMENTE el mismo punto — el enlace "Hecho por Duna" del
+pie de página. **`/nosotros` no está en `touches:` de este slice y el mismo artefacto aparece ahí
+idéntico** (mismas coordenadas relativas, mismo texto resaltado) — prueba, por un ejemplo que este
+diff no pudo haber causado, que la diferencia es del `StoreFooter` compartido (8 commits previos de
+esta rama lo tocan, `git log --oneline main..HEAD -- '**/StoreFooter.tsx'`), no de ninguna sección
+nueva de /suscripciones. Capturas y diffs en `.scratch/verificar-nayoli-visual/` (gitignored, no
+viajan en el commit).
+
+### Open follow-ups
+
+- **`ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1`**: `suscripcionPlanes.variante`/
+  `tiendaInterludio.variante`/`tiendaCierre.variante` declaran `composiciones` CON `zonas` en
+  `tienda-secciones.ts` (pensadas para el diálogo pesado de `ComposicionHero`) pero NINGUNA tiene un
+  disparador real en `TiendaSeccionEditor.tsx` — el único gate de ese diálogo es
+  `seccion === 'hero'`, medido leyendo el archivo completo, línea por línea, antes de escribir el
+  select de `suscripcionFaq`. El owner sólo puede cambiar esas tres composiciones vía
+  `mergePresetEnContent` (un preset), nunca desde el panel en uso normal — contradice lo que
+  `panel-controles.test.ts` mecánicamente da por "controlado". Por qué no ahora: las tres secciones
+  están fuera de `touches:` de este slice (sólo `suscripcionFaq` lo está), y la solución correcta
+  —darles select nativo (si sus zonas no importan en la práctica) o el diálogo de zonas (si sí)— es
+  una decisión de producto por sección, no un fix mecánico.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff agrega dos secciones nuevas (`suscripcionInterludio`/
+`suscripcionCierre`, ambas NACEN VACÍAS/sin gate activo para Nayoli, verificado por render en
+memoria) y una composición opt-in nueva (`suscripcionFaq.variante = 'letraPequena'`, default sigue
+siendo `'tarjetas'`) — bytes nuevos que CUALQUIER tenant que los active (incluida Onix, vía el panel)
+recibiría, así que no cae bajo la excepción de "sin bytes nuevos". Sin cambio de schema/migración ni
+contrato cruzado de repositorio. `npm run gate` GREEN de punta a punta (`typecheck` 0 · `npm test`
+4277/4277 · `npm run test:integracion` 409/409). `npm run verificar:nayoli` y `npm run
+verificar:nayoli:visual` CORRIDOS LOS DOS: ambos RED, los dos atribuidos a drift YA documentado de
+slices previos de esta rama — el segundo, además, verificado por inspección visual directa
+mostrando el MISMO artefacto en una ruta (`/nosotros`) fuera de `touches:` de este slice, prueba de
+que no lo causó este diff. Capturas manuales a 1440/390 de `/suscripciones` NO SE PRODUJERON —
+desviación medida: `next start` contra el `.next` ya construido por `verificar:nayoli:visual`
+devuelve 500 (`P2021`, "la tabla SiteContent no existe") porque el Postgres efímero de ese script ya
+se destruyó; diagnosticar o reparar eso exigiría inspeccionar/editar `.env*` o correr una migración,
+los dos EXPLÍCITAMENTE prohibidos para este slice. Se compensó con la captura de 1280px que
+`verificar:nayoli:visual` sí produjo (`.scratch/verificar-nayoli-visual/capturas/rama/
+ruta-suscripciones.png`, inspeccionada visualmente — estructura y contenido correctos) y con el
+carril de render en memoria (`letra-pequena.test.ts`). Commiteado en `slice/editor-secciones-1`; el
+merge, cuando el owner revise el gate visual, lo hace el orquestador.

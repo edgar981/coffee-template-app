@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1209,6 +1209,23 @@ const SUSCRIPCION_PASOS: SeccionConfig = {
   ],
 };
 
+// EL INTERLUDIO propio de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+// `SuscripcionInterludioContent` en site-content-defaults.ts). `ocultable: true`, nace ENCENDIDO —
+// el gate real es tener FOTO (el componente lo comprueba, § SuscripcionInterludio.tsx), mismo
+// criterio que `TIENDA_INTERLUDIO`. SIN `composiciones`: a diferencia de /tienda, acá sólo existe
+// la pieza `InterludioPlano`, así que no hay nada que elegir.
+const SUSCRIPCION_INTERLUDIO: SeccionConfig = {
+  seccion: 'suscripcionInterludio',
+  pagina: 'suscripciones',
+  titulo: 'Interludio',
+  ocultable: true,
+  notaVisibilidad: 'Sin foto, la sección no se muestra aunque el interruptor esté encendido.',
+  imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
+  campos: [
+    { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Secado al sol · San Adolfo". Vacío: no se muestra.' },
+  ],
+};
+
 // La FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-EDITOR-1, sobre § SUSCRIPCIONES-FAQ-DATO-1). REPEATER,
 // gemela de TESTIMONIOS: un encabezado (`titulo`, sin eyebrow — el modelo no lo tiene, § REGISTRY) + una
 // LISTA de preguntas. `question`/`answer` LOS DOS requeridos (§ REGISTRY.suscripcionFaq) — una pregunta
@@ -1216,11 +1233,24 @@ const SUSCRIPCION_PASOS: SeccionConfig = {
 // pasos sin FAQ, además del gate de PÁGINA (`paginas.suscripciones.visible`, § faqSuscripcionesVisible).
 // Nace con `items: []` (hide-on-empty, § #44) — sin `bloques` declarados, como TESTIMONIOS: cae al bloque
 // `seccion` derivado por defecto.
+//
+// LA COMPOSICIÓN «LETRA PEQUEÑA» (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1) — mismo patrón que
+// `OPCIONES_COMPOSICION_TIENDA_CATALOGO`: el VALOR y el orden salen de `REGISTRY.suscripcionFaq.
+// variantes.claves`, este archivo sólo agrega la etiqueta. CERO campos nuevos —las dos composiciones
+// leen `titulo`/`items` tal cual—, así que las zonas son las MISMAS para ambas.
+const LABEL_COMPOSICION_SUSCRIPCION_FAQ: Record<string, string> = { tarjetas: 'Tarjetas', letraPequena: 'Letra pequeña' };
+const ZONAS_SUSCRIPCION_FAQ: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Título' },
+];
+const OPCIONES_COMPOSICION_SUSCRIPCION_FAQ: ComposicionOpcion[] = REGISTRY.suscripcionFaq.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_SUSCRIPCION_FAQ[v] ?? v, zonas: ZONAS_SUSCRIPCION_FAQ,
+}));
 const SUSCRIPCION_FAQ: SeccionConfig = {
   seccion: 'suscripcionFaq',
   pagina: 'suscripciones',
   titulo: 'Preguntas frecuentes',
   ocultable: true,
+  composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_FAQ,
   imagenes: [], // sección de solo texto
   campos: [
     { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
@@ -1234,6 +1264,24 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
       { name: 'answer',   label: 'Respuesta', tipo: 'textarea', resumen: 'detalle',   hint: 'La respuesta, en un lenguaje claro.' },
     ],
   },
+};
+
+// EL CIERRE propio de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
+// `SuscripcionCierreContent` en site-content-defaults.ts). `ocultable: true`, nace ENCENDIDO — el
+// gate real es tener `frase`, mismo criterio que `TIENDA_CIERRE`. SIN `composiciones`: una sola
+// pieza (`CierreFraseYBoton`), sin variantes propias.
+const SUSCRIPCION_CIERRE: SeccionConfig = {
+  seccion: 'suscripcionCierre',
+  pagina: 'suscripciones',
+  titulo: 'Cierre',
+  ocultable: true,
+  notaVisibilidad: 'Sin frase, la sección no se muestra aunque el interruptor esté encendido.',
+  imagenes: [],
+  campos: [
+    { name: 'frase', label: 'Frase', opcional: true, textarea: true, hint: 'Vacío: esta sección NO se muestra.' },
+    { name: 'ctaLabel', label: 'Botón · texto', opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+  ],
 };
 
 // LA PÁGINA /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `REGISTRY.tiendaEncabezado`/
@@ -1482,4 +1530,10 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 //
 // SUSCRIPCION_APERTURA va PRIMERO dentro de `suscripciones` (§ ONIX-SUSCRIPCION-TAQUILLA-1): es la
 // posición real en la página — la pieza que abre, antes de los planes/la Taquilla.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+//
+// SUSCRIPCION_INTERLUDIO/SUSCRIPCION_FAQ/SUSCRIPCION_CIERRE (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1) van
+// tras SUSCRIPCION_PASOS, en el orden real de la página: apertura → planes/taquilla → pasos
+// (sin tocar, sigue byte-idéntico) → interludio → preguntas (letra pequeña) → cierre. El spec lo
+// nombra "apertura → taquilla → interludio → letra pequeña → cierre" sin mencionar pasos porque esa
+// sección no cambia de posición — sigue exactamente donde ya estaba.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];
