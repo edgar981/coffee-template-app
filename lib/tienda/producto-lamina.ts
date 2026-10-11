@@ -8,6 +8,18 @@ import type { Product } from '@/types/product';
 import { colorDeLamina } from './laminas';
 import type { RaicesPaleta } from '@/lib/config/palette-derive';
 import { TOSTION_LABELS } from '@/constants/roast-levels';
+import { siguienteIndiceGaleria } from '@/lib/storefront/galeria';
+
+// EL ÍNDICE SIGUIENTE/ANTERIOR DE LA GALERÍA (§ PRODUCTO-LAMINA-GALERIA-1) ES UN RE-EXPORT, NO UNA
+// SEGUNDA DEFINICIÓN. `siguienteIndiceGaleria` (`lib/storefront/galeria.ts`) ya resuelve EXACTAMENTE
+// este problema para `GaleriaProducto.tsx` (la composición «Actual»): en bucle, con `total <= 1`
+// devuelve el mismo índice sin lanzar. Re-derivar la misma aritmética acá —aunque sea una línea—
+// sería la MISMA familia de defecto que `razonDelServidor`/`cruzoMinimo` duplicados (§ CLAUDE.md):
+// dos definiciones del mismo hecho que pueden divergir el día que alguien ajuste una sin la otra.
+// Se re-exporta (no se importa solo en el componente) para que el test de este slice —"el índice
+// siguiente/anterior (vuelta al inicio)"— viva junto a las demás reglas puras de esta composición,
+// sin fingir una segunda implementación.
+export { siguienteIndiceGaleria };
 
 /** El color de la lámina del producto de ESTA página: el mismo `colorDeLamina` que usa /tienda,
  *  buscando el índice del producto dentro del catálogo COMPLETO — el orden que decide a qué color

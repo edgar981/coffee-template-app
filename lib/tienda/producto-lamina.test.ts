@@ -1,9 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota } from './producto-lamina';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota, siguienteIndiceGaleria } from './producto-lamina';
 import { colorDeLamina } from './laminas';
 import { tiendaInterludioVisible } from './tienda-cierre';
 import type { Product } from '@/types/product';
+import ProductoLamina from '@/components/storefront/producto/ProductoLamina';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { CartProvider } from '@/lib/cartStore';
+import { DEFAULTS } from '@/lib/config/site-content-defaults';
 
 const producto = (over: Partial<Product>): Product => ({
   id: over.id ?? 'p1',
@@ -141,4 +147,104 @@ test('colorPuntoNota: un color acromático (gris/blanco/negro) no revienta — c
     const fuerte = colorPuntoNota(c);
     assert.match(fuerte, /^#[0-9a-f]{6}$/);
   }
+});
+
+// ── el índice siguiente/anterior de la galería (§ PRODUCTO-LAMINA-GALERIA-1) ──────────────────────
+// `siguienteIndiceGaleria` es un RE-EXPORT de `lib/storefront/galeria.ts` (§ el docstring de arriba
+// en producto-lamina.ts) — este test confirma que la galería de ESTA composición navega con la
+// MISMA regla «en bucle» que ya usa `GaleriaProducto.tsx`, no una segunda copia que pudiera divergir.
+test('siguienteIndiceGaleria: siguiente avanza uno, y da la vuelta al llegar al final (3 fotos)', () => {
+  assert.equal(siguienteIndiceGaleria(0, 3, 1), 1);
+  assert.equal(siguienteIndiceGaleria(1, 3, 1), 2);
+  assert.equal(siguienteIndiceGaleria(2, 3, 1), 0); // vuelta al inicio
+});
+
+test('siguienteIndiceGaleria: anterior retrocede uno, y da la vuelta al llegar al principio (3 fotos)', () => {
+  assert.equal(siguienteIndiceGaleria(2, 3, -1), 1);
+  assert.equal(siguienteIndiceGaleria(1, 3, -1), 0);
+  assert.equal(siguienteIndiceGaleria(0, 3, -1), 2); // vuelta al final
+});
+
+test('siguienteIndiceGaleria: con una sola foto, no hay a dónde navegar — devuelve el mismo índice', () => {
+  assert.equal(siguienteIndiceGaleria(0, 1, 1), 0);
+  assert.equal(siguienteIndiceGaleria(0, 1, -1), 0);
+});
+
+// ── el mecanismo de cambiar de foto, por RENDER (§ PRODUCTO-LAMINA-GALERIA-1) ─────────────────────
+// `renderToStaticMarkup` en memoria (sin jsdom, sin red, sin `.env`/base — mismo método que
+// `lib/config/nosotros-bandas.test.ts`/`lib/config/cromo-volver-arriba.test.ts`). SSR no evalúa CSS,
+// así que "a 1100px y 390px" no son dos renders con geometría distinta —no hay viewport que medir
+// sin navegador—: es la MISMA marca, afirmando que las flechas llevan las dos clases responsive que
+// producen ese comportamiento (`hidden` por defecto, bajo 640px = 390px; `sm:flex` desde 640px en
+// adelante = 1100px), mientras que miniaturas y puntos —el mecanismo del celular— NO llevan ningún
+// `hidden` que las apague en ningún ancho. Lo que el teclado/el deslizar HACEN (los `onKeyDown`/
+// `onTouchStart`/`onTouchEnd`) no serializa a HTML —ningún `renderToStaticMarkup` lo vería—, así
+// que esa mitad queda declarada como límite, no afirmada acá.
+// Las URLs van como paths LOCALES (`/una.webp`, mismo patrón que `PRODUCTO_FIXTURE` de
+// `lib/config/presentaciones-riel.test.ts`), no `https://` — `next/image` valida los hosts
+// remotos contra `next.config.ts` (`images.remotePatterns`, sólo el store de Blob), y un host de
+// prueba inventado lo rechaza con 500 en SSR. Un path local no pasa por esa validación.
+function productoConTresFotos(): Product {
+  return producto({
+    id: 'p-3fotos',
+    imagen: '/una.webp',
+    imagenes: ['/dos.webp', '/tres.webp'],
+  });
+}
+
+function renderProductoLamina(product: Product, catalog: Product[]): string {
+  const arbol = React.createElement(SiteContentProvider, {
+    value: DEFAULTS,
+    children: React.createElement(CartProvider, {
+      children: React.createElement(ProductoLamina, { product, catalog }),
+    }),
+  });
+  return renderToStaticMarkup(arbol);
+}
+
+test('render en memoria, 3 fotos: las DOS flechas aparecen, con `aria-label` y las clases que las ocultan bajo 640px (≈390px) y las muestran desde 640px (≈1100px)', () => {
+  const product = productoConTresFotos();
+  const html = renderProductoLamina(product, [product]);
+  assert.match(html, /aria-label="Foto anterior"/);
+  assert.match(html, /aria-label="Foto siguiente"/);
+  // Las DOS flechas llevan `hidden` (ocultas por defecto, el caso de 390px) y `sm:flex` (visibles
+  // desde 640px, el caso de 1100px) — nunca `flex` a secas, que las mostraría también en el celular.
+  const flechaAnterior = /<button[^>]*aria-label="Foto anterior"[^>]*class="([^"]*)"/.exec(html);
+  const flechaSiguiente = /<button[^>]*aria-label="Foto siguiente"[^>]*class="([^"]*)"/.exec(html);
+  assert.ok(flechaAnterior, 'la flecha anterior debe existir en el marcado');
+  assert.ok(flechaSiguiente, 'la flecha siguiente debe existir en el marcado');
+  for (const clase of [flechaAnterior![1], flechaSiguiente![1]]) {
+    assert.match(clase, /(^|\s)hidden(\s|$)/);
+    assert.match(clase, /(^|\s)sm:flex(\s|$)/);
+  }
+});
+
+test('render en memoria, 3 fotos: las miniaturas (una por foto, "arcos pequeños") no llevan ninguna clase que las oculte en el celular — el mecanismo de 390px no depende del de 1100px', () => {
+  const product = productoConTresFotos();
+  const html = renderProductoLamina(product, [product]);
+  for (let i = 1; i <= 3; i++) {
+    assert.match(html, new RegExp(`aria-label="Ver foto ${i} de 3"`));
+  }
+  const miniatura = /<button[^>]*aria-label="Ver foto 1 de 3"[^>]*class="([^"]*)"/.exec(html);
+  assert.ok(miniatura, 'la miniatura 1 debe existir en el marcado');
+  // `(^|\s)hidden(\s|$)` — el TOKEN de clase completo, no la substring dentro de
+  // `overflow-hidden` (que SÍ está presente, legítimamente, para recortar la foto del arco).
+  assert.doesNotMatch(miniatura![1], /(^|\s)hidden(\s|$)/);
+});
+
+test('render en memoria, 3 fotos: los TRES puntos siguen ahí ("los puntos se quedan"), junto a las miniaturas y las flechas', () => {
+  const product = productoConTresFotos();
+  const html = renderProductoLamina(product, [product]);
+  for (let i = 1; i <= 3; i++) {
+    assert.match(html, new RegExp(`aria-label="Foto ${i} de 3"`));
+  }
+});
+
+test('render en memoria, UNA sola foto: no aparece ninguna flecha, miniatura ni punto — "no aparece nada de esto"', () => {
+  const product = producto({ id: 'p-1foto', imagen: '/unica.webp', imagenes: [] });
+  const html = renderProductoLamina(product, [product]);
+  assert.doesNotMatch(html, /aria-label="Foto anterior"/);
+  assert.doesNotMatch(html, /aria-label="Foto siguiente"/);
+  assert.doesNotMatch(html, /aria-label="Ver foto/);
+  assert.doesNotMatch(html, /aria-label="Foto 1 de/);
 });

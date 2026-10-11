@@ -17,12 +17,12 @@
 // `useSiteContent`) y su MISMO GATE (`tiendaInterludioVisible`), pero YA NO monta ese componente —
 // esta página necesita una FRANJA COMPACTA propia, distinta del Interludio grande y centrado de
 // /tienda, así que el dato se lee acá directo y se dibuja con su propio diseño.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
-import { Minus, Plus, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Minus, Plus, ShoppingBag } from 'lucide-react';
 import type { Product } from '@/types/product';
 import { useCartStore } from '@/lib/cartStore';
 import { moliendasDisponibles, moliendaAceptada } from '@duna/core/moliendas-opciones';
@@ -35,9 +35,17 @@ import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import { getCatalog } from '@/lib/api/products';
 import { lavadoLamina } from '@/lib/tienda/laminas';
-import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota } from '@/lib/tienda/producto-lamina';
+import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota, siguienteIndiceGaleria } from '@/lib/tienda/producto-lamina';
 import { tiendaInterludioVisible } from '@/lib/tienda/tienda-cierre';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
+import { entradaHeroInicial, heroDeGaleria } from '@/lib/storefront/pdp-galeria';
+
+// EL UMBRAL DE DESLIZAR (§ PRODUCTO-LAMINA-GALERIA-1) — MISMO valor que `GaleriaProducto.tsx`
+// (`UMBRAL_SWIPE_PX`, la composición «Actual»): 40px distingue un arrastre real de un toque corto,
+// sin confundir un tap con un gesto de navegación. No se re-exporta desde ese archivo porque es un
+// literal de UX, no una regla con decisión que afirmar en capa 1 (a diferencia de
+// `siguienteIndiceGaleria`, que sí vive en `lib/`).
+const UMBRAL_SWIPE_PX = 40;
 
 interface ProductoLaminaProps {
   product: Product;
@@ -53,12 +61,21 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
 
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
+  // «GALERÍA TOCADA» (§ el mismo mecanismo que `GaleriaProducto.tsx`, vía `entradaHeroInicial`
+  // reusado): la foto con la que la página llega NUNCA depende de que una animación de framer-motion
+  // complete para hacerse visible (§ `lib/storefront/pdp-galeria.ts`, el defecto que ese archivo
+  // documenta). El fade sólo entra en juego DESPUÉS de que el visitante ya cambió de foto una vez —
+  // ahí la interacción ya demuestra que JS corre.
+  const [galeriaTocada, setGaleriaTocada] = useState(false);
+  const touchXRef = useRef<number | null>(null);
+  const reducirMovimiento = useReducedMotion();
   const [molienda, setMolienda] = useState<string | null>(
     () => moliendasDisponibles(product.moliendasOpciones)[0]?.nombre ?? null,
   );
 
   const galeria = galeriaCompleta(product.imagen, product.imagenes);
-  const heroSrc = imagenPortada(galeria[imgIdx] ?? '');
+  const puedeNavegarGaleria = galeria.length > 1;
+  const heroSrc = imagenPortada(heroDeGaleria(galeria, imgIdx) ?? '');
   const color = colorLaminaProducto(catalog, product.id, tiendaCatalogo.coloresPorProducto);
   const lavado = lavadoLamina(color);
   const agotado = !product.disponible;
@@ -71,6 +88,45 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
   // (`seccionEsVisible`) Y tener retrato (`tiendaInterludioVisible`) — compuestas, nunca una sola:
   // si el dueño apagó «Quienes lo cultivan» a propósito, esta franja no debe resucitarlo aquí.
   const cultivanVisible = seccionEsVisible(REGISTRY.tiendaInterludio, tiendaInterludio) && tiendaInterludioVisible(tiendaInterludio.imagen);
+
+  // EL MECANISMO DE CAMBIAR DE FOTO (§ PRODUCTO-LAMINA-GALERIA-1) — flechas, deslizar, miniaturas y
+  // teclado convergen todos en `irA`/`avanzar`, igual que `GaleriaProducto.tsx` (la composición
+  // «Actual»): un solo punto de escritura de `imgIdx`, nunca cuatro mecanismos que pudieran dejarlo
+  // en estados distintos.
+  function irA(i: number) {
+    setGaleriaTocada(true);
+    setImgIdx(i);
+  }
+
+  function avanzar(direccion: 1 | -1) {
+    irA(siguienteIndiceGaleria(imgIdx, galeria.length, direccion));
+  }
+
+  function onKeyDownGaleria(e: React.KeyboardEvent) {
+    if (!puedeNavegarGaleria) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      avanzar(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      avanzar(1);
+    }
+  }
+
+  function onTouchStartGaleria(e: React.TouchEvent) {
+    touchXRef.current = e.touches[0]?.clientX ?? null;
+  }
+
+  // SIN `preventDefault` (§ el spec: "sin bloquear el scroll vertical") — sólo se mide la distancia
+  // horizontal entre el toque inicial y el final; el scroll vertical del visitante nunca se toca.
+  function onTouchEndGaleria(e: React.TouchEvent) {
+    if (touchXRef.current === null || !puedeNavegarGaleria) return;
+    const inicioX = touchXRef.current;
+    touchXRef.current = null;
+    const dx = (e.changedTouches[0]?.clientX ?? inicioX) - inicioX;
+    if (Math.abs(dx) < UMBRAL_SWIPE_PX) return;
+    avanzar(dx < 0 ? 1 : -1);
+  }
 
   const handleAdd = () => {
     // MISMA comprobación que «Actual» (`moliendaAceptada`, la función que el SERVIDOR revalida): así
@@ -89,22 +145,86 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
           {/* LA TARJETA DEL COLOR (§ el spec) — el MISMO arco 4:5 que «Láminas» (TiendaLaminas.tsx),
               sobre el lavado del color de ESTE café, nunca el color pleno (el texto nunca va encima
-              del color sin lavar). */}
-          <div className="relative rounded-[24px] p-6 sm:p-8" style={{ backgroundColor: lavado }}>
-            <div className="relative mx-auto w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
-              {heroSrc ? (
-                <Image
-                  src={heroSrc}
-                  alt={product.nombre}
-                  fill
-                  sizes="(max-width: 1024px) 70vw, 35vw"
-                  className="object-cover"
-                  priority
-                />
-              ) : (
-                <div className="absolute inset-0 bg-[var(--sf-superficie)]" />
+              del color sin lavar). EL TECLADO (§ PRODUCTO-LAMINA-GALERIA-1, "flechas izquierda/
+              derecha cuando la galería tiene el foco") va en la TARJETA ENTERA, no en el arco: el
+              evento de teclado BURBUJEA desde cualquier descendiente enfocado —una flecha, una
+              miniatura— hasta este `onKeyDown`, sin necesitar `tabIndex` propio (mismo mecanismo,
+              medido por ejecución, que ya usa `GaleriaProducto.tsx`). */}
+          <div className="relative rounded-[24px] p-6 sm:p-8" style={{ backgroundColor: lavado }} onKeyDown={onKeyDownGaleria}>
+            {/* EL ARCO + LAS FLECHAS comparten un wrapper PROPIO, SIN `overflow-hidden` (§ el spec:
+                "botones circulares sobre el color claro del café") — el arco de la foto SÍ recorta
+                (`overflow-hidden`, más abajo), pero las flechas viven en el MARGEN entre el arco
+                (`w-[70%]`) y el borde de la tarjeta, que es donde se ve el `lavado` sin la foto
+                encima. Metiéndolas dentro del div con `overflow-hidden` quedarían recortadas o
+                tapadas por la imagen; en la tarjeta entera, fuera de este wrapper, no podrían
+                centrarse verticalmente contra el arco (la tarjeta también mide las miniaturas y los
+                puntos de más abajo). Este wrapper no define alto propio: lo hereda del arco, su único
+                hijo de flujo normal. */}
+            <div
+              className="relative mx-auto w-[70%]"
+              onTouchStart={onTouchStartGaleria}
+              onTouchEnd={onTouchEndGaleria}
+            >
+              <div className="relative overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
+                {/* EL CROSSFADE AL CAMBIAR DE FOTO (§ el spec, punto 4: "prefers-reduced-motion: sin
+                    animación de paso") — `key={imgIdx}` remonta el `motion.div` en cada cambio;
+                    `entradaHeroInicial` (reusada de `lib/storefront/pdp-galeria.ts`, el MISMO gate
+                    que «Actual») evita que la foto CON LA QUE LLEGA la página dependa de que
+                    framer-motion complete una animación para hacerse visible. Bajo movimiento
+                    reducido, `initial` queda SIEMPRE en `false` —se monta YA en el estado final,
+                    nunca anima— así que no hay "animación de paso" que mostrar. */}
+                <motion.div
+                  key={imgIdx}
+                  initial={reducirMovimiento ? false : entradaHeroInicial(galeriaTocada)}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: reducirMovimiento ? 0 : 0.22, ease: [0.22, 0.61, 0.36, 1] }}
+                  className="absolute inset-0"
+                >
+                  {heroSrc ? (
+                    <Image
+                      src={heroSrc}
+                      alt={product.nombre}
+                      fill
+                      sizes="(max-width: 1024px) 70vw, 35vw"
+                      className="object-cover"
+                      priority
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-[var(--sf-superficie)]" />
+                  )}
+                </motion.div>
+              </div>
+
+              {/* LAS FLECHAS (§ el spec, punto 1) — SÓLO en escritorio (`hidden sm:flex`): en el
+                  celular el gesto es deslizar, no un botón angosto peleando por espacio en el margen
+                  del arco. Circulares (`sf-pildora` + `h-10 w-10`), con `aria-label`, cursor, hover
+                  (relleno de tinta, el MISMO tratamiento que la molienda SELECCIONADA más abajo —
+                  consistencia DENTRO de este archivo, no un token de acento ajeno) y foco visible
+                  (el MISMO anillo que ya usan los botones de cantidad). Desplazadas fuera del arco
+                  (`-left-12`/`-right-12`, `sm:-left-14`/`sm:-right-14`) para caer en el margen con
+                  `lavado`, nunca sobre la foto. */}
+              {puedeNavegarGaleria && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => avanzar(-1)}
+                    aria-label="Foto anterior"
+                    className="absolute -left-12 top-1/2 hidden h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] sm:-left-14 sm:flex"
+                  >
+                    <ArrowLeft className="h-[18px] w-[18px]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => avanzar(1)}
+                    aria-label="Foto siguiente"
+                    className="absolute -right-12 top-1/2 hidden h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center sf-pildora bg-[var(--sf-fondo)] text-[var(--sf-tinta)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] sm:-right-14 sm:flex"
+                  >
+                    <ArrowRight className="h-[18px] w-[18px]" />
+                  </button>
+                </>
               )}
             </div>
+
             {/* EL STICKER/BADGE VIVE SOBRE LA TARJETA ENTERA, NO sobre el arco (§ TIENDA-ONIX-AJUSTES-1)
                 — dentro del arco angosto (`w-[70%]`) y con el `overflow-hidden` que ese arco necesita
                 para recortar la FOTO, un badge girado (`rotate-[8deg]`) queda recortado en el celular
@@ -122,14 +242,41 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
               </span>
             ) : null}
 
-            {/* LAS DEMÁS FOTOS, SIN FLECHAS (§ el spec) — puntos, no un carrusel con flechas. */}
-            {galeria.length > 1 && (
+            {/* LAS MINIATURAS (§ el spec, punto 3) — "arcos pequeños con la foto", el MISMO
+                tratamiento de domo que el arco principal y que los arcos chicos de «QUIENES LO
+                CULTIVAN»/«TE PUEDE INTERESAR» más abajo en esta misma página, nunca un cuadrado
+                genérico. La activa queda marcada con el borde de tinta; clic elige (`irA`, el MISMO
+                escritor que las flechas y el deslizar). Con una sola foto, `puedeNavegarGaleria` es
+                `false` y nada de esto se monta. */}
+            {puedeNavegarGaleria && (
               <div className="mt-4 flex items-center justify-center gap-2">
+                {galeria.map((img, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => irA(i)}
+                    aria-label={`Ver foto ${i + 1} de ${galeria.length}`}
+                    aria-current={i === imgIdx}
+                    className={`relative h-12 w-10 shrink-0 cursor-pointer overflow-hidden rounded-t-full rounded-b-[8px] border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${
+                      i === imgIdx ? 'border-[var(--sf-tinta)]' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Image src={imagenPortada(img)} alt="" fill sizes="40px" className="object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* LOS PUNTOS SE QUEDAN (§ el spec, punto 5) — reusan `irA`, igual que las flechas y las
+                miniaturas, así que un clic en un punto también marca `galeriaTocada` y queda en
+                sincronía con las demás entradas. */}
+            {puedeNavegarGaleria && (
+              <div className="mt-3 flex items-center justify-center gap-2">
                 {galeria.map((_, i) => (
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setImgIdx(i)}
+                    onClick={() => irA(i)}
                     aria-label={`Foto ${i + 1} de ${galeria.length}`}
                     aria-current={i === imgIdx}
                     className={`h-2 w-2 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] ${

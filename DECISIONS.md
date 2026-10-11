@@ -59118,3 +59118,193 @@ nuevo de este diff en el HTML). `npm run gate` GREEN de punta a punta (`typechec
 `npm test` 4211/4211 · `npm run test:integracion` 409/409). `npm run verificar:nayoli:visual` NO
 corrido — deviation documentada arriba. Commiteado en `slice/editor-secciones-1`; el merge, cuando el
 owner revise el gate visual contra la maqueta aprobada, lo hace el orquestador.
+
+## 2026-10-11 — PRODUCTO-LAMINA-GALERIA-1: «Lámina abierta» gana un mecanismo REAL de cambiar de foto (flechas, deslizar, miniaturas, teclado)
+
+**Pedido del owner** (tras pasar el gate de `PRODUCTO-CHAMISAS-FIDELIDAD-1` el 2026-10-11): *"the only
+thing missing would be a mechanism to switch between product images, rn the only one available are
+the 3 dots."*
+
+### El mecanismo
+
+`components/storefront/producto/ProductoLamina.tsx` gana, sobre el arco de la foto: **flechas**
+circulares (`sf-pildora`, `aria-label`, hover/foco visibles) en el margen `lavado` a los lados del
+arco — `hidden sm:flex`, sólo escritorio; **deslizar** en el celular (umbral 40 px, sin
+`preventDefault` en touchmove, así que el scroll vertical nunca se bloquea); **miniaturas** debajo del
+arco, una «arco pequeño» por foto (mismo domo que el arco principal y que «Quienes lo cultivan»/«Te
+puede interesar», nunca un cuadrado) con la activa marcada por borde; **teclado** (←/→, capturado por
+`onKeyDown` en la tarjeta entera, que burbujea desde cualquier descendiente enfocado); y un
+**crossfade** al cambiar de foto que se desactiva entero bajo `prefers-reduced-motion`. Los puntos se
+quedan, sin tocar. Con una sola foto, nada de esto se monta.
+
+### La elección: REUSAR, no reinventar — `siguienteIndiceGaleria`/`entradaHeroInicial`/`heroDeGaleria`
+
+**Opciones consideradas:** (a) escribir la aritmética del índice/el gate de la animación inicial de
+nuevo, dentro de `lib/tienda/producto-lamina.ts`; (b) reusar lo que `components/storefront/pdp/
+GaleriaProducto.tsx` (la composición «Actual») YA resuelve para el MISMO problema —
+`siguienteIndiceGaleria` (`lib/storefront/galeria.ts`, en bucle, `total<=1` no se mueve) y
+`entradaHeroInicial`/`heroDeGaleria` (`lib/storefront/pdp-galeria.ts`, el gate de "la foto con la que
+la página llega no depende de que una animación de JS complete").
+
+**Se eligió (b).** Escribir una segunda aritmética de índice habría sido la MISMA familia de defecto
+que `razonDelServidor`/`cruzoMinimo` duplicados (§ CLAUDE.md): dos definiciones del mismo hecho que
+pueden divergir el día que alguien ajuste una sin la otra. `lib/storefront/galeria.ts` y
+`lib/storefront/pdp-galeria.ts` quedan FUERA de `touches:` de este slice — se **importan**, nunca se
+editan (`git diff --stat` lo confirma: sólo los 3 archivos de `touches:` cambiaron). `siguienteIndiceGaleria`
+se RE-EXPORTA desde `lib/tienda/producto-lamina.ts` (con su porqué en el docstring) para que el test
+pedido por el spec —"el índice siguiente/anterior (vuelta al inicio)"— viva junto a las demás reglas
+puras de esta composición, sin fingir una segunda implementación.
+
+### El render en memoria — qué puede y qué NO puede afirmar
+
+`renderToStaticMarkup` (sin jsdom, sin `.env`, sin base — mismo método que `lib/config/
+nosotros-bandas.test.ts`/`cromo-volver-arriba.test.ts`), con `ProductoLamina` envuelto en
+`SiteContentProvider`(`DEFAULTS`) + `CartProvider` (`useCartStore`/`useSiteContent` son CONTEXTS con
+throw duro sin sus providers, § CLAUDE.md). SSR no evalúa CSS, así que "a 1100 px y 390 px" no son dos
+renders con geometría distinta: es la MISMA marca, afirmando que las flechas llevan las DOS clases
+responsive que producen ese comportamiento en un navegador real (`hidden` por defecto = el caso de
+390 px; `sm:flex` desde 640 px = el caso de 1100 px), mientras que miniaturas y puntos —el mecanismo
+del celular— no llevan ningún `hidden` en ningún ancho. Cuatro tests nuevos en
+`lib/tienda/producto-lamina.test.ts`: las dos flechas con sus clases responsive, las miniaturas sin
+`hidden`, los tres puntos ("se quedan"), y una sola foto → nada de lo anterior se monta. **Límite
+declarado en el propio test**: lo que el teclado/el deslizar HACEN (`onKeyDown`/`onTouchStart`/
+`onTouchEnd`) no serializa a HTML — ningún `renderToStaticMarkup` lo ve; esa mitad es capa 3.
+
+### `verificar:nayoli` (byte) — RED, MEDIDO, atribuido
+
+Las 4 rutas (`/`, `/tienda`, `/tienda/cafe-nayoli-grano-250g`, `/checkout`) DIFIEREN y el CSS DIFIERE.
+Mismo patrón que `PRODUCTO-CHAMISAS-FIDELIDAD-1` midió sobre el commit anterior: el único byte de HTML
+que difiere en las 4 rutas es `lang="en"`→`"es"` (pre-existente, `app/layout.tsx`, §
+`METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, fuera de `touches:` de este slice y de los cinco anteriores de
+la rama). El CSS difiere en el nombre del chunk (no-determinista entre builds) y en contenido
+acumulado del bloque `@layer properties` (la MISMA familia de `--tw-scale-x/-y/-z` ya citada **100
+veces** bajo `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, `grep -c NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1
+DECISIONS.md`, medido ANTES de este asiento). **Deviación propia, declarada**: este diff SÍ agrega
+algunas reglas Tailwind nuevas al bundle compartido (`sm:-left-14`/`sm:-right-14`, arbitrarios no
+usados antes en el repo — medido: `git grep -n "sm:-left-14\|sm:-right-14"` sólo los encuentra en
+`ProductoLamina.tsx`; `-left-12`/`-right-12` YA existían, en `components/ui/carousel.tsx`), porque
+Tailwind escanea el ÁRBOL DE ARCHIVOS completo, no sólo lo que una tienda concreta renderiza — cualquier
+clase nueva en CUALQUIER componente engorda el CSS compartido, lo use o no Nayoli. Es el costo normal
+de agregar UI nueva, no un defecto; `ProductoLamina`/`lib/tienda/producto-lamina.ts` sólo se montan/
+ejecutan cuando `tiendaProducto.variante === 'lamina'` (`app/(storefront)/tienda/[slug]/page.tsx:228`,
+verificado por lectura, archivo fuera de `touches:`, no tocado) — Nayoli no usa esa variante.
+
+### `verificar:nayoli:visual` (píxeles) — RED, MEDIDO, **inspeccionado a ojo**, atribuido
+
+Corrido (dispatch: "los scripts del repo que usan worktree SÍ se corren"). Las 6 rutas + los 2 estados
+de hover difieren en "VACÍO (idéntico, consciente de AA)" salvo las 6 rutas de página completa:
+
+| ruta | px distintos (consciente de AA) / total | dónde |
+| --- | --- | --- |
+| home | 165.052 / 4.608.000 | collage de fotos de BrandStory + tarjetas de planes |
+| tienda | 209 / 2.433.280 | footer, "Hecho por Duna" |
+| producto | 209 / 2.535.680 | footer, "Hecho por Duna" — **CERO diff en el área de producto** |
+| checkout | 163 / 1.152.000 | footer, "Hecho por Duna" (único contenido de la página: carrito vacío) |
+| nosotros | 224 / 1.152.000 | footer, "Hecho por Duna" |
+| suscripciones | 258 / 2.144.000 | footer, "Hecho por Duna" |
+| hover (2 estados) | 0 / ambos | IDÉNTICO |
+
+**No se asumió la atribución: se abrieron las capturas y los diffs con la herramienta de lectura de
+imágenes** (`.scratch/verificar-nayoli-visual/{capturas,diffs}/`). Hallazgos:
+
+- **`producto` (la ÚNICA ruta que `ProductoLamina.tsx` podría, en teoría, alcanzar) tiene diff CERO en
+  toda el área de la ficha** — portada, precio, botones, "También te puede gustar": idénticos píxel a
+  píxel. Los 209 px están en el footer compartido. Confirma por EJECUCIÓN lo que el gate de variante ya
+  decía por lectura: Nayoli (`variante:'actual'`) no ejecuta ni un byte de este diff.
+- **Las 5 rutas restantes de footer-sólo (163–258 px) están TODAS en la MISMA frase, "Hecho por Duna"**
+  — comparado visualmente capa por capa, es ruido de sub-pixel/kerning (la franja roja resaltada es
+  angosta, una línea de texto, no un bloque), consistente con el mismo tipo de diferencia de fuente que
+  ya produce `lang="en"`→`"es"` (el atributo `lang` afecta el shaping de texto en Chromium) — pre-
+  existente de la rama, no introducido por este diff (que no toca el footer, el layout raíz ni `lang`).
+- **El diff grande de `home` (165.052 px) NO es «se ve distinto».** Las dos capturas completas
+  (`capturas/main/ruta-home.png` vs `capturas/rama/ruta-home.png`) se compararon lado a lado: MISMAS
+  cuatro fotos del collage de «Detrás de cada pedido» (café, granos, manos con canasta, planta), MISMO
+  texto, MISMOS tres planes. El diff.png muestra las 4 fotos como ruido rojo/blanco DENSO (cada píxel
+  "distinto"), compatible con una selección de `srcset`/timing de carga de `next/image` distinta entre
+  las dos capturas secuenciales headless (resample a un ancho ligeramente distinto re-muestrea CADA
+  píxel), no con un cambio de código: `home` **no importa `ProductoLamina` ni `producto-lamina.ts`** —
+  el `BrandStory`/el collage de fotos y las tarjetas de plan son componentes que este diff no toca ni
+  transitivamente.
+- **Conclusión, con su límite declarado**: la evidencia (reachability + inspección visual directa de
+  las 8 capturas) es fuerte en contra de que este diff cause alguno de los 6 diffs medidos. No se
+  AISLÓ re-corriendo el script contra el commit anterior sin este diff para probarlo por descarte —
+  sería otra corrida de ~15-20 min para confirmar algo que la reachability ya hace improbable al
+  extremo (el código que cambié no es alcanzable desde ninguna de las 6 rutas que Nayoli sirve). Esta
+  atribución es, por tanto, `kind: measured` para el HECHO del diff (lo medí y lo miré), pero
+  `kind: ledger_claim` para la CAUSA (no aislada por re-ejecución).
+
+### `npm run gate` — GREEN
+
+`typecheck` 0 errores · `npm test` **4218/4218** (4211 del commit anterior + 7 nuevos: 3 de
+`siguienteIndiceGaleria`, 4 de render en memoria) · `npm run test:integracion` **409/409** (sin
+cambio — este slice no toca ninguna cadena de integración). Corrido UNA vez, en primer plano, sobre el
+árbol final.
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff tocó o introdujo, grepeados LITERALMENTE: `ProductoLamina` (0),
+`producto-lamina` (0), `siguienteIndiceGaleria` (0), `irA`/`avanzar` (0, además demasiado genéricos
+para ser búsqueda útil — ningún hit), `GaleriaProducto` (0), `galeria.ts` (0), `pdp-galeria` (0),
+`ArrowLeft`/`ArrowRight` (0), `useReducedMotion` (0), `sf-pildora` (0), `entradaHeroInicial` (0).
+**CERO símbolos de este diff aparecen nombrados en `CLAUDE.md`** — `nothing in CLAUDE.md names what I
+changed` es la respuesta honesta.
+
+### Segundo grep — `DECISIONS.md`
+
+`PRODUCTO-LAMINA-GALERIA-1` (el id de este asiento): 0 apariciones previas — nada apuntaba a él antes
+de este commit, así que no hay un follow-up previo que este asiento deba cerrar por nombre. Tampoco
+reabre ninguna sección existente con id propio.
+
+El asiento de `PRODUCTO-CHAMISAS-FIDELIDAD-1` (arriba) dejó abierto
+`VERIFICAR-NAYOLI-VISUAL-NO-CORRIDO-PRODUCTO-CHAMISAS-FIDELIDAD-1`: "si el owner necesita la cifra
+exacta [de `verificar:nayoli:visual`], es una corrida del script". Este asiento **la corrió** — sobre
+el HEAD de hoy, que incluye el commit de `FIDELIDAD-1` más este. No aísla la cifra de `FIDELIDAD-1`
+sola (sería una corrida aparte contra ese commit exacto), pero sí reemplaza el `ledger_claim` de aquel
+asiento por una medición fresca del estado acumulado — la pregunta que ese follow-up dejaba abierta
+("¿hay drift de píxeles nuevo?") queda respondida para el estado actual de la rama, con la atribución
+de arriba.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA completa contra `main` (§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1):
+la rama ya cambiaba bytes del storefront desde antes, y este commit AÑADE más — las flechas, las
+miniaturas, el crossfade, visibles para cualquier visitante de un tenant con
+`tiendaProducto.variante === 'lamina'` (hoy, Las Chamisas). Nayoli no alcanza ninguno de los dos
+(medido por lectura del gate de variante Y por `verificar:nayoli:visual`, diff CERO en el área de
+producto).
+
+**`strings`**: tres `aria-label` nuevos, de cara a quien usa lector de pantalla — **"Foto anterior"**,
+**"Foto siguiente"**, y la plantilla **"Ver foto {n} de {total}"** (una por miniatura). El `aria-label`
+de los puntos ("Foto {n} de {total}") YA EXISTÍA, sin cambio.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma, cero contrato cross-repo, cero ruta de
+`app/api/`, cero `lib/config/*-read.ts`/`site-settings*.ts` — confirmado por `git diff --stat` (sólo
+los 3 archivos de `touches:`).
+
+### Open follow-ups
+
+- **`VERIFICAR-NAYOLI-VISUAL-RUIDO-FOTOS-HOME-1`** (coined acá): el diff de píxeles de `verificar:
+  nayoli:visual` en `/` muestra 165.052/4.608.000 px distintos concentrados en el collage de fotos de
+  BrandStory y las tarjetas de planes de suscripción — con el MISMO contenido visual a la inspección
+  manual de las dos capturas completas. Compatible con selección de `srcset`/timing de carga de
+  `next/image` en la captura headless secuencial (dos builds, dos arranques de servidor, sin
+  sincronizar el estado de carga de imágenes), no con una diferencia de código: ninguno de los dos
+  árboles comparados en NINGÚN slice de esta rama hasta hoy toca `BrandStory`/los planes de
+  suscripción en `/`. Si esto se repite en slices futuros sin relación con imágenes de la home, merece
+  investigarse como ruido ESTRUCTURAL del arnés (p. ej. esperar a que todas las `<img>` disparen
+  `onLoad` antes de capturar), no re-atribuirse caso por caso.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes que un visitante de Las Chamisas (o
+cualquier tenant con `tiendaProducto.variante:'lamina'`) ve y usa: las flechas, el deslizar, las
+miniaturas, el teclado, el crossfade. Sin cambio de schema/migración ni contrato cruzado de
+repositorio. Nayoli (`variante:'actual'` por defecto) queda sin alcanzar ninguna de las ramas que este
+diff cambió — medido por lectura del gate de variante, por `verificar:nayoli` (RED preexistente, sin
+vocabulario nuevo de este diff en el HTML más allá de clases Tailwind que el bundle compartido absorbe
+sin que Nayoli las use) y por `verificar:nayoli:visual` (diff CERO en el área de producto de la ruta
+que SÍ podría alcanzar). `npm run gate` GREEN de punta a punta (`typecheck` 0 ·
+`npm test` 4218/4218 · `npm run test:integracion` 409/409). Commiteado en `slice/editor-secciones-1`;
+el merge, cuando el owner revise el gate visual contra la nueva galería, lo hace el orquestador.
