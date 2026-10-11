@@ -11,9 +11,12 @@
 // CASI TODO ES REUSO, no dato nuevo (§ el docstring de `REGISTRY.tiendaProducto`,
 // site-content-defaults.ts): el color por café es el MISMO `tiendaCatalogo.coloresPorProducto` que
 // pinta «Láminas» en /tienda; el sticker es el MISMO `tiendaEncabezado.sticker` de «Carta»; el
-// retrato con su cita es `TiendaInterludio` MONTADO TAL CUAL (su propio gate decide si hay algo que
-// mostrar); el camino de dinero —molienda, cantidad, carrito— es el MISMO `moliendasOpciones`/
-// `moliendaAceptada`/`addItem` de la composición «Actual».
+// camino de dinero —molienda, cantidad, carrito— es el MISMO `moliendasOpciones`/`moliendaAceptada`/
+// `addItem` de la composición «Actual». «QUIENES LO CULTIVAN» (§ PRODUCTO-CHAMISAS-FIDELIDAD-1,
+// diferencia 6) reusa el MISMO DATO que `TiendaInterludio` (`tiendaInterludio`, vía
+// `useSiteContent`) y su MISMO GATE (`tiendaInterludioVisible`), pero YA NO monta ese componente —
+// esta página necesita una FRANJA COMPACTA propia, distinta del Interludio grande y centrado de
+// /tienda, así que el dato se lee acá directo y se dibuja con su propio diseño.
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -32,8 +35,9 @@ import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import { getCatalog } from '@/lib/api/products';
 import { lavadoLamina } from '@/lib/tienda/laminas';
-import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina } from '@/lib/tienda/producto-lamina';
-import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
+import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota } from '@/lib/tienda/producto-lamina';
+import { tiendaInterludioVisible } from '@/lib/tienda/tienda-cierre';
+import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 
 interface ProductoLaminaProps {
   product: Product;
@@ -42,7 +46,7 @@ interface ProductoLaminaProps {
 }
 
 export default function ProductoLamina({ product, catalog, whatsapp }: ProductoLaminaProps) {
-  const { tiendaCatalogo, tiendaEncabezado, tiendaProducto, navTratamiento } = useSiteContent();
+  const { tiendaCatalogo, tiendaEncabezado, tiendaProducto, tiendaInterludio, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const { addItem } = useCartStore();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
@@ -62,6 +66,11 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
   const frase = fraseNotas(product.notas ?? []);
   const relacionados = laminasRelacionadas(catalog, product.id, tiendaCatalogo.coloresPorProducto);
   const maxCompra = product.maxCompra ?? 1;
+  // «QUIENES LO CULTIVAN» (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 6) honra las DOS condiciones
+  // que ya gatean el Interludio en /tienda (`TiendaInterludio.tsx`) — el toggle de sección
+  // (`seccionEsVisible`) Y tener retrato (`tiendaInterludioVisible`) — compuestas, nunca una sola:
+  // si el dueño apagó «Quienes lo cultivan» a propósito, esta franja no debe resucitarlo aquí.
+  const cultivanVisible = seccionEsVisible(REGISTRY.tiendaInterludio, tiendaInterludio) && tiendaInterludioVisible(tiendaInterludio.imagen);
 
   const handleAdd = () => {
     // MISMA comprobación que «Actual» (`moliendaAceptada`, la función que el SERVIDOR revalida): así
@@ -146,15 +155,14 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                     className="sf-pildora-real flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[var(--sf-tinta)]"
                     style={{ backgroundColor: lavado }}
                   >
-                    {/* EL BORDE ES LO QUE HACE VISIBLE EL PUNTO (§ TIENDA-ONIX-AJUSTES-1) — `color` Y
-                        `lavado` pueden ser el MISMO hex: `lavadoLamina` no mezcla si el color YA pasa
-                        el contraste AA sin mezcla (peso se queda en 0), y eso le pasa a varios de la
-                        paleta de reserva (medido: 4 de 6 roles dan `lavado === color`). Sin el borde,
-                        el punto queda del MISMO color que el fondo de la píldora — invisible, aunque
-                        siga siendo "el color del café" por dentro. */}
+                    {/* EL PUNTO LLEVA EL COLOR FUERTE, NO EL DE LA LÁMINA (§ PRODUCTO-CHAMISAS-FIDELIDAD-1,
+                        diferencia 1) — `colorPuntoNota` deriva una versión saturada/oscura de `color`
+                        (nunca un segundo color aparte), así que el punto se distingue del fondo de la
+                        píldora (`lavado`) POR CONSTRUCCIÓN y ya no necesita el borde que el defecto viejo
+                        (punto hueco y pálido) exigía como parche. */}
                     <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full border border-[var(--sf-tinta)]/30"
-                      style={{ backgroundColor: color }}
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: colorPuntoNota(color) }}
                       aria-hidden="true"
                     />
                     {n}
@@ -163,23 +171,29 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
               </div>
             )}
 
-            {/* LA ETIQUETA COSIDA (§ el spec, "borde punteado tipo costura") — sólo los datos que el
+            {/* LA ETIQUETA COSIDA (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 2) — borde punteado BIEN
+                VISIBLE (2px, tinta al 30%, no el `--sf-linea` tenue de antes), ligeramente girada como
+                una etiqueta cosida de verdad, fondo casi blanco (`--sf-tarjeta`, la superficie "papel"
+                del motor de tema) y los VALORES en la serif de la tienda — sólo los datos que el
                 producto trae; sin ninguno, no se monta la caja. */}
             {datos.length > 0 && (
-              <div className="grid grid-cols-2 gap-x-8 gap-y-3 rounded-2xl border border-dashed border-[var(--sf-linea)] p-4">
+              <div className="grid -rotate-[0.6deg] grid-cols-2 gap-x-[18px] gap-y-[10px] rounded-[18px] border-2 border-dashed border-[var(--sf-tinta)]/30 bg-[var(--sf-tarjeta)] px-[18px] py-[14px]">
                 {datos.map((d) => (
                   <div key={d.label}>
                     <p className="text-xs text-[var(--sf-texto-suave)]">{d.label}</p>
-                    <p className="text-sm font-medium text-[var(--sf-tinta)]">{d.value}</p>
+                    <p className="font-playfair text-[17px] text-[var(--sf-tinta)]">{d.value}</p>
                   </div>
                 ))}
               </div>
             )}
 
             {/* LA MOLIENDA EN PÍLDORAS — MISMA regla que «Actual» (`moliendasOpciones`, disabled por
-                opción); sólo cambia el ESTILO del control, nunca el dato. */}
+                opción); sólo cambia el ESTILO del control, nunca el dato. El rótulo «¿Cómo lo
+                quieres?» (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 3) nombra la pregunta ANTES de
+                las opciones — sin él, las píldoras aparecían sin decir qué estaban eligiendo. */}
             {(product.moliendasOpciones?.length ?? 0) > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-sm text-[var(--sf-texto-suave)]">¿Cómo lo quieres?</span>
                 {product.moliendasOpciones!.map((o) => {
                   const selected = molienda === o.nombre;
                   return (
@@ -204,7 +218,9 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
               </div>
             )}
 
-            <p className="text-3xl font-bold text-[var(--sf-tinta)]">{formatCOP(product.precio)}</p>
+            {/* EL PRECIO EN LA SERIF DE LA TIENDA (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 4) —
+                `font-playfair`, grande, cifras tabulares (que no bailen al cambiar de cantidad). */}
+            <p className="font-playfair text-3xl tabular-nums text-[var(--sf-tinta)]">{formatCOP(product.precio)}</p>
 
             {/* LA CANTIDAD Y UN SOLO BOTÓN PRINCIPAL (§ el spec) — sin "Comprar ahora" ni favoritos. */}
             {agotado ? (
@@ -256,49 +272,91 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
                 </button>
               </div>
             )}
+
+            {/* LA LÍNEA DE CONFIANZA (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 5) — el MISMO dato
+                que la composición «Actual» ya muestra bajo su botón (`app/(storefront)/tienda/[slug]/
+                page.tsx`, el array "Shipping Perks": "Envío a todo Colombia…" + "Tostado dentro de los
+                7 días previos al envío"), no un texto nuevo inventado para esta composición — sólo se
+                recombinan sus dos hechos de envío/tostión en una sola línea, como pide la maqueta.
+                Ese archivo queda FUERA de `touches:`, así que esta línea es un literal propio; si
+                algún día ese texto cambia en «Actual», esta línea puede quedar desactualizada — anotado
+                como seguimiento, no una refactorización de este slice. */}
+            <p className="text-[13px] text-[var(--sf-texto-suave)]">
+              Envío a todo Colombia · tostado dentro de los 7 días previos al envío
+            </p>
           </div>
         </div>
       </div>
 
-      {/* EL RETRATO (§ el spec, "si existe; si no, no aparece") — `TiendaInterludio` es la MISMA
-          sección que /tienda, montada tal cual: su propio gate (`tiendaInterludioVisible`) decide si
-          hay algo que mostrar. No se copia su lógica acá. */}
-      <TiendaInterludio />
+      {/* QUIENES LO CULTIVAN (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 6) — NO es el Interludio
+          grande de /tienda (`TiendaInterludio`, centrado, a toda altura): es una FRANJA COMPACTA con
+          líneas punteadas arriba/abajo, el retrato en un arco CHICO a la izquierda y la cita con su
+          firma a la derecha. Reusa el MISMO dato (`tiendaInterludio`, vía `useSiteContent`) y el MISMO
+          gate (`tiendaInterludioVisible`, reusado tal cual — no una segunda definición de "¿hay algo
+          que mostrar?") que /tienda, con un diseño propio para esta página. */}
+      {cultivanVisible && (
+        <div className={`mx-auto ${contenedorClase}`}>
+          <div className="grid grid-cols-[150px_1fr] items-center gap-6 border-y-2 border-dashed border-[var(--sf-tinta)]/18 py-7">
+            <div className="relative overflow-hidden rounded-t-full rounded-b-[14px] bg-[var(--sf-superficie)]" style={{ aspectRatio: '4 / 5' }}>
+              <Image
+                src={tiendaInterludio.imagen}
+                alt={tiendaInterludio.firma || ''}
+                fill
+                sizes="150px"
+                className="object-cover"
+              />
+            </div>
+            {(tiendaInterludio.cita || tiendaInterludio.firma) && (
+              <p className="flex flex-col gap-2 font-playfair text-2xl leading-[1.3] text-[var(--sf-tinta)]">
+                {tiendaInterludio.cita && <span className="italic">&ldquo;{tiendaInterludio.cita}&rdquo;</span>}
+                {tiendaInterludio.firma && (
+                  <span className="not-italic font-sans text-sm text-[var(--sf-texto-suave)]">— {tiendaInterludio.firma}</span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
-      {/* «TE PUEDE INTERESAR» — los otros cafés del catálogo, en LÁMINAS HORIZONTALES
-          (§ TIENDA-ONIX-AJUSTES-1, la maqueta aprobada): antes eran tarjetas cuadradas con la foto
-          ENTERA; la maqueta las muestra como una fila — la bolsa en un arco CHICO a la izquierda,
-          dentro de un fondo neutro, con el nombre/la frase/el precio a la derecha. Una sola columna
-          en el celular (cada fila ya ocupa el ancho completo); dos en escritorio, como "Los otros
-          dos" de la maqueta. */}
+      {/* «TE PUEDE INTERESAR» (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 7) — cada café en una
+          LÁMINA HORIZONTAL de su color claro, con PADDING (antes la foto iba pegada al borde), la
+          bolsa dentro de un arco CHICO (≈120px) que no la recorta —el defecto viejo: `w-28`/`w-32` sin
+          padding, `items-stretch`, hacía que `object-cover` cortara la bolsa para llenar la fila
+          entera—, y a la derecha el nombre en serif, la FRASE COMPLETA de notas (reusa `fraseNotas`,
+          la MISMA función que arma la frase del producto principal, nunca un `.join(' · ')` aparte) y
+          el precio. */}
       {relacionados.length > 0 && (
         <div className="py-16">
           <div className={`mx-auto ${contenedorClase}`}>
             <h2 className="mb-8 font-playfair text-2xl text-[var(--sf-tinta)]">{tiendaProducto.teInteresaTitulo}</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {relacionados.map((r) => (
-                <Link
-                  key={r.productId}
-                  href={`/tienda/${r.slug}`}
-                  className="flex cursor-pointer items-stretch overflow-hidden rounded-[24px] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
-                  style={{ backgroundColor: lavadoLamina(r.color) }}
-                >
-                  {/* EL ARCO CHICO (§ la maqueta): el MISMO tratamiento que la foto principal
-                      (`rounded-t-full`, domo arriba, recto abajo), a sangre contra el borde
-                      izquierdo/arriba/abajo de la tarjeta — el `overflow-hidden` de la tarjeta recorta
-                      sus esquinas al radio de la tarjeta. */}
-                  <div className="relative w-28 shrink-0 overflow-hidden rounded-t-full bg-[var(--sf-superficie)] sm:w-32">
-                    {r.imagen ? (
-                      <Image src={r.imagen} alt={r.nombre} fill sizes="(max-width: 640px) 112px, 128px" className="object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="flex flex-1 flex-col justify-center gap-1 py-5 pr-5 pl-4">
-                    <h3 className="font-playfair text-lg text-[var(--sf-tinta)]">{r.nombre}</h3>
-                    {r.notas.length > 0 && <p className="text-xs text-[var(--sf-tinta)] opacity-80">{r.notas.join(' · ')}</p>}
-                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(r.precio)}</p>
-                  </div>
-                </Link>
-              ))}
+            <div className="grid grid-cols-1 gap-[22px] sm:grid-cols-2">
+              {relacionados.map((r) => {
+                const fraseR = fraseNotas(r.notas);
+                return (
+                  <Link
+                    key={r.productId}
+                    href={`/tienda/${r.slug}`}
+                    className="grid cursor-pointer grid-cols-[120px_1fr] items-center gap-4 rounded-[24px] p-4 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
+                    style={{ backgroundColor: lavadoLamina(r.color) }}
+                  >
+                    {/* EL ARCO CHICO (§ la maqueta): el MISMO tratamiento que la foto principal
+                        (`rounded-t-full`, domo arriba), con el MISMO radio inferior que ese arco (20px →
+                        acá `rounded-b-[18px]`, el de `.arco` en la maqueta — el 14px es sólo del arco
+                        MINI de «Quienes lo cultivan», arriba), y ahora CONTENIDO por el padding de la
+                        tarjeta en vez de a sangre contra su borde. */}
+                    <div className="relative overflow-hidden rounded-t-full rounded-b-[18px] bg-[var(--sf-superficie)]" style={{ aspectRatio: '4 / 5' }}>
+                      {r.imagen ? (
+                        <Image src={r.imagen} alt={r.nombre} fill sizes="120px" className="object-cover" />
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-playfair text-lg text-[var(--sf-tinta)]">{r.nombre}</h3>
+                      {fraseR && <p className="text-sm text-[var(--sf-texto)]">{fraseR}</p>}
+                      <p className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(r.precio)}</p>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>

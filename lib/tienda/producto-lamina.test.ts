@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina } from './producto-lamina';
+import { colorLaminaProducto, laminasRelacionadas, fraseNotas, datosProductoLamina, colorPuntoNota } from './producto-lamina';
 import { colorDeLamina } from './laminas';
 import { tiendaInterludioVisible } from './tienda-cierre';
 import type { Product } from '@/types/product';
@@ -52,13 +52,13 @@ test('laminasRelacionadas: catálogo de un solo producto (el actual) → lista v
   assert.deepEqual(laminasRelacionadas([producto({ id: 'solo' })], 'solo', {}), []);
 });
 
-test('laminasRelacionadas: recorta a las dos primeras notas, como el selector de antojo', () => {
+test('laminasRelacionadas: conserva TODAS las notas (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 7 — la maqueta muestra la frase completa, no un recorte a dos)', () => {
   const [relacionado] = laminasRelacionadas(
     [producto({ id: 'x', notas: ['Chocolate', 'Floral', 'Cítrico'] }), producto({ id: 'actual' })],
     'actual',
     {},
   );
-  assert.deepEqual(relacionado.notas, ['Chocolate', 'Floral']);
+  assert.deepEqual(relacionado.notas, ['Chocolate', 'Floral', 'Cítrico']);
 });
 
 // ── sin retrato no hay bloque — reuso del MISMO gate que /tienda, no uno nuevo ────────────────────
@@ -117,4 +117,28 @@ test('datosProductoLamina: tostado fuera del set conocido (catálogo no-café) s
 
 test('datosProductoLamina: sólo variedad presente → sólo esa entrada', () => {
   assert.deepEqual(datosProductoLamina({ variedad: 'Caturra' }), [{ label: 'Variedad', value: 'Caturra' }]);
+});
+
+// ── el punto FUERTE de las notas (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 1) ──────────────────
+test('colorPuntoNota: un pastel casi blanco (el color de lámina del Bourbon Rosado de la maqueta) se vuelve sólido y saturado, no un derivado hueco', () => {
+  assert.equal(colorPuntoNota('#F8D9D1'), '#ba3d1c');
+});
+
+test('colorPuntoNota: un color de lámina ya oscuro/saturado (acento por defecto de Nayoli) también se lleva al mismo piso de fuerza, nunca se queda igual', () => {
+  const fuerte = colorPuntoNota('#8b4513');
+  assert.equal(fuerte, '#bc5e1a');
+  assert.notEqual(fuerte, '#8b4513');
+});
+
+test('colorPuntoNota: nunca devuelve el mismo color que recibió — el punto SIEMPRE se distingue de la lámina', () => {
+  for (const c of ['#F8D9D1', '#8b4513', '#592e10', '#c9a88e', '#bb9172']) {
+    assert.notEqual(colorPuntoNota(c), c);
+  }
+});
+
+test('colorPuntoNota: un color acromático (gris/blanco/negro) no revienta — cae a un rojo determinista, nunca NaN/undefined', () => {
+  for (const c of ['#000000', '#ffffff', '#808080']) {
+    const fuerte = colorPuntoNota(c);
+    assert.match(fuerte, /^#[0-9a-f]{6}$/);
+  }
 });

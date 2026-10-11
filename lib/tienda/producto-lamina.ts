@@ -37,7 +37,10 @@ export interface LaminaRelacionada {
 
 /** «Te puede interesar»: el resto del catálogo, SIN el producto que la página ya muestra — cada uno
  *  con el color de SU PROPIA lámina (mismo índice de catálogo que /tienda, así que el color no
- *  diverge entre el catálogo y esta lista). */
+ *  diverge entre el catálogo y esta lista). Las notas viajan COMPLETAS (§ PRODUCTO-CHAMISAS-
+ *  FIDELIDAD-1, diferencia 7: la maqueta muestra "la frase completa de notas", no un recorte a dos —
+ *  el llamador las pasa por `fraseNotas`, la misma función que ya arma la frase del producto
+ *  principal, para que las dos tarjetas de la página hablen con la misma voz). */
 export function laminasRelacionadas(
   catalogo: readonly Product[],
   productoActualId: string,
@@ -55,7 +58,7 @@ export function laminasRelacionadas(
       precio: p.precio,
       imagen: p.imagen ?? '',
       disponible: p.disponible ?? false,
-      notas: (p.notas ?? []).slice(0, 2),
+      notas: p.notas ?? [],
     }));
 }
 
@@ -102,4 +105,80 @@ export function datosProductoLamina(product: Pick<Product, 'variedad' | 'altitud
   }
   if (product.peso_gramos != null) datos.push({ label: 'Peso', value: `${product.peso_gramos} g` });
   return datos;
+}
+
+// ── EL PUNTO DE LAS NOTAS (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 1) ─────────────────────────
+// La maqueta aprobada pinta el punto de cada píldora con un color FUERTE —saturado, oscuro— de la
+// MISMA familia que el café (`--punto`, derivado de `--cafe`), nunca un segundo color que el dueño
+// tenga que elegir aparte (§ el spec: "derivalo; no pidas un segundo color al dueño"). `color`
+// (arriba) es uno de los roles de `paletaLaminas`/`coloresPorProducto` — a veces ya oscuro, a veces
+// pálido de por sí (una raíz custom puede producir un pastel) — así que un punto "lleno con `color`
+// tal cual" se pierde contra el fondo de la píldora (`lavado`, la MISMA familia aclarada) en el caso
+// pálido. Eso era el defecto medido: el punto quedaba hueco y pálido.
+//
+// POR QUÉ HSL Y NO EL MOTOR OKLCH DE `palette-derive.ts`: ese motor (`oscurecer`/`pisoContraste`)
+// vive fuera del `touches:` de este slice, y sus primitivas de conversión (`hexToOklab`/
+// `oklabToHex`) no están exportadas — exportarlas sería editar un archivo que este slice no toca.
+// Probado el camino disponible (`pisoContraste(color, color, objetivo, 'oscurecer')`, que SÍ es
+// exportado): sólo camina la LUMINOSIDAD a CROMA constante, y el croma de un pastel casi blanco ya
+// es bajo — el resultado oscurece pero no SATURA, y queda un marrón sucio, no el rojo vívido que la
+// maqueta pide. HSL resuelve las dos cosas de un golpe: fija la SATURACIÓN a un piso vívido y la
+// LUMINOSIDAD a un tono medio-oscuro legible, preservando el MATIZ del color de la lámina — "ese
+// mismo café, más fuerte", no un color ajeno.
+//
+// Es DECORATIVO (el punto es `aria-hidden`, nunca texto), así que no lleva piso de contraste WCAG
+// como los roles de lectura del motor — su única exigencia es DISTINGUIRSE del fondo pálido de la
+// píldora, y fijar luminosidad a un tono medio (0.42) mientras el fondo se queda claro (`lavado`, ya
+// floreado hacia blanco) garantiza esa distancia para cualquier matiz.
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let s = 0;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r: h = ((g - b) / d) % 6; break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return { h, s, l };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const to255 = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${to255(r)}${to255(g)}${to255(b)}`;
+}
+
+/** El piso de SATURACIÓN del punto — nunca más pálido que esto, aunque `colorLamina` ya lo sea. */
+const PUNTO_SATURACION_MIN = 0.65;
+/** La LUMINOSIDAD fija del punto — un tono medio-oscuro, siempre legible contra `lavado` (el fondo
+ *  aclarado de la píldora), sea cual sea el matiz de origen. */
+const PUNTO_LUMINOSIDAD = 0.42;
+
+/** El color FUERTE del punto de una nota, derivado del color de la lámina (nunca un segundo color
+ *  elegido aparte): mismo matiz, saturación y luminosidad llevadas a un piso vívido/legible. */
+export function colorPuntoNota(colorLamina: string): string {
+  const { h, s } = hexToHsl(colorLamina);
+  return hslToHex(h, Math.max(s, PUNTO_SATURACION_MIN), PUNTO_LUMINOSIDAD);
 }

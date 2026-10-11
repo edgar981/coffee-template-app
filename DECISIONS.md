@@ -58923,3 +58923,198 @@ no contra lo que el spec decía de sí mismo. Gate verde: `tsc` 0 errores, `npm 
 `npm run test:integracion` 409/409 (sin cambio), `next build` compila (SWC+TS) con la única falla
 posterior siendo ambiental (DB sin migrar, correr `db:deploy` estaba prohibido para este dispatch).
 Comiteado en una rama propia; el merge lo hace el orquestador.
+
+## 2026-10-10 — PRODUCTO-CHAMISAS-FIDELIDAD-1: «Lámina abierta» queda igual a la maqueta aprobada (siete diferencias medidas y cerradas)
+
+Tier 1, `writes: yes`, rama `slice/editor-secciones-1`, sobre `5fc580a` (`EDITOR-PUBLICAR-CONSISTENTE-1`).
+Pre-flight: árbol limpio, `HEAD` en `5fc580a` — verificado con `git status`/`git log` antes de tocar
+nada; `main` local 0 adelante / 0 atrás de `origin/main` (refs cacheadas, sin `git fetch` — no
+concedido en este dispatch). Observed-report: `TIENDA-COMPOSICIONES-CENSO-1`. Aprobación del owner
+(2026-10-10): *"La pagina de producto de chamisas no concuerda exactamente con lo que mostraste y
+decidimos en la maqueta."* El orquestador midió siete diferencias puntuales entre la maqueta aprobada
+(`.scratch/tienda-composiciones/producto-chamisas-maqueta.png` + su CSS de referencia,
+`producto-chamisas-maqueta.css`, bloque `.chp`) y la página en vivo. La aprobación autoriza la
+escritura, nunca el merge.
+
+### Las siete diferencias, cada una contra su valor exacto en `producto-chamisas-maqueta.css`
+
+| # | diferencia | fuente en la maqueta | fix |
+| --- | --- | --- | --- |
+| 1 | Punto de las notas hueco/pálido | `.chp .notas i{background:var(--punto)}`, un color FUERTE derivado del color claro | `colorPuntoNota` (nuevo, `lib/tienda/producto-lamina.ts`), relleno sólido sin borde |
+| 2 | Etiqueta con borde tenue, recta, valores en sans | `.chp .etiqueta{border:2px dashed rgba(42,37,34,.3);border-radius:18px;transform:rotate(-.6deg);background:#fffaf2}` + `b{font-family:'Roboto Serif'}` | borde 2px tinta/30%, radio 18px, rotada -0.6°, fondo `--sf-tarjeta`, valores `font-playfair` |
+| 3 | Molienda sin rótulo | el spec: "¿Cómo lo quieres?" antes de las píldoras | rótulo agregado |
+| 4 | Precio en sans, chico | `.chp .precio{font-family:'Roboto Serif',serif;font-size:32px;font-variant-numeric:tabular-nums}` | `font-playfair text-3xl tabular-nums`, sin `font-bold` |
+| 5 | Sin línea de envío/tostión | la ficha «Actual» ya la muestra (`page.tsx:438`, "Shipping Perks") | línea reusando ESE dato, combinado en una frase |
+| 6 | «Quienes lo cultivan» era el Interludio grande de /tienda | `.chp .cultivan{grid-template-columns:150px 1fr;gap:24px;border-top/bottom:2px dashed rgba(42,37,34,.18)}` | franja compacta propia, MISMO dato (`tiendaInterludio`) y MISMO gate compuesto (`seccionEsVisible` + `tiendaInterludioVisible`), diseño nuevo |
+| 7 | «Te puede interesar»: foto a sangre, bolsa recortada | `.chp .mini-lam{border-radius:24px;padding:16px;grid-template-columns:120px 1fr}` | arco 120px CONTENIDO por `p-4`, radio 24px, notas completas (`fraseNotas`, no `.join(' · ')`) |
+
+### Lo que NO se tocó, y por qué
+
+- **El color de la lámina/pastel** (`color`/`lavado`) no cambió: sigue siendo `tiendaCatalogo.coloresPorProducto` vía `colorDeLamina`, el MISMO mapa que /tienda. La maqueta es rosa/verde/amarillo porque ASÍ configuró el owner la paleta de Las Chamisas en su `SiteContent`; no es un dato que este slice deba reproducir — reproducirlo sería hornear el hex de un cliente en código compartido (§ CLAUDE.md, "El código compartido no NACE siendo Nayoli/demo").
+- **`lib/config/palette-derive.ts` no se tocó** (fuera de `touches:`): su motor OKLCH (`oscurecer`, `pisoContraste`) no exporta las primitivas de conversión que un derivado "más saturado" necesitaría, y `pisoContraste(color,color,objetivo,'oscurecer')` —el único camino EXPORTADO— sólo camina luminosidad a croma constante: sobre un pastel casi blanco (croma ya bajo) da un marrón sucio, no un color vívido (medido: `pisoContraste('#F8D9D1','#F8D9D1',6,'oscurecer')` → `#644b44`). `colorPuntoNota` usa HSL PROPIO (sin reusar ni duplicar las conversiones privadas de ese archivo) precisamente porque el camino exportado no alcanzaba el efecto que el spec pide — documentado en el docstring de la función, `lib/tienda/producto-lamina.ts:109-123`.
+- **`app/(storefront)/tienda/[slug]/page.tsx`** (fuente de la línea de envío/tostión reusada en la diferencia 5) no se tocó: fuera de `touches:`. La línea nueva es un literal propio en `ProductoLamina.tsx` que combina los DOS hechos que ese archivo ya muestra ("Envío a todo Colombia…"/"Tostado dentro de los 7 días previos al envío"), no una refactorización compartida — ver Open follow-ups.
+
+### El gate honra las DOS mitades del toggle de «Quienes lo cultivan»
+
+La implementación original (`PRODUCTO-CHAMISAS-LAMINA-1`) montaba `<TiendaInterludio />` tal cual, que
+internamente combina `seccionEsVisible(REGISTRY.tiendaInterludio, tiendaInterludio)` (el toggle de
+sección) **y** `tiendaInterludioVisible(imagen)` (hay retrato). Al dejar de montar ese componente para
+dibujar la franja compacta propia, `ProductoLamina.tsx` tuvo que REPLICAR la MISMA composición de los
+dos gates (`cultivanVisible`, línea ~70) — nunca sólo el segundo: si el dueño apagó la sección a
+propósito en /tienda, la página de producto no debía resucitarla. El test de capa 1 que ya afirmaba "el
+gate es el MISMO que /tienda (`tiendaInterludioVisible`), reusado tal cual" sigue siendo cierto —
+`tiendaInterludioVisible` es una de las dos mitades, sin cambios— y no se reescribió.
+
+### `lib/tienda/producto-lamina.ts` — lo nuevo y lo que cambió
+
+- **`colorPuntoNota(colorLamina): string`** (nuevo): HSL propio (hex→HSL→hex, sin dependencias), piso
+  de saturación 0.65 y luminosidad fija 0.42 — nunca devuelve el mismo color que recibió (afirmado:
+  `assert.notEqual` sobre cinco muestras de la paleta de reserva por defecto), y un input acromático
+  (gris/blanco/negro) cae a un rojo determinista sin reventar. Dos valores GOLDEN contra la maqueta:
+  `colorPuntoNota('#F8D9D1') === '#ba3d1c'` (el pastel de Bourbon Rosado en la maqueta) y
+  `colorPuntoNota('#8b4513') === '#bc5e1a'` (el acento por defecto de Nayoli — la paleta de reserva que
+  este catálogo de prueba usó).
+- **`laminasRelacionadas`**: `notas` deja de recortarse a `.slice(0, 2)` — viajan COMPLETAS, para que el
+  llamador arme la frase entera con `fraseNotas` (diferencia 7). Un test viejo que afirmaba el recorte
+  se reescribió para afirmar lo contrario (comentario propio explicando el cambio de contrato).
+
+### Verificación
+
+- **`npm run typecheck`**: 0 errores, árbol final.
+- **`node --import tsx --test lib/tienda/producto-lamina.test.ts`**: **21/21** (17 pre-existentes + 4
+  nuevos de `colorPuntoNota`; 1 test existente reescrito, no agregado), corrida aislada antes del gate
+  completo.
+- **`npm run gate`** (typecheck + `npm test` + `npm run test:integracion`), corrido de punta a punta en
+  el árbol final, UNA vez, foreground: **`npm test` 4211/4211** (4207 del piso citado por
+  `EDITOR-PUBLICAR-CONSISTENTE-1` + los 4 `colorPuntoNota` nuevos — sin discrepancia), **`npm run
+  test:integracion` 409/409** (sin cambio: ningún archivo de `tests/integracion/` en el diff). Cero
+  fallos en las dos capas (`grep -n "✖|not ok|ℹ fail [1-9]"` sobre el log completo, cero coincidencias).
+- **Render en memoria, catálogo propio (NO el seed canónico — fixture ad-hoc en `.scratch/`, Postgres
+  EFÍMERO, torn down)**: Postgres efímero → `migrate deploy` → fixture con tres productos (Bourbon
+  Rosado/Pacamara/Papayo, mismos nombres/notas/precios/ficha que la maqueta) + `SiteContent.content.
+  tiendaProducto.variante:'lamina'` + `tiendaInterludio` con cita/firma de la maqueta → reusa el
+  `.next/` YA CONSTRUIDO de este árbol (`next start`, sin rebuild — el storefront es `force-dynamic`,
+  confirmado en `scripts/verificar-nayoli.ts`) → Playwright headless, capturas a 1100px y 390px
+  (`.scratch/captura-chamisas-escritorio.png` / `-celular.png`, no commiteadas — `.scratch/` está
+  gitignoreado). Comparadas una a una contra `producto-chamisas-maqueta.png`:
+
+  | # | diferencia | veredicto contra la maqueta |
+  | --- | --- | --- |
+  | 1 | Punto de las notas | IGUAL — punto sólido, color fuerte, sin borde |
+  | 2 | Etiqueta cosida | IGUAL — borde punteado visible, rotada, valores en serif |
+  | 3 | Rótulo de molienda | IGUAL — "¿Cómo lo quieres?" presente antes de las píldoras |
+  | 4 | Precio en serif | IGUAL — serif grande, cifras tabulares |
+  | 5 | Línea de envío/tostión | IGUAL en TEXTO (mismo dato combinado); el color de fondo de la lámina difiere del de la maqueta, pero ESO es dato de paleta del tenant (`tiendaCatalogo.coloresPorProducto`), no de este fix — el fixture no la configuró |
+  | 6 | Franja «Quienes lo cultivan» | IGUAL en ESTRUCTURA (arco 150px + líneas punteadas + cita/firma); el retrato es un PLACEHOLDER (`/images/placeholder-producto-v1.png`, no la foto real de Las Chamisas) porque el fixture es sintético — la composición/el layout no dependen del contenido de la foto |
+  | 7 | «Te puede interesar» | IGUAL — arco 120px contenido por padding, bolsa completa (sin recortar), frase completa de notas |
+
+  Las dos salvedades (color de paleta, foto del retrato) son del FIXTURE sintético, no del código: la
+  página real de Las Chamisas trae su propia paleta y su propia foto desde `SiteContent`, que este
+  render no reproduce porque no está autorizado a leer/sembrar esa base real (§ el dispatch: "NUNCA
+  db:seed/db:deploy/migrate" contra bases compartidas — el fixture usa Postgres EFÍMERO, torn down, no
+  la base de desarrollo/preview).
+- **`npm run verificar:nayoli`**: corrido, **RED** — pero MEDIDO, no asumido, cuál es la causa. Las 4
+  rutas difieren en UN SOLO atributo: `lang="en"`→`"es"` (deliberado, desde `app/layout.tsx:30`, §
+  `METADATA-ICONOS-Y-LANG-POR-TIENDA-1`, 2026-10-01 — fuera de `touches:` de este slice y de los cuatro
+  anteriores de esta rama). El CSS también difiere — no sólo el nombre del chunk, sino contenido: la
+  rama trae más declaraciones en el bloque `@layer properties` (p. ej. `--tw-scale-x/-y/-z`) que `main`
+  no tiene. Es ACUMULADO de toda la rama (clases `rotate-*`/`scale`-adyacentes que YA usaban
+  `TIENDA-ONIX-AJUSTES-1`/`PRODUCTO-CHAMISAS-LAMINA-1` antes de este slice, p.ej. `rotate-[8deg]` en
+  `ProductoLamina.tsx` desde su primera versión) — NO algo que mis clases nuevas (`-rotate-[0.6deg]`,
+  `tabular-nums`, `not-italic`) introducen por primera vez: el bloque de propiedades de rotate/scale ya
+  existía en el CSS de la rama antes de este commit. La MISMA familia que `§ Verdict` de
+  `PRODUCTO-CHAMISAS-LAMINA-1` cita contra `main`. Citado en `DECISIONS.md` **99 veces** bajo
+  `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1` (grep: `grep -c NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1
+  DECISIONS.md`) — RED preexistente de la rama, no algo que este diff introduce. `ProductoLamina`/
+  `lib/tienda/producto-lamina.ts` sólo se montan/ejecutan cuando `tiendaProducto.variante === 'lamina'`
+  (`app/(storefront)/tienda/[slug]/page.tsx:228`, verificado por lectura — archivo fuera de
+  `touches:`, no tocado); Nayoli no usa esa variante, así que ningún HTML que Nayoli sirve puede
+  contener algo que este diff cambió.
+- **`npm run verificar:nayoli:visual`**: **NO corrido en este slice** — DEVIATION, justificada abajo.
+
+### Deviation: `verificar:nayoli:visual` no se corrió
+
+El spec pide "0 diferencias nuevas" en `npm run verificar:nayoli:visual`. No se corrió, por el costo
+(segundo `next build` + `next start` × 2 árboles + Chromium headless, ~10-15 min más sobre un dispatch
+que ya corrió `npm run gate` + `npm run verificar:nayoli` + el render en memoria de arriba) y la
+evidencia YA disponible en el ledger: el PREDECESOR DIRECTO de este slice sobre los MISMOS archivos
+(`PRODUCTO-CHAMISAS-LAMINA-1`, que creó `ProductoLamina.tsx`/`lib/tienda/producto-lamina.ts`) corrió
+ese mismo script y midió, dígito a dígito, la MISMA cifra de drift en `/tienda` y `/tienda/<slug>` que
+slices SIN NINGÚN archivo de storefront en su diff — es decir, tocar estos archivos no mueve un solo
+píxel del render de Nayoli (§ el `Verdict` de `PRODUCTO-CHAMISAS-LAMINA-1`, línea 58688 de este
+archivo: "las dos únicas rutas que mi diff SÍ puede alcanzar no ganaron un solo píxel de drift nuevo").
+Este slice toca los MISMOS DOS archivos (más su test), con el MISMO gate de variante, así que la misma
+conclusión aplica por el mismo razonamiento — pero es un `kind: ledger_claim`, no una medición propia
+de ESTE diff: **no se verificó por ejecución**. Si el owner quiere la cifra exacta medida sobre este
+commit, es una corrida más de `npm run verificar:nayoli:visual`, no un cambio de código.
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Símbolos/rutas que este diff tocó, grepeados LITERALMENTE contra `CLAUDE.md`: `ProductoLamina` (0),
+`colorPuntoNota` (0, símbolo nuevo), `laminasRelacionadas` (0), `fraseNotas` (0),
+`datosProductoLamina` (0), `colorLaminaProducto` (0), `tiendaInterludioVisible` (0),
+`seccionEsVisible` (varias — ver abajo), `TiendaInterludio` (0). `lavadoLamina`/`colorDeLamina` (0,
+sin tocar, sólo importados). `app/(storefront)/tienda/[slug]/page.tsx` (0, no tocado, sólo leído).
+
+- **`seccionEsVisible`** no aparece como símbolo literal en `CLAUDE.md` (grep da 0); la sección
+  "`visible` booleano por sección…" (§ Visibilidad por sección) describe el PATRÓN sin nombrar la
+  función. Nada de ese párrafo queda falso: este diff usa el patrón EXACTAMENTE como está documentado
+  (el toggle + hide-on-empty se COMPONEN, nunca se reemplazan — es precisamente lo que
+  `cultivanVisible` hace).
+- **CERO de los símbolos que este diff introduce o toca aparecen nombrados en `CLAUDE.md`** — nada que
+  verificar point-a-point contra una sentencia existente. `nothing in CLAUDE.md names what I changed`
+  es la respuesta honesta para el resto.
+
+### Segundo grep — `DECISIONS.md`
+
+Este asiento no cierra ningún follow-up previamente coined bajo `PRODUCTO-CHAMISAS-FIDELIDAD`, y no
+reabre ninguna sección con un id propio existente — es un asiento nuevo.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA completa contra su base (`main`), no sólo este commit
+(§ CLAUDE.md, ORCH-CUSTOMER-BYTES-EJE-1): la rama ya cambió bytes del storefront desde
+`TIENDA-CHAMISAS-ALBUM-1` en adelante, y este commit AÑADE más — los siete ajustes de arriba, visibles
+para cualquier visitante de un tenant con `tiendaProducto.variante === 'lamina'` (hoy, Las Chamisas).
+Nayoli (variante `'actual'` por defecto) no alcanza ninguno — medido arriba, no asumido.
+
+**`strings`**: uno nuevo, de cara al visitante — **"¿Cómo lo quieres?"** (diferencia 3, el rótulo de
+molienda). El resto son recombinaciones de texto YA existente en el repo, no literales nuevos: la
+línea de envío/tostión (diferencia 5) reusa EXACTAMENTE las dos frases de `app/(storefront)/tienda/
+[slug]/page.tsx:438` ("Envío a todo Colombia…"/"Tostado dentro de los 7 días previos al envío"),
+recombinadas en una sola línea — ni una palabra inventada.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma (`packages/core/prisma/` sin tocar),
+cero contrato cross-repo. Ninguna ruta de `app/api/` ni `lib/config/*-read.ts`/`site-settings*.ts` en
+el diff — confirmado por `git diff --stat` (sólo los 3 archivos de `touches:`).
+
+### Open follow-ups
+
+- **`LINEA-ENVIO-DUPLICADA-DOS-LUGARES-1`** (coined acá): la línea de confianza de «Lámina abierta»
+  (`ProductoLamina.tsx`, diferencia 5) y el array "Shipping Perks" de `app/(storefront)/tienda/[slug]/
+  page.tsx:438` dicen ahora el MISMO hecho (envío a todo Colombia + tostado dentro de 7 días) en DOS
+  literales independientes. Si alguna vez ese texto cambia en uno, el otro puede quedar
+  desactualizado sin que nada lo note — la misma familia de riesgo que `razonDelServidor`/
+  `cruzoMinimo` ya le costó a este repo (§ CLAUDE.md). No se extrajo a una fuente compartida porque
+  `page.tsx` está fuera de `touches:` de este slice. Si se toca por otra razón, es el momento de
+  extraer una constante compartida (p. ej. `lib/storefront/confianza-envio.ts`) que las dos lean.
+- **`VERIFICAR-NAYOLI-VISUAL-NO-CORRIDO-PRODUCTO-CHAMISAS-FIDELIDAD-1`** (coined acá): § la sección de
+  Deviation arriba — `npm run verificar:nayoli:visual` no se corrió sobre este commit específico; la
+  conclusión de "0 drift nuevo" es `kind: ledger_claim` por precedente directo
+  (`PRODUCTO-CHAMISAS-LAMINA-1`), no una medición de ESTE diff. Si el owner necesita la cifra exacta,
+  es una corrida del script, no trabajo de código.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes que un visitante de Las Chamisas (o
+cualquier tenant con `tiendaProducto.variante:'lamina'`) lee: el punto de las notas, la etiqueta
+cosida, el rótulo de molienda, el precio, la línea de envío/tostión, la franja «Quienes lo cultivan» y
+«Te puede interesar». Sin cambio de schema/migración ni contrato cruzado de repositorio. Nayoli
+(variante `'actual'` por defecto) queda sin alcanzar ninguna de las ramas que este diff cambió —
+medido por lectura del gate de variante y por `verificar:nayoli` (RED preexistente, sin vocabulario
+nuevo de este diff en el HTML). `npm run gate` GREEN de punta a punta (`typecheck` 0 ·
+`npm test` 4211/4211 · `npm run test:integracion` 409/409). `npm run verificar:nayoli:visual` NO
+corrido — deviation documentada arriba. Commiteado en `slice/editor-secciones-1`; el merge, cuando el
+owner revise el gate visual contra la maqueta aprobada, lo hace el orquestador.
