@@ -13,6 +13,7 @@ import Spotlight from '@/components/storefront/home/Spotlight';
 import NosotrosHistoria from '@/components/storefront/nosotros/NosotrosHistoria';
 import NosotrosGaleria from '@/components/storefront/nosotros/NosotrosGaleria';
 import NosotrosCierre from '@/components/storefront/nosotros/NosotrosCierre';
+import SuscripcionApertura from '@/components/storefront/suscripciones/SuscripcionApertura';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
@@ -178,6 +179,12 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // `Spotlight`/`Origen`. Con `nosotrosCierre.titulo` vacío (el default; nace hide-on-empty) el
   // componente devuelve `null` — la vista previa queda en blanco, no rota.
   nosotrosCierre: NosotrosCierre,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § ONIX-SUSCRIPCION-TAQUILLA-1 (mismo patrón que 'origen'/
+  // 'nosotrosCierre' arriba): sumar 'suscripcionApertura' a `SeccionVista` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea. Headless, sin props → asignable
+  // a `ComponentType`. Con `suscripcionApertura.visible` en `false` (el default) la vista previa queda
+  // en blanco, no rota.
+  suscripcionApertura: SuscripcionApertura,
   // SuscripcionPlanes toma `whatsapp` opcional para el CTA; en el preview va sin prop → el CTA se oculta
   // (un `wa.me/` sin número es un botón muerto). Todo-opcional → asignable a ComponentType.
   suscripcionPlanes: SuscripcionPlanes,

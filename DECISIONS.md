@@ -59489,3 +59489,259 @@ preload>`). `npm run gate` GREEN de punta a punta (`typecheck` 0 · `npm test` 4
 `npm run test:integracion` 409/409). `npm run verificar:nayoli:visual` NO corrido (deviation,
 justificada arriba). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el
 gate visual, lo hace el orquestador.
+
+## 2026-10-11 — ONIX-SUSCRIPCION-TAQUILLA-1: /suscripciones gana la Apertura y la Taquilla de Onix (bolsas · frecuencia · molienda → mensaje de WhatsApp)
+
+**Pedido del owner** (2026-10-11, sobre la maqueta de /suscripciones «Taquilla mensual»): la misma
+aprobación que `ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1` cita — *"Perfect. Go ahead with this mock."* —
+con las tres preguntas ya decididas: cada página con su PROPIO interludio/cierre; **bolsas y
+frecuencias EDITABLES por la tienda**; /nosotros con foto ahora (fuera del alcance de este slice).
+
+### El modelo — dos secciones nuevas, cero repeaters (los defaults tenían que SOBREVIVIR sin fila)
+
+- **`suscripcionApertura`** (sección NUEVA): `visible` (default `false` — "por defecto la página
+  queda como hoy", mismo mecanismo que hizo nacer OFF a `origen`/`marquesina`: la pieza `Apertura`
+  SIEMPRE pinta algo —tinta llana sin foto—, así que `visible:true` de arranque habría metido un
+  banner nuevo en la página de todo tenant sin fila), `imagen`, `rotuloIzquierda` (default
+  "SUSCRIPCIÓN"), `rotuloDerecha` (default "SE COORDINA POR WHATSAPP"), `titulo` (REQUERIDO, default
+  "CADA MES" — a diferencia de `tiendaEncabezado.titulo`, que cae al nombre del negocio, acá el spec
+  fija el título a una palabra de cadencia, sin fallback de identidad que resolver).
+- **`suscripcionPlanes` gana `variante`** ('tarjetas' canónica | 'taquilla'), más 13 campos nuevos
+  que SÓLO tienen efecto bajo 'taquilla' pero se editan siempre (mismo criterio que
+  `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»): `maxBolsas` (escalar clampado '1'..'5', default
+  '3'), `frecuencia1..4` (LISTA PLANA COMPACTA, 1 requerido + 3 opcionales — defaults «15 días» /
+  «Mes» / «2 meses» / vacío), `taquillaReferenciaTexto` (opcional, vacío → cálculo derivado),
+  `credito1Etiqueta/Valor .. credito4Etiqueta/Valor` (cardinalidad FIJA 4, TODOS requeridos —
+  defaults Pedido/Por WhatsApp · Pago/Se acuerda por chat · Envío/A todo el país · Pausa o
+  cambio/Con un mensaje).
+- **LOS CRÉDITOS NO SON UN REPEATER, A PROPÓSITO.** `tiendaCreditos` (la ficha de origen de /tienda)
+  es repeater con defaults VACÍOS porque sus filas serían datos de FINCA fabricados (§ #44). Los
+  créditos del trato de suscripción son condiciones GENÉRICAS ("Por WhatsApp", "Se acuerda por
+  chat") — no un dato de negocio inventado — así que necesitaban mostrarse SIN fila, y «en un
+  repeater los DEFAULTS no sirven para verificar el render» (§ CLAUDE.md, el HALLAZGO DE MÉTODO de
+  presentaciones): un repeater nunca muestra su default. Cardinalidad fija + campos planos, como
+  `suscripcionPasos`, es lo único que da byte-identidad sin fila.
+- **La Taquilla REUSA el producto real de /tienda** (`derivarMatrizTaquilla`/`celdaDe`/
+  `nombreBaseProducto`, `lib/tienda/taquilla.ts`, sin tocar — cero escritura en ese archivo): nunca
+  un segundo modelo de producto para suscripciones. La molienda sigue `decidirMolienda`
+  (`packages/core/src/moliendas-opciones.ts`) por CELDA, no por nombre de categoría — a diferencia
+  de la maqueta de Onix, que hardcodea `pres==='molido'` porque su demo sólo declara moliendas en
+  un producto; la regla real deriva de `Product.moliendasOpciones`, genérica para cualquier
+  catálogo.
+
+### `lib/storefront/suscripcion-taquilla.ts` — el resumen y el mensaje, PUROS
+
+`resumenTaquilla`/`referenciaPrecioTaquilla`/`mensajeTaquilla`/`segmentoMolienda`/`creditosDeTaquilla`
+arman el texto exacto que el spec pide («2 × 250 G · MOLIENDA MEDIA · CADA MES», «Referencia: 2 ×
+$20.000, precio de tienda por bolsa.», el mensaje de WhatsApp) para los CUATRO modos de
+`decidirMolienda` (ninguna/automática/elección/agotada). La fórmula del mensaje se MIDIÓ contra la
+maqueta interactiva (`.scratch/onix-paginas/onix-suscripciones-nosotros.html`, función `pintar()`)
+pero NO se copió literal: la maqueta traduce a mano `'media'→'medio'` para que "molido" concuerde en
+género con la molienda, un hack específico de su demo que no generaliza a un catálogo real (un
+tenant puede nombrar sus moliendas como quiera). Esta implementación usa el nombre REAL de la
+molienda, sin traducción de género — desviación medida, documentada en el código.
+
+### El viaje por `TiendaSeccionEditor`/`VistaTiendaEnVivo` — sin tocar su mecanismo genérico
+
+`components/admin/tienda-secciones.ts` gana `SUSCRIPCION_APERTURA` (SeccionConfig nueva) y extiende
+`SUSCRIPCION_PLANES` con `composiciones` (derivadas de `REGISTRY.suscripcionPlanes.variantes.claves`,
+nunca una segunda lista) + los 13 campos + 7 bloques nuevos (`tipo:'seccion'` para `maxBolsas`/
+`taquillaReferenciaTexto`, `tipo:'lista'` para `frecuencia1..4`, cuatro `tipo:'tarjeta'` para los
+créditos). **Verificado, no asumido:** `camposLeidosPorTienda()` (derivado de `REGISTRY`) y
+`camposControladosPorPanel()` (derivado de `SECCIONES_TIENDA`) coinciden campo por campo —
+`panel-controles.test.ts` pasa SIN agregar una sola entrada a `PENDIENTE_PANEL` (verificado leyendo
+el mecanismo: un campo de `REGISTRY.campos`/`.variantes`/`.escalares` sin su espejo en
+`config.campos`/`.composiciones` pone el gate en rojo; corrí `npm test` con los dos archivos
+editados y dio verde sin tocar `PENDIENTE_PANEL`). `VistaTiendaEnVivo.tsx` gana la entrada
+`suscripcionApertura: SuscripcionApertura` en `COMPONENTES` (`tsc` exige el `Record<SeccionVista,
+ComponentType>` exhaustivo).
+
+### `app/(storefront)/suscripciones/page.tsx` — REESCRITA, cierra el censo del spec
+
+El censo (§ el spec) midió que las tres secciones de /suscripciones se marcaban para el editor por
+**POSICIÓN en el DOM** (`Contenido.tsx`, `:scope > section`), un mecanismo cuyo propio comentario
+admitía "FALLA CALLADO" si una sección cambia su número de raíces — y la sección nueva de este
+slice (`suscripcionApertura`) hace EXACTAMENTE eso. Se reescribió sobre la MISMA forma que
+`/nosotros/page.tsx` (BANDAS + `ORDEN` + marcador `data-editor-seccion` DECLARATIVO, uno por
+sección, sólo en modo editor) — server component, sin la mitad cliente que sólo existía para leer
+`useSiteSettings()`/`useSiteContent()` y resolver `whatsapp`/`navTratamiento.posicion` por su
+cuenta. Las DOS diferencias deliberadas frente al patrón de /nosotros, las dos MEDIDAS contra el
+`Contenido.tsx` viejo antes de decidir:
+
+1. **El wrapper `navOffsetClase` es INCONDICIONAL** (/nosotros lo salta con `posicion:false` porque
+   sus bandas ya traen su propio padding superior, § NOSOTROS-OFFSET-NAV-1) — /suscripciones no
+   tenía ese padding propio, así que esta página conserva el `<div className={navOffsetClase(...)}>`
+   que `Contenido.tsx` ya aplicaba SIEMPRE, byte a byte.
+2. **El `<main className="bg-[var(--sf-fondo)]">` que envolvía la FAQ sobrevive**, movido DENTRO del
+   `BANDAS.suscripcionFaq` (no se pierde en la reescritura).
+
+**`Contenido.tsx` queda HUÉRFANO, sin poder borrarlo** — ver Open follow-ups.
+
+### Byte-identidad — verificada por EJECUCIÓN, no por lectura
+
+`lib/storefront/suscripcion-taquilla.test.ts` renderiza en memoria (`renderToStaticMarkup`, sin
+jsdom, mismo método que `lib/config/nosotros-bandas.test.ts`) el árbol de AYER (lo que
+`Contenido.tsx` montaba) contra el árbol de HOY (`page.tsx` reconstruido, server-only y no
+importable en el carril) con los DEFAULTS —`suscripcionApertura.visible:false`,
+`suscripcionPlanes.variante:'tarjetas'`— y assertEqual sobre el HTML completo: **idénticos**. Más
+20 tests de las reglas puras (frecuencias/bolsas/los 4 modos de molienda en resumen+mensaje/
+créditos). **Visto fallar primero**, no asumido verde: las dos primeras corridas de
+`referenciaPrecioTaquilla` fallaron porque asumí `formatCOP(20000) === '$20.000'` (sin espacio,
+copiando el formateador a mano de la maqueta) cuando la función real de `@duna/core/utils` da `'$
+20.000'` (con espacio, `Intl.NumberFormat`); el test se corrigió para comparar contra `formatCOP()`
+en vivo, no contra un literal copiado de otra fuente — el fix cerró las dos fallas sin tocar
+`suscripcion-taquilla.ts`.
+
+### El chequeo mecánico contra `CLAUDE.md`
+
+Grepeados LITERALMENTE los símbolos/archivos que este diff introdujo o tocó: `SuscripcionApertura`
+(0), `SuscripcionTaquilla` (0), `suscripcion-taquilla` (0), `suscripcionApertura` (0, fuera de mi
+propio texto ya citado abajo), `VistaTiendaEnVivo` (5 apariciones — ninguna afectada, ver abajo).
+
+**UNA frase queda FALSEADA, y no es parte de `touches:` de este slice (§ El AVISO DE
+CONFIGURACIÓN — no, la sección real es "La SUSCRIPCIÓN es una capacidad APAGABLE"):**
+`CLAUDE.md:2986` dice *"la RUTA (redirect 307, `page.tsx` server + `Contenido.tsx` cliente, como
+/nosotros)"*. Era cierto cuando se escribió (`Contenido.tsx` era la mitad cliente real); este slice
+la retira del árbol de render — `page.tsx` ya NO llama a `Contenido.tsx`, que queda huérfano (ver
+abajo) — así que la frase describe un mecanismo que dejó de existir. Reportado en
+`CLAUDE-MD-SUSCRIPCIONES-CONTENIDO-SENTENCE-1` (open follow-up), no corregido: `CLAUDE.md` no está
+en `touches:` de este slice.
+
+Las cuatro apariciones de `VistaTiendaEnVivo` en `CLAUDE.md` (§ La vista previa en vivo, § La
+PANTALLA, § PANEL-PREVIEW-COLORES-REALES-1) describen el MECANISMO genérico (providers, escala,
+`Record<SeccionVista, ComponentType>`) — mi única edición ahí es sumar una entrada más a ese
+Record, exactamente el patrón que esas secciones ya documentan para `origen`/`spotlight`/
+`nosotrosCierre`; ninguna queda falseada.
+
+### Segundo grep — `DECISIONS.md`
+
+`ONIX-SUSCRIPCION-TAQUILLA-1`: 0 apariciones previas a este asiento (el spec lo cita como
+ledger-id nuevo, sin censo OBSERVED previo propio — se apoya en `ONIX-PAGINAS-COMPOSICIONES-
+CENSO-1`, ya citado por `ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`).
+
+### Frontera Tier 1 — verificada, no asumida
+
+Los 10 archivos tocados (4 nuevos + 6 modificados) caen bajo `app/(storefront)/suscripciones/`,
+`components/storefront/suscripciones/`, `lib/storefront/`, `components/admin/`,
+`lib/config/site-content-defaults.ts`, `lib/config/site-content-schema.ts`, más este asiento —
+los seis primeros nombrados LITERAL en `touches:`. Cero `app/api/`, cero `packages/core/`, cero
+`lib/config/*-read.ts`/`site-settings*.ts`, cero `proxy.ts`, cero migración/schema Prisma —
+confirmado por `git diff --cached --stat` (sólo los 10 archivos de arriba).
+
+### `npm run gate` — GREEN
+
+`typecheck` 0 errores · `npm test` **4255/4255** (20 nuevos, los de
+`suscripcion-taquilla.test.ts`) · `npm run test:integracion` **409/409** (sin cambio — este slice
+no toca ninguna cadena de integración, ni se le pidió una). Corrido en primer plano, ~54s de pared,
+sobre el árbol final.
+
+### `npm run verificar:nayoli` — RED preexistente, medido y atribuido
+
+Las 4 rutas (`/`, `/tienda`, `/tienda/<slug>`, `/checkout`) "DIFIEREN" contra `main`. Aislado
+normalizando tres ejes conocidos (`lang="en"→"es"`, el hash del chunk CSS, `q=75→85` del hero —
+las TRES causas ya atribuidas por `ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1` a slices ANTERIORES de esta
+rama, fuera de `touches:` de ambos): **sobrevive una CUARTA diferencia, nueva respecto del asiento
+anterior** — `StoreNav` cambió de orden de clases y ganó espacios extra (`"max-w-6xl mx-auto"` →
+`"mx-auto max-w-6xl"`, `"duration-300 bg-transparent"` → `"duration-300  bg-transparent"`, un
+espacio final en `"h-16 lg:h-18"`) en LAS CUATRO rutas por igual. **`StoreNav.tsx` NO está en mi
+`git status`** (medido: `git status --short` lista sólo los 10 archivos de arriba) y `git log
+main..HEAD -- '**/StoreNav.tsx'` devuelve **más de 40 commits** de slices previos de esta rama que
+lo tocan (CROMO-NAV-\*, NAV-LOGO-\*, PARIDAD-\*…) — es la MISMA familia de drift acumulado que las
+otras tres causas: slices ya en `slice/editor-secciones-1` que `main` todavía no tiene. Ninguna de
+las cuatro causas está en `touches:` de este slice ni de ninguno anterior que yo haya tocado.
+
+### `npm run verificar:nayoli:visual` — SÍ corrido, RED preexistente, atribuido por inspección
+
+Corrido completo (Playwright + Chromium headless, main vs. rama, 6 rutas + 2 hovers). Resultado:
+
+```
+ruta:home → DIFIERE: 165052/4608000 px (AA-aware) — caja [105,862]–[1183,3581]
+ruta:tienda → DIFIERE: 209/2433280 px (AA-aware) — caja [445,45]–[608,1882]
+ruta:producto → DIFIERE: 209/2535680 px (AA-aware) — caja [445,45]–[608,1962]
+ruta:checkout → DIFIERE: 163/1152000 px (AA-aware) — caja [445,774]–[541,784]
+ruta:nosotros → DIFIERE: 224/1152000 px (AA-aware) — caja [445,45]–[828,726]
+ruta:suscripciones → DIFIERE: 258/2144000 px (AA-aware) — caja [445,45]–[735,1656]
+hover:automatica → IDÉNTICO (0px)
+hover:eleccion → IDÉNTICO (0px)
+```
+
+**Las cinco cajas chicas (163-258px, tienda/producto/checkout/nosotros/suscripciones)** caen en la
+franja del header (y, en checkout, bajo él) — consistentes con el drift de `StoreNav` ya medido
+arriba por HTML. **La caja grande de home (165.052px, 3.6% del lienzo)** se inspeccionó por
+IMAGEN, no sólo por número: las capturas `main`/`rama` de `/` se VIERON lado a lado
+(`.scratch/verificar-nayoli-visual/capturas/{main,rama}/ruta-home.png`) y son indistinguibles a
+simple vista — el único texto que difiere entre las dos es el pie («© 2026 ... · Hecho por Duna»
+en `rama`, ausente en `main`: el toggle `footer.creditoDunaVisible` de `PIE-HECHO-POR-DUNA-1`, otro
+slice previo de esta rama). La imagen de diff (pixelmatch) marca en rojo el collage de
+`BrandStory` y los mini-cards de `SubscriptionCTA` — zonas de FOTO JPEG y texto diminuto (~10px),
+donde re-codificaciones de imagen con builds separados (quality bumps ya documentados en esta
+rama) y antialiasing de subpíxel producen diffs de píxel con CERO diferencia de contenido visible.
+**Ningún archivo que la home importa está en mi diff** (`git status --short`, arriba) y el HTML de
+home YA se verificó idéntico salvo `lang`/`q`-del-hero (§ `verificar:nayoli`). No se hizo una
+atribución píxel-por-píxel de las 165.052 (desproporcionado: exigiría un tercer build del commit
+base de esta rama, antes de mis cambios, para aislar el marginal) — es `kind: ledger_claim` que la
+CIFRA EXACTA es 100% pre-existente; es `kind: measured` que mi diff no toca ningún archivo que
+render esas cinco rutas, que el HTML de las 4 rutas de `verificar:nayoli` es idéntico salvo las
+cuatro causas ya atribuidas, y que la inspección visual de `/` y `/suscripciones` no muestra
+ninguna diferencia de CONTENIDO.
+
+### `customer_bytes`
+
+**`changed: true`.** El eje es la RAMA completa contra `main` (§ CLAUDE.md,
+ORCH-CUSTOMER-BYTES-EJE-1): la rama ya cambiaba bytes del storefront desde antes (todas las
+`ONIX-*`/`TIENDA-ONIX-*` previas), y este commit añade más — directamente, `app/(storefront)/
+suscripciones/page.tsx` se reescribió entero (aunque el HTML resultante sea byte-idéntico para
+Nayoli, medido arriba) y cualquier tenant que active `suscripcionApertura.visible:true` o
+`suscripcionPlanes.variante:'taquilla'` ve una página nueva.
+
+**`strings`**: el texto visible NUEVO que un tenant que active la Taquilla vería — "SUSCRIPCIÓN" /
+"SE COORDINA POR WHATSAPP" / "CADA MES" (apertura); "Suscripción · Sin cobro automático" / "Bolsas"
+/ "Cada" / "Molienda" / "Pedir por WhatsApp" / "No se cobra nada aquí. Pago y envío se acuerdan por
+chat." / "Avísame por WhatsApp" / "Pedir" (taquilla, créditos por defecto: Pedido·Por WhatsApp,
+Pago·Se acuerda por chat, Envío·A todo el país, Pausa o cambio·Con un mensaje). Nayoli (defaults:
+`visible:false`/`variante:'tarjetas'`) no ve ninguno — verificado por el render en memoria de
+arriba, no sólo por lectura de los defaults.
+
+### `schema`/`cross-repo-contract`
+
+Ninguna aplica: cero migraciones, cero cambio de modelo Prisma, cero contrato cross-repo, cero ruta
+de `app/api/`, cero `lib/config/*-read.ts`/`site-settings*.ts`, cero `proxy.ts` — confirmado por
+`git diff --cached --stat` (sólo los 10 archivos de `touches:` + este asiento).
+
+### Open follow-ups
+
+- **`CONTENIDO-TSX-HUERFANO-1`**: `app/(storefront)/suscripciones/Contenido.tsx` quedó SIN
+  importadores (confirmado: `grep -rn "SuscripcionesContenido\|from [\"']\./Contenido" .` sólo
+  matchea su propia definición) tras la reescritura de `page.tsx`. No se borró porque el dispatch de
+  este slice no concede permiso de `rm`/`git rm` (ambos comandos requieren una aprobación que esta
+  sesión no-interactiva no puede dar — medido: los dos se probaron y los dos quedaron pendientes de
+  aprobación sin ejecutarse). El archivo sigue siendo TypeScript válido (compila, no se tocó), así
+  que no rompe nada — es basura inerte, no un riesgo. Por qué no ahora: fuera del alcance de lo que
+  esta sesión puede ejecutar; el próximo slice que toque `app/(storefront)/suscripciones/` debería
+  borrarlo con una herramienta que sí tenga `rm`/`git rm`.
+- **`CLAUDE-MD-SUSCRIPCIONES-CONTENIDO-SENTENCE-1`**: `CLAUDE.md:2986` ("la RUTA (redirect 307,
+  `page.tsx` server + `Contenido.tsx` cliente, como /nosotros)") describe un mecanismo que este
+  slice retiró — `Contenido.tsx` ya no participa del render. Por qué no ahora: `CLAUDE.md` no está
+  en `touches:` de este slice; corregir doctrina fuera del alcance declarado es exactamente lo que
+  el protocolo pide NO hacer.
+- **`ONIX-SUSCRIPCION-MENSAJE-GENERO-1`** (menor, documentado inline en el código): el mensaje de
+  WhatsApp usa el nombre LITERAL de la molienda ("molienda media"), sin la traducción de género que
+  la maqueta de Onix aplica a mano ("molienda medio", para concordar con "molido"). Por qué no
+  ahora: es un ajuste de redacción específico de UN tenant (Onix), no una regla general — ningún
+  dato indica que otros tenants necesiten la misma concordancia, y adivinarla sería diseñar para un
+  caso que nadie pidió (§ CLAUDE.md).
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff reescribe `app/(storefront)/suscripciones/
+page.tsx` entero y agrega dos composiciones nuevas (Apertura, Taquilla) que, aunque DEFAULT-OFF y
+byte-idénticas para Nayoli (verificado por render en memoria, no por lectura), son bytes nuevos que
+cualquier tenant que las active recibiría. Sin cambio de schema/migración ni contrato cruzado de
+repositorio. `npm run gate` GREEN de punta a punta (`typecheck` 0 · `npm test` 4255/4255 ·
+`npm run test:integracion` 409/409, ~54s). `npm run verificar:nayoli` y `npm run
+verificar:nayoli:visual` CORRIDOS LOS DOS: ambos RED, los dos atribuidos — el primero a tres causas
+ya documentadas por `ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1` más una cuarta (`StoreNav`, drift
+acumulado de +40 commits previos de esta rama, ninguno mío); el segundo a la misma familia de
+causas, verificado además por inspección visual directa de las capturas (sin diferencia de
+contenido). Commiteado en `slice/editor-secciones-1`; el merge, cuando el owner revise el gate
+visual, lo hace el orquestador.

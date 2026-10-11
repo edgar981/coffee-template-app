@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionFaq' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -1063,11 +1063,37 @@ const NOSOTROS_CIERRE: SeccionConfig = {
 // dato). Los planes 2-4 son opcionales: se muestran en el editor vacíos (el operador los llena para
 // agregarlos; el componente omite un plan sin nombre). NO hay tarjeta-colapso ni puente (eso es de
 // Presentaciones) — todos los planes se ven. Sección `ocultable:false` (el ocultar es a nivel de PÁGINA).
+// LA COMPOSICIÓN «TAQUILLA» (§ ONIX-SUSCRIPCION-TAQUILLA-1): la tabla 2×2 de /tienda + bolsas,
+// frecuencia y molienda — reemplaza a las tarjetas de plan, con un pedido que se manda por
+// WhatsApp. MISMO patrón que `OPCIONES_COMPOSICION_TIENDA_CATALOGO`: el VALOR y el orden salen de
+// `REGISTRY.suscripcionPlanes.variantes.claves`, este archivo sólo agrega la etiqueta y las zonas.
+const LABEL_COMPOSICION_SUSCRIPCION_PLANES: Record<string, string> = { tarjetas: 'Tarjetas', taquilla: 'Taquilla' };
+const ZONAS_SUSCRIPCION_PLANES_TARJETAS: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'], label: 'Encabezado' },
+  { campos: ['planesTitulo', 'planesSubtitulo', 'ctaLabel', 'destacadoSlot'], label: 'Planes' },
+];
+const ZONAS_SUSCRIPCION_PLANES_TAQUILLA: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'], label: 'Encabezado' },
+  { campos: ['maxBolsas', 'frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], label: 'Bolsas y frecuencias' },
+  { campos: ['taquillaReferenciaTexto'], label: 'Referencia de precio' },
+  { campos: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'], label: 'Créditos del trato' },
+];
+const OPCIONES_COMPOSICION_SUSCRIPCION_PLANES: ComposicionOpcion[] = REGISTRY.suscripcionPlanes.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_SUSCRIPCION_PLANES[v] ?? v,
+  zonas: v === 'taquilla' ? ZONAS_SUSCRIPCION_PLANES_TAQUILLA : ZONAS_SUSCRIPCION_PLANES_TARJETAS,
+}));
+// EL SELECT del máximo de bolsas (§ ONIX-SUSCRIPCION-TAQUILLA-1) — MISMO patrón que
+// `OPCIONES_VELO_INTENSIDAD`/`OPCIONES_PUNTO_FOCAL` arriba: las claves salen del set cerrado del
+// resolver (`REGISTRY.suscripcionPlanes.escalares.maxBolsas`), este archivo sólo agrega la etiqueta.
+const OPCIONES_MAX_BOLSAS: { value: string; label: string }[] =
+  REGISTRY.suscripcionPlanes.escalares!.maxBolsas.claves.map((v) => ({ value: v, label: v }));
+
 const SUSCRIPCION_PLANES: SeccionConfig = {
   seccion: 'suscripcionPlanes',
   pagina: 'suscripciones',
   titulo: 'Planes',
   ocultable: false,
+  composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_PLANES,
   imagenes: [], // sección de solo texto (los planes no llevan imagen)
   campos: [
     { name: 'eyebrow',         label: 'Línea superior',       opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
@@ -1095,6 +1121,24 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { name: 'nombre4',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
     { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
     { name: 'precio4',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — SÓLO tienen efecto bajo la composición "Taquilla" (el hint lo
+    // dice), pero se editan siempre, mismo criterio que `tiendaCatalogo.barraFijaMovil` bajo «Taquilla».
+    { name: 'maxBolsas', label: 'Máximo de bolsas', opciones: OPCIONES_MAX_BOLSAS,
+      hint: 'Sólo con la composición "Taquilla". Cuántas bolsas puede pedir el cliente, de 1 a este número.' },
+    { name: 'frecuencia1', label: 'Frecuencia', hint: 'Sólo con la composición "Taquilla". Ej. "15 días". Vacío: se usa el texto por defecto.' },
+    { name: 'frecuencia2', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia3', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia4', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'taquillaReferenciaTexto', label: 'Referencia de precio', opcional: true, textarea: true,
+      hint: 'Sólo con la composición "Taquilla". Reemplaza el cálculo automático ("Referencia: 2 × $20.000, precio de tienda por bolsa"). Vacío: se usa el cálculo automático.' },
+    { name: 'credito1Etiqueta', label: 'Rótulo', hint: 'Sólo con la composición "Taquilla". Ej. "Pedido". Vacío: se usa el texto por defecto.' },
+    { name: 'credito1Valor',    label: 'Valor',  hint: 'Ej. "Por WhatsApp". Vacío: se usa el texto por defecto.' },
+    { name: 'credito2Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito2Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito3Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito3Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito4Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito4Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'] },
@@ -1107,6 +1151,32 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { tipo: 'lista', slots: ['ben3_1', 'ben3_2', 'ben3_3', 'ben3_4'], itemLabel: 'beneficio' },
     { tipo: 'tarjeta', slot: 4, titulo: 'Plan 4 (opcional)', campos: ['nombre4', 'descripcion4', 'precio4'] },
     { tipo: 'lista', slots: ['ben4_1', 'ben4_2', 'ben4_3', 'ben4_4'], itemLabel: 'beneficio' },
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — sólo con la composición "Taquilla" (los bloques se muestran
+    // siempre, mismo criterio que los de "Tarjetas" arriba bajo "Taquilla").
+    { tipo: 'seccion', campos: ['maxBolsas'] },
+    { tipo: 'lista', slots: ['frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], itemLabel: 'frecuencia', hint: 'De 1 a 4. La lista se cierra sin huecos.' },
+    { tipo: 'seccion', campos: ['taquillaReferenciaTexto'] },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Crédito 1', campos: ['credito1Etiqueta', 'credito1Valor'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Crédito 2', campos: ['credito2Etiqueta', 'credito2Valor'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Crédito 3', campos: ['credito3Etiqueta', 'credito3Valor'] },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Crédito 4', campos: ['credito4Etiqueta', 'credito4Valor'] },
+  ],
+};
+
+// LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
+// `SuscripcionAperturaContent` en site-content-defaults.ts). `ocultable: true`, nace OFF — el
+// `notaVisibilidad` lo dice, mismo criterio que `TIENDA_CREDITOS`/`TIENDA_INTERLUDIO` abajo.
+const SUSCRIPCION_APERTURA: SeccionConfig = {
+  seccion: 'suscripcionApertura',
+  pagina: 'suscripciones',
+  titulo: 'Apertura',
+  ocultable: true,
+  notaVisibilidad: 'Apagada de arranque: por defecto, /suscripciones no lleva esta banda.',
+  imagenes: [{ name: 'imagen', label: 'Foto de fondo', opcional: true }],
+  campos: [
+    { name: 'titulo', label: 'Título', hint: 'Ej. "Cada mes". Vacío: se usa el texto por defecto.' },
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Suscripción". Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Se coordina por WhatsApp". Vacío: no se muestra.' },
   ],
 };
 
@@ -1409,4 +1479,7 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 // las otras cuatro: a diferencia de ellas, no es una sección de la página /tienda misma — es
 // `/tienda/[slug]`, agrupada bajo la MISMA pestaña por ser la forma más chica (§ el spec), no porque
 // comparta posición en una sola página con las demás.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];
+//
+// SUSCRIPCION_APERTURA va PRIMERO dentro de `suscripciones` (§ ONIX-SUSCRIPCION-TAQUILLA-1): es la
+// posición real en la página — la pieza que abre, antes de los planes/la Taquilla.
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_FAQ];

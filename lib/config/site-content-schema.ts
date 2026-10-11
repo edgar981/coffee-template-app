@@ -370,6 +370,26 @@ const suscripcionPlanesEditableSchema = z.object({
   ben3_1: z.string().optional(), ben3_2: z.string().optional(), ben3_3: z.string().optional(), ben3_4: z.string().optional(),
   nombre4: z.string().optional(), descripcion4: z.string().optional(), precio4: z.string().optional(),
   ben4_1: z.string().optional(), ben4_2: z.string().optional(), ben4_3: z.string().optional(), ben4_4: z.string().optional(),
+  // § ONIX-SUSCRIPCION-TAQUILLA-1 — `variante`/`maxBolsas` SOBREVIVEN al parse como string (SOFT,
+  // clampados por `resolverVariante` al leer, no acá — mismo criterio que `tiendaCatalogo.variante`).
+  variante: z.string().optional(),
+  maxBolsas: z.string().optional(),
+  frecuencia1: z.string().optional(), frecuencia2: z.string().optional(), frecuencia3: z.string().optional(), frecuencia4: z.string().optional(),
+  taquillaReferenciaTexto: z.string().optional(),
+  credito1Etiqueta: z.string().optional(), credito1Valor: z.string().optional(),
+  credito2Etiqueta: z.string().optional(), credito2Valor: z.string().optional(),
+  credito3Etiqueta: z.string().optional(), credito3Valor: z.string().optional(),
+  credito4Etiqueta: z.string().optional(), credito4Valor: z.string().optional(),
+});
+
+// LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
+// `SuscripcionAperturaContent`, site-content-defaults.ts). SOFT como el resto.
+const suscripcionAperturaEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  imagen: z.string().optional(),
+  rotuloIzquierda: z.string().optional(),
+  rotuloDerecha: z.string().optional(),
+  titulo: z.string().optional(),
 });
 
 // /suscripciones — los pasos "¿Cómo funciona?". Cardinalidad fija 4, sólo texto (íconos estructurales).
@@ -1028,6 +1048,7 @@ export const siteContentEditableSchema = z.object({
   nosotrosHistoria: nosotrosHistoriaEditableSchema.optional(),
   nosotrosGaleria: nosotrosGaleriaEditableSchema.optional(),
   nosotrosCierre: nosotrosCierreEditableSchema.optional(),
+  suscripcionApertura: suscripcionAperturaEditableSchema.optional(),
   suscripcionPlanes: suscripcionPlanesEditableSchema.optional(),
   suscripcionPasos: suscripcionPasosEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),

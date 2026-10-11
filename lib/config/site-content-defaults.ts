@@ -932,6 +932,63 @@ export interface SuscripcionPlanesContent {
   ben3_1: string; ben3_2: string; ben3_3: string; ben3_4: string;
   nombre4: string; descripcion4: string; precio4: string;
   ben4_1: string; ben4_2: string; ben4_3: string; ben4_4: string;
+  // LA COMPOSICIÓN «TAQUILLA» (§ ONIX-SUSCRIPCION-TAQUILLA-1, sobre ONIX-PAGINAS-COMPOSICIONES-
+  // CENSO-1). 'tarjetas' (canónica, las tarjetas de arriba, byte-idéntica sin fila) | 'taquilla' (la
+  // tabla 2×2 de /tienda + bolsas/frecuencia/molienda que arma un pedido de WhatsApp — § abajo, el
+  // mismo producto real que `derivarMatrizTaquilla`, `lib/tienda/taquilla.ts`, nunca un segundo
+  // modelo). Escalar de SECCIÓN —como `destacadoSlot`—, no un `campos` del resolver.
+  variante: string;
+  // EL MÁXIMO DE BOLSAS (§ el spec, item 3: "1–5, por defecto 3"). Escalar CLAMPADO (set cerrado de
+  // 5 claves), no un número libre: el componente lo usa para generar las opciones 1..N, y un valor
+  // fuera del set no tiene celda que pintar. SÓLO tiene efecto bajo 'taquilla', pero se edita
+  // siempre — mismo criterio que `tiendaCatalogo.barraFijaMovil` bajo «Taquilla».
+  maxBolsas: string;
+  // LAS FRECUENCIAS (§ el spec, item 3: "una lista corta... por defecto «15 días», «Mes», «2
+  // meses»; 1 a 4"). LISTA PLANA COMPACTA (§ CLAUDE.md, el patrón de `subscriptionCTA.bulletN`): 4
+  // slots, el primero REQUERIDO (siempre hay al menos una frecuencia que ofrecer), 2-4 OPCIONALES
+  // (vacío = esa frecuencia no se ofrece). SÓLO tiene efecto bajo 'taquilla'.
+  frecuencia1: string; frecuencia2: string; frecuencia3: string; frecuencia4: string;
+  // LA REFERENCIA DE PRECIO (§ el spec, item 2: "texto libre del plan si existe; si no,
+  // «Referencia: 2 × $20.000, precio de tienda por bolsa»"). OPCIONAL: vacío cae al cálculo
+  // derivado del precio REAL del producto elegido (`referenciaPrecioTaquilla`, § lib/storefront/
+  // suscripcion-taquilla.ts) — nunca un precio inventado en el default (misma razón que vacía
+  // `precioN` arriba). SÓLO tiene efecto bajo 'taquilla'.
+  taquillaReferenciaTexto: string;
+  // LOS CRÉDITOS DEL TRATO (§ el spec, item 4): "PEDIDO · Por WhatsApp / PAGO · Se acuerda por chat
+  // / ENVÍO · A todo el país / PAUSA O CAMBIO · Con un mensaje" — reemplazan a «¿Cómo funciona?»
+  // bajo 'taquilla' (§ refero-onix-paginas.md, "Esto reemplaza «¿Cómo funciona?»"), pintados con
+  // `CreditosFilas` (§ TiendaCreditos.tsx). CARDINALIDAD FIJA 4, TODOS REQUERIDOS —mismo criterio que
+  // `suscripcionPasos` arriba, NO un repeater: un repeater nunca muestra sus DEFAULTS (§ CLAUDE.md,
+  // "HALLAZGO DE MÉTODO"), y estos cuatro créditos son condiciones GENÉRICAS del trato —no un dato
+  // de finca fabricado (§ #44) — así que SÍ deben verse sin fila, para cualquier tenant que elija
+  // 'taquilla'. SÓLO tienen efecto bajo 'taquilla'.
+  credito1Etiqueta: string; credito1Valor: string;
+  credito2Etiqueta: string; credito2Valor: string;
+  credito3Etiqueta: string; credito3Valor: string;
+  credito4Etiqueta: string; credito4Valor: string;
+}
+
+// LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, sobre ONIX-PAGINAS-
+// COMPOSICIONES-CENSO-1 — el owner aprobó el 2026-10-11 la maqueta de Onix con esta pieza al tope
+// de la página). Sección NUEVA, propia —NO comparte contenido con `tiendaEncabezado`, § el spec:
+// "contenido PROPIO, no compartido con /tienda"—, montada con la pieza COMPARTIDA
+// `components/storefront/tienda/Apertura.tsx` (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1).
+//
+// NACE OFF (`visible: false`): a diferencia de `tiendaInterludio`/`tiendaCierre` (que se auto-
+// ocultan SIN contenido), la pieza `Apertura` SIEMPRE pinta algo —una superficie de color tinta con
+// el título, aun sin foto—, así que un default `visible: true` metería un banner nuevo en la página
+// de TODO tenant sin fila. Es la MISMA razón mecánica que ya hizo nacer OFF a `origen`/`marquesina`
+// (§ sus docstrings, arriba): "por defecto la página queda como hoy" (§ el spec, item 1) sólo se
+// cumple con el toggle apagado de arranque. `ocultable: true` para que el dueño la prenda.
+export interface SuscripcionAperturaContent {
+  visible: boolean;
+  imagen: string;
+  rotuloIzquierda: string;
+  rotuloDerecha: string;
+  // REQUERIDO (a diferencia de `tiendaEncabezado.titulo`, que cae al nombre del negocio): el spec
+  // fija el título a «CADA MES», una palabra genérica de cadencia, no un dato del negocio — no hay
+  // fallback de identidad que resolver acá.
+  titulo: string;
 }
 
 // Los PASOS "¿Cómo funciona?" de /suscripciones (§ Backlog #49 · e). Café-shape en el TEXTO ("café de
@@ -1895,6 +1952,7 @@ export interface SiteContentData {
   nosotrosHistoria: NosotrosHistoriaContent;
   nosotrosGaleria: NosotrosGaleriaContent;
   nosotrosCierre: NosotrosCierreContent;
+  suscripcionApertura: SuscripcionAperturaContent;
   suscripcionPlanes: SuscripcionPlanesContent;
   suscripcionPasos: SuscripcionPasosContent;
   suscripcionFaq: SuscripcionFaqContent;
@@ -2396,6 +2454,27 @@ export const DEFAULTS: SiteContentData = {
     ben3_1: 'El doble de cantidad del plan estándar', ben3_2: 'Ideal para el hogar o la oficina', ben3_3: 'Ajusta la fecha cuando lo necesites', ben3_4: '',
     nombre4: '', descripcion4: '', precio4: '',
     ben4_1: '', ben4_2: '', ben4_3: '', ben4_4: '',
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — 'tarjetas' es la canónica: byte-idéntica a lo de arriba sin
+    // fila. Las frecuencias y los créditos del trato SÍ llevan default no-vacío (a diferencia de
+    // `precioN`): son condiciones GENÉRICAS del trato, no un dato de negocio fabricado.
+    variante: 'tarjetas',
+    maxBolsas: '3',
+    frecuencia1: '15 días', frecuencia2: 'Mes', frecuencia3: '2 meses', frecuencia4: '',
+    taquillaReferenciaTexto: '',
+    credito1Etiqueta: 'Pedido', credito1Valor: 'Por WhatsApp',
+    credito2Etiqueta: 'Pago', credito2Valor: 'Se acuerda por chat',
+    credito3Etiqueta: 'Envío', credito3Valor: 'A todo el país',
+    credito4Etiqueta: 'Pausa o cambio', credito4Valor: 'Con un mensaje',
+  },
+  // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
+  // `SuscripcionAperturaContent` arriba). `visible: false` — "por defecto la página queda como
+  // hoy" (§ el spec); Nayoli no la ve hasta que el dueño la prenda.
+  suscripcionApertura: {
+    visible: false,
+    imagen: '',
+    rotuloIzquierda: 'SUSCRIPCIÓN',
+    rotuloDerecha: 'SE COORDINA POR WHATSAPP',
+    titulo: 'CADA MES',
   },
   // Los pasos "¿Cómo funciona?" (antes `SUBSCRIPTION_STEPS`). Los íconos van por índice en el componente.
   suscripcionPasos: {
@@ -3203,6 +3282,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   suscripcionPlanes: {
     label: 'Planes',
     ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.suscripciones.visible), no de esta sección
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — 'tarjetas' (canónica) | 'taquilla'. `maxBolsas` es el escalar
+    // GEMELO, mismo mecanismo que `variante` sin la ranura fija (§ `SeccionDef.escalares`).
+    variantes: { claves: ['tarjetas', 'taquilla'], canonica: 'tarjetas' },
+    escalares: { maxBolsas: { claves: ['1', '2', '3', '4', '5'], canonica: '3' } },
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',
@@ -3220,6 +3303,26 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ben3_1: 'opcional', ben3_2: 'opcional', ben3_3: 'opcional', ben3_4: 'opcional',
       nombre4: 'opcional', descripcion4: 'opcional', precio4: 'opcional',
       ben4_1: 'opcional', ben4_2: 'opcional', ben4_3: 'opcional', ben4_4: 'opcional',
+      // SÓLO tienen efecto bajo 'taquilla' (§ el docstring de `SuscripcionPlanesContent`).
+      frecuencia1: 'requerido', frecuencia2: 'opcional', frecuencia3: 'opcional', frecuencia4: 'opcional',
+      taquillaReferenciaTexto: 'opcional',
+      credito1Etiqueta: 'requerido', credito1Valor: 'requerido',
+      credito2Etiqueta: 'requerido', credito2Valor: 'requerido',
+      credito3Etiqueta: 'requerido', credito3Valor: 'requerido',
+      credito4Etiqueta: 'requerido', credito4Valor: 'requerido',
+    },
+  },
+  // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
+  // `SuscripcionAperturaContent` arriba). `ocultable: true` para que el dueño la prenda.
+  suscripcionApertura: {
+    label: 'Apertura',
+    ocultable: true,
+    imagenes: ['imagen'],
+    campos: {
+      imagen: 'opcional',
+      rotuloIzquierda: 'opcional',
+      rotuloDerecha: 'opcional',
+      titulo: 'requerido',
     },
   },
   // Los pasos "¿Cómo funciona?" — cardinalidad FIJA 4, todos REQUERIDOS (empty → default; no se

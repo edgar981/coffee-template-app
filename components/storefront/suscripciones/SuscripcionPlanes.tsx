@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import { CheckCircle, ArrowRight, Coffee } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { whatsappUrl } from '@/lib/config/site';
@@ -7,6 +8,11 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { planesDeSuscripcion, gridColsPlanes } from '@/lib/storefront/planes-suscripcion';
 import CampoEditable from '@/components/storefront/CampoEditable';
+import { getCatalog } from '@/lib/api/products';
+import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
+import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
+import type { Product } from '@/types/product';
+import type { SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 
 // El ENCABEZADO + los PLANES de /suscripciones, desde SiteContent (§ Backlog #49). Antes eran literales
 // + `SUBSCRIPTION_PLANS`; ahora la sección `suscripcionPlanes`, editable. Los DOS surfaces (esta página
@@ -16,10 +22,68 @@ import CampoEditable from '@/components/storefront/CampoEditable';
 // VISTA PREVIA del panel (VistaTiendaEnVivo), que NO tiene el SiteSettingsProvider del storefront (el
 // hook LANZARÍA, § el {negocio} de GrindChooser/NosotrosGaleria). La página /suscripciones pasa el
 // número; en el preview va sin prop → el CTA se oculta (un `wa.me/` sin número es un botón muerto).
+//
+// LA COMPOSICIÓN «TAQUILLA» (§ ONIX-SUSCRIPCION-TAQUILLA-1) — 'tarjetas' (canónica, byte-idéntica,
+// abajo) | 'taquilla' (la tabla 2×2 de /tienda + bolsas/frecuencia/molienda, § SuscripcionTaquilla.tsx).
+// El catálogo SÓLO se fetchea bajo 'taquilla' —mismo criterio que `TiendaCatalogo.tsx` bajo 'laminas'/
+// 'taquilla'—: ningún tenant con la canónica paga una llamada de red de más. Sin matriz 2×2 válida
+// (`derivarMatrizTaquilla`), cae SOLA a «Tarjetas» — mismo patrón que «Taquilla»/«Láminas» caen a
+// «Actual» en `TiendaCatalogo.tsx`.
 export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
   const { suscripcionPlanes } = useSiteContent();
   const preview = useIsPreview();
   const c = suscripcionPlanes;
+  const [catalog, setCatalog] = useState<Product[] | null>(null);
+
+  useEffect(() => {
+    if (c.variante !== 'taquilla') return;
+    getCatalog().then(setCatalog).catch(() => setCatalog([]));
+  }, [c.variante]);
+
+  if (c.variante === 'taquilla') {
+    // Mientras carga: esqueleto PROPIO, nunca «Tarjetas» (parpadearía al reemplazarse con la
+    // Taquilla). Con el catálogo ya resuelto, sin matriz 2×2 válida se CAE a «Tarjetas» — el
+    // CHEQUEO VIVE ACÁ (como `TiendaCatalogo.tsx` decide si monta `TiendaTaquilla`), no dentro de
+    // `SuscripcionTaquilla` (que vuelve a chequear, defensivo, por si el catálogo cambia tras montar).
+    if (catalog === null) return <SuscripcionTaquillaCargando />;
+    if (derivarMatrizTaquilla(catalog)) {
+      return (
+        <section className="py-20 bg-[var(--sf-fondo)]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SuscripcionTaquilla catalog={catalog} whatsapp={whatsapp} suscripcionPlanes={c} />
+          </div>
+        </section>
+      );
+    }
+  }
+
+  return <SuscripcionTarjetas c={c} whatsapp={whatsapp} preview={preview} />;
+}
+
+function SuscripcionTaquillaCargando() {
+  return (
+    <section className="py-20 bg-[var(--sf-fondo)]" aria-hidden="true">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
+          <div className="aspect-square animate-pulse rounded bg-[var(--sf-superficie)]" />
+          <div className="space-y-3">
+            <div className="h-4 w-1/2 animate-pulse rounded bg-[var(--sf-superficie)]" />
+            <div className="h-8 w-3/4 animate-pulse rounded bg-[var(--sf-superficie)]" />
+            <div className="h-24 animate-pulse rounded bg-[var(--sf-superficie)]" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SuscripcionTarjetas({
+  c, whatsapp, preview,
+}: {
+  c: SuscripcionPlanesContent;
+  whatsapp?: string;
+  preview: boolean;
+}) {
   const planes = planesDeSuscripcion(c);
   const interesHref = (nombre: string) =>
     whatsappUrl(whatsapp ?? '', `Hola, me interesa el plan de suscripción de ${nombre}`);
