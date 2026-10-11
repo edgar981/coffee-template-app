@@ -34,6 +34,7 @@ import Deslizador from '@/components/admin/editor/Deslizador';
 import { etiquetaCercana } from '@/lib/admin/deslizador';
 import { metaElementoEstilo, resolverEstiloElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
+import { debeMostrarSelectorComposicion } from '@/lib/admin/editor-paginas-onix';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -2422,30 +2423,40 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   reusa `ComposicionHero` (su título «¿Cómo se arma tu hero?» está hardcodeado en ese
                   archivo, fuera de `touches:`): con sólo DOS opciones y sin zonas que avisar, el
                   select NATIVO es la regla del panel para un set cerrado (§ CLAUDE.md, "Controles de
-                  formulario — el select es NATIVO"), no una ceremonia menor. 'tiendaProducto' (§
-                  PRODUCTO-CHAMISAS-LAMINA-1) se suma al MISMO select nativo por la MISMA razón: dos
-                  opciones, sin zonas que avisar. 'suscripcionFaq' (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1)
-                  también: 'tarjetas'/'letraPequena' leen los MISMOS campos (`titulo` + el repeater),
-                  así que no hay zonas que distingan — el mismo criterio exacto. 'nosotrosHistoria'
-                  (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): mismo criterio otra vez — en vez de reproducir
-                  el hueco ya documentado (`ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1`, donde
-                  `composiciones` se declara pero ningún control real lo muestra), 'relato'/'sinopsis'
-                  se suman a este MISMO select nativo — dos opciones, sin zonas que avisar.
-                  'nosotrosCierre' (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): CUARTA vez el mismo criterio
-                  — en vez de reproducir el hueco una quinta, 'linea'/'fraseYBoton' se suman al MISMO
-                  select nativo. */}
-              {(seccion === 'tiendaEncabezado' || seccion === 'tiendaCatalogo' || seccion === 'tiendaProducto' || seccion === 'suscripcionFaq' || seccion === 'nosotrosHistoria' || seccion === 'nosotrosCierre') && config.composiciones && config.composiciones.length > 1 && (
+                  formulario — el select es NATIVO"), no una ceremonia menor.
+                  § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — LA CONDICIÓN SALE DE LOS DATOS, no de una lista
+                  escrita a mano de `seccion ===`. La lista original (`tiendaEncabezado`/
+                  `tiendaCatalogo`/`tiendaProducto`/`suscripcionFaq`/`nosotrosHistoria`/
+                  `nosotrosCierre`) era exactamente la clase de hueco que
+                  `ONIX-SUSCRIPCION-SELECT-COMPOSICION-ZONAS-HUECO-1` ya documentó una vez
+                  (`composiciones` se declara pero ningún control lo muestra): cada sección nueva con
+                  `composiciones` tenía que acordarse de agregar su nombre acá, y 'suscripcionPlanes'
+                  (Tarjetas/Taquilla) no lo hizo — el owner nunca pudo elegir Taquilla desde el editor.
+                  El censo también encontró 'tiendaInterludio' (Retrato y cita/Plano) y 'tiendaCierre'
+                  (Costura/Frase y botón) AFUERA de la lista, por la misma razón. La condición ahora es
+                  "¿esta sección declara 2+ composiciones?" —lo mismo que ya decide si vale la pena
+                  mostrar el select—, así que un `composiciones` nuevo con 2+ opciones aparece solo, sin
+                  acordarse de nada. El hero se excluye A PROPÓSITO: usa su propio diálogo pesado
+                  (`ComposicionHero`, con miniatura + zonas), no este select. */}
+              {debeMostrarSelectorComposicion(config) && config.composiciones && (
                 <div className="admin-bloque">
-                  <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
-                  <select
-                    id="tienda-composicion-select"
-                    className="duna-select"
-                    value={String(form.variante ?? config.composiciones[0]?.value ?? '')}
-                    onChange={(e) => cambiar({ variante: e.target.value })}
-                    style={{ marginTop: 'var(--duna-space-2)' }}
-                  >
-                    {config.composiciones.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
-                  </select>
+                  {/* El campo reusa el patrón de SIEMPRE (`.duna-field`, label+control con el `gap`
+                      de la primitiva) — antes el `<label>` y el `<select>` eran hermanos sueltos
+                      dentro de `.admin-bloque` (sin `display:flex`/`gap`) y el `<select>` le faltaba
+                      `duna-input` (sólo tenía `duna-select`, que no trae `width:100%` ni el resto del
+                      tamaño de campo): dos elementos inline sin separación quedaban pegados
+                      («ComposiciónTarjetas»), el defecto que reporta el owner. */}
+                  <div className="duna-field">
+                    <label className="duna-field__label" htmlFor="tienda-composicion-select">Composición</label>
+                    <select
+                      id="tienda-composicion-select"
+                      className="duna-input duna-select"
+                      value={String(form.variante ?? config.composiciones[0]?.value ?? '')}
+                      onChange={(e) => cambiar({ variante: e.target.value })}
+                    >
+                      {config.composiciones.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+                    </select>
+                  </div>
                 </div>
               )}
 

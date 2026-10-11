@@ -1117,6 +1117,17 @@ const NOSOTROS_ESCENAS: SeccionConfig = {
 // (número + rótulo, slots FIJOS, todas opcionales) y los créditos de /tienda (`tiendaCreditos`, YA
 // editables en su propia tarjeta) en colores invertidos. No hay campo de créditos acá: `NosotrosFicha.
 // tsx` LEE `tiendaCreditos.items` directo — editarlos es editar "Créditos: ficha de origen" en /tienda.
+// § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — `bloques` agrupa las TRES cifras en tarjetas propias ("Cifra 1" ·
+// "Cifra 2" · "Cifra 3"), en vez de los 7 campos sueltos en fila (el defecto que reporta el owner: "se
+// siente agobiante, todos esos inputs vacíos abiertos" — era literal, `campos` sin `bloques` dibuja los
+// 7 de una, sin ningún agrupamiento visual). NO es el mismo mecanismo que `nosotrosEscenas` (un
+// REPEATER de 1-4 ítems, con tarjeta-por-ítem COLAPSADA vía `RepeaterEditor` — ésa SÍ ya mostraba
+// "una tarjeta por escena, una sola abierta a la vez" antes de este slice, medido en el código: no
+// tenía el defecto que el spec describía). Acá las TRES cifras son slots FIJOS (no una lista que
+// crece), así que no hay "tarjeta-colapso" (`colapsado()`, § TiendaSeccionEditor.tsx, sólo aplica a
+// `puenteTarjetas = seccion === 'presentaciones'`) — sólo la agrupación visual de `tipo:'tarjeta'`,
+// SIN `opcional` (no hay botón "Quitar": las tres cifras no son tarjetas que se agregan/retiran, sus
+// CAMPOS ya son opcionales uno por uno, § arriba). `eyebrow` queda en su propio bloque `seccion`.
 const NOSOTROS_FICHA: SeccionConfig = {
   seccion: 'nosotrosFicha',
   pagina: 'nosotros',
@@ -1132,6 +1143,12 @@ const NOSOTROS_FICHA: SeccionConfig = {
     { name: 'cifra2Rotulo', label: 'Cifra 2 · Rótulo', opcional: true, hint: 'Ej. "hectáreas".' },
     { name: 'cifra3Numero', label: 'Cifra 3 · Número', opcional: true, hint: 'Vacío: no se muestra esta cifra.' },
     { name: 'cifra3Rotulo', label: 'Cifra 3 · Rótulo', opcional: true, hint: 'Ej. "años".' },
+  ],
+  bloques: [
+    { tipo: 'seccion', campos: ['eyebrow'] },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Cifra 1', campos: ['cifra1Numero', 'cifra1Rotulo'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Cifra 2', campos: ['cifra2Numero', 'cifra2Rotulo'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Cifra 3', campos: ['cifra3Numero', 'cifra3Rotulo'] },
   ],
 };
 

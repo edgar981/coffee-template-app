@@ -1495,19 +1495,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
         />
       )}
 
-      {/* El toggle de encender/apagar y la nota de la página apagable (Nosotros · Suscripciones) — el
-          selector de PÁGINA en sí ya no vive acá, subió a la barra superior del editor de pantalla
-          completa (§ EDITOR-TIENDA-DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). SÓLO en modo
-          'paginas' (§ EDITOR-TIENDA-TEMA-1) Y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): son
-          cosas de LA PÁGINA, no del tema store-wide ni de una sección puntual. */}
-      {modo === 'paginas' && !nivelActivo && (paginaMeta.apagable || paginaMeta.nota) && (
-        <div style={{ flexShrink: 0, marginBottom: 'var(--duna-space-5)' }}>
-          {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} />}
-          {paginaMeta.nota && (
-            <p className="duna-sub" style={{ marginTop: 'var(--duna-space-3)', maxWidth: '42rem' }}>{paginaMeta.nota}</p>
-          )}
-        </div>
-      )}
+      {/* § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — el toggle de encender/apagar YA NO vive en su propia
+          banda arriba de la lista ("una barra innecesaria", el owner): se mudó a la cabecera
+          "Contenido" (abajo, § el grupo), que es la lista de secciones de ESTA página — el lugar
+          discreto que pidió el spec, con el MISMO comportamiento (TogglePagina.tsx no cambió su
+          lógica, sólo dejó de montar su propia tarjeta). El selector de PÁGINA en sí tampoco vive
+          acá: subió a la barra superior del editor de pantalla completa (§ EDITOR-TIENDA-
+          DISPOSITIVOS-1, `EditorTiendaPantallaCompleta`). */}
 
       {/* § EDITOR-TIENDA-ORDEN-1 — el orden de las bandas se publica/descarta COMO SECCIÓN, pero no
           es una tarjeta de la lista: no hay un bloque único donde mostrar este estado, así que vive
@@ -1697,9 +1691,19 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
 
               {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «CONTENIDO» (el spec): envuelve las secciones de
                   la página, las agregadas, y el botón «+ Agregar sección» — mismo criterio de rótulo
-                  condicional y de envoltorio único que «Arriba». */}
+                  condicional y de envoltorio único que «Arriba».
+                  § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — el toggle de encender/apagar la PÁGINA (sólo
+                  Nosotros/Suscripciones, `paginaMeta.apagable`) vive ACÁ, a la derecha del rótulo:
+                  es el lugar discreto que pidió el owner, en vez de la banda propia de arriba (ya
+                  retirada). `justify-content:space-between` para que el rótulo quede a la izquierda
+                  como siempre y el toggle al extremo derecho, sin empujar la lista de abajo. */}
               <div>
-              {!nivelActivo && <div className="editor-grp">Contenido</div>}
+              {!nivelActivo && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)', margin: '0 2px var(--duna-space-2)' }}>
+                  <div className="editor-grp" style={{ margin: 0 }}>Contenido</div>
+                  {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} nota={paginaMeta.nota} />}
+                </div>
+              )}
               <div className="editor-rows">
               {/* § EDITOR-AGREGAR-SECCION-1 — los separadores "+ Agregar sección" van DESPUÉS de cada
                   fila (el spec: "entre tarjetas al pasar el mouse") — nunca antes de la primera: ese

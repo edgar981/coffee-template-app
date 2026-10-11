@@ -32,6 +32,7 @@ import { gsap } from 'gsap';
 // docstring de cabecera): este archivo nunca llama `gsap.registerPlugin`.
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
+import { startCruceGigante } from '@/lib/movimiento/cruce';
 
 /** El disparador compartido por todo `revelado` de este motor — EXACTO al `alEntrar` del
  *  prototipo: dispara al entrar al 82% del viewport (o al `umbral` que el llamador declare — hoy
@@ -134,9 +135,36 @@ function t05(raiz: HTMLElement, forzar = false) {
  *  primero, el borde de ENTRADA sigue en 2D) mantiene la capa SIEMPRE activa, de punta a punta del
  *  tramo — cierra las dos degradaciones de capa, sin cambiar ni un pixel del resultado visual en
  *  escritorio (mismo desplazamiento; sólo la forma de la matriz CSS deja de alternar). */
+// § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — EL TRIGGER ERA `raiz` (el wrapper de `<Movimiento>`), que para
+// `Apertura.tsx` es apenas la CAJA DEL TÍTULO —pegada al fondo de la sección por `mt-auto`, de
+// ~75-190px de alto, NO la sección entera (~85vh/~70svh)—. Medido con el repro aislado de este
+// slice (`.scratch/editor-paginas-onix-arreglos-1/`, GSAP/ScrollTrigger reales, sin DB/`.env`): con
+// `trigger:raiz` el rango del scrub (`start:'top bottom'→end:'bottom top'`) queda acotado a esa caja
+// chica, pegada al borde inferior de una sección MUCHO más alta — así que el "ciclo de vida visual"
+// que el ojo percibe (la sección entrando/saliendo del viewport) no tiene relación con el rango que
+// el ScrollTrigger mide. `raiz.closest('section')` agarra la sección real que lo contiene —medido
+// SIN cambiar nada para `Banner.tsx` (su `<Movimiento>` ya es `absolute inset-0` de su propia
+// `<section>`, mismas cotas) y con una cota más ancha pero razonable para `ImagenTexto.tsx` (su caja
+// de imagen es un hijo de la sección, no la sección misma) — los dos únicos otros consumidores de
+// `.sf-movimiento-gigante` (censo por grep, § el asiento de este slice en DECISIONS.md).
+//
+// SEGUNDO DEFECTO, INDEPENDIENTE DEL TRIGGER: `start:'top bottom'` calcula el umbral de progreso 0
+// como `seccion.top - innerHeight`. Para una sección que nace AL TOPE del documento (la Apertura de
+// /tienda, /nosotros, /suscripciones: es la PRIMERA banda de la página, § Apertura.tsx) ese umbral
+// es NEGATIVO — un scroll que no existe, porque la página nunca puede scrollear antes de 0—. A
+// scroll real 0 (la carga de la página, "en reposo") el progreso YA está muy por encima de 0 (medido:
+// 0.22–0.42 según el viewport y el alto de la apertura) — el título arranca a mitad de camino en vez
+// de en su posición de diseño, y por el mismo motivo el tramo final (`xPercent:-40`, "cortado") se
+// alcanza ANTES de que la sección termine de salir de la pantalla. `'top top'` ancla el progreso 0 a
+// scroll 0 cuando la sección nace en el tope —el caso real de la Apertura—, sin tocar el
+// comportamiento de una sección que nace más abajo en la página (donde `seccion.top - innerHeight`
+// SIGUE siendo positivo, así que sigue usando `'top bottom'`, byte-idéntico a hoy: Banner/
+// ImagenTexto, que no son la primera banda de ninguna página hoy, no cambian).
 function t06(raiz: HTMLElement) {
   const gigante = raiz.querySelector<HTMLElement>('.sf-movimiento-gigante');
   if (!gigante) return null;
+  const seccion = raiz.closest<HTMLElement>('section') ?? raiz;
+  const topDocumento = seccion.getBoundingClientRect().top + window.scrollY;
   return gsap.fromTo(
     gigante,
     { xPercent: 10, force3D: true },
@@ -144,7 +172,12 @@ function t06(raiz: HTMLElement) {
       xPercent: -40,
       ease: 'none',
       force3D: true,
-      scrollTrigger: { trigger: raiz, start: 'top bottom', end: 'bottom top', scrub: true },
+      scrollTrigger: {
+        trigger: seccion,
+        start: startCruceGigante(topDocumento, window.innerHeight),
+        end: 'bottom top',
+        scrub: true,
+      },
     },
   );
 }

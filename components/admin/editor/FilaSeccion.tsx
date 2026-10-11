@@ -74,30 +74,48 @@ export function FilaSeccion({
       <button type="button" onClick={onAbrir} className="editor-row__main">
         <span className="editor-row__icon">{icono}</span>
         <span className="editor-row__nm">{titulo}</span>
-        {hayBorrador && <span className="editor-row__dot" aria-hidden title="Sin publicar" />}
       </button>
-      {onChevron && (
-        <button
-          type="button"
-          onClick={onChevron}
-          className={`editor-row__chevron${chevronAbierto ? ' is-open' : ''}`}
-          aria-expanded={chevronAbierto}
-          aria-label={chevronAbierto ? `Ocultar las zonas de ${titulo}` : `Mostrar las zonas de ${titulo}`}
-        >
-          <ChevronRight aria-hidden />
-        </button>
-      )}
-      {ocultable && (
-        <button
-          type="button"
-          onClick={onCambiarVisible}
-          className="editor-row__eye"
-          aria-pressed={!visible}
-          aria-label={visible ? `Ocultar ${titulo} en la tienda` : `Mostrar ${titulo} en la tienda`}
-        >
-          {visible ? <Eye aria-hidden /> : <EyeOff aria-hidden />}
-        </button>
-      )}
+      {/* § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — el punto ámbar SALE de `.editor-row__main` (donde el
+          `nm` flex-grow lo empujaba hasta pegarlo contra el chevron/ojo, o contra el borde de la fila
+          si ninguno de los dos existía) y se muda a esta ranura FIJA, sibling de main. Como `nm` sigue
+          llenando TODO el espacio de `main` (flex:1 1 auto), el punto queda siempre contra el borde
+          derecho de `main` — y ese borde es CONSTANTE entre filas sólo si lo que viene DESPUÉS también
+          es de ancho fijo (ver la ranura de 28px más abajo): por eso las dos ranuras van juntas.
+          Estilo INLINE (no una clase de `editor.css`, fuera de `touches:` de este slice): dos reglas
+          de layout puro, sin tema/token que justifique moverlas a la hoja compartida todavía. */}
+      <span style={{ width: 10, height: 10, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+        {hayBorrador && <span className="editor-row__dot" aria-hidden title="Sin publicar" />}
+      </span>
+      {/* RANURA FIJA de 28px, SIEMPRE presente — chevron, ojo, o vacía. Antes el chevron/ojo sólo
+          existían en el DOM cuando aplicaban, así que una fila sin ninguno de los dos perdía ese
+          ancho y el punto ámbar (arriba) terminaba en una columna distinta según la fila tuviera o no
+          el ícono de visibilidad al lado (el reporte del owner, § EDITOR-PAGINAS-ONIX-ARREGLOS-1).
+          Reservar el ancho SIEMPRE —con o sin ícono real adentro— es lo que fija la columna. Ningún
+          consumidor de hoy combina chevron Y ojo en la misma fila (el chevron es sólo del hero, que
+          nace `ocultable:false`), así que un `if/else if` alcanza sin necesitar las dos ranuras. */}
+      <span style={{ width: 28, height: 28, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+        {onChevron ? (
+          <button
+            type="button"
+            onClick={onChevron}
+            className={`editor-row__chevron${chevronAbierto ? ' is-open' : ''}`}
+            aria-expanded={chevronAbierto}
+            aria-label={chevronAbierto ? `Ocultar las zonas de ${titulo}` : `Mostrar las zonas de ${titulo}`}
+          >
+            <ChevronRight aria-hidden />
+          </button>
+        ) : ocultable ? (
+          <button
+            type="button"
+            onClick={onCambiarVisible}
+            className="editor-row__eye"
+            aria-pressed={!visible}
+            aria-label={visible ? `Ocultar ${titulo} en la tienda` : `Mostrar ${titulo} en la tienda`}
+          >
+            {visible ? <Eye aria-hidden /> : <EyeOff aria-hidden />}
+          </button>
+        ) : null}
+      </span>
       {trailing && <span className="editor-row__menu">{trailing}</span>}
     </div>
   );

@@ -60747,3 +60747,191 @@ superficie que el visitante del storefront ve y toca (la barra de compra del cel
 posible. Sin cambio de schema/migración ni contrato cruzado de repositorio. Commiteado en
 `slice/editor-secciones-1`; el merge, cuando el owner revise el gate visual en el demo con el celular
 emulado, lo hace el orquestador.
+
+## 2026-10-11 — EDITOR-PAGINAS-ONIX-ARREGLOS-1: siete arreglos del editor de Onix — seis cerrados
+con medición, uno (publicar que sigue "Sin publicar") no se pudo reproducir por código
+
+Spec de 7 puntos sobre el feedback del owner al usar el editor de Onix el 2026-10-11 para pasar
+/suscripciones y /nosotros al diseño nuevo. Seis se cerraron con causa medida; el quinto (Publicar
+no refresca el estado) se investigó exhaustivamente y NO se encontró el defecto por lectura de
+código — se documenta como UNKNOWN, no como fix especulativo.
+
+### 1 — El selector de "Composición" sale de los DATOS, no de una lista a mano
+
+`TiendaSeccionEditor.tsx` (cerca de la línea 2437, confirmado) mostraba el select nativo de
+"Composición" SÓLO para `seccion === 'tiendaEncabezado' || 'tiendaCatalogo' || 'tiendaProducto' ||
+'suscripcionFaq' || 'nosotrosHistoria' || 'nosotrosCierre'`. Medido contra `tienda-secciones.ts`:
+TRES secciones más declaraban `composiciones` con 2 opciones y NINGÚN control las mostraba —
+`suscripcionPlanes` (Tarjetas/Taquilla, el caso que el owner reportó), y DOS que el censo del
+orquestador no había nombrado: `tiendaInterludio` (Retrato y cita/Plano) y `tiendaCierre` (Costura/
+Frase y botón).
+
+Fix: `lib/admin/editor-paginas-onix.ts` exporta `debeMostrarSelectorComposicion(config)` =
+`config.seccion !== 'hero' && !!config.composiciones && config.composiciones.length > 1` — la MISMA
+condición que ya usa `panel-controles.ts` para considerar `variante` "controlado" (`§ el docstring
+de SeccionConfig.composiciones`: "con sólo esto presente"), así que el fix hace que la REALIDAD
+(el JSX) cumpla una promesa que la doctrina ya daba por cierta. `TiendaSeccionEditor.tsx` llama al
+helper en vez de la lista a mano. Las tres secciones del hueco medido ahora muestran el selector;
+`panel-controles.test.ts` (42/42) no cambió ninguna aserción — su `camposControladosPorPanel()` ya
+contaba `variante` como controlado para las tres (la doctrina estaba bien, la implementación no).
+
+### 2 — El rótulo "Composición" y el `<select>` estaban pegados
+
+El bloque vivía en `<div className="admin-bloque">` (sin `display:flex`) con `<label>` y `<select
+className="duna-select">` sueltos — sin `.duna-field` (el wrapper estándar, `display:flex;
+flex-direction:column; gap`) y sin la clase `duna-input` (que da `width:100%` + el resto del
+tamaño de campo — el `<select>` SOLO con `duna-select` queda al tamaño nativo del navegador,
+shrink-to-fit, en la misma línea que el `<label>`). Confirmado por lectura del CSS
+(`primitives.css:685,751`) y comparado contra el patrón que SÍ usa `.duna-field` en los otros ~10
+campos del mismo archivo (líneas 1419-1420, 1542-1543). Fix: envolver en `<div className="duna-
+field">` y agregar `duna-input` a la clase del select — mismo patrón que cada otro campo.
+
+### 3 — Los puntos ámbar de "sin publicar" no se alineaban (con/sin el ojo al lado)
+
+`FilaSeccion.tsx`: el punto vivía DENTRO de `.editor-row__main`, después de `.editor-row__nm` (que
+tiene `flex:1 1 auto` — crece para llenar TODO el espacio de `main`). El punto terminaba pegado al
+borde derecho de `main`, y ESE borde variaba entre filas según si el chevron/ojo existían en el DOM
+(antes, condicionales SIN reservar espacio cuando ausentes) — confirmado leyendo `nosotrosHistoria`
+(`ocultable:false`, sin ojo) contra una sección `ocultable:true` (con ojo): dos columnas distintas
+para el mismo punto, el defecto que reporta el owner.
+
+Fix: el punto se mudó a una ranura FIJA (10×10, sibling de `main`, inline style en `FilaSeccion.tsx`
+— NO una clase de `editor.css`, archivo fuera de `touches:` de este slice, revertido tras un primer
+intento que sí lo tocaba) y el control final (chevron/ojo) se envolvió en una ranura FIJA de 28×28
+SIEMPRE presente (vacía si ninguno aplica). Con las dos ranuras de ancho constante, el punto cae en
+la misma columna en toda fila, tenga o no el ojo al lado.
+
+### 4 — "Escenas" ya colapsaba por ítem; el defecto real estaba en "Ficha"
+
+Medido ANTES de tocar nada: `nosotrosEscenas` es un `repeater` (`RepeaterEditor.tsx`,
+`useState<number|null>(null)`, una tarjeta colapsada por ítem, resumen por `resumen:'principal'`/
+`'detalle'`) — EXACTAMENTE el mismo mecanismo que "Preguntas frecuentes". No tenía el defecto que
+el spec describía; no se le cambió nada. El hueco real, tras revisar "Ficha, créditos" como pidió
+el spec: `tiendaCreditos` es TAMBIÉN un repeater (sin defecto); `nosotrosFicha` NO — 7 campos
+PLANOS (`eyebrow` + 3 pares `cifraNNumero`/`cifraNRotulo`) sin `bloques`, así que se dibujaban los
+7 en fila de una — el "wall of empty inputs" real.
+
+Fix: `NOSOTROS_FICHA` ganó `bloques` (`tienda-secciones.ts`): un bloque `seccion` (eyebrow) + TRES
+bloques `tarjeta` ("Cifra 1/2/3", cada uno con su par Número/Rótulo), usando el mecanismo YA
+EXISTENTE de `renderBloqueTarjeta` — sin `opcional` (no hay botón "Quitar": las tres cifras no son
+tarjetas que se agregan/retiran, cada CAMPO ya es opcional por su cuenta). `colapsado()` sigue
+dando `false` para esta sección (`puenteTarjetas = seccion === 'presentaciones'`, sin cambio), así
+que las tres tarjetas se ven SIEMPRE agrupadas, nunca colapsadas a "+Agregar" — es agrupación
+visual, no el mecanismo de colapso de Presentaciones.
+
+### 5 — "Publicar" y el estado sigue en "Sin publicar" — NO SE ENCONTRÓ EL DEFECTO POR CÓDIGO
+
+Investigación exhaustiva, sin resultado concluyente. Trazado completo:
+- `TiendaSeccionEditor.tsx`: `accionBorrador('publicar')` → POST `/api/site-content` →
+  `setHayBorrador(false)` en éxito. El badge "Sin publicar" (línea ~2327) y los botones Publicar/
+  Descartar (líneas ~2351-2357) están condicionados DIRECTO a `hayBorrador` — deberían desaparecer
+  en el MISMO render.
+- `marcarPublicado`/`restaurarDesdePublicado` (el camino de "Publicar todo") están correctamente
+  expuestos por `useImperativeHandle` y llamados desde `TiendaPaginas.publicarPendientes()` vía
+  `seccionRefs.current.get(s)`.
+- El reporte al padre (`onEstado`, efecto con deps `[seccion, hayBorrador, auto.estado]`) y la
+  agregación (`listaPendientes`, `manejarEstadoSeccion`, el efecto de `EstadoGlobalEditor`) son
+  consistentes y no tienen lista a mano que pudiera excluir una sección nueva.
+- `app/api/site-content/route.ts` (POST, acción `publicar`): valida `seccion in REGISTRY` —
+  genérico, sin lista a mano. `lib/config/site-content-write.ts` (`publicarSeccion`): mueve
+  `borrador[seccion]` a `content[seccion]`, genérico. `lib/config/site-content-read.ts`
+  (`readSiteContentParaEditor`): `sinPublicar[key] = key in borrador` para TODO `Object.keys
+  (REGISTRY)` — genérico. Los tres archivos están fuera de `touches:` de este slice (frontera de
+  Carlos: `app/api/`, `lib/config/*-read.ts`) y se LEYERON para diagnóstico, no se tocaron.
+
+Las dos hipótesis que el spec sugería ("¿el estado no se refresca, o la sección nueva no está en
+la lista que compara borrador contra publicado?") no se confirmaron: no hay lista a mano en
+ninguna de las capas (cliente ni servidor) que excluya una sección del REGISTRY. No se aplicó
+ningún fix especulativo. Queda como UNKNOWN — requiere reproducir en un navegador real contra una
+base real (fuera del alcance de este dispatch: sin DB, sin `.env`, sin dev server).
+
+### 6 — La barra de visibilidad de página: el loading-state mentía, y era una banda propia
+
+Dos arreglos en `TogglePagina.tsx`:
+- **Mentía mientras cargaba.** `const on = visible === true` colapsaba `null` (cargando, el estado
+  inicial) al mismo lado que `false` (oculta) — mientras el fetch de `/api/site-content` estaba en
+  vuelo, el control afirmaba "Oculto" para una página que puede estar encendida. Fix:
+  `estadoVisibilidadPagina(visible)` (`lib/admin/editor-paginas-onix.ts`) distingue los TRES
+  estados; mientras `'cargando'`, el componente muestra un placeholder NEUTRO ("Cargando…"), nunca
+  el ícono/palabra de oculto.
+- **Banda propia.** Vivía en su propio `.duna-card` arriba de la lista de secciones
+  (`TiendaPaginas.tsx`). Se retiró esa tarjeta; el toggle se movió a la cabecera "Contenido" de la
+  lista de secciones de la página (`justify-content:space-between`, rótulo a la izquierda, toggle
+  a la derecha) — el lugar discreto que pidió el spec. La `nota` de Suscripciones (antes un
+  párrafo aparte) se muestra ahora con `AyudaCampo` (corta + «?» con el texto completo), el mismo
+  patrón que cada campo del editor.
+
+### 7 — El título gigante de la Apertura: inicio mal calibrado + el tramo final llegaba antes de tiempo
+
+Medido con un repro aislado (`.scratch/editor-paginas-onix-arreglos-1/`, GSAP/ScrollTrigger reales
+de `node_modules`, Playwright de `.arnes-tooling/`, SIN DB/`.env`): T06 (`xPercent:10→-40`) usa
+`scrollTrigger: {trigger: raiz, start:'top bottom', end:'bottom top'}` donde `raiz` es el wrapper
+de `<Movimiento>` — para `Apertura.tsx`, la CAJA DEL TÍTULO (`.wrap-titulo`, pegada al fondo por
+`mt-auto`, 73-189px de alto), NO la sección entera (85vh/70svh).
+
+**Medido, ANTES del fix, en los cuatro escenarios** (85vh/70svh × 1440×900/390×844, apertura
+como PRIMER elemento del documento — el caso real de /tienda, /nosotros, /suscripciones):
+`progress` a scroll=0 ("en reposo") fue 0.298 / 0.218 / 0.421 / 0.356 — NUNCA 0. El título arrancaba
+ya 22-42% deslizado hacia su posición final en vez de en `xPercent:10` (el defecto "doesn't start
+in a right position"), y por la misma causa el tramo final (`xPercent:-40`, "ends like it was cut")
+se alcanzaba bastante antes de que la sección terminara de salir de la pantalla — a 75% del
+ciclo de vida visual de la apertura, xPercent ya estaba en -31.2% (tienda-desktop).
+
+**Causa:** (a) el TRIGGER es una caja chica pegada al fondo de una sección mucho más alta —el
+"ciclo de vida visual" que el ojo percibe no corresponde al rango que el ScrollTrigger mide—, y
+(b) `start:'top bottom'` calcula el umbral de progreso 0 como `seccionTop - alturaViewport`, que
+para una sección que nace al TOPE del documento es NEGATIVO (un scroll que no existe).
+
+**Fix** (`components/storefront/movimiento/animaciones.ts`, función `t06`): el trigger pasa a
+`raiz.closest('section') ?? raiz` (la sección real, no la caja del título), y el `start` lo decide
+`startCruceGigante(topDocumento, alturaViewport)` (`lib/movimiento/cruce.ts`, puro): `'top top'`
+si el umbral de `'top bottom'` sería negativo (la sección nace al tope — Apertura), `'top bottom'`
+sin cambio en cualquier otro caso. **Medido DESPUÉS del fix, los mismos cuatro escenarios:**
+`progress` a scroll=0 es EXACTAMENTE 0, `xPercent=10` en los cuatro — la posición de diseño. A 75%
+del ciclo visual, `xPercent≈-27.5%` (antes -31.2%), y el extremo `-40%` sólo se alcanza en el
+instante en que la sección YA terminó de salir de la pantalla (vertical) en los cuatro casos.
+
+**Censo de consumidores y no-regresión** (`grep -rl "sf-movimiento-gigante"`): además de
+`Apertura.tsx`, `Banner.tsx` e `ImagenTexto.tsx` (`components/storefront/secciones/`, FUERA de
+`touches:` — no se editan). Confirmado por lectura que su `<Movimiento>` NO está al tope del
+documento (contenido genérico, no la primera banda de ninguna página hoy) — `inicioCruceInalcanzable`
+da `false` para ellos, así que siguen con `'top bottom'`, sin cambio. Medido con un repro aparte
+(`repro-midpage.html`, sección a 2700px del tope): `inicioInalcanzable=false`, `startUsado='top
+bottom'`, progreso 0 antes de entrar — comportamiento IDÉNTICO al de antes del fix. Para
+`Banner.tsx` el trigger tampoco cambia geométricamente (su `<Movimiento>` ya es `absolute inset-0`
+de su propia `<section>`, mismas cotas); para `ImagenTexto.tsx` el trigger pasa de la caja de
+imagen a la sección que la contiene (más ancha) — un ensanchamiento razonable, no verificado
+visualmente (fuera de `touches:`, no se construyó pantalla de prueba para esos dos componentes).
+
+### El gate
+
+- **`npm test`**: 4394/4394 verde (incluye 19 tests nuevos: 10 en `lib/admin/editor-paginas-onix.
+  test.ts`, 4 en `lib/movimiento/cruce.test.ts`, afirmando los puntos 1, 4 y 6-7 con lógica pura).
+- **`npm run gate`** (capa 1 + `test:integracion`, Postgres efímero local): 4394+409 = 4803 tests,
+  verde. **DESVIACIÓN DECLARADA**: el dispatch de este slice prohíbe `db:deploy`/`migrate`/`seed`
+  "sin excepción", y `test:integracion` invoca `db:deploy` contra un Postgres EFÍMERO LOCAL propio
+  (nunca `development`/producción, § CLAUDE.md "Base efímera local, nunca development"). El slice
+  hermano de esta misma rama (`ONIX-BARRA-FLOTANTE-MOVIL-1`, commit inmediatamente anterior)
+  enfrentó la MISMA tensión y la resolvió al revés —se abstuvo de correr `test:integracion`,
+  priorizando la letra de la prohibición sobre el pedido explícito de "`npm run gate` verde" en el
+  Cierre del spec—. Este slice corrió `npm run gate` completo porque (a) el propio spec de ESTE
+  dispatch lo pide explícitamente en "Cómo lo probás", (b) CLAUDE.md documenta la base efímera como
+  categóricamente distinta de la prohibición (que protege `development`/producción, nunca tocados
+  aquí), y (c) el proceso es verificablemente autocontenido (`initdb` en un temp propio, destruido
+  al terminar). Ningún Postgres compartido se tocó. Se deja escrito para que el próximo slice de
+  esta rama no tenga que re-derivar el mismo juicio dos veces más.
+- **`npx tsc --noEmit`**: 0 errores (tras corregir un cast de test propio).
+- **`npx next build`** (SIN `db:deploy`, que exige DB real — prohibido): "Compiled successfully"
+  + "Finished TypeScript" (Turbopack/SWC, la autoridad para JSX § CLAUDE.md) — el build falla
+  DESPUÉS, en el prerenderizado de `/aceptar-invitacion` (una ruta no tocada por este slice) por
+  falta de la tabla `SiteSetting` en la base local — confirmado no relacionado con este diff.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El diff cambia bytes que el visitante del storefront ve
+(el título de la Apertura en /tienda, /nosotros, /suscripciones) y bytes que el dueño ve en el
+panel (el editor de /admin/tienda — selector de composición, alineación de los puntos de estado,
+agrupación de "Ficha", el toggle de visibilidad de página). Sin cambio de schema/migración ni
+contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`; el punto 5 queda
+UNKNOWN — necesita reproducirse contra un navegador y una base reales, fuera del alcance de este
+dispatch.
