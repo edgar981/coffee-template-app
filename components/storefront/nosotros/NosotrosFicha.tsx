@@ -44,23 +44,36 @@ export default function NosotrosFicha() {
   return (
     <section className="bg-[var(--sf-tinta)] py-20">
       <div className={`${contenedorClase} mx-auto`}>
+        {/* ROTULO EN VERDE SALVIA (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3): la maqueta pinta el
+            eyebrow y el rótulo de cada cifra en `#C9D1C3`, no crema apagada. Generalizado como
+            crema al 80% —no al 70% de antes— compuesta DIRECTO sobre la tinta sólida del fondo: es
+            la MISMA mecánica que ya usaba este componente (opacidad sobre `--sf-fondo`), sólo que a
+            ~80% la mezcla óptica resultante es un verde-grisáceo claro (medido contra las raíces de
+            Onix: ≈ `#c9ccc2`, a un paso de distancia perceptual de `#C9D1C3`) en vez del gris-crema
+            de `/70` — nunca un hex fijo de Onix, cualquier tenant deriva SU propio salvia de SU
+            propia tinta. */}
         {nosotrosFicha.eyebrow.trim() !== "" && (
-          <p className="mb-10 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-fondo)]/70">
+          <p className="mb-10 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-fondo)]/80">
             <CampoEditable campo="nosotrosFicha.eyebrow">{nosotrosFicha.eyebrow}</CampoEditable>
           </p>
         )}
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[5fr_7fr] lg:gap-16">
           {cifras.length > 0 && (
             <div>
+              {/* FILETE ABAJO DE CADA UNA (§ ONIX-PAGINAS-FIDELIDAD-1, R3) — la maqueta pone
+                  `border-bottom` en LAS TRES, nunca `border-top` con excepción de la primera (lo que
+                  había). PESO 300 (§ el spec item 3, "las cifras en peso 300"): la maqueta pinta el
+                  número en `font-weight:300`, más fino que el 400 que Playfair/Roboto Serif
+                  renderizan por defecto. */}
               {cifras.map((c) => (
                 <div
                   key={c.slot}
-                  className="flex items-baseline justify-between gap-4 border-t border-[var(--sf-fondo)]/20 py-3 first:border-t-0 first:pt-0"
+                  className="flex items-baseline justify-between gap-4 border-b border-[var(--sf-fondo)]/20 py-3"
                 >
-                  <span className="font-playfair text-[56px] leading-[0.9] tabular-nums text-[var(--sf-fondo)] sm:text-[120px]">
+                  <span className="font-playfair text-[56px] font-light leading-[0.9] tabular-nums text-[var(--sf-fondo)] sm:text-[120px]">
                     <CampoEditable campo={`nosotrosFicha.cifra${c.slot}Numero`}>{c.numero}</CampoEditable>
                   </span>
-                  <span className="shrink-0 pb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--sf-fondo)]/70 sm:pb-3">
+                  <span className="shrink-0 pb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--sf-fondo)]/80 sm:pb-3">
                     <CampoEditable campo={`nosotrosFicha.cifra${c.slot}Rotulo`}>{c.rotulo}</CampoEditable>
                   </span>
                 </div>

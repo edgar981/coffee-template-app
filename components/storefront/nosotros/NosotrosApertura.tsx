@@ -5,11 +5,18 @@
 // con contenido PROPIO de esta sección (`nosotrosApertura`) — nunca el de `tiendaEncabezado` ni de
 // `suscripcionApertura`.
 //
-// SIN override de `alto`: el spec la pide "la de /tienda tal cual" — a diferencia de
-// `SuscripcionApertura` (que ajusta a 70svh "para que asome la orden"), /nosotros no tiene una
-// sección inmediata que necesite asomar, así que usa el DEFAULT de la pieza (85vh, el de /tienda).
+// MISMO ALTO QUE /suscripciones (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 1) — "SIN override de
+// `alto`" VENCIÓ: la maqueta aprobada del 2026-10-11 mide la apertura de /nosotros IGUAL a la de
+// /suscripciones (691px), y medido contra el código vivo, sin pasar `alto` esta pieza caía al
+// DEFAULT de /tienda (85vh), más alta de lo aprobado. `ALTO` es el MISMO literal que
+// `SuscripcionApertura.tsx` — dos consumidores del mismo valor, nunca un token compartido nuevo
+// para una clase de Tailwind completa (§ el docstring de `Apertura.tsx`, "un literal de clase
+// COMPLETO, nunca interpolado").
 // SIN botón de video: la pieza `Apertura` no tiene esa capacidad hoy — el spec lo dice explícito
 // ("todavía no hay video"); llega con su propia tanda cuando exista.
+//
+// `quieto` (§ ONIX-PAGINAS-FIDELIDAD-1): el título NO se mueve con el scroll, como en
+// /suscripciones — ver el docstring de `Apertura.tsx`.
 //
 // HIDE-ON-OFF, no hide-on-empty: igual que `SuscripcionApertura`, `Apertura` SIEMPRE pinta algo
 // —tinta llana si no hay foto—, así que el gate es el TOGGLE (`seccionEsVisible`), nunca "¿hay
@@ -26,6 +33,7 @@ import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import Apertura from '@/components/storefront/tienda/Apertura';
 
 const TITULO_POR_DEFECTO = 'Nosotros';
+const ALTO = 'h-[70svh] min-h-[420px]';
 
 export default function NosotrosApertura({ negocio }: { negocio?: string }) {
   const { nosotrosApertura } = useSiteContent();
@@ -39,6 +47,8 @@ export default function NosotrosApertura({ negocio }: { negocio?: string }) {
       rotuloIzquierda={nosotrosApertura.rotuloIzquierda}
       rotuloDerecha={nosotrosApertura.rotuloDerecha}
       titulo={titulo}
+      alto={ALTO}
+      quieto
     />
   );
 }

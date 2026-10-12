@@ -39,8 +39,14 @@ export default function CierreFraseYBoton({ frase, cta, preview, anchoClase }: C
       className="py-16"
     >
       <div className={`${anchoClase} mx-auto`}>
-        <div className="mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-playfair text-3xl uppercase leading-tight text-[var(--sf-tinta)] sm:text-4xl">
+        {/* CENTRADO, no `justify-between` (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 7) — la
+            maqueta agrupa frase+botón centrados con un hueco grande entre ellos
+            (`justify-content:center; gap:…clamp(40px,10cqi,170px)`), en vez de empujarlos a los
+            extremos. `flex-wrap` deja que se apilen centrados en angosto, sin el `flex-col` propio
+            de antes. */}
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-6 text-center sm:gap-[144px]">
+          {/* 44px (§ el spec, punto 7: "Cierre: 44px h2") — era `text-3xl`/`text-4xl` (30/36px). */}
+          <p className="font-playfair text-[28px] uppercase leading-tight text-[var(--sf-tinta)] sm:text-[44px]">
             {frase}
           </p>
           <BotonCierre cta={cta} preview={preview} />
@@ -52,10 +58,14 @@ export default function CierreFraseYBoton({ frase, cta, preview, anchoClase }: C
 
 /** EL BOTÓN DEL CIERRE — EL DESTINO DECIDE EL ELEMENTO: una ruta interna (`/suscripciones`, …) usa
  *  `<Link>` (igual que el resto de los CTA del storefront); un enlace externo (WhatsApp) sigue
- *  siendo un `<a>`, con `target="_blank"` salvo en la vista previa del editor. */
+ *  siendo un `<a>`, con `target="_blank"` salvo en la vista previa del editor.
+ *
+ *  UPPERCASE 13px (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 7) — la maqueta pinta el botón
+ *  fantasma en mayúscula, 13px/600, ls .06em, radio 2px (`rounded-[2px]`, no `sf-pildora`: la
+ *  maqueta de Onix es de esquina RECTA en todo su chrome de botón, nunca píldora). */
 function BotonCierre({ cta, preview }: { cta: CierreFraseYBotonCta | null; preview: boolean }) {
   if (!cta) return null;
-  const clase = 'sf-pildora shrink-0 cursor-pointer px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
+  const clase = 'shrink-0 cursor-pointer rounded-[2px] px-6 py-3 text-[13px] font-semibold uppercase tracking-[0.06em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
   if (cta.href.startsWith('/')) {
     return <Link href={cta.href} className={clase}>{cta.label}</Link>;
   }

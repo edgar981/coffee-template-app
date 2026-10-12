@@ -39,7 +39,10 @@ export default function InterludioPlano({ imagen, pie, preview }: InterludioPlan
       initial={preview ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="relative aspect-[4/5] w-full overflow-hidden sm:aspect-[21/9]"
+      // ALTO FIJO EN MÓVIL (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5/punto 7): la maqueta mide
+      // 400px en celular — un `aspect-[4/5]` sobre 390px de ancho daba 488px, más alto de lo
+      // aprobado. El escritorio sigue por aspecto (21/9, sin cambio — no está en el plan).
+      className="relative h-[400px] w-full overflow-hidden sm:aspect-[21/9] sm:h-auto"
     >
       <Movimiento id="I03" as="div" className="absolute inset-0">
         <div className="absolute inset-x-0 -top-[12%] -bottom-[12%]">
@@ -56,12 +59,15 @@ export default function InterludioPlano({ imagen, pie, preview }: InterludioPlan
           />
         </div>
       </Movimiento>
+      {/* SIN franja de degradé (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5/punto 7: "text-shadow
+          caption with no gradient band") — la maqueta pone el pie SOBRE la foto, crema plena, con
+          una sombra de texto en vez de una banda oscura detrás. */}
       {pie && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--sf-tinta)]/70 to-transparent px-6 py-6 sm:px-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)]/90">
-            {pie}
-          </p>
-        </div>
+        <p
+          className="absolute bottom-7 left-6 z-10 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-fondo)] [text-shadow:0_1px_8px_rgba(0,0,0,0.4)] sm:left-10"
+        >
+          {pie}
+        </p>
       )}
     </motion.section>
   );

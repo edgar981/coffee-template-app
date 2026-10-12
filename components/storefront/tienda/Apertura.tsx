@@ -28,10 +28,21 @@ export interface AperturaProps {
   /** Default = el alto de /tienda (`ALTO_POR_DEFECTO`). Un segundo consumidor con otra proporción
    *  pasa su propio literal de clase completo. */
   alto?: string;
+  /** EL TÍTULO QUIETO (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 1) — sin desplazamiento con el
+   *  scroll, al ras de la izquierda, sangrando por el borde inferior: la maqueta aprobada de
+   *  /suscripciones y /nosotros. Default `false`: /tienda CONSERVA su movimiento tal cual —
+   *  "nadie lo pidió cambiar" — así que esto no cambia nada ahí salvo el fix de acentos de abajo,
+   *  que es universal.
+   *
+   *  Se logra con `Movimiento id={quieto ? undefined : 'T06'}`: `id` AUSENTE ya hace que esa pieza
+   *  NO monte ningún wrapper propio (§ Movimiento.tsx — "sin un id, este componente no renderiza
+   *  ningún nodo propio"), así que el título queda PLANO, sin animación — y esto no toca
+   *  `lib/movimiento/` ni `animaciones.ts` para nada: T06 sigue intacto para quien lo pida. */
+  quieto?: boolean;
 }
 
 export default function Apertura({
-  imagen, rotuloIzquierda, rotuloDerecha, titulo, alto = ALTO_POR_DEFECTO,
+  imagen, rotuloIzquierda, rotuloDerecha, titulo, alto = ALTO_POR_DEFECTO, quieto = false,
 }: AperturaProps) {
   return (
     <section className={`relative flex ${alto} w-full flex-col overflow-hidden bg-[var(--sf-tinta)]`}>
@@ -50,20 +61,46 @@ export default function Apertura({
             quality={85}
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[var(--sf-tinta)]/40 via-transparent to-[var(--sf-tinta)]/80" />
+          {/* EL VELO (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3 — "section colors") — la maqueta
+              oscurece hasta 35% abajo (`rgba(16,36,7,.35)` = tinta al 35%), no 80%: antes el degradé
+              llegaba a tinta/80 y se veía más oscuro y más verde de lo aprobado. `color-mix` en vez
+              de un `to-[var(--sf-tinta)]/35` porque el stop intermedio de la maqueta NO es
+              transparente-a-mitad (el default de Tailwind): es transparente A LOS 30%, así que el
+              degradé entero se escribe como un `linear-gradient` arbitrario con sus TRES stops
+              exactos — `color-mix` deriva el 35% de LA TINTA DEL TENANT, nunca un hex fijo de Onix. */}
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18),transparent_30%,color-mix(in_srgb,var(--sf-tinta)_35%,transparent)_100%)]" />
         </>
       )}
 
       {(rotuloIzquierda || rotuloDerecha) && (
-        <div className="relative z-10 flex items-start justify-between px-6 pt-8 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)]/60 sm:px-10">
+        // CREMA PLENA (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3): la maqueta pinta los rótulos de
+        // esquina al 100% de opacidad; antes iban a `/60`, que los dejaba apagados contra la foto.
+        <div className="relative z-10 flex items-start justify-between px-6 pt-8 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)] sm:px-10">
           <span>{rotuloIzquierda}</span>
           <span>{rotuloDerecha}</span>
         </div>
       )}
 
-      <div className="relative z-10 mt-auto overflow-hidden pb-6 sm:pb-10">
-        <Movimiento id="T06" as="div">
-          <h1 className="sf-movimiento-gigante select-none whitespace-nowrap font-playfair text-[clamp(60px,14vw,220px)] uppercase leading-[0.82] text-[var(--sf-fondo)]">
+      {/* SIN `overflow-hidden` EN ESTE WRAPPER (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 1 — "sin
+          recortar acentos", arreglado en LAS TRES composiciones porque es un defecto, no sólo en las
+          dos quietas). Con `leading-[0.82]` el line-box queda más chico que el glifo completo, y
+          este wrapper recortaba la TAPA de los acentos («É») contra su propio borde superior — medido:
+          «CAFÉ ONIX» perdía la tilde. El recorte que sí hace falta (el sangrado del título por el
+          borde inferior de la foto) lo sigue dando el `overflow-hidden` del `<section>` de arriba. */}
+      <div className={`relative z-10 mt-auto ${quieto ? 'pl-3 sm:pl-[clamp(12px,1.4vw,24px)]' : 'pb-6 sm:pb-10'}`}>
+        <Movimiento id={quieto ? undefined : 'T06'} as="div">
+          <h1
+            className={
+              quieto
+                ? // AL RAS DE LA IZQUIERDA, SANGRANDO POR EL BORDE INFERIOR, SIN DESPLAZAMIENTO
+                  // (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 1): el `22vw` mobile sustituye al
+                  // `22cqi` de la maqueta — este storefront no tiene container queries armadas
+                  // (`container-type`) en ningún ancestro, así que `vw` es el sustituto pragmático
+                  // ya sugerido por la revisión, no una invención.
+                  'sf-movimiento-gigante select-none whitespace-normal font-playfair text-[22vw] uppercase leading-[0.86] tracking-[-0.01em] text-[var(--sf-fondo)] sm:whitespace-nowrap sm:text-[clamp(84px,14vw,220px)] sm:leading-[0.82]'
+                : 'sf-movimiento-gigante select-none whitespace-nowrap font-playfair text-[clamp(60px,14vw,220px)] uppercase leading-[0.82] text-[var(--sf-fondo)]'
+            }
+          >
             {titulo}
           </h1>
         </Movimiento>

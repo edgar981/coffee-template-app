@@ -62,11 +62,21 @@ export default function PreguntasFrecuentes() {
 // `role="region"`/`aria-labelledby` en el panel.
 function LetraPequena({ titulo, items }: { titulo: string; items: SuscripcionFaqItem[] }) {
   const [abierta, setAbierta] = useState<number | null>(0);
+  const filete = "border-[var(--sf-tinta)]/15";
 
   return (
-    <section className="py-16 bg-[var(--sf-fondo)]">
+    // PADDING 86px (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 7) — la maqueta mide
+    // `clamp(56px,6cqi,96px)`, ~86px al ancho real; antes `py-16` (64px).
+    <section className="py-[86px] bg-[var(--sf-fondo)]">
       <div className="mx-auto max-w-[720px] px-4">
-        <h2 className="mb-6 text-left font-playfair text-3xl uppercase leading-tight text-[var(--sf-tinta)]">
+        {/* RÓTULO «LETRA PEQUEÑA» (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5/punto 7) — la maqueta
+            aprobada lleva este eyebrow FIJO encima del título; es chrome de la composición, no un
+            campo de `suscripcionFaq` (que no tiene uno) — mismo trato que el resto de los rótulos
+            `.rotulo` de estas piezas (11.5px/700/ls .16em, gris cálido). */}
+        <p className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/65">
+          Letra pequeña
+        </p>
+        <h2 className="mb-6 text-left font-playfair text-[28px] uppercase leading-[1.55] text-[var(--sf-tinta)] sm:text-[40px]">
           <CampoEditable campo="suscripcionFaq.titulo">{titulo}</CampoEditable>
         </h2>
         <div>
@@ -75,22 +85,24 @@ function LetraPequena({ titulo, items }: { titulo: string; items: SuscripcionFaq
             const botonId = `letra-pequena-boton-${i}`;
             const panelId = `letra-pequena-panel-${i}`;
             return (
-              <div key={i} className="border-t border-[var(--sf-linea)]/15 first:border-t-0">
+              // FILETE ARRIBA DE LA PRIMERA + ABAJO DE CADA UNA (§ R1/R3, mismo arreglo que
+              // `CreditosFilas` — tinta al 15%, N+1 filetes, no sólo ENTRE filas).
+              <div key={i} className={`border-b ${filete} ${i === 0 ? `border-t ${filete}` : ""}`}>
                 <button
                   type="button"
                   id={botonId}
                   aria-expanded={abierto}
                   aria-controls={panelId}
                   onClick={() => setAbierta((actual) => siguienteAbierta(actual, i))}
-                  className="flex w-full items-center justify-between gap-4 py-[18px] text-left text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--sf-tinta)]"
+                  className="flex w-full items-center justify-between gap-4 py-[18px] text-left text-[12.5px] font-semibold uppercase tracking-[0.14em] text-[var(--sf-tinta)]"
                 >
                   <span><CampoEditable campo={`suscripcionFaq.items.${i}.question`}>{faq.question}</CampoEditable></span>
-                  <span aria-hidden="true" className="font-playfair text-2xl font-light leading-none text-[var(--sf-tinta)]">
+                  <span aria-hidden="true" className="font-playfair text-[22px] font-light leading-none tracking-normal text-[var(--sf-tinta)]">
                     {abierto ? "–" : "+"}
                   </span>
                 </button>
                 {abierto && (
-                  <div id={panelId} role="region" aria-labelledby={botonId} className="max-w-[60ch] pb-5 text-[15px] text-[var(--sf-texto)]">
+                  <div id={panelId} role="region" aria-labelledby={botonId} className="max-w-[60ch] pb-5 text-[15px] text-[var(--sf-tinta)]/65">
                     <CampoEditable campo={`suscripcionFaq.items.${i}.answer`} multilinea>{faq.answer}</CampoEditable>
                   </div>
                 )}

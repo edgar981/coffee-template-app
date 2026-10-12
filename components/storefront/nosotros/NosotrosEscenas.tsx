@@ -74,24 +74,29 @@ export default function NosotrosEscenas() {
                   />
                 </CampoEditable>
               </div>
-              <div className="px-6 pt-8 sm:px-0">
+              {/* IMAGEN → TÍTULO: 24px (§ el spec, punto 7), no 32px (`pt-8`). NÚMERO «01»: 18px/700,
+                  ls .12em, gris cálido (§ el spec item 3) — era 14px/500. PÁRRAFO en `--sf-tinta`
+                  («texto principal en la tinta»), no `--sf-texto` (oliva para Onix). */}
+              <div className="px-6 pt-6 sm:px-0">
                 <div className="flex items-baseline gap-3">
-                  <span className="text-sm font-medium tabular-nums text-[var(--sf-texto-suave)]">
+                  <span className="text-[18px] font-bold tracking-[0.12em] tabular-nums text-[var(--sf-tinta)]/65">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-playfair text-[28px] uppercase leading-tight text-[var(--sf-tinta)] sm:text-[40px]">
+                  <h3 className="font-playfair text-[28px] uppercase leading-[1.05] text-[var(--sf-tinta)] sm:text-[40px]">
                     <CampoEditable campo={`nosotrosEscenas.items.${idx}.titulo`}>{e.titulo}</CampoEditable>
                   </h3>
                 </div>
                 {e.descripcion.trim() !== "" && (
-                  <p className="mt-4 max-w-xl text-[17px] text-[var(--sf-texto)]">
+                  <p className="mt-4 max-w-xl text-[17px] text-[var(--sf-tinta)]">
                     <CampoEditable campo={`nosotrosEscenas.items.${idx}.descripcion`} multilinea>
                       {e.descripcion}
                     </CampoEditable>
                   </p>
                 )}
+                {/* COLUMNA COMPLETA, 880px (§ el spec, punto 7) — la maqueta corre los créditos al
+                    ancho ENTERO de la escena, no acotados a `max-w-xl` (576px) como el párrafo. */}
                 {filas.length > 0 && (
-                  <div className="mt-6 max-w-xl">
+                  <div className="mt-6">
                     <CreditosFilas filas={filas} />
                   </div>
                 )}

@@ -48,8 +48,11 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
     if (catalog === null) return <SuscripcionTaquillaCargando />;
     if (derivarMatrizTaquilla(catalog)) {
       return (
-        <section className="py-20 bg-[var(--sf-fondo)]">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        // 1344PX, PADDING 72PX (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — la maqueta corre
+        // la Taquilla en un `.env` de 1344px con 48px de gutter y 72px de padding de sección; antes
+        // `max-w-5xl`(1024px) + `py-20`(80px), más angosto y con menos aire vertical.
+        <section className="py-[72px] bg-[var(--sf-fondo)]">
+          <div className="mx-auto max-w-[1344px] px-6 lg:px-12">
             <SuscripcionTaquilla catalog={catalog} whatsapp={whatsapp} suscripcionPlanes={c} />
           </div>
         </section>
@@ -62,9 +65,9 @@ export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
 
 function SuscripcionTaquillaCargando() {
   return (
-    <section className="py-20 bg-[var(--sf-fondo)]" aria-hidden="true">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
+    <section className="py-[72px] bg-[var(--sf-fondo)]" aria-hidden="true">
+      <div className="mx-auto max-w-[1344px] px-6 lg:px-12">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-[5fr_7fr] md:gap-[72px]">
           <div className="aspect-square animate-pulse rounded bg-[var(--sf-superficie)]" />
           <div className="space-y-3">
             <div className="h-4 w-1/2 animate-pulse rounded bg-[var(--sf-superficie)]" />

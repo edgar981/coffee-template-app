@@ -38,11 +38,15 @@ export default function NosotrosHistoriaSinopsis() {
   const pie = retratoNombre.trim() !== "" ? `${retratoNombre} · CAFICULTOR` : "";
 
   return (
-    <section className="w-full bg-[var(--sf-fondo)]">
+    // FILETE INFERIOR (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 2/punto 7): la maqueta cierra la
+    // Sinopsis con una línea de 1px abajo de TODA la banda (`.sinopsis{border-bottom}`) — ausente
+    // antes.
+    <section className="w-full border-b border-[var(--sf-tinta)]/15 bg-[var(--sf-fondo)]">
       <div className="grid grid-cols-1 lg:min-h-[640px] lg:grid-cols-2">
         {/* TEXTO — primero en el DOM (mobile: debajo del retrato, § `order-2`); a la izquierda en
-            escritorio (`lg:order-1`). */}
-        <div className="order-2 flex items-center px-6 py-16 lg:order-1 lg:px-16 lg:py-0">
+            escritorio (`lg:order-1`). PADDING 86px (§ el spec, punto 7): la maqueta mide
+            `clamp(40px,6cqi,96px)`, ~86px al ancho de columna real. */}
+        <div className="order-2 flex items-center px-6 py-16 lg:order-1 lg:px-[86px] lg:py-0">
           <motion.div
             initial={preview ? false : "hidden"}
             animate={preview ? "visible" : undefined}
@@ -50,8 +54,12 @@ export default function NosotrosHistoriaSinopsis() {
             viewport={preview ? undefined : { once: true }}
             variants={fadeUp}
           >
+            {/* RÓTULO (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3) — la misma superficie `.rotulo`
+                que Taquilla/Letra pequeña: 11.5px/700/ls .16em, gris cálido (tinta al 65% sobre
+                crema — § el spec, "texto secundario en un gris cálido"). El TEXTO sigue siendo dato
+                del owner (`nosotrosHistoria.eyebrow`, § el punto 8 del plan); sólo cambia el estilo. */}
             {eyebrow && (
-              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--sf-acento-texto)]">
+              <p className="mb-4 text-[11.5px] font-bold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/65">
                 <CampoEditable campo="nosotrosHistoria.eyebrow">{eyebrow}</CampoEditable>
               </p>
             )}
@@ -69,26 +77,36 @@ export default function NosotrosHistoriaSinopsis() {
           whileInView={preview ? undefined : { opacity: 1, scale: 1 }}
           viewport={preview ? undefined : { once: true }}
           transition={preview ? undefined : { duration: 0.6 }}
-          className="relative order-1 aspect-[4/5] overflow-hidden bg-[var(--sf-tinta)] lg:order-2 lg:aspect-auto lg:border-l lg:border-[var(--sf-linea)]/15"
+          className="relative order-1 aspect-[4/5] overflow-hidden bg-[var(--sf-tinta)] lg:order-2 lg:aspect-auto lg:border-l lg:border-[var(--sf-tinta)]/15"
         >
           {tieneImagen ? (
             <CampoEditable campo="nosotrosHistoria.imagen" tipo="imagen">
-              <Image src={imagen} alt={pie || ""} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
+              {/* OBJECT-POSITION 50%/30% (§ el spec, punto 7): la maqueta encuadra el retrato más
+                  arriba (30% desde el tope), no centrado — medido contra un retrato de persona, el
+                  centrado corta la cabeza. */}
+              <Image
+                src={imagen}
+                alt={pie || ""}
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover object-[50%_30%]"
+              />
             </CampoEditable>
           ) : activo ? (
             <HuecoImagenOpcional campo="nosotrosHistoria.imagen" className="absolute inset-0" />
           ) : null}
+          {/* SIN franja de degradé, texto con sombra (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5,
+              MISMO tratamiento que `InterludioPlano.tsx` — la maqueta usa el mismo patrón para los
+              dos pies sobre foto). */}
           {pie && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[var(--sf-tinta)]/70 to-transparent px-6 py-6 sm:px-10">
+            <p className="absolute bottom-[22px] left-6 z-10 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-fondo)] [text-shadow:0_1px_8px_rgba(0,0,0,0.5)]">
               {/* El sufijo " · CAFICULTOR" queda FUERA de `CampoEditable`: el overlay de edición en
                   vivo lee `textContent` como valor inicial (§ EditorPuenteVivo.tsx) y lo escribe TAL
                   CUAL de vuelta en `retratoNombre` — envolver el `pie` COMPUTADO lo guardaría con el
                   sufijo duplicado en el siguiente ciclo. */}
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)]/90">
-                <CampoEditable campo="nosotrosHistoria.retratoNombre">{retratoNombre}</CampoEditable>
-                {" · CAFICULTOR"}
-              </p>
-            </div>
+              <CampoEditable campo="nosotrosHistoria.retratoNombre">{retratoNombre}</CampoEditable>
+              {" · CAFICULTOR"}
+            </p>
           )}
         </motion.div>
       </div>

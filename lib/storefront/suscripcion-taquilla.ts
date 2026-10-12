@@ -37,20 +37,40 @@ export function segmentoMolienda(decision: DecisionMolienda, nombreSeleccionado:
   return null; // 'ninguna' y 'agotada': nada que decidir, nada que decir
 }
 
+/**
+ * «Café Molido, Molienda Media» / «Café en Grano» — el segmento de PRESENTACIÓN del resumen/mensaje
+ * (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4). `presentacion` es la CATEGORÍA elegida tal cual
+ * (`activa.categoria` de la matriz, p. ej. "Café en Grano" / "Café Molido") — NUNCA una palabra
+ * hardcodeada ("molido"/"grano"): la taxonomía la deriva el catálogo (§ CLAUDE.md, "La taxonomía se
+ * DERIVA del catálogo"), así que esta función no puede suponer su forma. Si hay molienda que
+ * declarar, se anexa a la MISMA frase ("Café Molido, Molienda Media"); si no, la presentación sola.
+ */
+function segmentoPresentacion(presentacion: string, segMolienda: string | null): string {
+  return segMolienda ? `${presentacion}, ${segMolienda}` : presentacion;
+}
+
 export interface ResumenTaquillaInput {
   bolsas: number;
   peso: number;
+  /** La categoría elegida — § `segmentoPresentacion`. */
+  presentacion: string;
   segmentoMolienda: string | null;
   frecuenciaEtiqueta: string;
 }
 
 /**
- * «2 × 250 G · MOLIENDA MEDIO · CADA MES» — el texto YA en mayúscula (la serif mayúscula del
- * resumen es tipografía, § refero-onix-paginas.md; este helper no depende de que el CSS la ponga,
- * para que el test afirme el texto final sin levantar DOM).
+ * «2 × 250 G · CAFÉ MOLIDO, MOLIENDA MEDIA · CADA MES» — el texto YA en mayúscula (la serif
+ * mayúscula del resumen es tipografía, § refero-onix-paginas.md; este helper no depende de que el
+ * CSS la ponga, para que el test afirme el texto final sin levantar DOM). Antes el resumen NUNCA
+ * nombraba la presentación elegida — sólo bolsas/peso/molienda/frecuencia, § ONIX-PAGINAS-
+ * FIDELIDAD-1, el spec item 4 ("hoy dicen sólo «1 bolsa de 250 g, cada 15 días»").
  */
-export function resumenTaquilla({ bolsas, peso, segmentoMolienda: seg, frecuenciaEtiqueta }: ResumenTaquillaInput): string {
-  const partes = [`${bolsas} × ${peso} G`, ...(seg ? [seg.toUpperCase()] : []), `CADA ${frecuenciaEtiqueta.toUpperCase()}`];
+export function resumenTaquilla({ bolsas, peso, presentacion, segmentoMolienda: seg, frecuenciaEtiqueta }: ResumenTaquillaInput): string {
+  const partes = [
+    `${bolsas} × ${peso} G`,
+    segmentoPresentacion(presentacion, seg).toUpperCase(),
+    `CADA ${frecuenciaEtiqueta.toUpperCase()}`,
+  ];
   return partes.join(' · ');
 }
 
@@ -67,15 +87,19 @@ export interface MensajeTaquillaInput {
   nombreProducto: string;
   bolsas: number;
   peso: number;
+  /** La categoría elegida — § `segmentoPresentacion`. */
+  presentacion: string;
   segmentoMolienda: string | null;
   frecuenciaEtiqueta: string;
 }
 
-/** El mensaje EXACTO que se manda por WhatsApp — el texto que el botón promete, impreso debajo. */
-export function mensajeTaquilla({ nombreProducto, bolsas, peso, segmentoMolienda: seg, frecuenciaEtiqueta }: MensajeTaquillaInput): string {
+/** El mensaje EXACTO que se manda por WhatsApp — el texto que el botón promete, impreso debajo
+ *  (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4, la línea «Se envía: "…"»). Antes no nombraba la
+ *  presentación elegida; ahora sí, en la MISMA cláusula que la molienda si aplica. */
+export function mensajeTaquilla({ nombreProducto, bolsas, peso, presentacion, segmentoMolienda: seg, frecuenciaEtiqueta }: MensajeTaquillaInput): string {
   const partes = [
     `${bolsas} ${bolsas > 1 ? 'bolsas' : 'bolsa'} de ${peso} g`,
-    ...(seg ? [seg.toLowerCase()] : []),
+    segmentoPresentacion(presentacion, seg).toLowerCase(),
     `cada ${frecuenciaEtiqueta.toLowerCase()}`,
   ];
   return `Hola, quiero suscribirme a ${nombreProducto}: ${partes.join(', ')}.`;

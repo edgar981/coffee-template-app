@@ -13,6 +13,10 @@
 // ocultan SIN contenido), `Apertura` SIEMPRE pinta algo —tinta llana si no hay foto—, así que el
 // gate es el TOGGLE (`seccionEsVisible`), nunca "¿hay imagen?". Nace `visible:false` (§ el docstring
 // de `SuscripcionAperturaContent`): byte-idéntico para todo tenant sin fila.
+//
+// `quieto` (§ ONIX-PAGINAS-FIDELIDAD-1): el título NO se mueve con el scroll — la maqueta aprobada
+// lo pide quieto, al ras de la izquierda, sangrando por el borde inferior. Ver el docstring de
+// `Apertura.tsx`.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import Apertura from '@/components/storefront/tienda/Apertura';
@@ -30,6 +34,7 @@ export default function SuscripcionApertura() {
       rotuloDerecha={suscripcionApertura.rotuloDerecha}
       titulo={suscripcionApertura.titulo}
       alto={ALTO}
+      quieto
     />
   );
 }

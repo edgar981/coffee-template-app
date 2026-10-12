@@ -108,11 +108,18 @@ test("letraPequena: la PRIMERA pregunta arranca abierta (aria-expanded=\"true\")
   assert.ok(!html.includes('Sí, cuando quieras.'));
 });
 
-test("letraPequena: lleva el filete de los créditos (border-t … first:border-t-0) y la columna de 720px", () => {
+test("letraPequena: lleva el filete de tinta ARRIBA de la primera fila (§ ONIX-PAGINAS-FIDELIDAD-1, R1+R3 — ya NO es `border-[var(--sf-linea)]/15 first:border-t-0`, invisible para Onix y sólo ENTRE filas) y la columna de 720px", () => {
   const items = [{ question: '¿Cómo pago?', answer: 'Por chat.' }];
   const html = renderToStaticMarkup(contenidoConVariante('letraPequena', items));
-  assert.ok(html.includes('border-t border-[var(--sf-linea)]/15 first:border-t-0'));
+  assert.ok(html.includes('border-t border-[var(--sf-tinta)]/15'), 'la primera fila lleva su PROPIO filete de arriba, de tinta');
+  assert.ok(!html.includes('var(--sf-linea)'), 'R1: --sf-linea deriva casi invisible para Onix — ya no se usa acá');
   assert.ok(html.includes('max-w-[720px]'));
+});
+
+test("letraPequena: lleva el rótulo fijo «Letra pequeña» (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5/punto 7)", () => {
+  const items = [{ question: '¿Cómo pago?', answer: 'Por chat.' }];
+  const html = renderToStaticMarkup(contenidoConVariante('letraPequena', items));
+  assert.ok(html.includes('Letra pequeña'));
 });
 
 test("letraPequena: sin items (hide-on-empty) no renderiza nada, igual que 'tarjetas'", () => {

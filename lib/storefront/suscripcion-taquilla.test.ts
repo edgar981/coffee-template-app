@@ -12,13 +12,15 @@ import {
   mensajeTaquilla,
   creditosDeTaquilla,
 } from './suscripcion-taquilla';
-import { DEFAULTS, type SiteContentData } from '../config/site-content-defaults';
+import { DEFAULTS, type SiteContentData, type SuscripcionPlanesContent } from '../config/site-content-defaults';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { navOffsetClase } from '../config/themes';
 import SuscripcionApertura from '@/components/storefront/suscripciones/SuscripcionApertura';
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
+import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
+import type { Product } from '@/types/product';
 
 // § ONIX-SUSCRIPCION-TAQUILLA-1. Dos mitades: las reglas PURAS de la Taquilla de suscripción
 // (resumen, referencia de precio, mensaje de WhatsApp, para los cuatro modos de molienda) y la
@@ -66,19 +68,20 @@ test('segmentoMolienda: modo "agotada" → null (declara opciones, ninguna dispo
   assert.equal(segmentoMolienda({ modo: 'agotada' }, null), null);
 });
 
-// ─── resumenTaquilla ────────────────────────────────────────────────────────────────────────────
+// ─── resumenTaquilla — SIEMPRE nombra la presentación (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4:
+// antes el resumen nunca la nombraba, "hoy dicen sólo «1 bolsa de 250 g, cada 15 días»") ─────────
 
-test('resumenTaquilla: «2 × 250 G · MOLIENDA MEDIA · CADA MES» — con molienda', () => {
+test('resumenTaquilla: «2 × 250 G · CAFÉ MOLIDO, MOLIENDA MEDIA · CADA MES» — molido CON molienda', () => {
   assert.equal(
-    resumenTaquilla({ bolsas: 2, peso: 250, segmentoMolienda: 'Molienda Media', frecuenciaEtiqueta: 'Mes' }),
-    '2 × 250 G · MOLIENDA MEDIA · CADA MES',
+    resumenTaquilla({ bolsas: 2, peso: 250, presentacion: 'Café Molido', segmentoMolienda: 'Molienda Media', frecuenciaEtiqueta: 'Mes' }),
+    '2 × 250 G · CAFÉ MOLIDO, MOLIENDA MEDIA · CADA MES',
   );
 });
 
-test('resumenTaquilla: sin segmento de molienda, el segmento se OMITE (no dos " · " seguidos)', () => {
+test('resumenTaquilla: «1 × 500 G · CAFÉ EN GRANO · CADA 15 DÍAS» — sin molienda, la presentación SOLA (no dos " · " seguidos)', () => {
   assert.equal(
-    resumenTaquilla({ bolsas: 1, peso: 500, segmentoMolienda: null, frecuenciaEtiqueta: '15 días' }),
-    '1 × 500 G · CADA 15 DÍAS',
+    resumenTaquilla({ bolsas: 1, peso: 500, presentacion: 'Café en Grano', segmentoMolienda: null, frecuenciaEtiqueta: '15 días' }),
+    '1 × 500 G · CAFÉ EN GRANO · CADA 15 DÍAS',
   );
 });
 
@@ -94,33 +97,34 @@ test('referenciaPrecioTaquilla: VARIAS bolsas, con multiplicador', () => {
   assert.equal(referenciaPrecioTaquilla(2, 20000), `Referencia: 2 × ${formatCOP(20000)}, precio de tienda por bolsa.`);
 });
 
-// ─── mensajeTaquilla — los CUATRO modos de molienda, en el mensaje exacto ──────────────────────
+// ─── mensajeTaquilla — los CUATRO modos de molienda, CON la presentación en la misma cláusula
+// (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4) ──────────────────────────────────────────────────
 
-test('mensajeTaquilla: modo "ninguna" — sin cláusula de molienda, bolsa en singular', () => {
+test('mensajeTaquilla: modo "ninguna", presentación GRANO — sin cláusula de molienda, bolsa en singular', () => {
   assert.equal(
-    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 250, segmentoMolienda: null, frecuenciaEtiqueta: 'Mes' }),
-    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 250 g, cada mes.',
+    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 250, presentacion: 'Café en Grano', segmentoMolienda: null, frecuenciaEtiqueta: 'Mes' }),
+    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 250 g, café en grano, cada mes.',
   );
 });
 
-test('mensajeTaquilla: modo "automatica" — la cláusula de molienda en minúscula, bolsas en plural', () => {
+test('mensajeTaquilla: modo "automatica", presentación MOLIDO — molienda en la MISMA cláusula, bolsas en plural', () => {
   assert.equal(
-    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 2, peso: 250, segmentoMolienda: 'Molienda Media', frecuenciaEtiqueta: 'Mes' }),
-    'Hola, quiero suscribirme a Café Onix: 2 bolsas de 250 g, molienda media, cada mes.',
+    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 2, peso: 250, presentacion: 'Café Molido', segmentoMolienda: 'Molienda Media', frecuenciaEtiqueta: 'Mes' }),
+    'Hola, quiero suscribirme a Café Onix: 2 bolsas de 250 g, café molido, molienda media, cada mes.',
   );
 });
 
-test('mensajeTaquilla: modo "eleccion" con selección — la cláusula nombra la opción elegida', () => {
+test('mensajeTaquilla: modo "eleccion" con selección — la cláusula nombra presentación Y la opción elegida', () => {
   assert.equal(
-    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 500, segmentoMolienda: 'Molienda Prensa', frecuenciaEtiqueta: '2 meses' }),
-    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 500 g, molienda prensa, cada 2 meses.',
+    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 500, presentacion: 'Café Molido', segmentoMolienda: 'Molienda Prensa', frecuenciaEtiqueta: '2 meses' }),
+    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 500 g, café molido, molienda prensa, cada 2 meses.',
   );
 });
 
-test('mensajeTaquilla: modo "agotada" — mismo que "ninguna": sin cláusula de molienda', () => {
+test('mensajeTaquilla: modo "agotada" — mismo que "ninguna": sin cláusula de molienda, presentación sola', () => {
   assert.equal(
-    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 250, segmentoMolienda: null, frecuenciaEtiqueta: '15 días' }),
-    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 250 g, cada 15 días.',
+    mensajeTaquilla({ nombreProducto: 'Café Onix', bolsas: 1, peso: 250, presentacion: 'Café en Grano', segmentoMolienda: null, frecuenciaEtiqueta: '15 días' }),
+    'Hola, quiero suscribirme a Café Onix: 1 bolsa de 250 g, café en grano, cada 15 días.',
   );
 });
 
@@ -138,6 +142,43 @@ test('creditosDeTaquilla: con los DEFAULTS, los cuatro créditos del trato — n
 test('creditosDeTaquilla: una fila a medias (sólo etiqueta o sólo valor) NO se muestra', () => {
   const c = { ...DEFAULTS.suscripcionPlanes, credito1Etiqueta: 'Pedido', credito1Valor: '' };
   assert.deepEqual(creditosDeTaquilla(c).map((x) => x.etiqueta), ['Pago', 'Envío', 'Pausa o cambio']);
+});
+
+// ─── SELECCIÓN INICIAL — molido · 250 · la última frecuencia configurada (§ ONIX-PAGINAS-
+// FIDELIDAD-1, el spec item 4: "la selección inicial es la de la maqueta") ─────────────────────
+//
+// El catálogo real de Onix (2 categorías × 2 pesos, § `lib/tienda/taquilla.test.ts`): la ÚLTIMA
+// fila alfabética es-CO es "Café Molido" — `SuscripcionTaquilla` arranca ahí, NUNCA por el nombre
+// "molido" (la taxonomía la deriva el catálogo), sino por POSICIÓN (`matriz.filas[length-1]`).
+// `frecuencia2:'Mes'` es la ÚLTIMA no vacía de este fixture — como en el contenido real de Onix.
+
+function onix(): Product[] {
+  const base = {
+    costo: 0, sku: null, stock: 10, activo: true, disponible: true, moliendasOpciones: [] as never[], descripcion: '',
+  };
+  return [
+    { ...base, id: 'p-grano-250', nombre: 'Café Onix — En grano 250 g', slug: 'onix-grano-250', categoria: 'Café en Grano', precio: 20000, peso_gramos: 250 },
+    { ...base, id: 'p-grano-500', nombre: 'Café Onix — En grano 500 g', slug: 'onix-grano-500', categoria: 'Café en Grano', precio: 35000, peso_gramos: 500 },
+    { ...base, id: 'p-molido-250', nombre: 'Café Onix — Molido 250 g', slug: 'onix-molido-250', categoria: 'Café Molido', precio: 20000, peso_gramos: 250 },
+    { ...base, id: 'p-molido-500', nombre: 'Café Onix — Molido 500 g', slug: 'onix-molido-500', categoria: 'Café Molido', precio: 35000, peso_gramos: 500 },
+  ] as Product[];
+}
+
+const PLANES_ONIX: SuscripcionPlanesContent = {
+  ...DEFAULTS.suscripcionPlanes,
+  frecuencia1: '15 días', frecuencia2: 'Mes', frecuencia3: '', frecuencia4: '',
+};
+
+test('SuscripcionTaquilla: selección inicial — "Café Molido · 250 · Mes" (última fila, primera columna, última frecuencia)', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onix(), whatsapp: '573000000000', suscripcionPlanes: PLANES_ONIX }),
+  );
+  // El resumen nombra la presentación activa — si el default fuera "Café en Grano" (la PRIMERA
+  // fila, el bug de antes) o la frecuencia fuera "15 días" (la PRIMERA, no la última), el texto
+  // sería otro.
+  assert.ok(html.includes('CAFÉ MOLIDO'), 'el resumen debe nombrar "Café Molido", no "Café en Grano"');
+  assert.ok(html.includes('CADA MES'), 'la frecuencia activa debe ser la ÚLTIMA configurada ("Mes"), no la primera ("15 días")');
+  assert.ok(!html.includes('CADA 15 DÍAS'), 'NO debe quedar en la primera frecuencia');
 });
 
 // ─── BYTE-IDENTIDAD: /suscripciones sin composiciones nuevas == el árbol de ayer ───────────────

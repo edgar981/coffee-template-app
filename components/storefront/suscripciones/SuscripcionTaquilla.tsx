@@ -106,14 +106,21 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
   if (!matriz) return null;
 
-  const activa = seleccion ?? { categoria: matriz.filas[0], peso: matriz.columnas[0] };
+  // DEFAULT = ÚLTIMA fila × PRIMERA columna × ÚLTIMA frecuencia (§ ONIX-PAGINAS-FIDELIDAD-1, el
+  // spec item 4: "la selección inicial es la de la maqueta (molido · 250 · la última frecuencia
+  // configurada)"). "ÚLTIMA fila" y no una palabra hardcodeada: la taxonomía la deriva el catálogo
+  // y `matriz.filas` ya sale ordenada alfabético es-CO (§ lib/tienda/taquilla.ts), así que para el
+  // catálogo real de Onix la última es "Café Molido" — sin suponer su nombre. Un tenant con otra
+  // taxonomía simplemente arranca en SU última fila, no en "molido" por nombre.
+  const activa = seleccion ?? { categoria: matriz.filas[matriz.filas.length - 1], peso: matriz.columnas[0] };
   const producto = matriz.celdas.get(celdaDe(activa.categoria, activa.peso))!;
 
   const bolsasOpciones = bolsasDeTaquilla(Number.parseInt(c.maxBolsas, 10) || 3);
   const bolsasActivas = bolsasOpciones.includes(bolsas) ? bolsas : bolsasOpciones[0];
 
   const frecuencias = frecuenciasDeTaquilla([c.frecuencia1, c.frecuencia2, c.frecuencia3, c.frecuencia4]);
-  const frecuenciaActiva = frecuenciaElegida && frecuencias.includes(frecuenciaElegida) ? frecuenciaElegida : frecuencias[0];
+  const frecuenciaActiva =
+    frecuenciaElegida && frecuencias.includes(frecuenciaElegida) ? frecuenciaElegida : frecuencias[frecuencias.length - 1];
 
   const decision = decidirMolienda(producto.moliendasOpciones);
   const opcionesMolienda = normalizarOpciones(producto.moliendasOpciones);
@@ -126,9 +133,15 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
   const seg = segmentoMolienda(decision, nombreMoliendaActiva);
   const nombreProducto = nombreBaseProducto(producto.nombre);
-  const resumen = resumenTaquilla({ bolsas: bolsasActivas, peso: activa.peso, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva });
+  // LA PRESENTACIÓN ELEGIDA ENTRA AL RESUMEN Y AL MENSAJE (§ ONIX-PAGINAS-FIDELIDAD-1, el spec
+  // item 4) — `activa.categoria`, la MISMA categoría que la fila resalta, nunca un segundo dato.
+  const resumen = resumenTaquilla({
+    bolsas: bolsasActivas, peso: activa.peso, presentacion: activa.categoria, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva,
+  });
   const referencia = c.taquillaReferenciaTexto.trim() || referenciaPrecioTaquilla(bolsasActivas, producto.precio);
-  const mensaje = mensajeTaquilla({ nombreProducto, bolsas: bolsasActivas, peso: activa.peso, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva });
+  const mensaje = mensajeTaquilla({
+    nombreProducto, bolsas: bolsasActivas, peso: activa.peso, presentacion: activa.categoria, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva,
+  });
   const creditos = creditosDeTaquilla(c);
   const agotado = !producto.disponible;
   // § ONIX-BARRA-FLOTANTE-MOVIL-1 — la barra se oculta mientras el botón principal se ve O al
@@ -138,7 +151,10 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
   return (
     <div>
-      <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
+      {/* 5FR/7FR, GAP 72PX (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — la maqueta da la columna
+          de compra más espacio que la foto (`5fr/7fr`, `gap:72px`), no la mitad pareja de antes
+          (`md:grid-cols-2`, `gap-10`=40px). */}
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-[5fr_7fr] md:items-start md:gap-[72px]">
         {/* LA BOLSA, IGUAL QUE EN /tienda (§ el spec, item 2) — mismo tratamiento de foto que
             `TiendaTaquilla.tsx`: `object-cover` para que el fondo propio de la foto cubra el cuadro
             entero. En celular, 4:5 al 70% del ancho (§ refero-onix-paginas.md, "Celular"). */}
@@ -157,14 +173,18 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-texto-suave)]">
+          {/* KICKER = ROTULO genérico (§ ONIX-PAGINAS-FIDELIDAD-1, R2): 11.5px/700/ls .16em, gris
+              cálido (tinta al 65%) — no `--sf-texto-suave` (oliva para Onix). h2: `mt-[10px]`, no
+              `mt-1`(4px) — la maqueta separa el título del rótulo 10px. */}
+          <p className="text-[11.5px] font-bold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/65">
             {c.taquillaKicker}
           </p>
-          <h2 className="mt-1 font-playfair text-3xl text-[var(--sf-tinta)] sm:text-4xl">{nombreProducto}</h2>
+          <h2 className="mt-[10px] font-playfair text-3xl text-[var(--sf-tinta)] sm:text-4xl">{nombreProducto}</h2>
 
           <FilaTaquilla
             etiqueta={null}
             celdas={matriz.columnas.map((peso) => ({ valor: peso, label: `${peso} g` }))}
+            columnas={matriz.columnas.length}
             encabezado
           />
           {matriz.filas.map((categoria) => (
@@ -175,6 +195,8 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
                 const p = matriz.celdas.get(celdaDe(categoria, peso))!;
                 return { valor: peso, label: formatCOP(p.precio), agotada: !p.disponible };
               })}
+              columnas={matriz.columnas.length}
+              tipo="precio"
               activa={activa.peso}
               elegidaCategoria={activa.categoria === categoria}
               onElegir={(peso) => setSeleccion({ categoria, peso: peso as number })}
@@ -184,12 +206,16 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           <FilaTaquilla
             etiqueta={c.taquillaEtiquetaBolsas}
             celdas={bolsasOpciones.map((n) => ({ valor: n, label: String(n) }))}
+            columnas={matriz.columnas.length}
+            tipo="opcion"
             activa={bolsasActivas}
             onElegir={(n) => setBolsas(n as number)}
           />
           <FilaTaquilla
             etiqueta={c.taquillaEtiquetaFrecuencia}
             celdas={frecuencias.map((f) => ({ valor: f, label: f }))}
+            columnas={matriz.columnas.length}
+            tipo="opcion"
             activa={frecuenciaActiva}
             onElegir={(f) => setFrecuenciaElegida(f as string)}
           />
@@ -197,22 +223,29 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
             <FilaTaquilla
               etiqueta={c.taquillaEtiquetaMolienda}
               celdas={opcionesMolienda.map((o) => ({ valor: o.nombre, label: o.nombre, agotada: !o.disponible }))}
+              columnas={matriz.columnas.length}
+              tipo="opcion"
               activa={nombreMoliendaActiva}
               onElegir={(n) => setMoliendaElegida(n as string)}
             />
           )}
 
-          {/* EL RESUMEN, en serif mayúscula (§ el spec, item 2: «2 × 250 G · MOLIDO MEDIO · CADA
-              MES»). El texto YA llega en mayúscula de `resumenTaquilla` — la clase sólo aporta la
-              tipografía, no el case. */}
-          <p className="mt-6 font-playfair text-2xl tabular-nums text-[var(--sf-tinta)] sm:text-[24px]">{resumen}</p>
-          <p className="mt-1 text-sm text-[var(--sf-texto-suave)]">{referencia}</p>
+          {/* EL RESUMEN, en serif mayúscula (§ el spec, item 2: «2 × 250 G · CAFÉ MOLIDO, MOLIENDA
+              MEDIA · CADA MES»). El texto YA llega en mayúscula de `resumenTaquilla` — la clase sólo
+              aporta la tipografía, no el case. `tracking`/`leading` (§ el spec, punto 6). */}
+          <p className="mt-6 font-playfair text-2xl tracking-[0.02em] leading-[37px] tabular-nums text-[var(--sf-tinta)] sm:text-[24px]">{resumen}</p>
+          <p className="mt-1 text-[15px] text-[var(--sf-tinta)]/65">{referencia}</p>
 
           <div ref={botonRef} className="mt-6">
             <BotonPedir agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} nombreProducto={nombreProducto}
               ctaLabel={c.taquillaCtaLabel} ctaAgotadoLabel={c.taquillaCtaAgotadoLabel} />
           </div>
-          <p className="mt-2 text-[13px] text-[var(--sf-texto-suave)]">
+          {/* «SE ENVÍA: "…"» (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4) — el mensaje EXACTO que el
+              botón promete, citado tal cual con `<q>` (el navegador le pone las comillas). Antes
+              sólo se veía el aviso de "no se cobra…"; el mensaje en sí quedaba invisible. */}
+          <p className="mt-2 text-[13px] leading-normal text-[var(--sf-tinta)]/65">
+            Se envía: <q className="text-[var(--sf-tinta)]">{mensaje}</q>
+            <br />
             {c.taquillaAviso}
           </p>
 
@@ -257,55 +290,87 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 // sin selección); las demás son filas elegibles. El criterio de celda ELEGIDA depende del tipo de
 // fila: la fila de precio usa `elegidaCategoria` (la categoría de ESTA fila debe coincidir además
 // del peso); las demás comparan directo contra `activa`.
+//
+// § ONIX-PAGINAS-FIDELIDAD-1 — TRES arreglos de fidelidad, medidos contra la maqueta aprobada
+// (`.taquilla`/`.fila`/`.opciones` de `onix-suscripciones-nosotros.html`):
+// - **R1 (filete):** tinta al 15% (`--sf-tinta`/15), no `--sf-linea`/20 — ese token deriva casi
+//   invisible para Onix (§ el informe, R1).
+// - **Alineación (`columnas`):** la maqueta logra que la columna de ETIQUETA mida LO MISMO en
+//   TODAS las filas dándole SIEMPRE la razón `1 : columnas.length` — en la tabla de precio porque
+//   literalmente hay `columnas.length` columnas reales de `1fr` cada una; en bolsas/frecuencia/
+//   molienda porque su ÚNICA columna de datos vale `columnas.length` fr completos (NUNCA su propio
+//   conteo de opciones), subdividida ADENTRO por un grid anidado. Antes cada fila declaraba su
+//   propio `minmax(0,1fr) repeat(N, minmax(0,1fr))` con SU N (2 pesos, hasta 5 bolsas, hasta 4
+//   frecuencias…), así que la columna de etiqueta cambiaba de ancho fila a fila — "153px en las
+//   filas de precio, 115px en bolsas/frecuencia" (§ el informe). Con el ancho SIEMPRE repartido
+//   `1 : columnas.length`, la etiqueta mide igual sea cual sea cuántas opciones tenga esa fila.
+// - **Tipografía por `tipo`:** las celdas de PRECIO van en serif (`font-playfair`, 20px/400, como
+//   la maqueta — `.celda{font-family:f-display;font-size:20px}`); las de OPCIÓN (bolsas,
+//   frecuencia, molienda) van en sans mayúscula compacta (13px/700/ls .12em, como
+//   `.fila .opciones .celda{font-family:f-ui;font-size:13px;font-weight:700;letter-spacing:.12em;
+//   text-transform:uppercase}`) — antes las dos compartían `text-sm font-medium`, sin serif ni
+//   mayúscula.
 function FilaTaquilla({
-  etiqueta, celdas, activa, elegidaCategoria, onElegir, encabezado = false,
+  etiqueta, celdas, columnas, activa, elegidaCategoria, onElegir, encabezado = false, tipo = 'opcion',
 }: {
   etiqueta: string | null;
   celdas: { valor: string | number; label: string; agotada?: boolean }[];
+  /** El Nº de columnas de peso de la tabla de precio — la razón `1:columnas` que mantiene esta fila
+   *  alineada con todas las demás (ver el docstring de arriba). */
+  columnas: number;
   activa?: string | number | null;
   elegidaCategoria?: boolean;
   onElegir?: (valor: string | number) => void;
   encabezado?: boolean;
+  tipo?: 'precio' | 'opcion';
 }) {
+  const filete = 'border-[var(--sf-tinta)]/15';
+  const celdaTipografia =
+    tipo === 'precio'
+      ? 'font-playfair text-xl'
+      : 'font-sans text-[13px] font-bold uppercase tracking-[0.12em]';
   return (
     <div
-      className={`grid overflow-hidden border-l border-r border-[var(--sf-linea)]/20 ${encabezado ? 'mt-8 border-t' : 'border-t-0'}`}
-      style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${celdas.length}, minmax(0,1fr))` }}
+      className={`grid border-l border-r ${filete} ${encabezado ? 'mt-[22px] border-t' : 'border-t-0'}`}
+      style={{ gridTemplateColumns: `minmax(110px,1fr) minmax(0,${columnas}fr)` }}
     >
-      <div className="flex items-center border-t border-[var(--sf-linea)]/20 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[var(--sf-texto-suave)]">
+      <div className={`flex min-h-[54px] items-center border-t ${filete} px-3 py-2 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}>
         {etiqueta}
       </div>
-      {celdas.map((celda) => {
-        const elegida = !encabezado && activa === celda.valor && elegidaCategoria !== false;
-        if (encabezado) {
+      <div className={`grid border-t ${filete}`} style={{ gridTemplateColumns: `repeat(${celdas.length}, minmax(0,1fr))` }}>
+        {celdas.map((celda, i) => {
+          const elegida = !encabezado && activa === celda.valor && elegidaCategoria !== false;
+          const bordeIzq = i === 0 ? '' : `border-l ${filete}`;
+          if (encabezado) {
+            return (
+              <div
+                key={celda.valor}
+                className={`flex min-h-[54px] items-center justify-center ${bordeIzq} px-3 py-2 text-center text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}
+              >
+                {celda.label}
+              </div>
+            );
+          }
           return (
-            <div
+            <button
               key={celda.valor}
-              className="border-l border-t border-[var(--sf-linea)]/20 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.1em] text-[var(--sf-texto-suave)]"
+              type="button"
+              disabled={celda.agotada}
+              onClick={() => onElegir?.(celda.valor)}
+              aria-pressed={elegida}
+              className={`relative flex min-h-[54px] cursor-pointer flex-col items-center justify-center ${bordeIzq} px-2 py-2 text-center tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-acento)] ${celdaTipografia} ${
+                celda.agotada
+                  ? 'cursor-not-allowed text-[var(--sf-tinta)]/65 line-through opacity-50'
+                  : elegida
+                    ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
+                    : 'text-[var(--sf-tinta)] hover:bg-[var(--sf-superficie)]'
+              }`}
             >
               {celda.label}
-            </div>
+            </button>
           );
-        }
-        return (
-          <button
-            key={celda.valor}
-            type="button"
-            disabled={celda.agotada}
-            onClick={() => onElegir?.(celda.valor)}
-            aria-pressed={elegida}
-            className={`relative flex min-h-[48px] cursor-pointer flex-col items-center justify-center border-l border-t border-[var(--sf-linea)]/20 px-2 py-2 text-center text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-acento)] ${
-              celda.agotada
-                ? 'cursor-not-allowed text-[var(--sf-texto-suave)] line-through opacity-50'
-                : elegida
-                  ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
-                  : 'text-[var(--sf-tinta)] hover:bg-[var(--sf-superficie)]'
-            }`}
-          >
-            {celda.label}
-          </button>
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 }
@@ -321,13 +386,18 @@ function BotonPedir({
   ctaAgotadoLabel: string;
 }) {
   if (!whatsapp) return null; // § el spec, item 2: "Si no hay número de WhatsApp, el botón no aparece"
+  // 52PX / 700 / .10em / RADIO 2px (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — `rounded-[2px]`
+  // en vez de `sf-pildora` (píldora): la maqueta de Onix es de esquina RECTA en todo su chrome de
+  // botón, igual que el botón del Cierre (§ `CierreFraseYBoton.tsx`).
+  const base =
+    'flex min-h-[52px] w-full cursor-pointer items-center justify-center rounded-[2px] px-6 text-center text-sm font-bold uppercase tracking-[0.1em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2';
   if (agotado) {
     return (
       <a
         href={whatsappUrl(whatsapp, `Hola, ¿cuándo vuelve a haber ${nombreProducto}?`)}
         target="_blank"
         rel="noreferrer"
-        className="sf-pildora block w-full cursor-pointer border border-[var(--sf-tinta)] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
+        className={`${base} border border-[var(--sf-tinta)] text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:ring-[var(--sf-tinta)]`}
       >
         {ctaAgotadoLabel}
       </a>
@@ -338,7 +408,7 @@ function BotonPedir({
       href={whatsappUrl(whatsapp, mensaje)}
       target="_blank"
       rel="noreferrer"
-      className="sf-pildora block w-full cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
+      className={`${base} bg-[var(--sf-accion,var(--sf-tostado))] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]`}
     >
       {ctaLabel}
     </a>
