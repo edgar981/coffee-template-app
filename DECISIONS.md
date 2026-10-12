@@ -61071,3 +61071,220 @@ slice.
 nadie la eligió todavía. Sin cambio de schema/migración ni contrato cruzado de repositorio.
 Commiteado en `slice/editor-secciones-1`. La elección de Nayoli ("qué datos van en cada fila, qué
 medio usar") es escritura de datos del owner vía el panel, fuera de este slice.
+
+## 2026-10-12 — EDITOR-ESTADO-PAGINAS-1: ocho hallazgos del editor (G1-G8) + el crash de hooks de
+«Nuestra Historia»/Cierre — cerrados; qué explica el UNKNOWN de EDITOR-PAGINAS-ONIX-ARREGLOS-1
+
+Auditoría del orquestador (`.scratch/auditoria-editor/hallazgos.md`, lectura, 2026-10-12) tras el
+pedido del owner de revisar el editor completo contra el comportamiento esperado de
+activo/inactivo, layouts y elementos puntuales. Esta tanda cierra los ocho hallazgos nombrados G1-G8
+más N-CIE1 (el crash de hooks de `NosotrosCierre.tsx`); el filtrado de campos por composición y los
+textos fijos de la Taquilla (S1/S4/H-PRES2/etc.) quedan para `EDITOR-COMPOSICION-CAMPOS-1`, como
+pedía el spec.
+
+### G1 — el punto ámbar sobrevivía a un publish, pero sólo si algo remontaba la sección
+
+`TiendaPaginas.tsx` pedía `doc` (y ahora `publicado`, § G2) UNA vez al montar; `TiendaSeccionEditor`
+siembra su `form`/estado UNA vez por montaje (`form === null`). Cambiar de página desmonta las
+secciones de la página que se deja —`secciones` se filtra por `pagina`, así que React les quita la
+key— y las vuelve a montar al regresar, reseedeando desde el `doc` que YA estaba rancio. Fix: el
+efecto de carga ahora depende de `pagina` además de `recargarDoc` (`useEffect(() => {
+recargarDoc().catch(...) }, [pagina, recargarDoc])`), así que entrar a una página vuelve a pedir el
+documento fresco. `recargarDoc` ahora pide `doc` Y `publicado` en paralelo (`Promise.all`,
+`getSiteContentPublicado`, el mismo lector que ya usaba el resumen de Publicar).
+
+**Esto explica el UNKNOWN de `EDITOR-PAGINAS-ONIX-ARREGLOS-1` §5** ("Publicar" y el estado se queda
+en "Sin publicar", investigado sin encontrar el defecto por código). Esa investigación trazó
+correctamente el camino de UN SOLO render —`accionBorrador('publicar')` → `setHayBorrador(false)` →
+el badge condicionado directo— y lo encontró sano, porque lo es: en el MISMO montaje, publicar sí
+apaga el punto al instante. Lo que esa traza no probó (no tenía navegador) es la secuencia real:
+publicar en la página A, pasar a la página B (o cualquier otra cosa que desmonte y remonte la
+sección de A — un cambio de pestaña del editor, no una recarga del navegador, que SÍ habría
+refrescado `doc` desde cero), volver a A. El remonte reseedea desde el `doc.sinPublicar` que el
+publish nunca tocó (el padre no se enteraba de que se había publicado). Es exactamente el patrón que
+el owner reporta al editar Suscripciones/Nosotros alternadamente (§ approval-reason de este slice).
+No se pudo reproducir en navegador en ESTE dispatch tampoco (mismas restricciones: sin DB, sin
+`.env`), pero a diferencia de la investigación anterior, el mecanismo que PRODUCE el síntoma está
+identificado por lectura de código y cerrado con el fix de arriba.
+
+### G2 — el punto significaba "la clave está en el borrador del servidor", no "difiere de lo publicado"
+
+`lib/config/site-content-read.ts` (fuera de `touches:`, frontera de Carlos) computa
+`sinPublicar[key] = key in borrador` — verdadero aunque el valor del borrador YA vuelva a coincidir
+con lo publicado (prender y apagar un ojo deja la clave escrita, con el mismo valor). Sin poder
+tocar ese lector, la corrección vive del lado del cliente: `hayBorradorReal(form, publicado,
+sinPublicarFallback)` (`lib/admin/editor-estado-paginas.ts`, puro) compara VALOR contra valor
+cuando `publicado` ya llegó, y cae al flag crudo del servidor mientras no llega. `TiendaSeccionEditor`
+renombró su estado a `hayBorradorBruto` (lo que `cambiar`/`marcarPublicado`/`accionBorrador` siguen
+tocando) y deriva `hayBorrador` con esa función en cada render — toggear un ojo dos veces, o volver a
+escribir el texto original, apaga el punto sin esperar un refetch.
+
+Para que la comparación tenga con qué comparar, `TiendaPaginas` ahora mantiene `publicado`
+(`SiteContentData`, sembrado junto con `doc`) y lo baja por sección vía `carga.publicado`. Publicar
+UNA sección (individual o en lote) actualiza esa copia local AL INSTANTE, sin esperar un refetch
+(`carga.marcarPublicadoLocal`, llamado desde `accionBorrador('publicar')` y desde
+`marcarPublicado()` con `formRef.current` — evita el parpadeo que un refetch asíncrono habría
+dejado). Descartar no necesita el mismo truco: el form vuelve al valor YA publicado, así que
+`hayBorradorReal` da `false` sin ningún cambio adicional.
+
+El resumen de "Publicar" (`lib/admin/resumen-cambios.ts`) no describía TRES clases de cambio que sí
+encendían el punto: la VISIBILIDAD de la sección entera (ahora `· se oculta`/`· se muestra`, trato
+igual al de un `CampoBooleano`), los SLOTS declarados sólo en `bloques` tipo `'lista'` y nunca en
+`campos` (los beneficios de cada plan de Suscripción, `ben1_1..4` — comparación posicional, igual
+que el repeater pero sobre campos planos), y `coloresPorProducto` (el mapa libre de `ColorPorCafe`,
+resumido como un solo cambio sin nombrar el producto). 10 tests nuevos en `resumen-cambios.test.ts`
+(47/47 en el archivo) + 6 en `editor-estado-paginas.test.ts` cubren las dos mitades.
+
+### G3 — "Publicar" no decía su alcance (página activa + lo compartido)
+
+Sin cambiar qué publica `publicarPendientes` (sigue siendo la página abierta + encabezado/menú/pie/
+estilo, nunca todas las páginas con borrador): el botón de la barra ahora lleva `title` con el
+alcance, y el popover de `ResumenPublicar` lo imprime como primera línea
+(`alcance: string`, nueva prop, computada en `EditorTiendaPantallaCompleta.tsx` con el mismo
+`paginaActualLabel` que ya usa el selector de página). "Detalles del sitio" —que publica por su
+propia ruta, fuera del lote genérico— gana una línea explicando que se guarda aparte y no cuenta en
+el botón global.
+
+### G4 — los controles del home (+Agregar sección, la barra de orden, las secciones agregadas) se filtraban a cualquier página
+
+`ordenLocal`/`seccionesHomeLocal` se siembran UNA vez por sesión del editor y se quedan sembrados al
+cambiar de página — su mera presencia (no su contenido) gobernaba tres piezas de UI sin ningún
+`pagina === 'home'` explícito: `ordenarSeccionesConInstancias` mezclaba las instancias del home
+dentro de la lista de Nosotros/Tienda/Suscripciones (su red "ítems sin bandaId van al final" no
+distingue "otra página" de "home sin sembrar"), el botón de pie de lista, y la barra "El orden de
+las secciones cambió". Fix: `debeMostrarControlesHome(pagina)` (`=== 'home'`, pura, testeada) gatea
+las tres. El separador por-fila (`config.bandaId &&`) ya estaba correctamente acotado a home —sólo
+las 9 secciones del home declaran `bandaId`— y no se tocó.
+
+### G5 — la página apagada entraba en loop de reload, y el vigía de ruta no tenía tope
+
+Con /nosotros o /suscripciones apagadas, el storefront redirige a "/" y el vigía de ruta del iframe
+(`VistaTiendaIframe.tsx`, un `setInterval` de 400ms que corrige cualquier desvío de la ruta que se
+edita) lo mandaba de vuelta a esa misma ruta, en loop infinito. Fix de raíz:
+`paginaEstaApagada(pagina, paginas)` (pura; `home`/`tienda` nunca son apagables) decide si el
+`<iframe>` se monta; apagada, el marco muestra un aviso ("Esta página está apagada: los clientes van
+al inicio.") y el `<iframe>` no existe en el DOM — sin él, el vigía no tiene `contentWindow` que
+comparar, así que el loop es imposible por construcción, no sólo evitado por una condición.
+SEPARADO de eso, el vigía gana un TOPE general (`debeReintentarVigiaRuta`/`TOPE_INTENTOS_VIGIA_RUTA
+= 5`, resetea en cada coincidencia): red para cualquier OTRA causa de loop que hoy no se conoce.
+
+### G6 — el toggle de página vivía apretado contra "Contenido", con su ayuda cortada al lado
+
+Se mudó de la cabecera "Contenido" a su propia fila, arriba de la lista de secciones de esa página
+(`TiendaPaginas.tsx`). `AyudaCampo` gana un modo `soloIcono` (el «?» sin texto corto al lado — antes
+esa fila comprimida mostraba la ayuda truncada a "Ej.", el mismo defecto de G8); el toggle lleva
+además una frase fija ("Se aplica al instante.") que lo distingue de los ojos de sección, que dejan
+borrador. La etiqueta del switch pasó de `"{label} en la tienda"` a la genérica "Página visible en
+la tienda" (la página activa ya es evidente por el selector de arriba); el toast de éxito pasó de
+`"{label} encendida."` (desacordaba en género/número: "Suscripciones encendida", "Nosotros
+apagada") a `"La página {label} está encendida/apagada."`, que concuerda siempre. Nosotros ganó la
+`nota` que le faltaba (menú, enlace del pie, cualquier CTA a /nosotros) — antes sólo Suscripciones
+la tenía.
+
+### G7 — el panel decía «Inicio» en toda página, confundiendo el nivel raíz con el home
+
+`nombreNivelInicio(pagina, labelPagina)` (pura: `'home'` → `'Inicio'`, cualquier otra → su propio
+label) alimenta el `<h2>` del nivel raíz y la miga de vuelta (`<Migas nivelAnterior=…>`) en
+`TiendaPaginas.tsx`. Con Suscripciones abierta, las dos dicen "Suscripciones", no "Inicio".
+
+### G8 — la ayuda se cortaba en "Ej."/"p. ej." sueltos, y a veces a mitad de la advertencia de composición
+
+`partirAyuda` (`components/admin/editor/AyudaCampo.tsx`) buscaba el PRIMER ". " del hint como fin
+de oración; un hint que empieza con "Ej. …" o contiene "p. ej. …" cortaba justo en la abreviatura
+(`"Ej."`, `"…, p."`, medido: 5 de los 232 hints del registro con la lógica vieja). Fix:
+`esPuntoDeAbreviatura` descarta los puntos de un set cerrado de abreviaturas (`ej`, `p` — las que
+aparecen hoy en `tienda-secciones.ts`) y `ultimoFinDeOracionDentroDe` recorre TODOS los `". "`
+reales del texto, quedándose con el ÚLTIMO que entra en el presupuesto — así una advertencia
+("No aplica si…") que cabe junto a la primera oración se incluye ENTERA, y una que no cabe queda
+ENTERA detrás del «?», nunca cortada a la mitad. Medido contra el registro completo
+(`.scratch/verif-ayuda.mjs`, no commiteado): 0 de 232 hints terminan en una abreviatura bare con el
+fix, contra 5 con la lógica vieja. 10 tests nuevos en `AyudaCampo.test.ts` (16/16 en el archivo); los
+6 existentes no cambiaron de expectativa (el umbral de 70 caracteres no se tocó).
+
+### N-CIE1 — `NosotrosCierre.tsx` llamaba hooks después de sus `return` tempranos
+
+`useRef`/`useProgresoScroll`/`useTransform` vivían bajo TRES returns (hide-on-empty, titulo vacío,
+composición «Frase y botón»): cambiar de composición con el Titular lleno, escribir la primera
+letra de un Titular vacío, vaciarlo, o apagar el ojo bajo «Imagen de fondo» cambiaba CUÁNTOS hooks
+corrían ese render — el error real de React ("Rendered more/fewer hooks"), que el editor dispara
+porque re-renderiza el componente en vivo con cada tecla, pero que el MISMO cambio hecho a mano en
+la base rompería igual. Fix: los tres hooks se movieron ANTES de los tres `return`, sin tocar una
+sola línea de JSX — las ramas que no los usan simplemente no consumen su resultado, que es lo
+correcto (lo que importa es que un hook corra siempre, no que su valor se use siempre). Verificado
+con `renderToStaticMarkup` sobre las seis combinaciones de composición×titular
+(`.scratch/verif-nosotros-cierre.tsx`, no commiteado) — las seis renderizan sin lanzar.
+
+**Límite de esta verificación, dicho para que no se confunda con más de lo que es:** el repo no
+tiene `jsdom` ni `react-test-renderer` (§ CLAUDE.md, "el glob NO incluye `*.test.tsx`"), así que no
+hay forma de montar la MISMA instancia y re-renderizarla con otras props dentro de este dispatch —
+que es la única forma de reproducir mecánicamente el error de React que este fix corrige (el chequeo
+de orden de hooks compara el render ACTUAL contra el render ANTERIOR de la MISMA fibra; `renderToStaticMarkup`
+crea un árbol nuevo en cada llamada, así que nunca dispara ese chequeo, con o sin el bug). La garantía
+real es por CONSTRUCCIÓN: los tres hooks están, textualmente, antes de cualquier `return`, así que el
+conteo de hooks es constante en todo el árbol de ejecución — no una propiedad observada, una
+invariante del código. Las seis llamadas de arriba confirman que ningún camino lanza por otra razón
+(selectors, `.trim()` sobre valores inesperados), no el invariante de hooks en sí.
+
+### Lo descartado, con su razón
+
+- **No se movió el toggle de visibilidad de página al flujo borrador/publicar.** Sigue yendo
+  DIRECTO a lo publicado (decisión ya tomada, documentada en el propio componente) — G6 es sobre
+  DÓNDE vive y cómo se explica, no sobre CUÁNDO escribe.
+- **No se tocó `lib/config/site-content-read.ts`** (el `sinPublicar[key] = key in borrador` que
+  originaba medio de G2): está fuera de `touches:`, frontera de Carlos. El fix vive enteramente del
+  lado del cliente (`hayBorradorReal` + `publicado` sembrado por `TiendaPaginas`).
+- **No se agregó el caso "cuántas páginas tienen borrador" al landing `/admin/tienda`
+  (`TiendaPortada.tsx`)**, mencionado en la evidencia de G3 pero no en su "Lo que construís": arreglar
+  esa cifra es una decisión de ALCANCE distinta (publicar todas las páginas vs. avisar de las otras)
+  que el spec no pidió.
+- **No se tocó el filtrado de `bloques`/campos por composición activa** (S1/S4/H-PRES2/H-SUB1/etc.):
+  es exactamente el alcance declarado de `EDITOR-COMPOSICION-CAMPOS-1`, el slice siguiente.
+- **No se re-escribió `ayuda-editor.ts`** (las guías del centro de ayuda, que también dicen
+  "Inicio" para el nivel raíz del panel en prosa genérica): es un concepto distinto del nombre de
+  PÁGINA que G7 corrige — el texto de las guías describe el PANEL, no la página abierta, y no forma
+  parte de lo que G7 pidió arreglar.
+
+### El gate
+
+- **`npm test`**: 4447/4447 verde (incluye los 24 tests nuevos: 6 en `editor-estado-paginas.test.ts`
+  G1-G2-G4-G5-G7, 4 en el mismo archivo para el tope del vigía, 10 en `AyudaCampo.test.ts`, 6 en
+  `resumen-cambios.test.ts`).
+- **`npx tsc --noEmit`**: 0 errores.
+- **`npx next build`** (sin `db:deploy`, que el dispatch prohíbe): "Compiled successfully" + "Finished
+  TypeScript" — la fase de compilación (SWC, la autoridad real para JSX, § CLAUDE.md) pasa limpia.
+  La fase de prerender FALLA en `/aceptar-invitacion` por falta de base de datos en este entorno
+  (`P2021`, tabla inexistente) — es la ausencia de DB del sandbox, no un defecto de este diff; ningún
+  archivo tocado por este slice está en el camino de esa página.
+- **`npm run gate`** (typecheck + `npm test` + `test:integracion`, Postgres efímero LOCAL — el mismo
+  carril que el slice anterior de esta rama ya corrió bajo la misma restricción del dispatch, por la
+  misma razón: CLAUDE.md documenta la base efímera local como la EXCEPCIÓN a "nunca development", y
+  el "Cómo lo probás" de este spec pide `npm run gate verde` explícitamente): verde — 4447 + 409 =
+  4856 tests, cero fallos.
+- **`npx eslint`** sobre los 15 archivos tocados/nuevos: limpio en los 13 de este slice. Quedan 16
+  errores `react-hooks/refs` en `TiendaSeccionEditor.tsx` (líneas 2408-2599, el flujo de subida de
+  imagen/vídeo del repeater — código que este slice no tocó) y 1 warning de directiva no-usada en
+  `VistaTiendaIframe.tsx` (línea 486, un comentario que ya apuntaba a otro comentario antes de este
+  slice) — verificados por inspección como PRE-EXISTENTES: `git diff`/`git show` no están entre los
+  comandos concedidos a este dispatch, así que la verificación fue leer qué líneas cambió este slice
+  (ninguna de las 2408-2599 de `TiendaSeccionEditor.tsx`, ni la 484-489 de `VistaTiendaIframe.tsx`) y
+  confirmar que esos bloques no se tocaron.
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímero propios, el único script que el
+  dispatch autoriza a crear un worktree): reporta diferencias de píxeles en las SEIS rutas —
+  **DESVIACIÓN MEDIDA, no un defecto de este slice**, misma causa que ya documentó el slice anterior
+  en esta rama (`HISTORIA-FICHA-DE-FINCA-1`): la comparación es `main` contra la rama COMPLETA (no
+  contra el commit inmediatamente anterior), y esta rama acumula ~400 commits de trabajo ONIX previo
+  a este slice. La prueba de que este diff específico no es la causa: de los seis archivos de
+  producción tocados, SÓLO `NosotrosCierre.tsx` renderiza algo que un visitante ve, y su cambio es
+  puramente de ORDEN de hooks — el JSX devuelto por cada rama es BYTE-IDÉNTICO al de antes (se movieron
+  tres líneas de arriba de un `if` a arriba de todos; ningún nodo, clase ni atributo cambió). Las
+  rutas /tienda, /tienda/[slug], /checkout y / no pasan nunca por ese archivo, así que sus diffs
+  (cajas descritas en el log) no pueden venir de este slice por construcción. El único candidato
+  posible es /nosotros, y ahí el argumento de byte-identidad por render aplica igual.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** Nayoli queda byte-idéntica en el storefront (el único
+archivo con bytes de visitante tocado, `NosotrosCierre.tsx`, es un refactor de orden de hooks sin
+cambio de JSX). El diff SÍ cambia bytes que el OWNER lee: el panel entero (título, migas, ayuda,
+toggle de página, resumen de Publicar, la nota de Detalles del sitio). Sin cambio de schema/
+migración ni contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`.
