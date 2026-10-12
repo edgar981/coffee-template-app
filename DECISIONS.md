@@ -61886,7 +61886,7 @@ que `derivarMatrizTaquilla(catalogo)!==null`, mismo criterio que `taquillaActiva
 ### Los campos editoriales viven en `spotlight`, no en una sección nueva
 
 **Decisión deliberada**: «Compra» es OTRA variante del MISMO slot `bandaId:'featured'` que ya ocupa
-`spotlight` — no una banda nueva. Sus 19 campos nuevos (`notas`, `rotuloEje1`/`rotuloEje2` REQUERIDOS —
+`spotlight` — no una banda nueva. Sus 17 campos nuevos (`notas`, `rotuloEje1`/`rotuloEje2` REQUERIDOS —
 default 'Presentación'/'Tamaño', NEUTROS, ni café ni Nayoli—, `ayuda1-3`/`icono1-3` OPCIONALES,
 `icono1-3` ESCALARES clampados `['ninguno','grano','molido']` canónica `'ninguno'` — mismo mecanismo que
 `brandStory.escalares.medio`—, `dato1-3Rotulo/Valor` OPCIONALES, `mostrarPrecioPor100g`/`barraFijaMovil`
@@ -62069,5 +62069,5 @@ escritura). No es `GATE_RED`. El diff agrega código de producción nuevo en `co
 home/` con copy fija nueva, alcanzable por cualquier visitante el día en que `variantesBandas.featured`
 se escriba `'compra'` para algún tenant — `customer_bytes.changed=true`, mismo criterio que las dos
 entradas anteriores de esta rama que tocaron `components/storefront/`. Sin cambio de schema/migración
-(los 19 campos nuevos viven en el `content: Json` de `SiteContent`, como el resto de la sección) ni
+(los 17 campos nuevos viven en el `content: Json` de `SiteContent`, como el resto de la sección) ni
 contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`, sin mergear.
