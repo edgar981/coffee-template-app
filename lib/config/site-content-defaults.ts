@@ -1132,6 +1132,20 @@ export interface SuscripcionPlanesContent {
   credito2Etiqueta: string; credito2Valor: string;
   credito3Etiqueta: string; credito3Valor: string;
   credito4Etiqueta: string; credito4Valor: string;
+  // § EDITOR-COMPOSICION-CAMPOS-1 — los textos que `SuscripcionTaquilla.tsx` tenía FIJOS en código
+  // (auditoría del 2026-10-12, hallazgo S1): el encabezado sobre el nombre del producto, las tres
+  // etiquetas de fila, los dos textos del botón de pedido, el aviso de "no se cobra aquí" y los dos
+  // textos de la barra fija del celular. SÓLO tienen efecto bajo 'taquilla'. Los DEFAULTS (abajo)
+  // son los mismos literales de hoy — byte-idéntico sin fila.
+  taquillaKicker: string;
+  taquillaEtiquetaBolsas: string;
+  taquillaEtiquetaFrecuencia: string;
+  taquillaEtiquetaMolienda: string;
+  taquillaCtaLabel: string;
+  taquillaCtaAgotadoLabel: string;
+  taquillaAviso: string;
+  taquillaBarraCtaLabel: string;
+  taquillaBarraAgotadoLabel: string;
 }
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, sobre ONIX-PAGINAS-
@@ -2751,6 +2765,17 @@ export const DEFAULTS: SiteContentData = {
     credito2Etiqueta: 'Pago', credito2Valor: 'Se acuerda por chat',
     credito3Etiqueta: 'Envío', credito3Valor: 'A todo el país',
     credito4Etiqueta: 'Pausa o cambio', credito4Valor: 'Con un mensaje',
+    // § EDITOR-COMPOSICION-CAMPOS-1 — los mismos literales que `SuscripcionTaquilla.tsx` tenía
+    // hardcodeados antes de este slice; byte-idéntico sin fila.
+    taquillaKicker: 'Suscripción · Sin cobro automático',
+    taquillaEtiquetaBolsas: 'Bolsas',
+    taquillaEtiquetaFrecuencia: 'Cada',
+    taquillaEtiquetaMolienda: 'Molienda',
+    taquillaCtaLabel: 'Pedir por WhatsApp',
+    taquillaCtaAgotadoLabel: 'Avísame por WhatsApp',
+    taquillaAviso: 'No se cobra nada aquí. Pago y envío se acuerdan por chat.',
+    taquillaBarraCtaLabel: 'Pedir',
+    taquillaBarraAgotadoLabel: 'Agotado',
   },
   // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
   // `SuscripcionAperturaContent` arriba). `visible: false` — "por defecto la página queda como
@@ -3728,6 +3753,17 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       credito2Etiqueta: 'requerido', credito2Valor: 'requerido',
       credito3Etiqueta: 'requerido', credito3Valor: 'requerido',
       credito4Etiqueta: 'requerido', credito4Valor: 'requerido',
+      // § EDITOR-COMPOSICION-CAMPOS-1 — REQUERIDOS: son micro-copy que siempre debe decir algo
+      // (un botón vacío es peor que el texto de siempre), mismo criterio que los créditos de arriba.
+      taquillaKicker: 'requerido',
+      taquillaEtiquetaBolsas: 'requerido',
+      taquillaEtiquetaFrecuencia: 'requerido',
+      taquillaEtiquetaMolienda: 'requerido',
+      taquillaCtaLabel: 'requerido',
+      taquillaCtaAgotadoLabel: 'requerido',
+      taquillaAviso: 'requerido',
+      taquillaBarraCtaLabel: 'requerido',
+      taquillaBarraAgotadoLabel: 'requerido',
     },
   },
   // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de

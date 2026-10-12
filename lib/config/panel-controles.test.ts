@@ -92,10 +92,16 @@ test('PENDIENTE_PANEL: toda entrada declara su razón y el slice que la cierra',
 //
 // BAJADO de 10 a 9 por HISTORIA-FICHA-DE-FINCA-1: cerró `brandStory.variante`
 // (`BRAND_STORY.composiciones` en tienda-secciones.ts, ganó su TERCERA clave «Ficha de finca»).
-// Quedan `presentaciones.variante`/`subscriptionCTA.variante`.
+// Quedaban `presentaciones.variante`/`subscriptionCTA.variante`.
+//
+// BAJADO de 9 a 7 por EDITOR-COMPOSICION-CAMPOS-1: cerró las DOS últimas entradas de
+// `PANEL-EDITOR-VARIANTES-COMPOSICION-2` (`presentaciones.variante`/`subscriptionCTA.variante`),
+// ganando su select nativo (`PRESENTACIONES.composiciones`/`SUBSCRIPTION.composiciones`). El grupo
+// de `variante` sin control queda CERRADO ENTERO — las cuatro secciones que lo declaraban
+// (hero/brandStory/presentaciones/subscriptionCTA) ya tienen las cuatro su select.
 test('PENDIENTE_PANEL: el TECHO es un TRINQUETE — la lista nunca crece por encima de su techo actual', () => {
   assert.ok(
-    PENDIENTE_PANEL.length <= 9,
+    PENDIENTE_PANEL.length <= 7,
     `PENDIENTE_PANEL creció a ${PENDIENTE_PANEL.length}: cerrá el hueco con un CONTROL, no con una ` +
       `exención nueva. El techo sólo BAJA. Si de verdad hay que subirlo, subilo A MANO acá y explicá por qué.`,
   );
@@ -383,8 +389,8 @@ test('calibración: hero.variante está controlado por HERO.composiciones — ya
   assert.ok(controlados.includes('hero.variante'));
   const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
   assert.ok(!pendientes.has('hero.variante'));
-  assert.ok(pendientes.has('presentaciones.variante'), 'presentaciones.variante sigue pendiente — este slice no lo tocó');
-  assert.ok(pendientes.has('subscriptionCTA.variante'), 'subscriptionCTA.variante sigue pendiente — este slice no lo tocó');
+  // § EDITOR-COMPOSICION-CAMPOS-1 cerró las dos — la aserción "sigue pendiente" de este test
+  // histórico ya no describe el estado actual; ver el test de calibración de ESE slice más abajo.
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.includes('hero.variante'));
 });
@@ -398,10 +404,25 @@ test('calibración: brandStory.variante está controlado por BRAND_STORY.composi
   assert.ok(controlados.includes('brandStory.variante'));
   const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
   assert.ok(!pendientes.has('brandStory.variante'));
-  assert.ok(pendientes.has('presentaciones.variante'), 'presentaciones.variante sigue pendiente — este slice no lo tocó');
-  assert.ok(pendientes.has('subscriptionCTA.variante'), 'subscriptionCTA.variante sigue pendiente — este slice no lo tocó');
+  // § EDITOR-COMPOSICION-CAMPOS-1 cerró las dos — ver el test de calibración de ESE slice, abajo.
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.includes('brandStory.variante'));
+});
+
+// § EDITOR-COMPOSICION-CAMPOS-1: las ÚLTIMAS dos secciones con `variante` sin control
+// (`presentaciones`/`subscriptionCTA`) ganan su select nativo (`debeMostrarSelectorComposicion`
+// ya lo muestra con sólo `config.composiciones` presente, § su propio docstring en
+// `TiendaSeccionEditor.tsx`). El grupo `PANEL-EDITOR-VARIANTES-COMPOSICION-2` queda cerrado entero.
+test('calibración: presentaciones.variante y subscriptionCTA.variante están controlados — PENDIENTE_PANEL baja de 9 a 7', () => {
+  const controlados = camposControladosPorPanel();
+  assert.ok(controlados.includes('presentaciones.variante'));
+  assert.ok(controlados.includes('subscriptionCTA.variante'));
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+  assert.ok(!pendientes.has('presentaciones.variante'));
+  assert.ok(!pendientes.has('subscriptionCTA.variante'));
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.includes('presentaciones.variante'));
+  assert.ok(!huecos.includes('subscriptionCTA.variante'));
 });
 
 // § HISTORIA-FICHA-DE-FINCA-1: los 27 campos nuevos (medio/entrada/las 18 de ficha/el rango/los

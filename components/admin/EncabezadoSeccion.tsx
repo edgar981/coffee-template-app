@@ -369,7 +369,11 @@ const DEF_CONTROLES: Record<ControlAspecto, { etiqueta: string; hint: string; op
   },
   posicion: {
     etiqueta: 'Posición del encabezado',
-    hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También ensancha el contenido de cada banda de la tienda, para que sus bordes queden alineados con los del encabezado.',
+    // § EDITOR-COMPOSICION-CAMPOS-1 (C-ENC2) — no sólo ensancha: en /tienda cambia el LAYOUT del
+    // encabezado y el catálogo entero (dos ramas de código distintas, `TiendaEncabezado.tsx`/
+    // `TiendaCatalogo.tsx`), no sólo el ancho del contenedor. El hint lo decía como si fuera sólo
+    // una medida de espacio.
+    hint: 'El encabezado se abre hacia los costados y con más espacio vertical, en vez del ancho y la altura de hoy. También cambia el LAYOUT del encabezado y el catálogo de la página /tienda —no sólo el ancho de su contenido— y ensancha el contenido de cada banda de la home, para que sus bordes queden alineados con los del encabezado.',
     opciones: [
       { value: 'off', label: 'Como hoy', miniatura: <MiniEncabezado /> },
       { value: 'on', label: 'Más espacio', miniatura: <MiniEncabezado amplio /> },

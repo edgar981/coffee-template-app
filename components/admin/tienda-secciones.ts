@@ -284,12 +284,24 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // `EstiloElementoControles.tsx`, que ya usa este patrón índice→`Deslizador` sin ser un campo de
 // `renderCampo`). Exige `opciones` con pocas posiciones con NOMBRE —hoy `tickerVelocidad` (dos) y
 // `alto`, que NO declara este flag porque ya tiene su propio render especial en `renderAltoYFondo`.
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; deslizadorPasos?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean };
+// `composiciones` (§ EDITOR-COMPOSICION-CAMPOS-1) — a qué composiciones de `SeccionConfig.
+// composiciones` pertenece ESTE campo: la tienda lo RINDE bajo esas y NINGUNA otra. Ausente/vacío =
+// aplica a TODAS (el default de siempre, lo que el 99% de los campos ya hace hoy — un campo sin
+// composición propia, como `titulo`, no necesita declarar nada). Es el mecanismo ÚNICO que decide,
+// en `lib/admin/editor-composicion-campos.ts`, qué campo se muestra ARRIBA (composición activa) y
+// cuál queda PLEGADO bajo «Sólo con…» — nunca un `hint` libre que alguien pueda dejar sin actualizar
+// al agregar una composición nueva (§ el defecto medido en S1/S2 de la auditoría del 2026-10-12).
+// DELIBERADAMENTE NO se usa para casos donde el campo lo lee OTRA sección además de la propia (p.
+// ej. `tiendaEncabezado.sticker`, que `tiendaProducto` también lee bajo «Lámina abierta»): plegar
+// ahí escondería un campo que SÍ puede tener efecto por la otra sección — esos casos se corrigen con
+// el `hint`, no con esta etiqueta (§ CLAUDE.md, el criterio de la auditoría item 5).
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; deslizadorPasos?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean; composiciones?: string[] };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
 // requisito de una sección dejaría la banda sin nada que mostrar en ese slot.
-export type CampoImagen = { name: string; label: string; opcional?: boolean };
+// `composiciones` — MISMO mecanismo que `CampoTexto.composiciones` (§ arriba), para imágenes.
+export type CampoImagen = { name: string; label: string; opcional?: boolean; composiciones?: string[] };
 
 // UN CAMPO BOOLEANO (switch) — el interruptor de UNA CAPACIDAD de la sección, distinto del toggle
 // `SeccionConfig.ocultable` (que apaga la sección ENTERA). `gatedFields` declara qué campos de
@@ -347,17 +359,24 @@ export interface RepeaterConfig {
 // que los bloques dicen. El MODELO no se toca (campos planos, defaults, #44). Una sección SIN `bloques`
 // cae a un bloque `seccion` derivado con TODO —la red de seguridad: renderiza como antes (§ bloques.ts)—.
 // Cada `tipo` gana su renderer en su tanda.
+// `composiciones` (§ EDITOR-COMPOSICION-CAMPOS-1) en CUALQUIER variante — FALLBACK de bloque
+// entero, para cuando sus `slots`/`campos` no tienen descriptor propio en `config.campos` (hoy el
+// único caso real: `suscripcionPlanes.benN_M`, "NO llevan descriptor: la lista los pasa por
+// NOMBRE" — sin este tag, un bloque `lista` con slots sin descriptor no tiene de dónde leer su
+// restricción y `particionarBloques` lo trataría como universal). `lib/admin/editor-composicion-
+// campos.ts` lo lee del `config.bloques` ORIGINAL, por índice —`bloquesResueltos` (fuera de
+// `touches:`) no lo copia al objeto resuelto—, nunca de `BloqueResuelto`.
 export type BloqueConfig =
   // Bloque plano: encabezado (eyebrow/título) o el bloque derivado por defecto.
-  | { tipo: 'seccion'; imagenes?: string[]; campos?: string[] }
+  | { tipo: 'seccion'; imagenes?: string[]; campos?: string[]; composiciones?: string[] }
   // Una TARJETA: su imagen (miniatura) + sus campos, direccionada por `slot` (el mapeo del puente es
   // por slot, no por posición). `opcional` → la pieza no aparece hasta que se agrega (rule 3).
-  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: string; campos: string[]; opcional?: boolean }
+  | { tipo: 'tarjeta'; slot: number; titulo: string; imagen?: string; campos: string[]; opcional?: boolean; composiciones?: string[] }
   // Una LISTA PLANA sobre slots fijos (los beneficios): filas para los llenos, "+ Agregar" y "×". Se
   // COMPACTA (rule 2 · § lista-plana). `slots` son los nombres de campo; `itemLabel` el singular.
-  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string }
+  | { tipo: 'lista'; slots: string[]; itemLabel: string; hint?: string; composiciones?: string[] }
   // Un COLLAGE 2×2 de miniaturas (Historia): la posición se VE en el grid, como en la tienda (rule 1).
-  | { tipo: 'collage'; titulo?: string; imagenes: string[] };
+  | { tipo: 'collage'; titulo?: string; imagenes: string[]; composiciones?: string[] };
 
 export interface SeccionConfig {
   seccion: SeccionVista;
@@ -373,6 +392,15 @@ export interface SeccionConfig {
    *  texto/producto se editan ahora desde «Hero de la home»). Ausente = sin hint, el comportamiento de
    *  siempre ("el operador apaga y ve el resultado en la vista en vivo", § el toggle de abajo). */
   notaVisibilidad?: string;
+  /** § EDITOR-COMPOSICION-CAMPOS-1 (item 4 de la auditoría del 2026-10-12, causa sistémica SC3) — el
+   *  AUTO-GATE de la sección en el storefront: el nombre de UN campo (de `campos`/`imagenes`) cuyo
+   *  valor vacío hace que la sección NO se muestre, aunque el interruptor esté encendido — p. ej.
+   *  `tiendaInterludio`/`suscripcionInterludio`/`nosotrosInterludio` sin foto, `tiendaCierre` sin
+   *  frase, `nosotrosCierre` sin titular. SERIALIZABLE a propósito (un nombre, nunca una función: el
+   *  config cruza server→client como prop). Ausente = sin auto-gate declarado (la mayoría de las
+   *  secciones, y los casos más finos — el piso de 3 filas de `tiendaCreditos`/`nosotrosFicha`, que
+   *  depende de OTRA sección — siguen cubiertos sólo por su `notaVisibilidad`, no por este campo). */
+  seMuestraSiCampo?: string;
   /** Los INTERRUPTORES (switches) de sección — capacidades que se prenden/apagan, aparte del toggle
    *  de visibilidad de TODA la sección (`ocultable`). Ausente = sin interruptores (la mayoría de las
    *  secciones hoy). § `CampoBooleano` para el mecanismo de atenuación que cada uno puede activar. */
@@ -486,41 +514,53 @@ const HERO: SeccionConfig = {
   // no se muestra en pantalla (TiendaSeccionEditor.tsx `renderMediaHeroMovil` devuelve `null` fuera
   // del modo video; `imagenMovilPoster` nunca tiene su propio control standalone — va DENTRO del
   // flujo de `imagenMovil`, igual que `imagenPoster` vive dentro del flujo de `imagen`).
+  // § EDITOR-COMPOSICION-CAMPOS-1 — las TRES imágenes, tagueadas contra lo que cada composición
+  // LEE de verdad (medido: `HeroGrano.tsx`/`HeroCereza.tsx` nunca leen `hero.imagen`, § su propio
+  // docstring "ilustración pura, sin hero.imagen"; `imagenMovil`/`.Poster` sólo los leen
+  // `HeroMedia.tsx`/`HeroMediaMarquesina.tsx`). Antes de este slice las tres se mostraban SIEMPRE,
+  // aunque la composición activa fuera Grano/Cereza (H-HERO5 de la auditoría).
   imagenes: [
-    { name: 'imagen', label: 'Imagen de fondo' },
-    { name: 'imagenMovil', label: 'Video para teléfono (vertical)', opcional: true },
-    { name: 'imagenMovilPoster', label: 'Póster del video de teléfono', opcional: true },
+    { name: 'imagen', label: 'Imagen de fondo', composiciones: ['curtina', 'ficha', 'media', 'sticky', 'paisaje'] },
+    { name: 'imagenMovil', label: 'Video para teléfono (vertical)', opcional: true, composiciones: ['media', 'sticky'] },
+    { name: 'imagenMovilPoster', label: 'Póster del video de teléfono', opcional: true, composiciones: ['media', 'sticky'] },
   ],
   campos: [
     // EL PUNTO FOCAL (§ HERO-PUNTO-FOCAL-1): junto a la imagen de fondo, ARRIBA de los campos de
     // texto — qué parte de la foto/video queda a la vista al recortar. Escalar clampado
     // (`REGISTRY.hero.escalares.puntoFocal`), no un `campos` requerido/opcional; el select siempre
     // tiene un valor (la canónica "Centro" si nadie lo tocó), así que no lleva `opcional`.
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO5): sólo `HeroMedia.tsx`/`HeroMediaMarquesina.tsx` lo
+    // leen — `media`/`sticky`. Este campo no pasa por el loop genérico de bloques (lo dibuja
+    // `renderAltoYFondo` en TiendaSeccionEditor.tsx), así que el tag documenta la restricción para
+    // el test de consistencia y para que ESE renderer la respete (§ el commit de TSE).
     { name: 'puntoFocal', label: 'Punto focal de la imagen o el video', opciones: OPCIONES_PUNTO_FOCAL,
-      hint: 'Qué parte de la foto o el video se prioriza al recortar en pantallas angostas. Vacío: se centra, como hoy.' },
-    { name: 'eyebrow',            label: 'Línea superior',      opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
+      composiciones: ['media', 'sticky'],
+      hint: 'Sólo con las composiciones "Portada" o "Marquesina". Qué parte de la foto o el video se prioriza al recortar en pantallas angostas. Vacío: se centra, como hoy.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO5): «Marquesina» no pinta la línea superior
+    // (`HeroMediaMarquesina.tsx` nunca lee `hero.eyebrow`) — es la única composición sin esta zona.
+    { name: 'eyebrow',            label: 'Línea superior',      opcional: true, composiciones: ['curtina', 'ficha', 'media', 'grano', 'cereza', 'paisaje'], hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
     { name: 'titulo',             label: 'Titular',             hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'tituloEnfasis',      label: 'Énfasis del titular', opcional: true, hint: 'La palabra en cursiva, en su propia línea bajo el titular. Vacío: no se muestra.' },
     { name: 'subtitulo',          label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'ctaPrimarioLabel',   label: 'Botón principal',     hint: 'Su destino es /tienda (fijo). Vacío: se usa el texto por defecto.' },
-    { name: 'ctaSecundarioLabel', label: 'Botón secundario',    opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra.' },
+    { name: 'ctaSecundarioLabel', label: 'Botón secundario',    opcional: true, hint: 'Su destino es /suscripciones (fijo). Vacío: no se muestra. También desaparece si la página Suscripciones está apagada.' },
     // § HERO-FRASE-AL-PIE-Y-PREVIEW-1: campo opcional que ya existía en REGISTRY.hero.campos
     // (§ TEMAS-HERO-MEDIA-AGREGADOS-1) pero no tenía control acá — el `.hero-caption` del prototipo
     // no tenía por dónde escribirse. Sólo lo rinden las composiciones "media" y "sticky" (curtina/
     // ficha no lo leen); el hint lo dice para que el dueño no lo cargue esperando verlo en la
     // canónica.
-    { name: 'fraseAlPie', label: 'Frase al pie', opcional: true, textarea: true,
+    { name: 'fraseAlPie', label: 'Frase al pie', opcional: true, textarea: true, composiciones: ['media', 'sticky'],
       hint: 'Sólo con las composiciones "Portada" o "Marquesina". Aparece al pie del hero, alineada a la derecha, junto al indicador "Desliza". Vacío: no se muestra.' },
     // LOS DOS ESCALARES DE RONDA 4 (§ CORTE-HERO-REVELADO-MASCARA-1) — sólo aplican a la composición
     // "sticky" (§ HeroMediaMarquesina.tsx). Selects de opciones fijas, como `puntoFocal`: siempre
     // tienen un valor (la canónica si nadie lo tocó), así que ninguno lleva `opcional`.
-    { name: 'veloIntensidad', label: 'Intensidad del velo', opciones: OPCIONES_VELO_INTENSIDAD,
+    { name: 'veloIntensidad', label: 'Intensidad del velo', opciones: OPCIONES_VELO_INTENSIDAD, composiciones: ['sticky'],
       hint: 'Sólo con la composición "Marquesina" y el velo encendido. Qué tan oscuro se pone el velo sobre el video al hacer scroll.' },
     // DESLIZADOR POR PASOS (§ PANEL-PULIDO-1, `CampoTexto.deslizadorPasos`): dos posiciones con
     // nombre ("Normal"/"Más lenta"), el mismo control que "Alto" (abajo) y "Tamaño" en
     // `EstiloElementoControles.tsx` — no un `<select>` para un set tan chico.
     { name: 'tickerVelocidad', label: 'Velocidad del texto en movimiento', opciones: OPCIONES_TICKER_VELOCIDAD,
-      deslizadorPasos: true,
+      deslizadorPasos: true, composiciones: ['sticky'],
       hint: 'Sólo con la composición "Marquesina". Qué tan rápido se desplaza el texto de la cinta continua sobre el video.' },
     // EL ALTO (§ EDITOR-TIENDA-ZONAS-1, REDISENO.md § 4/§ 8) — reemplaza al interruptor "Ocupar toda
     // la pantalla" por un select de TRES pasos en palabras. `TiendaSeccionEditor.tsx` escribe SIEMPRE
@@ -528,8 +568,11 @@ const HERO: SeccionConfig = {
     // los dos campos nunca queden inconsistentes una vez que el dueño toca este control — ver el
     // docstring de `HeroContent.alto`. SIEMPRE tiene un valor (la canónica si nadie lo tocó), sin
     // `opcional`.
-    { name: 'alto', label: 'Alto', opciones: OPCIONES_ALTURA_HERO,
-      hint: 'Cuánto de la pantalla ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO4): `HeroMediaMarquesina.tsx` nunca lee `hero.alto` — la
+    // composición "Marquesina" siempre ocupa una pantalla completa. Todas las demás SÍ lo leen
+    // (medido: `claseAlturaHero(hero.alto, …)` en Curtina/Ficha/Media/Grano/Cereza/Paisaje).
+    { name: 'alto', label: 'Alto', opciones: OPCIONES_ALTURA_HERO, composiciones: ['curtina', 'ficha', 'media', 'grano', 'cereza', 'paisaje'],
+      hint: 'No tiene efecto con la composición "Marquesina" (siempre ocupa la pantalla completa). Cuánto de la pantalla ocupa el hero. "Justo" deja asomar el siguiente bloque; "Pantalla completa" lo llena entero.' },
     // EL DESLIZADOR DEL VELO (§ EDITOR-PANEL-DESLIZADORES-1) — REEMPLAZA al combo de cuatro pasos
     // («Oscurecer para leer mejor»: Nada · Suave · Medio · Fuerte) que antes decomponía
     // `veloVisible`+`veloIntensidad` vía `<select>`. `veloNivel` SÍ es un campo real de `REGISTRY.
@@ -538,7 +581,7 @@ const HERO: SeccionConfig = {
     // DIRECTO. `numero: true` (arriba) es lo que le dice a la cáscara (`TiendaSeccionEditor.tsx`)
     // que lo renderice con `Deslizador` y que lo coerciona a número cuando llega por el canal del
     // iframe. Sin `opciones` —el deslizador no es un `<select>`—.
-    { name: 'veloNivel', label: 'Fondo: oscurecer para leer mejor', numero: true,
+    { name: 'veloNivel', label: 'Fondo: oscurecer para leer mejor', numero: true, composiciones: ['sticky'],
       hint: 'Sólo con la composición "Marquesina". Qué tan oscuro se pone el velo sobre el video para que el texto se lea.' },
     // EL GRUPO «MARQUESINA» (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, docs/editor-tienda/REDISENO.md § 1
     // error 5): la composición "sticky" dibuja la cinta de texto + la tarjeta flotante leyendo
@@ -553,10 +596,13 @@ const HERO: SeccionConfig = {
     // nombre de campo que `MARQUESINA.campos` solía declarar —'texto'/'productoSlug'—, no un alias: es
     // lo que permite que `panel-controles.ts` los siga contando como `marquesina.texto`/
     // `marquesina.productoSlug`, no como `hero.texto`/`hero.productoSlug`.
-    { name: 'texto', label: 'Texto que se repite (marquesina)', seccionCruzada: 'marquesina',
+    { name: 'texto', label: 'Texto que se repite (marquesina)', seccionCruzada: 'marquesina', composiciones: ['sticky'],
       hint: 'Sólo con la composición "Marquesina". La frase que se repite desplazándose por la marquesina sobre el video — el mismo texto que usa la banda «Marquesina» si además la muestras suelta más abajo. Vacío: se usa el texto por defecto.' },
-    { name: 'productoSlug', label: 'Producto destacado en la marquesina (opcional)', opcional: true, seccionCruzada: 'marquesina',
-      hint: 'Sólo con la composición "Marquesina". El producto que aparece en la tarjeta flotante de la marquesina. Vacío: la tarjeta no se muestra.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO2, item 6 del spec): ganó `producto: true` — era texto
+    // libre (un slug tecleado a mano, sin combobox ni verificación de existencia); ahora se elige del
+    // catálogo real, igual que `spotlight.productoSlug`/`marquesina.producto1..6`.
+    { name: 'productoSlug', label: 'Producto destacado en la marquesina (opcional)', opcional: true, seccionCruzada: 'marquesina', producto: true, composiciones: ['sticky'],
+      hint: 'Sólo con la composición "Marquesina". El producto que aparece en la tarjeta flotante de la marquesina, elegido del catálogo. Vacío: la tarjeta no se muestra.' },
   ],
 };
 
@@ -641,8 +687,12 @@ const MARQUESINA: SeccionConfig = {
   notaVisibilidad: 'El texto y el producto destacado del HERO (cuando usa la composición "sticky") se editan desde «Hero de la home» → grupo «Marquesina». Esta tarjeta es la banda SUELTA: su propia frase, su propio fondo y su propia lista de productos, que puedes mostrar en cualquier punto de la página con el interruptor de abajo.',
   imagenes: [{ name: 'imagen', label: 'Imagen o video de fondo' }],
   campos: [
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-MARQ1) — el panel sólo sabe SUBIR foto: eligiendo "Video" el
+    // botón "Cambiar" de arriba se deshabilita (§ TiendaSeccionEditor.tsx, `esVideoSinSubidaPropia`),
+    // así que esta opción hoy sólo sirve para un video YA cargado por otra vía (una operación de
+    // datos), no para subir uno nuevo desde acá.
     { name: 'imagenTipo', label: 'Tipo de fondo', opciones: OPCIONES_IMAGEN_TIPO_MARQUESINA,
-      hint: 'Si la imagen de fondo de arriba es una foto o un video.' },
+      hint: 'Si la imagen de fondo de arriba es una foto o un video. La subida de un video nuevo no está disponible desde el panel todavía — "Video" sólo sirve para uno ya cargado.' },
     { name: 'transicion', label: 'Cómo salen los productos', opciones: OPCIONES_TRANSICION_MARQUESINA,
       transicionMarquesina: true,
       hint: 'El efecto con que cada producto aparece y desaparece al hacer scroll.' },
@@ -769,47 +819,59 @@ const BRAND_STORY: SeccionConfig = {
   campos: [
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Sólo con "Columnas"/"Centrada". Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Sólo con "Columnas"/"Centrada". Vacío: no se muestra.' },
+    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, composiciones: ['columnas', 'centrada'], hint: 'Sólo con "Columnas"/"Centrada". Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, composiciones: ['columnas', 'centrada'], hint: 'Sólo con "Columnas"/"Centrada". Vacío: no se muestra.' },
     // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón. Las TRES
     // composiciones lo reusan (§ HISTORIA-FICHA-DE-FINCA-1: "Titular, ceja y enlace reusan los
-    // campos que ya existen"), así que el hint no se restringe a ninguna.
+    // campos que ya existen"), así que el hint no se restringe a ninguna, y SIN `composiciones`
+    // (aplican a las tres).
     { name: 'ctaLabel',   label: 'Botón / enlace',            opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
     { name: 'ctaDestino', label: 'Botón / enlace · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
 
-    // ─── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — SÓLO tienen efecto con esa composición ────
-    { name: 'medio', label: 'Medio', opciones: OPCIONES_MEDIO_FICHA_DE_FINCA,
+    // ─── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — SÓLO tienen efecto con esa composición
+    // (§ EDITOR-COMPOSICION-CAMPOS-1: todos tagueados `composiciones: ['fichaDeFinca']`, así que
+    // caen al grupo plegado «Sólo con la composición "Ficha de finca"» bajo Columnas/Centrada) ────
+    { name: 'medio', label: 'Medio', opciones: OPCIONES_MEDIO_FICHA_DE_FINCA, composiciones: ['fichaDeFinca'],
       hint: 'Sólo con la composición "Ficha de finca". Ilustración: se dibuja sola, con los datos de abajo. Foto: usa la Imagen 1 de arriba, en 4:5 sin bordes redondeados.' },
-    { name: 'entrada', label: 'Entrada', opcional: true, textarea: true,
+    { name: 'entrada', label: 'Entrada', opcional: true, textarea: true, composiciones: ['fichaDeFinca'],
       hint: 'Sólo con la composición "Ficha de finca". Un párrafo corto (sugerido: hasta 300 caracteres). Vacío: no se muestra.' },
 
-    { name: 'fila1Rotulo', label: 'Rótulo', opcional: true, hint: 'Sólo con la composición "Ficha de finca". Fila sin rótulo o sin valor: no se muestra.' },
-    { name: 'fila1Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila1SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
-    { name: 'fila2Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila2Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila2SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
-    { name: 'fila3Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila3Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila3SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
-    { name: 'fila4Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila4Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila4SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
-    { name: 'fila5Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila5Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila5SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
-    { name: 'fila6Rotulo', label: 'Rótulo', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila6Valor', label: 'Valor', opcional: true, hint: 'Vacío: esta fila no se muestra.' },
-    { name: 'fila6SubLinea', label: 'Línea pequeña (opcional)', opcional: true, hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila1Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con la composición "Ficha de finca". Fila sin rótulo o sin valor: no se muestra.' },
+    { name: 'fila1Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila1SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila2Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila2Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila2SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila3Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila3Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila3SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila4Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila4Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila4SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila5Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila5Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila5SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
+    { name: 'fila6Rotulo', label: 'Rótulo', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila6Valor', label: 'Valor', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Vacío: esta fila no se muestra.' },
+    { name: 'fila6SubLinea', label: 'Línea pequeña (opcional)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Debajo del valor. Vacío: no se muestra.' },
 
-    { name: 'altitudMin', label: 'Altitud mínima', opcional: true, hint: 'Sólo con la composición "Ficha de finca". Ej. "1.650". Sin mínimo Y máximo, la ilustración no dibuja franja.' },
-    { name: 'altitudMax', label: 'Altitud máxima', opcional: true, hint: 'Ej. "2.100".' },
-    { name: 'altitudUnidad', label: 'Unidad', opcional: true, hint: 'Ej. "msnm". Vacío: se muestra sólo el número.' },
-    { name: 'lugar', label: 'Lugar', opcional: true, hint: 'El rótulo superior de la ilustración o la foto. Ej. "Supatá · Cundinamarca". Vacío: no se muestra.' },
-    { name: 'nombrePunto', label: 'Nombre del punto', opcional: true, hint: 'Ej. "Finca Nayoli". Vacío: no se muestra.' },
-    { name: 'subLineaPunto', label: 'Punto · línea pequeña', opcional: true, hint: 'Debajo del nombre. Ej. "vereda Providencia". Vacío: no se muestra.' },
-    { name: 'pieIlustracion', label: 'Pie de la ilustración', opcional: true, hint: 'El texto dibujado al pie del dibujo (no se usa con Foto). Ej. "Castillo · Lavado". Vacío: no se muestra.' },
-    { name: 'pieMedio', label: 'Pie (debajo de la foto o la ilustración)', opcional: true, hint: 'La leyenda bajo toda la figura, en los dos medios. Vacío: no se muestra.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-BS4) — "Sin mínimo Y máximo" corregido a "Sin mínimo O
+    // máximo": medido contra `franjaAltitud` (lib/storefront/historia-ficha.ts), la franja no se
+    // dibuja si FALTA cualquiera de los dos, no sólo si faltan los dos a la vez.
+    { name: 'altitudMin', label: 'Altitud mínima', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con la composición "Ficha de finca". Ej. "1.650". Sin mínimo O máximo, la ilustración no dibuja franja.' },
+    { name: 'altitudMax', label: 'Altitud máxima', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Ej. "2.100".' },
+    { name: 'altitudUnidad', label: 'Unidad', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Ej. "msnm". Vacío: se muestra sólo el número.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-BS3) — "lugar"/"nombrePunto"/"subLineaPunto"/"pieIlustracion"
+    // sólo se dibujan con «Medio» en "Ilustración" (medido: `BrandStoryFichaDeFinca.tsx` los pinta
+    // DENTRO de la rama `!esFoto`; "Foto" sólo usa la Imagen 1). Es una condición MÁS FINA que la
+    // composición (vive del valor de `medio`, un campo DENTRO de "Ficha de finca", no de otra
+    // composición) — el mecanismo de `composiciones` no la expresa, así que se corrige el HINT en
+    // vez de plegar el campo (§ CLAUDE.md, el criterio del item 5 de la auditoría).
+    { name: 'lugar', label: 'Lugar', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con la composición "Ficha de finca" y «Medio» en "Ilustración". El rótulo superior del dibujo. Ej. "Supatá · Cundinamarca". Vacío: no se muestra.' },
+    { name: 'nombrePunto', label: 'Nombre del punto', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con «Medio» en "Ilustración". Ej. "Finca Nayoli". Vacío: no se muestra.' },
+    { name: 'subLineaPunto', label: 'Punto · línea pequeña', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con «Medio» en "Ilustración". Debajo del nombre. Ej. "vereda Providencia". Vacío: no se muestra.' },
+    { name: 'pieIlustracion', label: 'Pie de la ilustración', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con «Medio» en "Ilustración" (no se usa con Foto). El texto dibujado al pie del dibujo. Ej. "Castillo · Lavado". Vacío: no se muestra.' },
+    { name: 'pieMedio', label: 'Pie (debajo de la foto o la ilustración)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con la composición "Ficha de finca". La leyenda bajo toda la figura, en los dos medios. Vacío: no se muestra.' },
   ],
   // BLOQUES: el COLLAGE de siempre + el texto de columnas/centrada + «Ficha de finca» (medio/entrada,
   // una TARJETA por fila, y el bloque de ilustración/rango) — TODO campo nuevo tiene que estar en
@@ -895,84 +957,126 @@ const ORIGEN: SeccionConfig = {
 //
 // LOS CAMPOS DE TARJETA (`label1..4`/`copy1..4`/`imagen1..4`/`categoria1..4`) SÓLO APLICAN A LAS
 // COMPOSICIONES 'mosaico'/'índice' — § RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 (2026-09-30). Bajo 'riel'
-// (`presentaciones.variante`, sólo CORTE la declara hoy, § site-content-defaults.ts) las tarjetas
-// visibles SALEN DEL CATÁLOGO de Productos (`productosDelRiel`, § lib/storefront/presentaciones.ts)
-// y estos cuatro campos NO TIENEN EFECTO en la tienda. No hay control de panel para la `variante`
-// misma (PANEL-EDITOR-VARIANTES-COMPOSICION-1 sigue sin construirse, § themes.ts), así que el dueño
-// no puede verla ni cambiarla desde acá — el aviso va en el `titulo` de cada bloque de tarjeta y en
-// el hint de su primer campo, los DOS únicos lugares de este archivo (dato puro, sin JSX) que
-// `TiendaSeccionEditor.tsx` ya renderiza sin necesitar un campo nuevo. El encabezado (eyebrow/título)
-// y el CTA de cabecera SÍ siguen aplicando bajo cualquier composición — no llevan el aviso.
+// las tarjetas visibles SALEN DEL CATÁLOGO de Productos (`productosDelRiel`, § lib/storefront/
+// presentaciones.ts) y estos campos NO TIENEN EFECTO. § EDITOR-COMPOSICION-CAMPOS-1 (H-PRES2) les
+// agrega `composiciones: ['mosaico', 'indice']`, así que bajo "Riel" caen al grupo plegado «Sólo con
+// las composiciones "Mosaico" y "Índice"» — la condición ya NO depende de un `<select>` inexistente
+// (`PANEL-EDITOR-VARIANTES-COMPOSICION-2` se cierra con el `composiciones` de abajo) ni de un hint
+// que nadie corre dos veces.
+//
+// AL REVÉS (H-PRES1): el CTA de cabecera (`ctaLabel`/`ctaDestino`) sólo lo lee
+// `GrindChooserRiel.tsx` (medido: `GrindChooserMosaico.tsx`/`GrindChooserIndice.tsx` no importan
+// `ctaLabel`) — `composiciones: ['riel']`, la restricción OPUESTA a las tarjetas.
+const LABEL_COMPOSICION_PRESENTACIONES: Record<string, string> = { mosaico: 'Mosaico', indice: 'Índice', riel: 'Riel' };
+const ZONAS_PRESENTACIONES_TARJETAS: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo'], label: 'Encabezado' },
+  { campos: ['label1', 'copy1', 'categoria1', 'label2', 'copy2', 'categoria2', 'label3', 'copy3', 'categoria3', 'label4', 'copy4', 'categoria4'], label: 'Tarjetas' },
+];
+const ZONAS_PRESENTACIONES_RIEL: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo', 'ctaLabel', 'ctaDestino'], label: 'Encabezado' },
+];
+const OPCIONES_COMPOSICION_PRESENTACIONES: ComposicionOpcion[] = REGISTRY.presentaciones.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_PRESENTACIONES[v] ?? v,
+  zonas: v === 'riel' ? ZONAS_PRESENTACIONES_RIEL : ZONAS_PRESENTACIONES_TARJETAS,
+}));
 const PRESENTACIONES: SeccionConfig = {
   seccion: 'presentaciones',
   pagina: 'home',
   titulo: 'Presentaciones',
   ocultable: true,
   bandaId: 'presentaciones',
+  composiciones: OPCIONES_COMPOSICION_PRESENTACIONES,
   imagenes: [
-    { name: 'imagen1', label: 'Imagen' },
-    { name: 'imagen2', label: 'Imagen' },
-    { name: 'imagen3', label: 'Imagen' },
-    { name: 'imagen4', label: 'Imagen' },
+    { name: 'imagen1', label: 'Imagen', composiciones: ['mosaico', 'indice'] },
+    { name: 'imagen2', label: 'Imagen', composiciones: ['mosaico', 'indice'] },
+    { name: 'imagen3', label: 'Imagen', composiciones: ['mosaico', 'indice'] },
+    { name: 'imagen4', label: 'Imagen', composiciones: ['mosaico', 'indice'] },
   ],
   // 2 a 4 tarjetas: 1-2 REQUERIDAS (defaults de Nayoli), 3-4 OPCIONALES (vacías → la tarjeta no se
   // muestra; con título O imagen aparece). Los campos siguen PLANOS; los BLOQUES los agrupan por
-  // tarjeta (§ bloques, abajo). El hint de los slots 3-4 encuadra la pieza opcional.
+  // tarjeta (§ bloques, abajo).
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',  label: 'Título', textarea: true, hint: 'Un salto de línea acá se respeta en la tienda. Vacío: se usa el texto por defecto.' },
-    { name: 'label1',     label: 'Nombre',      hint: 'Ej. "Presentación Clásica". Vacío: se usa el texto por defecto. No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
-    { name: 'copy1',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'categoria1', label: 'Presentación 1 · lleva a', categoria: true, tituloDe: 'label1', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label2',     label: 'Nombre',      hint: 'Ej. "Presentación Especial". Vacío: se usa el texto por defecto. No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
-    { name: 'copy2',      label: 'Descripción', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'categoria2', label: 'Presentación 2 · lleva a', categoria: true, tituloDe: 'label2', hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
-    { name: 'label3',     label: 'Nombre',      opcional: true, hint: 'Ej. "Tortas". No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
-    { name: 'copy3',      label: 'Descripción', opcional: true, textarea: true, hint: 'Opcional.' },
-    { name: 'categoria3', label: 'Presentación 3 · lleva a', categoria: true, tituloDe: 'label3', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
-    { name: 'label4',     label: 'Nombre',      opcional: true, hint: 'Ej. "Postres". No aplica si el tema activo usa la composición "riel" — ahí las tarjetas son los productos del catálogo.' },
-    { name: 'copy4',      label: 'Descripción', opcional: true, textarea: true, hint: 'Opcional.' },
-    { name: 'categoria4', label: 'Presentación 4 · lleva a', categoria: true, tituloDe: 'label4', opcional: true, hint: 'La categoría del catálogo que abre esta tarjeta.' },
-    // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): junto al título, no de una tarjeta puntual.
-    { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
-    { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+    { name: 'label1',     label: 'Nombre',      composiciones: ['mosaico', 'indice'], hint: 'Sólo con "Mosaico"/"Índice" — con "Riel" las tarjetas son los productos del catálogo. Ej. "Presentación Clásica". Vacío: se usa el texto por defecto.' },
+    { name: 'copy1',      label: 'Descripción', textarea: true, composiciones: ['mosaico', 'indice'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'categoria1', label: 'Presentación 1 · lleva a', categoria: true, tituloDe: 'label1', composiciones: ['mosaico', 'indice'], hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
+    { name: 'label2',     label: 'Nombre',      composiciones: ['mosaico', 'indice'], hint: 'Sólo con "Mosaico"/"Índice". Ej. "Presentación Especial". Vacío: se usa el texto por defecto.' },
+    { name: 'copy2',      label: 'Descripción', textarea: true, composiciones: ['mosaico', 'indice'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'categoria2', label: 'Presentación 2 · lleva a', categoria: true, tituloDe: 'label2', composiciones: ['mosaico', 'indice'], hint: 'La categoría del catálogo que abre esta tarjeta. Elige de la lista o escribe una.' },
+    { name: 'label3',     label: 'Nombre',      opcional: true, composiciones: ['mosaico', 'indice'], hint: 'Sólo con "Mosaico"/"Índice". Ej. "Tortas".' },
+    { name: 'copy3',      label: 'Descripción', opcional: true, textarea: true, composiciones: ['mosaico', 'indice'], hint: 'Opcional.' },
+    { name: 'categoria3', label: 'Presentación 3 · lleva a', categoria: true, tituloDe: 'label3', opcional: true, composiciones: ['mosaico', 'indice'], hint: 'La categoría del catálogo que abre esta tarjeta.' },
+    { name: 'label4',     label: 'Nombre',      opcional: true, composiciones: ['mosaico', 'indice'], hint: 'Sólo con "Mosaico"/"Índice". Ej. "Postres".' },
+    { name: 'copy4',      label: 'Descripción', opcional: true, textarea: true, composiciones: ['mosaico', 'indice'], hint: 'Opcional.' },
+    { name: 'categoria4', label: 'Presentación 4 · lleva a', categoria: true, tituloDe: 'label4', opcional: true, composiciones: ['mosaico', 'indice'], hint: 'La categoría del catálogo que abre esta tarjeta.' },
+    // El CTA de cabecera (§ MUESTRARIO-SECCION-CTA-1): junto al título. SÓLO "Riel" lo dibuja
+    // (H-PRES1) — al revés de las tarjetas de arriba.
+    { name: 'ctaLabel',   label: 'Botón',           opcional: true, composiciones: ['riel'], hint: 'Sólo con la composición "Riel". Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, composiciones: ['riel'], hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
   // BLOQUES: un encabezado (eyebrow/título/CTA) + una TARJETA por slot. Cada tarjeta posee su imagen y
   // sus tres campos (nombre/descripción/destino); el combobox de destino vive DENTRO de su tarjeta. Slots
   // 3-4 OPCIONALES: la pieza no aparece hasta "+ Agregar tarjeta". El `slot` es la identidad del puente.
+  // § EDITOR-COMPOSICION-CAMPOS-1 — el "(no aplica con el riel)" del título se RETIRA: con
+  // `composiciones` declarado, la tarjeta entera cae al pliegue «Sólo con…» bajo "Riel" — la
+  // ayuda ya no hace falta, el propio pliegue lo dice (§ item 2 del spec).
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'ctaLabel', 'ctaDestino'] },
-    { tipo: 'tarjeta', slot: 1, titulo: 'Tarjeta 1 (no aplica con el riel)', imagen: 'imagen1', campos: ['label1', 'copy1', 'categoria1'] },
-    { tipo: 'tarjeta', slot: 2, titulo: 'Tarjeta 2 (no aplica con el riel)', imagen: 'imagen2', campos: ['label2', 'copy2', 'categoria2'] },
-    { tipo: 'tarjeta', slot: 3, titulo: 'Tarjeta 3 (no aplica con el riel)', imagen: 'imagen3', campos: ['label3', 'copy3', 'categoria3'], opcional: true },
-    { tipo: 'tarjeta', slot: 4, titulo: 'Tarjeta 4 (no aplica con el riel)', imagen: 'imagen4', campos: ['label4', 'copy4', 'categoria4'], opcional: true },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Tarjeta 1', imagen: 'imagen1', campos: ['label1', 'copy1', 'categoria1'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Tarjeta 2', imagen: 'imagen2', campos: ['label2', 'copy2', 'categoria2'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Tarjeta 3', imagen: 'imagen3', campos: ['label3', 'copy3', 'categoria3'], opcional: true },
+    { tipo: 'tarjeta', slot: 4, titulo: 'Tarjeta 4', imagen: 'imagen4', campos: ['label4', 'copy4', 'categoria4'], opcional: true },
   ],
 };
 
+// § EDITOR-COMPOSICION-CAMPOS-1 (H-SUB1) — las dos composiciones de `subscriptionCTA`: «Bloque»
+// (canónica, Nayoli) y «Línea» (Onix). Medido contra el código real: `SubscriptionCTABloque.tsx`
+// lee `subtitulo`/`bullet1..4`, nunca `imagenFondo`/`ctaSecundarioLabel`/`.ctaSecundarioDestino`;
+// `SubscriptionCTALinea.tsx` lee `imagenFondo`/`ctaSecundarioLabel`/`.ctaSecundarioDestino`, nunca
+// `subtitulo`/`bulletN` — la restricción es TOTAL y en sentido OPUESTO entre las dos, no parcial
+// como en brandStory/presentaciones. `eyebrow`/`titulo`/`ctaLabel` los leen las dos (universales).
+const LABEL_COMPOSICION_SUBSCRIPTION: Record<string, string> = { bloque: 'Bloque', linea: 'Línea' };
+const ZONAS_SUBSCRIPTION_BLOQUE: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo', 'subtitulo'], label: 'Encabezado' },
+  { campos: ['bullet1', 'bullet2', 'bullet3', 'bullet4'], label: 'Beneficios' },
+  { campos: ['ctaLabel'], label: 'Botón' },
+];
+const ZONAS_SUBSCRIPTION_LINEA: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo'], label: 'Encabezado' },
+  { campos: ['ctaLabel', 'ctaSecundarioLabel', 'ctaSecundarioDestino'], label: 'Botones' },
+  { campos: ['imagenFondo'], label: 'Imagen de fondo' },
+];
+const OPCIONES_COMPOSICION_SUBSCRIPTION: ComposicionOpcion[] = REGISTRY.subscriptionCTA.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_SUBSCRIPTION[v] ?? v,
+  zonas: v === 'linea' ? ZONAS_SUBSCRIPTION_LINEA : ZONAS_SUBSCRIPTION_BLOQUE,
+}));
 const SUBSCRIPTION: SeccionConfig = {
   seccion: 'subscriptionCTA',
   pagina: 'home',
   titulo: 'Suscripción',
   ocultable: true,
   bandaId: 'subscriptionCTA',
+  composiciones: OPCIONES_COMPOSICION_SUBSCRIPTION,
   // `imagenFondo` (§ MUESTRARIO-CTA-BANNER-FOTO-1): el fondo OPCIONAL de la franja — sólo la
   // variante 'linea' la rinde (foto a sangre + velo + parallax); vacío = fondo sólido de hoy.
-  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
+  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)', composiciones: ['linea'] }],
   // Los beneficios son campos PLANOS `bullet1..4`; los BLOQUES los presentan como una LISTA (abajo). El
   // CTA lleva label editable; su destino (/suscripciones) es estructura.
   campos: [
     { name: 'eyebrow',   label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título. Vacío: no se muestra.' },
     { name: 'titulo',    label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'subtitulo', label: 'Subtítulo', textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'bullet1',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
-    { name: 'bullet2',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
-    { name: 'bullet3',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
-    { name: 'bullet4',   label: 'Beneficio', opcional: true, hint: 'Un beneficio de la suscripción.' },
+    { name: 'subtitulo', label: 'Subtítulo', textarea: true, composiciones: ['bloque'], hint: 'Sólo con la composición "Bloque". Vacío: se usa el texto por defecto.' },
+    { name: 'bullet1',   label: 'Beneficio', opcional: true, composiciones: ['bloque'], hint: 'Sólo con la composición "Bloque". Un beneficio de la suscripción.' },
+    { name: 'bullet2',   label: 'Beneficio', opcional: true, composiciones: ['bloque'], hint: 'Un beneficio de la suscripción.' },
+    { name: 'bullet3',   label: 'Beneficio', opcional: true, composiciones: ['bloque'], hint: 'Un beneficio de la suscripción.' },
+    { name: 'bullet4',   label: 'Beneficio', opcional: true, composiciones: ['bloque'], hint: 'Un beneficio de la suscripción.' },
     { name: 'ctaLabel',  label: 'Botón',       hint: 'Su destino es /suscripciones (fijo). Vacío: se usa el texto por defecto.' },
     // El SEGUNDO CTA (§ MUESTRARIO-SECCION-CTA-1): a diferencia del de arriba, su destino ES editable
-    // (del set cerrado), porque no tiene una ruta estructural propia como /suscripciones.
-    { name: 'ctaSecundarioLabel',   label: 'Segundo botón',           opcional: true, hint: 'Vacío: no se muestra ningún segundo botón.' },
-    { name: 'ctaSecundarioDestino', label: 'Segundo botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el segundo botón. Sin destino, no se muestra aunque tenga texto.' },
+    // (del set cerrado), porque no tiene una ruta estructural propia como /suscripciones. Sólo
+    // "Línea" lo dibuja (H-SUB1).
+    { name: 'ctaSecundarioLabel',   label: 'Segundo botón',           opcional: true, composiciones: ['linea'], hint: 'Sólo con la composición "Línea". Vacío: no se muestra ningún segundo botón.' },
+    { name: 'ctaSecundarioDestino', label: 'Segundo botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, composiciones: ['linea'], hint: 'A dónde lleva el segundo botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
   // BLOQUES: encabezado (con la imagen de fondo, § MUESTRARIO-CTA-BANNER-FOTO-1) + la LISTA de
   // beneficios + los botones. Los beneficios pasan de 4 inputs fijos a una lista plana que se cierra
@@ -1063,6 +1167,14 @@ const SPOTLIGHT: SeccionConfig = {
   pagina: 'home',
   titulo: 'Destacado',
   ocultable: true,
+  // § EDITOR-COMPOSICION-CAMPOS-1 (H-DEST1, item 6 del spec) — el slot «featured» de la home puede
+  // mostrar OTRA variante (`content.variantesBandas.featured`: "cuadricula"/"grilla" en vez de
+  // "spotlight") — ese eje se fija en el onboarding del tenant, no tiene picker en este panel
+  // (§ PENDIENTE_PANEL/panel-controles.ts: `variantesBandas` es dominio abierto, compuesto fuera de
+  // acá). Con otra variante activa, esta sección sigue editable pero el lugar que ocupaba en la
+  // home muestra la grilla del catálogo en su lugar — los textos fijos de esa grilla ("Nuestro
+  // Catálogo", "Selección del mes", "Ver todo") no son de este editor.
+  notaVisibilidad: 'Esta sección sólo se ve en la home si el slot de producto destacado usa la variante "Destacado" (spotlight) — algo que se fija al dar de alta la tienda, no desde este panel. Con otra variante (cuadrícula/grilla de catálogo), lo de abajo queda editado pero sin efecto, y la grilla no tiene sus propios campos acá.',
   // 'featured', no 'spotlight': spotlight es la VARIANTE que ocupa el slot de esa banda estructural
   // (§ el docstring de `SeccionConfig.bandaId`, arriba), no tiene bandaId propio en `BANDA_IDS`.
   bandaId: 'featured',
@@ -1079,7 +1191,10 @@ const SPOTLIGHT: SeccionConfig = {
     { name: 'titulo', label: 'Titular', opcional: true, textarea: true, hint: 'El titular de la banda destacada. Un salto de línea acá se respeta en la tienda. Vacío: no se muestra.' },
     { name: 'badge', label: 'Etiqueta sobre la imagen', opcional: true, hint: 'La etiqueta corta sobre la tarjeta del producto, por ejemplo "Cosecha 2026". Vacío: no se muestra.' },
     { name: 'nombreCafe', label: 'Nombre del café en el destacado', opcional: true, hint: 'El nombre fijo que se muestra bajo la foto — no cambia al elegir otra presentación o tamaño. Vacío: se deriva del nombre del producto destacado (lo que va antes de " — ").' },
-    { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, mostrarEjes: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: la banda no muestra nada.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-DEST2) — "Vacío: la banda no muestra nada" era FALSO: medido
+    // en `site-content-defaults.ts` (`catalog.find(…) ?? catalog[0]`), un pin vacío o que ya no
+    // matchea cae al PRIMER producto del catálogo — la banda sigue mostrando algo.
+    { name: 'productoSlug', label: 'Producto destacado', opcional: true, producto: true, mostrarEjes: true, hint: 'El producto que se destaca en la banda, elegido del catálogo. Sus notas de cata, precio y foto se leen de ahí — nunca se copian acá. Vacío: se usa el primer producto del catálogo.' },
     { name: 'presentacionSlug', label: 'Otro producto del grupo (1)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: la banda se arma sólo con los productos que SÍ estén elegidos.' },
     { name: 'otroTamanoSlug', label: 'Otro producto del grupo (2)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: no se muestra.' },
     { name: 'cuartoSlug', label: 'Otro producto del grupo (3)', opcional: true, producto: true, mostrarEjes: true, hint: 'El cuarto producto del grupo, si el catálogo lo tiene — completa la matriz Presentación × Tamaño (hasta 2×2). Vacío: no se muestra.' },
@@ -1229,7 +1344,10 @@ const NOSOTROS_FICHA: SeccionConfig = {
   pagina: 'nosotros',
   titulo: 'Ficha de la finca',
   ocultable: true,
-  notaVisibilidad: 'Con menos de 3 filas completas en "Créditos: ficha de origen" (página Tienda), esta sección no se muestra aunque el interruptor esté encendido.',
+  // § EDITOR-COMPOSICION-CAMPOS-1 (N-FICHA1, item 5 del spec) — se aclara que el piso mira el
+  // CONTENIDO de las filas, no el interruptor de "Créditos: ficha de origen": apagar esa sección en
+  // /tienda no apaga ésta si las filas siguen completas.
+  notaVisibilidad: 'Con menos de 3 filas completas en "Créditos: ficha de origen" (página Tienda), esta sección no se muestra aunque el interruptor de abajo esté encendido. Mira el CONTENIDO de esas filas, no su propio interruptor: apagarlas allá no apaga ésta si las filas siguen completas.',
   imagenes: [],
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'Ej. "La finca en cifras". Vacío: no se muestra.' },
@@ -1259,6 +1377,7 @@ const NOSOTROS_INTERLUDIO: SeccionConfig = {
   titulo: 'Interludio',
   ocultable: true,
   notaVisibilidad: 'Sin foto, esta sección no se muestra aunque el interruptor esté encendido.',
+  seMuestraSiCampo: 'imagen',
   imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
     { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 1.600 msnm". Vacío: no se muestra.' },
@@ -1294,11 +1413,19 @@ const NOSOTROS_CIERRE: SeccionConfig = {
   pagina: 'nosotros',
   titulo: 'CTA de cierre',
   ocultable: true,
+  // § EDITOR-COMPOSICION-CAMPOS-1 (N-CIE3, item 4 del spec) — no tenía `notaVisibilidad`: una
+  // sección nueva sin Titular (el default de arranque de cualquier tenant) no mostraba nada en la
+  // tienda y la fila del editor se veía igual que una encendida con contenido.
+  notaVisibilidad: 'Sin Titular, esta banda no se muestra aunque el interruptor esté encendido.',
+  seMuestraSiCampo: 'titulo',
   composiciones: OPCIONES_COMPOSICION_NOSOTROS_CIERRE,
-  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)' }],
+  // § EDITOR-COMPOSICION-CAMPOS-1 (N-CIE2) — medido en `NosotrosCierre.tsx`: `parrafo` e
+  // `imagenFondo` sólo se dibujan bajo «Imagen de fondo» (clave 'linea'); «Frase y botón» reusa
+  // `titulo`/`ctaLabel`/`ctaDestino` tal cual, sin leer ninguno de los dos.
+  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)', composiciones: ['linea'] }],
   campos: [
     { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra. Con la composición "Frase y botón", es la frase del cierre.' },
-    { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, hint: 'Sólo con la composición "Imagen de fondo". Vacío: no se muestra.' },
+    { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, composiciones: ['linea'], hint: 'Sólo con la composición "Imagen de fondo". Vacío: no se muestra.' },
     { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
     { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
@@ -1315,15 +1442,24 @@ const NOSOTROS_CIERRE: SeccionConfig = {
 // WhatsApp. MISMO patrón que `OPCIONES_COMPOSICION_TIENDA_CATALOGO`: el VALOR y el orden salen de
 // `REGISTRY.suscripcionPlanes.variantes.claves`, este archivo sólo agrega la etiqueta y las zonas.
 const LABEL_COMPOSICION_SUSCRIPCION_PLANES: Record<string, string> = { tarjetas: 'Tarjetas', taquilla: 'Taquilla' };
+// § EDITOR-COMPOSICION-CAMPOS-1 (S1/S2 de la auditoría) — la zona «Encabezado» (eyebrow/titulo/
+// tituloEnfasis/subtitulo) se RETIRA de Taquilla: medido en `SuscripcionPlanes.tsx`, con
+// `variante === 'taquilla'` y matriz válida se renderiza SÓLO `<SuscripcionTaquilla>` —
+// `SuscripcionTarjetas` (dueña de esos cuatro campos) no se monta en absoluto. La zona vieja los
+// nombraba igual bajo las dos composiciones, y es justo el defecto que el owner reportó: el panel
+// decía que ESE encabezado seguía vigente bajo Taquilla cuando la tienda real no lo pinta. En su
+// lugar, Taquilla gana su PROPIA zona «Encabezado» con los campos que SÍ dibuja
+// `SuscripcionTaquilla.tsx` (§ item 3 del spec, los textos recién sumados).
 const ZONAS_SUSCRIPCION_PLANES_TARJETAS: ZonaComposicion[] = [
   { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'], label: 'Encabezado' },
   { campos: ['planesTitulo', 'planesSubtitulo', 'ctaLabel', 'destacadoSlot'], label: 'Planes' },
 ];
 const ZONAS_SUSCRIPCION_PLANES_TAQUILLA: ZonaComposicion[] = [
-  { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'], label: 'Encabezado' },
-  { campos: ['maxBolsas', 'frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], label: 'Bolsas y frecuencias' },
+  { campos: ['taquillaKicker'], label: 'Encabezado' },
+  { campos: ['maxBolsas', 'frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4', 'taquillaEtiquetaBolsas', 'taquillaEtiquetaFrecuencia', 'taquillaEtiquetaMolienda'], label: 'Bolsas y frecuencias' },
   { campos: ['taquillaReferenciaTexto'], label: 'Referencia de precio' },
   { campos: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'], label: 'Créditos del trato' },
+  { campos: ['taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso', 'taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'], label: 'Botón de pedido' },
 ];
 const OPCIONES_COMPOSICION_SUSCRIPCION_PLANES: ComposicionOpcion[] = REGISTRY.suscripcionPlanes.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_SUSCRIPCION_PLANES[v] ?? v,
@@ -1342,71 +1478,104 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_PLANES,
   imagenes: [], // sección de solo texto (los planes no llevan imagen)
+  // § EDITOR-COMPOSICION-CAMPOS-1 — TODO lo de «Tarjetas» (encabezado, "Elige tu plan", los 4
+  // planes + beneficios) ahora lleva `composiciones: ['tarjetas']`: medido en `SuscripcionPlanes.
+  // tsx`, con «Taquilla» + matriz válida esta rama entera NO se monta (sólo `SuscripcionTaquilla`).
   campos: [
-    { name: 'eyebrow',         label: 'Línea superior',       opcional: true, hint: 'La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
-    { name: 'titulo',          label: 'Titular',              hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'tituloEnfasis',   label: 'Énfasis del titular',  opcional: true, hint: 'La palabra en cursiva bajo el titular (ej. "cada mes"). Vacío: no se muestra.' },
-    { name: 'subtitulo',       label: 'Subtítulo',            textarea: true, hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'planesTitulo',    label: 'Título de los planes', hint: 'Ej. "Elige tu plan". Vacío: se usa el texto por defecto.' },
-    { name: 'planesSubtitulo', label: 'Subtítulo de los planes', opcional: true, textarea: true, hint: 'Vacío: no se muestra.' },
-    { name: 'ctaLabel',        label: 'Botón de cada plan',   hint: 'El texto del botón que abre WhatsApp (ej. "Me interesa"). Vacío: se usa el texto por defecto.' },
+    { name: 'eyebrow',         label: 'Línea superior',       opcional: true, composiciones: ['tarjetas'], hint: 'Sólo con la composición "Tarjetas". La línea en mayúsculas sobre el titular. Vacío: no se muestra.' },
+    { name: 'titulo',          label: 'Titular',              composiciones: ['tarjetas'], hint: 'Sólo con la composición "Tarjetas". Vacío: se usa el texto por defecto.' },
+    { name: 'tituloEnfasis',   label: 'Énfasis del titular',  opcional: true, composiciones: ['tarjetas'], hint: 'La palabra en cursiva bajo el titular (ej. "cada mes"). Vacío: no se muestra.' },
+    { name: 'subtitulo',       label: 'Subtítulo',            textarea: true, composiciones: ['tarjetas'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'planesTitulo',    label: 'Título de los planes', composiciones: ['tarjetas'], hint: 'Ej. "Elige tu plan". Vacío: se usa el texto por defecto.' },
+    { name: 'planesSubtitulo', label: 'Subtítulo de los planes', opcional: true, textarea: true, composiciones: ['tarjetas'], hint: 'Vacío: no se muestra.' },
+    // «Botón de cada plan» SÓLO es el botón de WhatsApp bajo «Tarjetas» — bajo «Taquilla» el botón
+    // de WhatsApp es FIJO ("Pedir por WhatsApp", editable como `taquillaCtaLabel` más abajo, § item
+    // 3 del spec); el hint viejo ("el texto del botón que abre WhatsApp") mentía bajo Taquilla
+    // porque prometía controlar un botón que no es el suyo (S1 de la auditoría).
+    { name: 'ctaLabel',        label: 'Botón de cada plan',   composiciones: ['tarjetas'], hint: 'Sólo con la composición "Tarjetas". El texto del botón que abre WhatsApp (ej. "Me interesa"). Vacío: se usa el texto por defecto.' },
     // El select de destaque DERIVA sus opciones de los planes que existen (§ opcionesDestaque), no de un
     // set fijo: con 3 planes lista "Ninguno" + los 3; al agregar el 4º aparece; un destacado que apunta a
     // un plan vaciado se muestra colgando en vez de perderse.
-    { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, opcionesDinamicas: 'destaquePlanes', hint: 'El plan que se resalta como "Más Popular". Sólo uno; la lista muestra los planes que existen.' },
+    { name: 'destacadoSlot',   label: 'Plan destacado',       opcional: true, opcionesDinamicas: 'destaquePlanes', composiciones: ['tarjetas'], hint: 'El plan que se resalta como "Más Popular". Sólo uno; la lista muestra los planes que existen. Los 4 planes de esta sección son la misma fuente que el bloque de suscripción de la home: si esa sección usa la composición "Bloque", su teaser muestra estos mismos nombres y beneficios.' },
     // Plan 1 (requerido). Los `benN_*` NO llevan descriptor: la lista los pasa por NOMBRE (§ bloques).
-    { name: 'nombre1',      label: 'Nombre',      hint: 'Ej. "Plan Básico". Vacío: se usa el texto por defecto.' },
-    { name: 'descripcion1', label: 'Descripción', textarea: true, hint: 'Qué incluye y cada cuánto llega, p. ej. "La opción de entrada, cada mes". Vacío: se usa el texto por defecto.' },
-    { name: 'precio1',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO: escribe la moneda y la unidad, p. ej. «$ 45.000/mes» o «desde $ 40.000». Vacío: no se muestra.' },
+    { name: 'nombre1',      label: 'Nombre',      composiciones: ['tarjetas'], hint: 'Ej. "Plan Básico". Vacío: se usa el texto por defecto.' },
+    { name: 'descripcion1', label: 'Descripción', textarea: true, composiciones: ['tarjetas'], hint: 'Qué incluye y cada cuánto llega, p. ej. "La opción de entrada, cada mes". Vacío: se usa el texto por defecto.' },
+    { name: 'precio1',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', composiciones: ['tarjetas'], hint: 'Opcional, como TEXTO: escribe la moneda y la unidad, p. ej. «$ 45.000/mes» o «desde $ 40.000». Vacío: no se muestra.' },
     // Planes 2-4 (opcionales): nombre vacío → el plan no se muestra.
-    { name: 'nombre2',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
-    { name: 'descripcion2', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio2',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
-    { name: 'nombre3',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
-    { name: 'descripcion3', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio3',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
-    { name: 'nombre4',      label: 'Nombre',      opcional: true, hint: 'Vacío: este plan no se muestra.' },
-    { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
-    { name: 'precio4',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
-    // § ONIX-SUSCRIPCION-TAQUILLA-1 — SÓLO tienen efecto bajo la composición "Taquilla" (el hint lo
-    // dice), pero se editan siempre, mismo criterio que `tiendaCatalogo.barraFijaMovil` bajo «Taquilla».
-    { name: 'maxBolsas', label: 'Máximo de bolsas', opciones: OPCIONES_MAX_BOLSAS,
+    { name: 'nombre2',      label: 'Nombre',      opcional: true, composiciones: ['tarjetas'], hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion2', label: 'Descripción', opcional: true, textarea: true, composiciones: ['tarjetas'], hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio2',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', composiciones: ['tarjetas'], hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
+    { name: 'nombre3',      label: 'Nombre',      opcional: true, composiciones: ['tarjetas'], hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion3', label: 'Descripción', opcional: true, textarea: true, composiciones: ['tarjetas'], hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio3',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', composiciones: ['tarjetas'], hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
+    { name: 'nombre4',      label: 'Nombre',      opcional: true, composiciones: ['tarjetas'], hint: 'Vacío: este plan no se muestra.' },
+    { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, composiciones: ['tarjetas'], hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
+    { name: 'precio4',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', composiciones: ['tarjetas'], hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — SÓLO tienen efecto bajo la composición "Taquilla".
+    { name: 'maxBolsas', label: 'Máximo de bolsas', opciones: OPCIONES_MAX_BOLSAS, composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Cuántas bolsas puede pedir el cliente, de 1 a este número.' },
-    { name: 'frecuencia1', label: 'Frecuencia', hint: 'Sólo con la composición "Taquilla". Ej. "15 días". Vacío: se usa el texto por defecto.' },
-    { name: 'frecuencia2', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'frecuencia3', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'frecuencia4', label: 'Frecuencia', opcional: true, hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'taquillaReferenciaTexto', label: 'Referencia de precio', opcional: true, textarea: true,
+    { name: 'frecuencia1', label: 'Frecuencia', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Ej. "15 días". Vacío: se usa el texto por defecto.' },
+    { name: 'frecuencia2', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia3', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia4', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'taquillaReferenciaTexto', label: 'Referencia de precio', opcional: true, textarea: true, composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Reemplaza el cálculo automático ("Referencia: 2 × $20.000, precio de tienda por bolsa"). Vacío: se usa el cálculo automático.' },
-    { name: 'credito1Etiqueta', label: 'Rótulo', hint: 'Sólo con la composición "Taquilla". Ej. "Pedido". Vacío: se usa el texto por defecto.' },
-    { name: 'credito1Valor',    label: 'Valor',  hint: 'Ej. "Por WhatsApp". Vacío: se usa el texto por defecto.' },
-    { name: 'credito2Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'credito2Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'credito3Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'credito3Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'credito4Etiqueta', label: 'Rótulo', hint: 'Vacío: se usa el texto por defecto.' },
-    { name: 'credito4Valor',    label: 'Valor',  hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito1Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Ej. "Pedido". Vacío: se usa el texto por defecto.' },
+    { name: 'credito1Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Ej. "Por WhatsApp". Vacío: se usa el texto por defecto.' },
+    { name: 'credito2Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito2Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito3Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito3Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito4Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'credito4Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 (item 3 del spec) — los textos que `SuscripcionTaquilla.tsx`
+    // tenía FIJOS en código, ahora campos de `suscripcionPlanes` con esos mismos textos como
+    // DEFAULT (§ site-content-defaults.ts), así que /suscripciones de Onix sirve byte-idéntica.
+    // Todos REQUERIDOS (vacío → default): son micro-copy que siempre debe decir algo, nunca
+    // desaparecer a medias (un botón sin texto es peor que uno con el texto de siempre).
+    { name: 'taquillaKicker', label: 'Encabezado', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". La línea sobre el nombre del producto. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaEtiquetaBolsas', label: 'Etiqueta de la fila "Bolsas"', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaEtiquetaFrecuencia', label: 'Etiqueta de la fila de frecuencia', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Ej. "Cada". Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaEtiquetaMolienda', label: 'Etiqueta de la fila de molienda', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla", y sólo si el producto ofrece elegir molienda. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaCtaLabel', label: 'Botón de pedido', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". El botón que abre WhatsApp con el pedido armado. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaCtaAgotadoLabel', label: 'Botón cuando está agotado', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaAviso', label: 'Aviso bajo el botón', textarea: true, composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". La aclaración de que no se cobra nada en la tienda. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaBarraCtaLabel', label: 'Botón de la barra fija (celular)', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla", en celular. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaBarraAgotadoLabel', label: 'Etiqueta "agotado" (barra fija, celular)', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla", en celular. Vacío: se usa el texto por defecto.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'] },
     { tipo: 'seccion', campos: ['planesTitulo', 'planesSubtitulo', 'ctaLabel', 'destacadoSlot'] },
     { tipo: 'tarjeta', slot: 1, titulo: 'Plan 1', campos: ['nombre1', 'descripcion1', 'precio1'] },
-    { tipo: 'lista', slots: ['ben1_1', 'ben1_2', 'ben1_3', 'ben1_4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.' },
+    // § EDITOR-COMPOSICION-CAMPOS-1 — `composiciones: ['tarjetas']` EN EL BLOQUE: los `benN_M` no
+    // tienen descriptor en `campos` (§ el comentario de arriba, "la lista los pasa por NOMBRE"), así
+    // que sin este tag de bloque `particionarBloques` no tendría de dónde leer su restricción y los
+    // trataría como universales — se habrían seguido mostrando bajo Taquilla.
+    { tipo: 'lista', slots: ['ben1_1', 'ben1_2', 'ben1_3', 'ben1_4'], itemLabel: 'beneficio', hint: 'Hasta 4. La lista se cierra sin huecos.', composiciones: ['tarjetas'] },
     { tipo: 'tarjeta', slot: 2, titulo: 'Plan 2 (opcional)', campos: ['nombre2', 'descripcion2', 'precio2'] },
-    { tipo: 'lista', slots: ['ben2_1', 'ben2_2', 'ben2_3', 'ben2_4'], itemLabel: 'beneficio' },
+    { tipo: 'lista', slots: ['ben2_1', 'ben2_2', 'ben2_3', 'ben2_4'], itemLabel: 'beneficio', composiciones: ['tarjetas'] },
     { tipo: 'tarjeta', slot: 3, titulo: 'Plan 3 (opcional)', campos: ['nombre3', 'descripcion3', 'precio3'] },
-    { tipo: 'lista', slots: ['ben3_1', 'ben3_2', 'ben3_3', 'ben3_4'], itemLabel: 'beneficio' },
+    { tipo: 'lista', slots: ['ben3_1', 'ben3_2', 'ben3_3', 'ben3_4'], itemLabel: 'beneficio', composiciones: ['tarjetas'] },
     { tipo: 'tarjeta', slot: 4, titulo: 'Plan 4 (opcional)', campos: ['nombre4', 'descripcion4', 'precio4'] },
-    { tipo: 'lista', slots: ['ben4_1', 'ben4_2', 'ben4_3', 'ben4_4'], itemLabel: 'beneficio' },
-    // § ONIX-SUSCRIPCION-TAQUILLA-1 — sólo con la composición "Taquilla" (los bloques se muestran
-    // siempre, mismo criterio que los de "Tarjetas" arriba bajo "Taquilla").
-    { tipo: 'seccion', campos: ['maxBolsas'] },
+    { tipo: 'lista', slots: ['ben4_1', 'ben4_2', 'ben4_3', 'ben4_4'], itemLabel: 'beneficio', composiciones: ['tarjetas'] },
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — sólo con la composición "Taquilla".
+    { tipo: 'seccion', campos: ['taquillaKicker', 'maxBolsas'] },
     { tipo: 'lista', slots: ['frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], itemLabel: 'frecuencia', hint: 'De 1 a 4. La lista se cierra sin huecos.' },
     { tipo: 'seccion', campos: ['taquillaReferenciaTexto'] },
     { tipo: 'tarjeta', slot: 1, titulo: 'Crédito 1', campos: ['credito1Etiqueta', 'credito1Valor'] },
     { tipo: 'tarjeta', slot: 2, titulo: 'Crédito 2', campos: ['credito2Etiqueta', 'credito2Valor'] },
     { tipo: 'tarjeta', slot: 3, titulo: 'Crédito 3', campos: ['credito3Etiqueta', 'credito3Valor'] },
     { tipo: 'tarjeta', slot: 4, titulo: 'Crédito 4', campos: ['credito4Etiqueta', 'credito4Valor'] },
+    { tipo: 'seccion', campos: ['taquillaEtiquetaBolsas', 'taquillaEtiquetaFrecuencia', 'taquillaEtiquetaMolienda', 'taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso', 'taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'] },
   ],
 };
 
@@ -1467,6 +1636,7 @@ const SUSCRIPCION_INTERLUDIO: SeccionConfig = {
   titulo: 'Interludio',
   ocultable: true,
   notaVisibilidad: 'Sin foto, la sección no se muestra aunque el interruptor esté encendido.',
+  seMuestraSiCampo: 'imagen',
   imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
     { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Secado al sol · San Adolfo". Vacío: no se muestra.' },
@@ -1497,6 +1667,11 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
   pagina: 'suscripciones',
   titulo: 'Preguntas frecuentes',
   ocultable: true,
+  // § EDITOR-COMPOSICION-CAMPOS-1 (S5, item 5 del spec) — `faqSuscripcionesVisible` (site-content-
+  // defaults.ts) es la MISMA condición que gatea la página /preguntas-frecuentes Y el enlace
+  // "Preguntas Frecuentes" del pie: vaciar esta lista o apagar el interruptor de abajo se lleva las
+  // tres cosas, no sólo esta sección dentro de /suscripciones.
+  notaVisibilidad: 'Esta sección también ES el contenido de /preguntas-frecuentes y el enlace "Preguntas Frecuentes" del pie: vaciarla o apagarla oculta las tres cosas, no sólo lo que se ve acá.',
   composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_FAQ,
   imagenes: [], // sección de solo texto
   campos: [
@@ -1523,6 +1698,7 @@ const SUSCRIPCION_CIERRE: SeccionConfig = {
   titulo: 'Cierre',
   ocultable: true,
   notaVisibilidad: 'Sin frase, la sección no se muestra aunque el interruptor esté encendido.',
+  seMuestraSiCampo: 'frase',
   imagenes: [],
   campos: [
     { name: 'frase', label: 'Frase', opcional: true, textarea: true, hint: 'Vacío: esta sección NO se muestra.' },
@@ -1624,17 +1800,23 @@ const TIENDA_ENCABEZADO: SeccionConfig = {
   titulo: 'Encabezado de la tienda',
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_TIENDA_ENCABEZADO,
+  // § EDITOR-COMPOSICION-CAMPOS-1 (T-ENC1/T-ENC2) — `imagen` sólo la lee «Apertura»
+  // (`TiendaApertura`, medido); `leyenda` sólo las dos ramas de «Actual» (`navTratamiento.posicion`
+  // true/false, medido en `TiendaEncabezado.tsx`) — ninguna la lee bajo «Carta»/«Apertura».
   imagenes: [
-    { name: 'imagen', label: 'Foto de fondo', opcional: true },
+    { name: 'imagen', label: 'Foto de fondo', opcional: true, composiciones: ['apertura'] },
   ],
   campos: [
     { name: 'titulo', label: 'Título', opcional: true, hint: 'Vacío: se usa el texto por defecto (con la composición "Apertura", el nombre del negocio).' },
-    { name: 'leyenda', label: 'Leyenda', hint: 'Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
-    { name: 'sticker', label: 'Sticker girado', opcional: true, hint: 'Sólo con la composición "Carta". Un texto corto junto al título, p. ej. "cosecha 2026". Vacío: no se muestra.' },
-    { name: 'intro', label: 'Intro en primera persona', opcional: true, textarea: true, hint: 'Sólo con la composición "Carta". Dos líneas como máximo. Vacío: no se muestra.' },
-    { name: 'antojoTitulo', label: 'Título del selector', hint: 'Sólo con la composición "Carta", y sólo con 6 productos o menos. Vacío: se usa el texto por defecto.' },
-    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "Cosecha 2026". Vacío: no se muestra.' },
-    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. el origen. Vacío: no se muestra.' },
+    { name: 'leyenda', label: 'Leyenda', composiciones: ['actual'], hint: 'Sólo con la composición "Actual". Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
+    // `sticker` NO lleva `composiciones`: además de «Carta», lo lee `tiendaProducto` bajo «Lámina
+    // abierta» (T-ENC3) — plegarlo cuando esta sección NO está en «Carta» lo esconderia aunque
+    // siguiera teniendo efecto vía la página de producto. El hint dice la condición completa.
+    { name: 'sticker', label: 'Sticker girado', opcional: true, hint: 'Sólo con la composición "Carta" de esta sección, o con «Lámina abierta» en la página de producto — ahí reemplaza la etiqueta normal del producto. Un texto corto junto al título, p. ej. "cosecha 2026". Vacío: no se muestra.' },
+    { name: 'intro', label: 'Intro en primera persona', opcional: true, textarea: true, composiciones: ['carta'], hint: 'Sólo con la composición "Carta". Dos líneas como máximo. Vacío: no se muestra.' },
+    { name: 'antojoTitulo', label: 'Título del selector', composiciones: ['carta'], hint: 'Sólo con la composición "Carta", y sólo con 6 productos o menos. Vacío: se usa el texto por defecto.' },
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "Cosecha 2026". Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. el origen. Vacío: no se muestra.' },
   ],
 };
 
@@ -1671,7 +1853,11 @@ const TIENDA_CREDITOS: SeccionConfig = {
   pagina: 'tienda',
   titulo: 'Créditos: ficha de origen',
   ocultable: true,
-  notaVisibilidad: 'Con menos de 3 filas completas, la sección no se muestra aunque el interruptor esté encendido.',
+  // § EDITOR-COMPOSICION-CAMPOS-1 (T-CRED1, item 5 del spec) — estas filas TAMBIÉN alimentan «Ficha
+  // de la finca» en /nosotros (la lee directo, sin copiarla), y ESA sección sólo mira si hay 3+ filas
+  // completas — IGNORA el interruptor de abajo. Apagar «Créditos: ficha de origen» en /tienda no
+  // apaga la Ficha de /nosotros si las filas siguen completas.
+  notaVisibilidad: 'Con menos de 3 filas completas, esta sección no se muestra aunque el interruptor esté encendido — y tampoco se muestra «Ficha de la finca» en /nosotros, que lee estas mismas filas. Ojo: el interruptor de abajo sólo apaga esta sección en /tienda; la Ficha de /nosotros sigue mirando el CONTENIDO de las filas, no este interruptor.',
   imagenes: [],
   campos: [],
   repeater: {
@@ -1695,13 +1881,20 @@ const TIENDA_INTERLUDIO: SeccionConfig = {
   titulo: 'Interludio: retrato y cita',
   ocultable: true,
   notaVisibilidad: 'Sin foto, la sección no se muestra aunque el interruptor esté encendido.',
+  seMuestraSiCampo: 'imagen',
   composiciones: OPCIONES_COMPOSICION_TIENDA_INTERLUDIO,
+  // § EDITOR-COMPOSICION-CAMPOS-1 (T-INT2, item 5 del spec) — `imagen`/`cita`/`firma` SIN
+  // `composiciones`: además de la composición "Retrato y cita" de ESTA sección, `ProductoLamina.
+  // tsx` (la página de producto bajo «Lámina abierta») también los lee, sin mirar
+  // `tiendaInterludio.variante` — plegarlos cuando esta sección está en "Plano" los escondería
+  // aunque sigan vivos en cada ficha de producto. El hint dice la condición completa.
   imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
-    { name: 'cita', label: 'Cita', opcional: true, textarea: true, hint: 'Sólo con la composición "Retrato y cita". En primera persona. Vacío: no se muestra.' },
-    { name: 'firma', label: 'Firma', opcional: true, hint: 'Sólo con la composición "Retrato y cita". P. ej. "Marcela, vereda El Roble". Vacío: no se muestra.' },
-    // «Plano» (§ TIENDA-ONIX-CARTELERA-1): una sola foto documental a sangre + su pie.
-    { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Sólo con la composición "Plano". Texto corto en mayúscula, p. ej. "Recolección a mano · marzo–junio". Vacío: no se muestra.' },
+    { name: 'cita', label: 'Cita', opcional: true, textarea: true, hint: 'Sólo con la composición "Retrato y cita" de esta sección, o con «Lámina abierta» en la página de producto, que la muestra igual. En primera persona. Vacío: no se muestra.' },
+    { name: 'firma', label: 'Firma', opcional: true, hint: 'Sólo con la composición "Retrato y cita" de esta sección, o con «Lámina abierta» en la página de producto. P. ej. "Marcela, vereda El Roble". Vacío: no se muestra.' },
+    // «Plano» (§ TIENDA-ONIX-CARTELERA-1): una sola foto documental a sangre + su pie. `pie` SÍ es
+    // exclusivo de "Plano" — la página de producto no lo lee.
+    { name: 'pie', label: 'Pie de foto', opcional: true, composiciones: ['plano'], hint: 'Sólo con la composición "Plano". Texto corto en mayúscula, p. ej. "Recolección a mano · marzo–junio". Vacío: no se muestra.' },
   ],
 };
 
@@ -1718,7 +1911,10 @@ const TIENDA_CIERRE: SeccionConfig = {
   ocultable: true,
   composiciones: OPCIONES_COMPOSICION_TIENDA_CIERRE,
   notaVisibilidad: 'Sin frase, la sección no se muestra aunque el interruptor esté encendido. El botón lleva a WhatsApp si el negocio tiene un número configurado en Configuración; si no, a Suscripciones (cuando esa página esté encendida).',
-  imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true }],
+  seMuestraSiCampo: 'frase',
+  // § EDITOR-COMPOSICION-CAMPOS-1 (T-CIE2) — medido en `TiendaCierre.tsx`: `franjaTejido` sólo se
+  // lee en la rama "Costura" (después del `if (variante === 'fraseYBoton') return …`).
+  imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true, composiciones: ['costura'] }],
   campos: [
     { name: 'frase', label: 'Frase', opcional: true, textarea: true, hint: 'Vacío: esta sección NO se muestra.' },
     { name: 'boton', label: 'Texto del botón', hint: 'Vacío: se usa el texto por defecto.' },

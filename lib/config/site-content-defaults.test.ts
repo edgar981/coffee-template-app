@@ -2443,3 +2443,46 @@ test('marquesina.estilos.texto: un valor guardado se respeta; basura NUNCA lanza
   const r2 = resolverSiteContent({ marquesina: { estilos: 'basura' } });
   assert.deepEqual(r2.marquesina.estilos.texto, { fuente: null, tamano: null, color: null, alinear: null });
 });
+
+// ─── suscripcionPlanes · los textos de la Taquilla (§ EDITOR-COMPOSICION-CAMPOS-1, item 3) ────────
+// Los nueve campos que reemplazan a los literales que `SuscripcionTaquilla.tsx` tenía fijos en
+// código (la auditoría del 2026-10-12, hallazgo S1). Byte-idéntico sin fila: los DEFAULTS son los
+// mismos literales de hoy.
+
+test('sin nada guardado, suscripcionPlanes resuelve EXACTO a DEFAULTS.suscripcionPlanes — byte-idéntico', () => {
+  const r = resolverSiteContent({});
+  assert.deepEqual(r.suscripcionPlanes, DEFAULTS.suscripcionPlanes);
+});
+
+test('DEFAULTS.suscripcionPlanes: los 9 textos de la Taquilla son los literales que `SuscripcionTaquilla.tsx` tenía hardcodeados', () => {
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaKicker, 'Suscripción · Sin cobro automático');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaEtiquetaBolsas, 'Bolsas');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaEtiquetaFrecuencia, 'Cada');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaEtiquetaMolienda, 'Molienda');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaCtaLabel, 'Pedir por WhatsApp');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaCtaAgotadoLabel, 'Avísame por WhatsApp');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaAviso, 'No se cobra nada aquí. Pago y envío se acuerdan por chat.');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaBarraCtaLabel, 'Pedir');
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaBarraAgotadoLabel, 'Agotado');
+});
+
+test('REGISTRY.suscripcionPlanes.campos declara los 9 textos de la Taquilla como "requerido" (vacío → default, nunca un botón mudo)', () => {
+  for (const campo of [
+    'taquillaKicker', 'taquillaEtiquetaBolsas', 'taquillaEtiquetaFrecuencia', 'taquillaEtiquetaMolienda',
+    'taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso', 'taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel',
+  ]) {
+    assert.equal(REGISTRY.suscripcionPlanes.campos[campo as keyof typeof REGISTRY.suscripcionPlanes.campos], 'requerido', `${campo} debería ser "requerido"`);
+  }
+});
+
+test('un valor guardado para un texto de la Taquilla sobrevive la resolución completa', () => {
+  const r = resolverSiteContent({ suscripcionPlanes: { taquillaCtaLabel: 'Pide ya' } });
+  assert.equal(r.suscripcionPlanes.taquillaCtaLabel, 'Pide ya');
+  // Los demás siguen en su default — no se arrastran entre sí.
+  assert.equal(r.suscripcionPlanes.taquillaAviso, DEFAULTS.suscripcionPlanes.taquillaAviso);
+});
+
+test('vaciar un texto de la Taquilla cae al default — requerido, nunca en blanco', () => {
+  const r = resolverSiteContent({ suscripcionPlanes: { taquillaKicker: '' } });
+  assert.equal(r.suscripcionPlanes.taquillaKicker, DEFAULTS.suscripcionPlanes.taquillaKicker);
+});

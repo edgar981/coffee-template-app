@@ -346,7 +346,11 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
             <div className="duna-field">
               <label className="duna-field__label" htmlFor="footer-link-faq">Enlace — Preguntas Frecuentes</label>
               <input id="footer-link-faq" className="duna-input" value={form.linkPreguntasFrecuentes} onChange={(e) => cambiar({ linkPreguntasFrecuentes: e.target.value })} />
-              <AyudaCampo texto="Va a /preguntas-frecuentes (se oculta si la FAQ está vacía). Vacío: se usa el texto por defecto." />
+              {/* § EDITOR-COMPOSICION-CAMPOS-1 (C-PIE3) — el hint sólo mencionaba la FAQ vacía; se
+                  agregan las otras dos condiciones reales (`faqSuscripcionesVisible`, site-content-
+                  defaults.ts): la página Suscripciones apagada, y la sección "Preguntas frecuentes"
+                  oculta por su propio interruptor. */}
+              <AyudaCampo texto="Va a /preguntas-frecuentes. Se oculta si la FAQ está vacía, si la sección «Preguntas frecuentes» (página Suscripciones) está apagada, o si Suscripciones entera está apagada. Vacío: se usa el texto por defecto." />
             </div>
 
             <div className="duna-field">

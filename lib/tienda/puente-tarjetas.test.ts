@@ -12,14 +12,14 @@ import { DEFAULTS } from '@/lib/config/site-content-defaults';
 const PRESENTACIONES = SECCIONES_TIENDA.find(s => s.seccion === 'presentaciones')!;
 
 test('cada slot mapea a su BLOQUE-tarjeta del descriptor (fuente única, por slot)', () => {
-  // El título lleva "(no aplica con el riel)" desde RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1
-  // (`tienda-secciones.ts` — los campos de tarjeta del panel siguen existiendo para
-  // "presentaciones", pero bajo la variante riel las tarjetas son productos del catálogo, no
-  // estos slots). Este test afirma el título REAL de hoy, no el histórico "Tarjeta N" a secas.
+  // El título volvió a "Tarjeta N" a secas en § EDITOR-COMPOSICION-CAMPOS-1: el caveat "(no aplica
+  // con el riel)" de RIEL-PRODUCTOS-Y-VISTA-RAPIDA-1 se retiró porque `composiciones: ['mosaico',
+  // 'indice']` en cada campo de la tarjeta (tienda-secciones.ts) ya hace que el bloque entero caiga
+  // al pliegue «Sólo con…» bajo "Riel" — la ayuda en el título quedó redundante con el mecanismo.
   for (const slot of [1, 2, 3, 4]) {
     const b = bloqueDeTarjeta(PRESENTACIONES, slot);
     assert.equal(b?.slot, slot);
-    assert.equal(b?.titulo, `Tarjeta ${slot} (no aplica con el riel)`);
+    assert.equal(b?.titulo, `Tarjeta ${slot}`);
   }
 });
 

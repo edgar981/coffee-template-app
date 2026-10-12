@@ -158,7 +158,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-texto-suave)]">
-            Suscripción · Sin cobro automático
+            {c.taquillaKicker}
           </p>
           <h2 className="mt-1 font-playfair text-3xl text-[var(--sf-tinta)] sm:text-4xl">{nombreProducto}</h2>
 
@@ -182,20 +182,20 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           ))}
 
           <FilaTaquilla
-            etiqueta="Bolsas"
+            etiqueta={c.taquillaEtiquetaBolsas}
             celdas={bolsasOpciones.map((n) => ({ valor: n, label: String(n) }))}
             activa={bolsasActivas}
             onElegir={(n) => setBolsas(n as number)}
           />
           <FilaTaquilla
-            etiqueta="Cada"
+            etiqueta={c.taquillaEtiquetaFrecuencia}
             celdas={frecuencias.map((f) => ({ valor: f, label: f }))}
             activa={frecuenciaActiva}
             onElegir={(f) => setFrecuenciaElegida(f as string)}
           />
           {decision.modo === 'eleccion' && (
             <FilaTaquilla
-              etiqueta="Molienda"
+              etiqueta={c.taquillaEtiquetaMolienda}
               celdas={opcionesMolienda.map((o) => ({ valor: o.nombre, label: o.nombre, agotada: !o.disponible }))}
               activa={nombreMoliendaActiva}
               onElegir={(n) => setMoliendaElegida(n as string)}
@@ -209,10 +209,11 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           <p className="mt-1 text-sm text-[var(--sf-texto-suave)]">{referencia}</p>
 
           <div ref={botonRef} className="mt-6">
-            <BotonPedir agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} nombreProducto={nombreProducto} />
+            <BotonPedir agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} nombreProducto={nombreProducto}
+              ctaLabel={c.taquillaCtaLabel} ctaAgotadoLabel={c.taquillaCtaAgotadoLabel} />
           </div>
           <p className="mt-2 text-[13px] text-[var(--sf-texto-suave)]">
-            No se cobra nada aquí. Pago y envío se acuerdan por chat.
+            {c.taquillaAviso}
           </p>
 
           {creditos.length > 0 && (
@@ -236,11 +237,13 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
         // y se pasa como prop, para que `BarraFijaMovil` pueda deslizarse en vez de aparecer de
         // golpe por un remontaje.
         preview ? (
-          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra} />
+          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
+            ctaLabel={c.taquillaBarraCtaLabel} agotadoLabel={c.taquillaBarraAgotadoLabel} />
         ) : (
           montado &&
           createPortal(
-            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra} />,
+            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
+              ctaLabel={c.taquillaBarraCtaLabel} agotadoLabel={c.taquillaBarraAgotadoLabel} />,
             document.body,
           )
         )
@@ -308,12 +311,14 @@ function FilaTaquilla({
 }
 
 function BotonPedir({
-  agotado, whatsapp, mensaje, nombreProducto,
+  agotado, whatsapp, mensaje, nombreProducto, ctaLabel, ctaAgotadoLabel,
 }: {
   agotado: boolean;
   whatsapp?: string;
   mensaje: string;
   nombreProducto: string;
+  ctaLabel: string;
+  ctaAgotadoLabel: string;
 }) {
   if (!whatsapp) return null; // § el spec, item 2: "Si no hay número de WhatsApp, el botón no aparece"
   if (agotado) {
@@ -324,7 +329,7 @@ function BotonPedir({
         rel="noreferrer"
         className="sf-pildora block w-full cursor-pointer border border-[var(--sf-tinta)] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-tinta)] transition-colors hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]"
       >
-        Avísame por WhatsApp
+        {ctaAgotadoLabel}
       </a>
     );
   }
@@ -335,7 +340,7 @@ function BotonPedir({
       rel="noreferrer"
       className="sf-pildora block w-full cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.08em] text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
     >
-      Pedir por WhatsApp
+      {ctaLabel}
     </a>
   );
 }
@@ -346,13 +351,15 @@ function BotonPedir({
 // de publicación del alto — ver el docstring de cabecera de esa función en `TiendaTaquilla.tsx`;
 // no se repite acá para no mantener DOS copias del mismo porqué.
 function BarraFijaMovil({
-  resumen, agotado, whatsapp, mensaje, visible,
+  resumen, agotado, whatsapp, mensaje, visible, ctaLabel, agotadoLabel,
 }: {
   resumen: string;
   agotado: boolean;
   whatsapp?: string;
   mensaje: string;
   visible: boolean;
+  ctaLabel: string;
+  agotadoLabel: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -392,7 +399,7 @@ function BarraFijaMovil({
     >
       <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[var(--sf-fondo)]">{resumen}</span>
       {agotado ? (
-        <span className="shrink-0 text-xs font-semibold uppercase text-[var(--sf-fondo)]/70">Agotado</span>
+        <span className="shrink-0 text-xs font-semibold uppercase text-[var(--sf-fondo)]/70">{agotadoLabel}</span>
       ) : (
         <a
           href={whatsappUrl(whatsapp, mensaje)}
@@ -401,7 +408,7 @@ function BarraFijaMovil({
           {...tabProps}
           className="sf-pildora shrink-0 cursor-pointer bg-[var(--sf-accion,var(--sf-tostado))] px-4 py-2 text-xs font-semibold uppercase text-[var(--sf-accion-txt,var(--sf-tinta))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-accion,var(--sf-tostado))]"
         >
-          Pedir
+          {ctaLabel}
         </a>
       )}
     </motion.div>

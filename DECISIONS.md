@@ -61288,3 +61288,245 @@ archivo con bytes de visitante tocado, `NosotrosCierre.tsx`, es un refactor de o
 cambio de JSX). El diff SÍ cambia bytes que el OWNER lee: el panel entero (título, migas, ayuda,
 toggle de página, resumen de Publicar, la nota de Detalles del sitio). Sin cambio de schema/
 migración ni contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`.
+
+## 2026-10-12 — EDITOR-COMPOSICION-CAMPOS-1: el mecanismo de composición-por-campo, la Taquilla
+gana sus textos, y los hallazgos de la auditoría que dependían de él
+
+Spec validado CLEAR, continúa `slice/editor-secciones-1` tras `EDITOR-ESTADO-PAGINAS-1`. El disparador
+fue el reporte del owner del 2026-10-12: el panel mostraba, bajo la composición «Taquilla» de Planes,
+el texto como si «Tarjetas» siguiera activa. La auditoría (`.scratch/auditoria-editor/`) lo atribuyó a
+una causa SISTÉMICA (SC1): el editor nunca filtró `bloquesResueltos(config)` por `form.variante` — todo
+campo de toda composición se mostraba siempre, sin importar cuál estuviera activa.
+
+### El mecanismo (item 1)
+
+**`lib/admin/editor-composicion-campos.ts`** (nuevo, puro): `aplicaAComposicion(declarado, activa)` lee
+el tag `composiciones?: string[]` que gana `CampoTexto`/`CampoImagen`/`BloqueConfig` (`tienda-
+secciones.ts`) — ausente = aplica a TODAS (el default, lo que ya hacía el 99% de los campos).
+`particionarBloques(bloques, config, activa)` parte los `BloqueResuelto[]` en `visibles` (arriba, ya
+recortados campo por campo para los bloques `seccion` mixtos) y `plegados` (agrupados por su conjunto
+de composiciones). Para `tarjeta`/`lista`/`collage` —que no se pueden partir en dos sin reescribir su
+renderer— el bloque ENTERO pliega si NINGUNA de sus piezas aplica.
+
+**No se tocó `lib/tienda/bloques.ts`** (fuera de `touches:`, la red de seguridad de la migración a
+bloques): `bloquesResueltos` ya devuelve los descriptores reales por referencia, así que el tag viaja
+solo. El ÚNICO caso donde una pieza no tiene descriptor propio (`suscripcionPlanes.benN_M` — "la lista
+los pasa por NOMBRE", doctrina ya escrita en el archivo) necesitó un FALLBACK de bloque: `BloqueConfig`
+gana `composiciones?: string[]` en sus 4 variantes, y `particionarBloques` lo lee del `config.bloques`
+ORIGINAL por índice cuando el cálculo por-pieza no tiene de dónde leer.
+
+**TiendaSeccionEditor.tsx** consume el mecanismo: `bloquesVisibles` reemplaza a `bloques` en el loop de
+render; los `plegados` se dibujan en un disclosure `<button>+contenido` (local, estilo `.duna-*` — NO
+se reusó `Pliegue` de `components/admin/Pliegue.tsx`, que es Amber Minimal/shadcn, el lenguaje viejo que
+`/admin/tienda` ya dejó atrás), cerrado por defecto, titulado «Sólo con la composición "…"»
+(`tituloPlegado`). Para el HERO —que no declara `bloques`, así que el mecanismo de fold no lo alcanza
+directo— se gatearon a mano `renderAltoYFondo` (Alto/Fondo/punto focal/velo, cada pieza contra
+`aplicaAComposicion`) y `ZONA_HERO_ORDEN`/`CAMPOS_HERO_YA_DIBUJADOS` (las zonas Titular/Subtítulo/
+Botones/Indicador vuelven al loop genérico de campos fuera de "media"/"sticky", donde esos cuatro
+interruptores no tienen efecto — H-HERO1).
+
+**El test** (`lib/admin/editor-composicion-campos.test.ts`, 46 casos): el caso que motivó el slice
+(Planes bajo Taquilla no muestra ningún campo de Tarjetas, y viceversa; el pliegue conserva TODOS los
+de Tarjetas) + un recorrido de TODA sección con `composiciones` (9 secciones, 21 pares sección×valor)
+que falla si algún campo declarado desaparece sin estar ni visible ni plegado — el enunciado literal
+del item 1 del spec. Visto fallar antes del fallback de bloque (perdía `ben1_1..ben4_4`).
+
+### Aplicado a las secciones de la auditoría (item 2)
+
+**Hero** (zonas/alto/punto focal/fondo): `imagen` excluye grano/cereza (ilustración pura, sin
+`hero.imagen`); `imagenMovil`/`imagenMovilPoster`/`puntoFocal`/`fraseAlPie` sólo media/sticky;
+`eyebrow` excluye sticky (única composición sin "Línea superior"); `alto` excluye sticky (siempre
+pantalla completa); `veloIntensidad`/`tickerVelocidad`/`veloNivel`/el grupo «Marquesina» (`texto`/
+`productoSlug`) sólo sticky. Las zonas Titular/Subtítulo/Botones/Indicador (H-HERO1) sólo aplican
+media/sticky — medido contra cada `Hero*.tsx`, no asumido.
+
+**Nuestra Historia** (Ficha de finca): `parrafo1/2` → columnas/centrada; `medio`/`entrada`/las 18 de
+ficha/el rango de altitud/`lugar`/`nombrePunto`/`subLineaPunto`/`pieIlustracion`/`pieMedio` →
+fichaDeFinca. `lugar`/`nombrePunto`/`subLineaPunto`/`pieIlustracion` tienen una condición MÁS FINA
+(sólo con «Medio»=Ilustración, un valor DENTRO de fichaDeFinca) que el mecanismo de composición no
+expresa — se corrigió el HINT (H-BS3), no se plegó el campo.
+
+**Presentaciones** (Riel): GANÓ `composiciones` (no lo tenía — H-PRES2, cerrando la última entrada de
+`PANEL-EDITOR-VARIANTES-COMPOSICION-2`). `label1-4`/`copy1-4`/`categoria1-4`/`imagen1-4` → mosaico/
+índice (medido: bajo «riel» las tarjetas salen del catálogo real, `productosDelRiel`); AL REVÉS,
+`ctaLabel`/`ctaDestino` → SÓLO riel (H-PRES1, medido: `GrindChooserMosaico`/`Indice.tsx` no importan
+`ctaLabel`). El "(no aplica con el riel)" de los títulos de tarjeta se retira (ya redundante con el
+pliegue) — actualizó `lib/tienda/puente-tarjetas.test.ts` (fuera de `touches:`, deviación necesaria
+abajo).
+
+**Avance de Suscripción** (subscriptionCTA, Línea/Bloque): GANÓ `composiciones` (cerrando la otra mitad
+de `PANEL-EDITOR-VARIANTES-COMPOSICION-2`). Medido en sentido OPUESTO al de Presentaciones:
+`SubscriptionCTABloque.tsx` lee `subtitulo`/`bullet1-4`, nunca `imagenFondo`/`ctaSecundarioLabel`/
+`.ctaSecundarioDestino`; `SubscriptionCTALinea.tsx` es exactamente lo inverso (H-SUB1).
+
+**Suscripción · Planes** (Tarjetas/Taquilla, el caso que disparó el reporte): TODO lo de Tarjetas
+(encabezado, "Elige tu plan", los 4 planes + `benN_M`) → `['tarjetas']`; `maxBolsas`/`frecuencia1-4`/
+`taquillaReferenciaTexto`/`credito1-4Etiqueta/Valor` + los 9 textos nuevos (item 3) → `['taquilla']`.
+
+**Tienda** (leyenda/foto/franja): `tiendaEncabezado.leyenda` → sólo "actual" (T-ENC1, medido: las dos
+ramas de `navTratamiento.posicion` en `TiendaEncabezado.tsx`, DESPUÉS de los `return` de carta/
+apertura); `tiendaEncabezado.imagen`/`rotuloIzquierda`/`rotuloDerecha` → sólo "apertura" (T-ENC2);
+`intro`/`antojoTitulo` → sólo "carta"; `tiendaCierre.franjaTejido` → sólo "costura" (T-CIE2, medido:
+después del `if (variante==='fraseYBoton') return` en `TiendaCierre.tsx`). `sticker` (tiendaEncabezado)
+y `cita`/`firma` (tiendaInterludio) NO se tagguearon — T-ENC3/T-INT2 son cruces con `tiendaProducto`
+bajo «Lámina abierta» que el mecanismo no puede expresar sin esconder un campo que sigue vivo por la
+OTRA puerta; se corrigió el HINT (item 5).
+
+**Cierre de Nosotros**: `parrafo`/`imagenFondo` → sólo "linea" (N-CIE2, medido: `NosotrosCierre.tsx`
+sólo los lee fuera de la rama «fraseYBoton»).
+
+### Los textos de la Taquilla (item 3)
+
+`SuscripcionTaquilla.tsx` tenía NUEVE literales fijos: el kicker ("Suscripción · Sin cobro
+automático"), las etiquetas de fila ("Bolsas"/"Cada"/"Molienda"), el botón de pedido ("Pedir por
+WhatsApp"/"Avísame por WhatsApp"), el aviso ("No se cobra nada aquí…") y la barra fija del celular
+("Pedir"/"Agotado"). Pasaron a `SuscripcionPlanesContent.taquillaKicker`/`taquillaEtiquetaBolsas`/
+`taquillaEtiquetaFrecuencia`/`taquillaEtiquetaMolienda`/`taquillaCtaLabel`/`taquillaCtaAgotadoLabel`/
+`taquillaAviso`/`taquillaBarraCtaLabel`/`taquillaBarraAgotadoLabel` — todos REQUERIDOS (vacío →
+default, nunca un botón mudo), con los MISMOS literales como DEFAULT en `site-content-defaults.ts`
+→ byte-idéntico sin fila. Declarados en `REGISTRY.suscripcionPlanes.campos` y en
+`siteContentEditableSchema` (sin esto último, zod los STRIPPEA al guardar, § #65-B). `BotonPedir`/
+`BarraFijaMovil` (componentes internos de `SuscripcionTaquilla.tsx`) ganaron props `ctaLabel`/
+`ctaAgotadoLabel`/`agotadoLabel` en vez de los literales.
+
+**La notificación de fallback** (item 3, "cuando la Taquilla no tiene una matriz válida… el editor lo
+dice arriba de la sección"): `TiendaSeccionEditor.tsx` recalcula `derivarMatrizTaquilla` (lib/tienda/
+taquilla.ts, sin tocarlo) sobre `catalogoReal.filter(p => p.activo)` — los productos ACTIVOS, la misma
+condición que `/api/catalog` (lo que la tienda consulta de verdad; el orden de `/api/products` vs
+`/api/catalog` no afecta la validez de la matriz, sólo medido para no confundir T-CAT1) — y muestra un
+aviso ámbar si no forma una matriz válida mientras el select sigue diciendo "Taquilla".
+
+**La nota cruzada con el teaser de la home**: el hint de `destacadoSlot` suma que los 4 planes también
+alimentan `SubscriptionCTABloque.tsx` si esa sección usa "Bloque" (item 3, última cláusula). No se usó
+`notaVisibilidad` para esto — `suscripcionPlanes.ocultable: false`, y esa nota sólo se renderiza dentro
+de `{config.ocultable && (...)}` — habría quedado escrita y nunca mostrada, el mismo patrón que CLAUDE.md
+ya nombra para una guarda que nunca corre.
+
+### Secciones que no se ven aunque estén encendidas (item 4)
+
+`SeccionConfig` gana `seMuestraSiCampo?: string` (SERIALIZABLE — un nombre de campo, nunca una función:
+el config cruza server→client como prop): si ese campo está vacío, la sección se auto-oculta aunque el
+interruptor esté encendido. Aplicado a `tiendaInterludio`/`suscripcionInterludio`/`nosotrosInterludio`
+(`imagen`), `tiendaCierre`/`suscripcionCierre` (`frase`), `nosotrosCierre` (`titulo` — GANÓ su primer
+`notaVisibilidad`, no tenía ninguno, N-CIE3). `noSeMuestra`/`avisoNoSeMuestra` (la vista EXPANDIDA)
+ahora cubren las TRES causas (toggle apagado / repeater vacío / auto-gate) con su motivo preciso.
+
+**DESVIACIÓN del item 4, medida y declarada:** la fila COLAPSADA (`FilaSeccion`) sigue sin mostrar el
+motivo en texto — su propio docstring, de una tanda PREVIA (EDITOR-VISUAL-PANEL-1), declara a propósito
+"se dicen con el ojo, no con frases como «No se muestra…»". Agregar una frase a esa fila habría
+contradicho esa decisión ya tomada sin que el spec la mencionara explícitamente; se amplió `dim` para
+que SÍ refleje el auto-gate (antes sólo cubría toggle+repeater, así que una sección auto-oculta por
+`seMuestraSiCampo` se veía "encendida" en la lista — la mitad del defecto que el item 4 reporta), y el
+motivo preciso queda a un click, en la vista expandida. El "página apagada" del item 4 no se tocó: ya
+está cubierto por `TogglePagina` (G6, `EDITOR-ESTADO-PAGINAS-1`), que se renderiza justo arriba de la
+lista de secciones con su propio estado on/off — duplicarlo por fila habría sido la misma información
+dos veces.
+
+### Campos que lee otra sección (item 5)
+
+- **Créditos → Ficha de /nosotros**: `tiendaCreditos` ganó `notaVisibilidad` explicando que sus filas
+  TAMBIÉN alimentan "Ficha de la finca" en /nosotros, y que ESA sección mira el CONTENIDO de las
+  filas, no su propio interruptor (`NosotrosFicha.tsx` nunca lee `tiendaCreditos.visible` — medido);
+  `nosotrosFicha.notaVisibilidad` se amplió con la misma aclaración, en sentido inverso.
+- **Preguntas → /preguntas-frecuentes y el pie**: `suscripcionFaq` ganó `notaVisibilidad` (no tenía
+  ninguno). `FooterSeccion.tsx` corrigió su hint de "Preguntas Frecuentes" — mencionaba sólo la FAQ
+  vacía; `faqSuscripcionesVisible` (site-content-defaults.ts) también la oculta si la página
+  Suscripciones o la sección de la FAQ están apagadas.
+- **"Lámina abierta" → color/sticker/interludio**: `tiendaCatalogo`'s "Color por café" ganó su primer
+  `AyudaCampo` (no tenía ninguno) listando sus TRES consumidores reales (Láminas, el selector "¿Qué te
+  provoca?" de Carta, y la página de producto) — el comentario viejo decía "sólo bajo Láminas", medido
+  falso. Los hints de `sticker`/`cita`/`firma` (arriba) también se corrigieron.
+- **"Posición del encabezado" → /tienda**: `EncabezadoSeccion.tsx` corrigió el hint — decía que sólo
+  ensanchaba el contenido; también cambia el LAYOUT de `TiendaEncabezado.tsx`/`TiendaCatalogo.tsx`
+  (dos ramas de código, no una medida de espacio).
+
+### Los sueltos del home (item 6)
+
+- **"Producto destacado en la marquesina"** (hero·sticky, cruzado desde `marquesina`): ganó
+  `producto: true` — era texto libre (H-HERO2). `renderCampoCruzado` (TiendaSeccionEditor.tsx) no
+  sabía renderizar `producto`/`categoria`; ganó la rama que reusa `ProductoCombobox`, el mismo control
+  que `renderCampo` ya usa para un pin normal.
+- **Marquesina "Tipo de fondo: Video"**: el panel sólo sabe SUBIR foto (`accept={ACCEPT_IMAGENES}`
+  fijo en el único input oculto). En vez de construir un flujo de subida de video nuevo para esta
+  banda (reescribir el flujo del hero exigiría un campo póster que `MarquesinaContent` no tiene —
+  fuera de alcance), se deshabilita "Cambiar" cuando `imagenTipo==='video'`, con la razón a la vista
+  (H-MARQ1) — el select SIGUE ofreciendo "Video" (para no desalinear el valor de un tenant que ya
+  tenga uno cargado por otra vía), pero la subida ya no finge aceptarlo.
+- **"Destacado" y la grilla del catálogo**: `spotlight` ganó `notaVisibilidad` explicando que el slot
+  "featured" puede mostrar la grilla del catálogo en vez de Destacado (`content.variantesBandas.
+  featured`, fijado en el onboarding del tenant, sin picker en este panel) — DESVIACIÓN: es una nota
+  ESTÁTICA, no una detección dinámica del valor real de `variantesBandas.featured` (que hoy no está
+  threadeado al editor); explica la CONDICIÓN, no la detecta en vivo. También se corrigió
+  `productoSlug.hint` ("Vacío: la banda no muestra nada" era FALSO — cae a `catalog[0]`, H-DEST2).
+
+### Lo que NO se hizo, con su razón
+
+- **No se tocó `lib/tienda/bloques.ts`** (fuera de `touches:`) — el fallback de bloque resuelve el
+  único caso que lo necesitaba sin tocarlo.
+- **No se rediseñó la zona `collage` de brandStory** para que `imagen2-4` plieguen bajo "Ficha de
+  finca" junto con `imagen1` (que sí aplica, como foto). El tipo `collage` de `BloqueConfig` no separa
+  imágenes individualmente del resto del bloque sin reescribir `renderBloqueCollage`; se deja
+  documentado como hueco conocido, no una pérdida silenciosa (sigue mostrando las 4, como antes).
+- **No se cableó `variantesBandas` a `TiendaPaginas`/`TiendaSeccionEditor`** para que el aviso de
+  Destacado (arriba) fuera dinámico — es domino abierto que hoy sólo se compone en el onboarding
+  (§ panel-controles.ts, `PENDIENTE_PANEL`'s comentario de cabecera); cablearlo es una decisión de
+  alcance mayor que este slice.
+- **No se tocó el crash de hooks de `NosotrosCierre.tsx`** ni ningún otro archivo de
+  `components/storefront/nosotros/` o `components/storefront/tienda/` — fuera de `touches:`;
+  `EDITOR-ESTADO-PAGINAS-1` ya lo cerró.
+
+### Deviación: `lib/tienda/puente-tarjetas.test.ts` (fuera de `touches:`)
+
+Retirar "(no aplica con el riel)" del título de las tarjetas de Presentaciones (arriba) rompió un test
+existente que afirmaba ESE título literal. `lib/tienda/` no está en `touches:` de este slice, pero
+dejar un test ROJO por un cambio de ESTE diff —en vez de un cambio de scope ajeno— es peor que la
+corrección de una línea: se actualizó el string esperado a `Tarjeta ${slot}` con el porqué en el propio
+test. Ningún otro archivo de `lib/tienda/` se tocó.
+
+### El gate
+
+- **`npx tsc --noEmit`**: 0 errores.
+- **`npm test`**: 4499/4499 — incluye los 46 tests nuevos de `editor-composicion-campos.test.ts`, los 5
+  nuevos de `site-content-defaults.test.ts` (los 9 textos de la Taquilla, byte-identidad, requerido→
+  default), y los 2 ajustados en `panel-controles.test.ts` (el techo bajó de 9 a 7; dos aserciones
+  "sigue pendiente" ya falsas se reemplazaron por el cierre real).
+- **`npm run test:integracion`** (Postgres efímero local): 409/409 — sin cambio de esquema, así que es
+  el MISMO conjunto que corría antes de este slice; se corrió para confirmar que ninguna de las
+  secciones tocadas (suscripcionPlanes, presentaciones, subscriptionCTA, nosotrosCierre, tiendaCierre,
+  tiendaInterludio, tiendaEncabezado) rompió su viaje borrador→publicar→releer.
+- **`npm run gate`** (typecheck + test + test:integracion): verde, 4499 + 409 = 4908 tests, 0 fallos.
+- **`npx eslint`** sobre los 13 archivos tocados/nuevos: los `react-hooks/refs` de `TiendaSeccionEditor.
+  tsx` pasaron de 16 (medidos por `EDITOR-ESTADO-PAGINAS-1`) a 14 — NO es una regresión: es la misma
+  regla pre-existente (dispara sobre CUALQUIER `.map()`/paso de función dentro de este componente de
+  2900 líneas, porque el componente usa refs reales en otro lado — `subida.inputRef`), ahora repartida
+  entre líneas viejas sin tocar (2510/2513, los `<input>` ocultos de subida) y el bloque nuevo de
+  pliegues (2684-2777). Se inspeccionó cada línea nueva marcada: ninguna accede a `.current` durante el
+  render — es el mismo falso positivo de siempre, no un defecto nuevo. Los 7 `react/no-children-prop`
+  de `site-content-defaults.test.ts` están en líneas 1274-2040, antes de donde este slice agregó nada
+  (~2446+) — pre-existentes, verificado por inspección.
+- **`npx next build`** (sin `db:deploy`, prohibido por el dispatch): "Compiled successfully" + "Finished
+  TypeScript" — la fase SWC (la autoridad real para JSX/TSX, § CLAUDE.md) pasa limpia. La fase de
+  prerender falla en `/aceptar-invitacion` por `P2021` (sin base de datos en este sandbox) — EL MISMO
+  fallo, en la MISMA página, que `EDITOR-ESTADO-PAGINAS-1` ya documentó como ausencia de DB del
+  sandbox, no un defecto de diff; ningún archivo de este slice está en su camino.
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios, el único script que el
+  dispatch autoriza a crear un worktree): reporta diferencias de píxeles en las SEIS rutas —
+  **misma causa que el slice anterior**: compara `main` contra la rama ENTERA (~400 commits de ONIX
+  previos a este slice), no contra el commit inmediatamente anterior. La prueba de que ESTE diff no es
+  la causa: el ÚNICO archivo de storefront (visitante) que este slice tocó es `SuscripcionTaquilla.
+  tsx`, y ese componente NUNCA se monta para Nayoli — `DEFAULTS.suscripcionPlanes.variante` es
+  `'tarjetas'` (la canónica), nunca `'taquilla'`, así que `SuscripcionPlanes.tsx` jamás renderiza
+  `<SuscripcionTaquilla>` para Nayoli; el `variante==='taquilla'` en el que mis cambios tienen efecto
+  no ocurre con los datos de Nayoli que este arnés usa ("sin preset"). `lib/config/site-content-
+  defaults.ts`/`.schema.ts` (los otros dos archivos no-admin tocados) son ADITIVOS puros — ningún
+  default ni resolver EXISTENTE cambió de valor. Las seis cajas de diff reportadas (home/tienda/
+  producto/checkout/nosotros/suscripciones) no pueden venir de este diff por construcción.
+
+### Verdict
+
+**AWAITING_APPROVAL (`customer-bytes`).** El storefront visitante queda byte-idéntico para Nayoli (el
+único archivo de visitante tocado, `SuscripcionTaquilla.tsx`, nunca monta bajo la composición canónica
+de Nayoli). El diff SÍ cambia bytes que el OWNER lee: el panel entero — qué campo se ve bajo qué
+composición, los pliegues nuevos, los hints corregidos, el aviso de fallback de la Taquilla, el aviso
+de Destacado. Sin cambio de schema/migración (los 9 campos nuevos viven en el `content: Json` de
+`SiteContent`) ni contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`.

@@ -363,8 +363,12 @@ export const PENDIENTE_PANEL: ExencionPendiente[] = [
   // CERRADO por HISTORIA-FICHA-DE-FINCA-1: `brandStory.variante` ganó su control
   // (`BRAND_STORY.composiciones` en tienda-secciones.ts — el mismo select nativo, ahora con TRES
   // claves) — su entrada de exención se retiró de acá. Quedan DOS.
-  { campo: 'presentaciones.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
-  { campo: 'subscriptionCTA.variante', razon: 'Sólo mergePresetEnContent lo escribe; TiendaSeccionEditor no renderiza `variante`', cierra: 'PANEL-EDITOR-VARIANTES-COMPOSICION-2' },
+  //
+  // CERRADO por EDITOR-COMPOSICION-CAMPOS-1: `presentaciones.variante` y `subscriptionCTA.variante`
+  // ganaron su control (`PRESENTACIONES.composiciones`/`SUBSCRIPTION.composiciones` en tienda-
+  // secciones.ts — el mismo select nativo que ya mostraba Encabezado/Catálogo) — las DOS últimas
+  // entradas de `PANEL-EDITOR-VARIANTES-COMPOSICION-2` se retiraron de acá. El grupo entero queda
+  // cerrado.
 
   // CERRADO por PANEL-EDITOR-MARQUESINA-1: `marquesina` ganó su `SeccionConfig` (MARQUESINA en
   // tienda-secciones.ts, con `texto`/`productoSlug`/`imagen` + el toggle `visible`) — las cuatro

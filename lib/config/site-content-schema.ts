@@ -460,6 +460,17 @@ const suscripcionPlanesEditableSchema = z.object({
   credito2Etiqueta: z.string().optional(), credito2Valor: z.string().optional(),
   credito3Etiqueta: z.string().optional(), credito3Valor: z.string().optional(),
   credito4Etiqueta: z.string().optional(), credito4Valor: z.string().optional(),
+  // § EDITOR-COMPOSICION-CAMPOS-1 — los textos de la Taquilla que antes eran literales de
+  // `SuscripcionTaquilla.tsx`. Sin declararlos acá, zod los STRIPPEA al guardar (§ #65-B).
+  taquillaKicker: z.string().optional(),
+  taquillaEtiquetaBolsas: z.string().optional(),
+  taquillaEtiquetaFrecuencia: z.string().optional(),
+  taquillaEtiquetaMolienda: z.string().optional(),
+  taquillaCtaLabel: z.string().optional(),
+  taquillaCtaAgotadoLabel: z.string().optional(),
+  taquillaAviso: z.string().optional(),
+  taquillaBarraCtaLabel: z.string().optional(),
+  taquillaBarraAgotadoLabel: z.string().optional(),
 });
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de

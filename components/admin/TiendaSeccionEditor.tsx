@@ -35,7 +35,9 @@ import { etiquetaCercana } from '@/lib/admin/deslizador';
 import { metaElementoEstilo, resolverEstiloElemento, ESTILO_ELEMENTO_VACIO, type EstiloElementoResuelto } from '@/lib/config/estilo-elemento';
 import type { TemaAyudaId } from '@/lib/admin/ayuda-editor';
 import { debeMostrarSelectorComposicion } from '@/lib/admin/editor-paginas-onix';
+import { aplicaAComposicion, particionarBloques, tituloPlegado } from '@/lib/admin/editor-composicion-campos';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
+import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
@@ -498,6 +500,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // la sección completa (`abrirEdicion`), igual que tocar la fila misma. No se persiste ni se resetea
   // al cerrar: es un detalle de la lista, no del documento.
   const [zonasAbiertas, setZonasAbiertas] = useState(false);
+  // § EDITOR-COMPOSICION-CAMPOS-1 — qué grupos PLEGADOS («Sólo con la composición "…"») están
+  // expandidos, por su clave de composiciones (`comps.join('·')`, la MISMA que usa `particionarBloques`
+  // para agrupar). Cerrado por defecto (el spec); local y no persistido, como `zonasAbiertas`.
+  const [plegadosAbiertos, setPlegadosAbiertos] = useState<Set<string>>(new Set());
   // § EDITOR-VISUAL-NIVELES-1 — EL NIVEL «elemento», SÓLO HERO (REDISENO.md § 3: "Inicio › Hero ›
   // Titular"). `null` = nivel Hero (composición/zonas/alto/fondo); una de las cuatro claves = el
   // panel baja a mostrar SÓLO ese campo + sus controles de estilo + «Quitar» (§ `renderElementoHero`,
@@ -1315,10 +1321,18 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   const oculta = config.ocultable && form.visible === false;
   const items = config.repeater ? form[config.repeater.itemsKey] : undefined;
   const repeaterVacio = !!config.repeater && !(Array.isArray(items) && items.length > 0);
-  const noSeMuestra = oculta || repeaterVacio;
+  // § EDITOR-COMPOSICION-CAMPOS-1 (item 4, SC3 de la auditoría) — el AUTO-GATE declarado
+  // (`config.seMuestraSiCampo`): la sección se auto-oculta aunque el interruptor esté encendido si
+  // ese campo está vacío (sin foto/sin frase/sin titular). `campoGateVacio` es el valor vacío en SÍ
+  // —se reusa para el motivo en la fila colapsada, abajo— y `noSeMuestra` lo suma a las dos causas
+  // que ya cubría.
+  const campoGateVacio = !!config.seMuestraSiCampo && String(form[config.seMuestraSiCampo] ?? '').trim() === '';
+  const noSeMuestra = oculta || repeaterVacio || campoGateVacio;
   const avisoNoSeMuestra = oculta
     ? 'Actívala con el interruptor para verla aquí.'
-    : 'La lista está vacía — agrega el primero para verla aquí.';
+    : repeaterVacio
+      ? 'La lista está vacía — agrega el primero para verla aquí.'
+      : `Falta «${config.campos.find((c) => c.name === config.seMuestraSiCampo)?.label ?? config.imagenes.find((i) => i.name === config.seMuestraSiCampo)?.label ?? config.seMuestraSiCampo}» — complétalo para verla aquí.`;
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
   const mostrarEstado = editando || auto.estado !== 'guardado';
@@ -1539,15 +1553,27 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     );
   };
 
+  // § EDITOR-COMPOSICION-CAMPOS-1 — la composición ACTIVA de esta sección, o `undefined` si no
+  // declara `composiciones` (nada que filtrar). Un sólo cálculo, reusado por el fold de bloques
+  // (abajo), los campos cruzados (siguiente bloque) y, para el hero, `renderAltoYFondo`/
+  // `renderZonasHero`.
+  const activaComposicion = config.composiciones ? String(form.variante ?? config.composiciones[0]?.value ?? '') : undefined;
+
   // ── CAMPOS CRUZADOS (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, `CampoTexto.seccionCruzada`) ──────────
   // Un campo declarado con `seccionCruzada` vive en OTRA sección del REGISTRY: se MUESTRA en esta
   // tarjeta, agrupado por la sección a la que pertenece de verdad, pero su valor y su escritura NUNCA
   // pasan por el `form`/autoguardado de ESTA sección — se leen de `valoresCruzados` y se escriben vía
   // `onEscribirCruzado`, que el padre (`TiendaPaginas`) resuelve al handle REAL
   // (`escribirCampoSinAbrir`). Así sigue habiendo un único escritor de la sección destino, sea cual
-  // sea la tarjeta desde la que se edite. Deliberadamente SIMPLE (label + hint + input/textarea): los
-  // campos cruzados de hoy (`marquesina.texto`/`.productoSlug`) son texto llano, sin categoria/
-  // producto/opciones — si alguno los ganara, se amplía acá, no se duplica `renderCampo` entero.
+  // sea la tarjeta desde la que se edite. Deliberadamente SIMPLE (label + hint + input/textarea, +
+  // `producto`, § EDITOR-COMPOSICION-CAMPOS-1): los campos cruzados de hoy (`marquesina.texto`/
+  // `.productoSlug`) son sin categoria/opciones — si alguno las ganara, se amplía acá, no se duplica
+  // `renderCampo` entero.
+  // § EDITOR-COMPOSICION-CAMPOS-1 — este grupo NO se pliega por composición, a propósito: su propio
+  // encabezado ya nombra la sección destino ("Marquesina"), y el fold de `particionarBloques`
+  // (abajo) es para bloques de ESTA sección, no para este grupo aparte — plegarlo sin una forma de
+  // reabrirlo lo haría desaparecer del editor sin aviso. El hint de cada campo ("Sólo con la
+  // composición Marquesina") sigue siendo la señal, como ya era.
   const camposCruzados = config.campos.filter((c) => c.seccionCruzada);
   const gruposCruzados = new Map<SeccionVista, CampoTexto[]>();
   for (const c of camposCruzados) {
@@ -1561,6 +1587,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     const value = String(valoresCruzados?.[destino]?.[campo.name] ?? '');
     const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onEscribirCruzado?.(destino, campo.name, e.target.value);
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO2) — un campo cruzado con `producto: true` (hoy sólo
+    // `marquesina.productoSlug`, mostrado desde la tarjeta del hero) necesita el MISMO combobox que
+    // `renderCampo` ya le da a un pin de catálogo normal: antes de esto era el único pin del editor
+    // que seguía siendo texto libre, porque `renderCampoCruzado` nunca aprendió el tipo.
+    if (campo.producto) {
+      const productoInexistenteCruzado = productosListos && value.trim() !== '' && !catalogoReal.some((p) => p.slug === value);
+      return (
+        <div key={campo.name} className="duna-field">
+          <label className="duna-field__label" htmlFor={id}>{campo.label}</label>
+          <ProductoCombobox id={id} value={value} productos={catalogoReal} productosListos={productosListos}
+                             onChange={(v) => onEscribirCruzado?.(destino, campo.name, v)} ariaDescribedby={`${id}-hint`} />
+          {productoInexistenteCruzado && (
+            <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+              Este producto ya no existe en el catálogo — elige uno de la lista.
+            </p>
+          )}
+          <AyudaCampo texto={campo.hint} id={`${id}-hint`} />
+        </div>
+      );
+    }
     // § EDITOR-TIENDA-ESTILO-MARQUESINA-TICKER-1 — ¿este campo cruzado es TAMBIÉN un elemento
     // estilizable? `metaElementoEstilo` se consulta contra `destino` (la sección DUEÑA real, p. ej.
     // `marquesina`), nunca contra `seccion` (la que lo muestra, `hero`) — la misma distinción que
@@ -1628,12 +1674,21 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // el DESLIZADOR de `veloNivel` ("Fondo: oscurecer para leer mejor"), § `renderAltoYFondo` más
   // abajo. `config.booleanos` SIGUE declarando los seis nombres (bookkeeping de
   // `panel-controles.ts`); esta lista sólo filtra CUÁLES pinta.
-  const ZONA_HERO_ORDEN: { key: ZonaHeroKey; gl: string }[] = [
+  // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO1) — las CUATRO zonas de texto (Titular/Subtítulo/Botones/
+  // Indicador) viven de los interruptores `titularVisible`/`subtituloVisible`/`ctasVisibles`/
+  // `cueDesliza`, que SÓLO leen `HeroMedia.tsx`/`HeroMediaMarquesina.tsx` (§ el docstring de `HERO`
+  // arriba: "tienen efecto visible con hero.variante === 'media' Y, desde…, también con 'sticky'").
+  // Con Cortina/Ficha/Grano/Cereza/Paisaje esos cuatro componentes pintan titulo/subtitulo/ctas SIN
+  // condición y no tienen ningún "Desliza" — así que "Quitar titular" no quitaba nada ahí (la
+  // auditoría lo vio en vivo). Fuera de "media"/"sticky" la lista queda VACÍA y los cuatro campos
+  // vuelven al loop genérico de bloques como texto plano (§ `CAMPOS_HERO_YA_DIBUJADOS`, abajo).
+  const zonasHeroAplican = activaComposicion === undefined || activaComposicion === 'media' || activaComposicion === 'sticky';
+  const ZONA_HERO_ORDEN: { key: ZonaHeroKey; gl: string }[] = zonasHeroAplican ? [
     { key: 'titular', gl: 'T' },
     { key: 'subtitulo', gl: '¶' },
     { key: 'botones', gl: '▭' },
     { key: 'indicador', gl: '↓' },
-  ];
+  ] : [];
   /** El estado de UNA zona a partir del `form` actual — compartido entre esta lista y el chevron de
    *  la fila colapsada (`!editando`, más abajo), para que las dos lecturas del mismo dato no puedan
    *  divergir. */
@@ -1735,9 +1790,21 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // campos de siempre cuando `veloNivel` nunca se tocó, para que el deslizador nazca en la
     // posición que YA representa el tema — nunca en 0 por default.
     const valorVelo = nivelEfectivoDeVelo(form.veloVisible !== false, String(form.veloIntensidad ?? 'media'), form.veloNivel);
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO1/H-HERO4/H-HERO5) — este renderer NO pasa por el loop
+    // genérico de bloques (está filtrado por `CAMPOS_HERO_YA_DIBUJADOS`/`IMAGENES_HERO_YA_DIBUJADAS`,
+    // § arriba), así que `particionarBloques` nunca lo ve: cada pieza se gatea acá, contra el MISMO
+    // tag `composiciones` que ya trae su descriptor. «Alto» no tiene efecto bajo «Marquesina»
+    // (siempre a pantalla completa); «Fondo» entero no aplica bajo «Grano»/«Cereza» (ilustración pura,
+    // sin imagen que editar); dentro de «Fondo», el punto focal, el video de teléfono y el deslizador
+    // del velo son más angostos todavía (sólo «Portada»/«Marquesina», y el velo sólo «Marquesina»).
+    const altoAplica = aplicaAComposicion(campoAlto, activaComposicion);
+    const imagenAplica = aplicaAComposicion(campoImagen, activaComposicion);
+    const imagenMovilAplica = aplicaAComposicion(campoImagenMovil, activaComposicion);
+    const puntoFocalAplica = aplicaAComposicion(campoPuntoFocal, activaComposicion);
+    const veloNivelAplica = aplicaAComposicion(campoVeloNivel, activaComposicion);
     return (
       <>
-        {campoAlto && opcionesAlto && (
+        {campoAlto && opcionesAlto && altoAplica && (
           <div className="admin-bloque">
             <Deslizador
               id={`${seccion}-alto`}
@@ -1754,29 +1821,31 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
             />
           </div>
         )}
-        <div className="admin-bloque">
-          <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>Fondo</span>
-          {campoImagen && renderMiniatura(campoImagen)}
-          {campoImagenMovil && renderMiniatura(campoImagenMovil)}
-          {campoPuntoFocal && <div className="duna-form" style={{ marginTop: 'var(--duna-space-3)' }}>{renderCampo(campoPuntoFocal)}</div>}
-          {campoVeloNivel && (
-            <div style={{ marginTop: 'var(--duna-space-3)' }}>
-              <Deslizador
-                id={`${seccion}-veloNivel`}
-                etiqueta={campoVeloNivel.label}
-                hint={campoVeloNivel.hint}
-                valor={valorVelo}
-                min={0}
-                max={100}
-                marcas={MARCAS_VELO}
-                pasoTeclado={5}
-                formatoValor={(v) => `${etiquetaCercana(v, MARCAS_VELO)} · ${v}%`}
-                onCambiar={(v) => cambiar({ veloNivel: v })}
-                onCommit={(v) => { cambiar({ veloNivel: v }); auto.flush(); }}
-              />
-            </div>
-          )}
-        </div>
+        {imagenAplica && (
+          <div className="admin-bloque">
+            <span className="duna-field__label" style={{ display: 'block', marginBottom: 'var(--duna-space-2)' }}>Fondo</span>
+            {campoImagen && renderMiniatura(campoImagen)}
+            {campoImagenMovil && imagenMovilAplica && renderMiniatura(campoImagenMovil)}
+            {campoPuntoFocal && puntoFocalAplica && <div className="duna-form" style={{ marginTop: 'var(--duna-space-3)' }}>{renderCampo(campoPuntoFocal)}</div>}
+            {campoVeloNivel && veloNivelAplica && (
+              <div style={{ marginTop: 'var(--duna-space-3)' }}>
+                <Deslizador
+                  id={`${seccion}-veloNivel`}
+                  etiqueta={campoVeloNivel.label}
+                  hint={campoVeloNivel.hint}
+                  valor={valorVelo}
+                  min={0}
+                  max={100}
+                  marcas={MARCAS_VELO}
+                  pasoTeclado={5}
+                  formatoValor={(v) => `${etiquetaCercana(v, MARCAS_VELO)} · ${v}%`}
+                  onCambiar={(v) => cambiar({ veloNivel: v })}
+                  onCommit={(v) => { cambiar({ veloNivel: v }); auto.flush(); }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </>
     );
   };
@@ -1961,18 +2030,27 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // "Quitar" (§ CampoImagen.opcional, HISTORIA-COMO-MUESTRARIO-1): sólo para una foto OPCIONAL que
     // TIENE valor — vaciar una ya vacía no hace nada, y una REQUERIDA no puede quedar sin foto.
     const puedeQuitar = !!img.opcional && val !== '';
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-MARQ1, item 6 del spec) — la ÚNICA sección con un campo
+    // `imagen` que puede ser FOTO o VIDEO sin ser el hero es la banda Marquesina suelta
+    // (`marquesina.imagenTipo`). Esta rama genérica sólo sabe subir FOTO (el input oculto de arriba
+    // es `accept={ACCEPT_IMAGENES}` siempre) — antes, elegir "Video" en el select dejaba "Cambiar"
+    // tal cual, y una foto nueva pisaba el video sin avisar (o viceversa). Se deshabilita "Cambiar"
+    // en modo video con la razón a la vista, en vez de fingir que la subida lo admite.
+    const esVideoSinSubidaPropia = seccion === 'marquesina' && img.name === 'imagen' && form.imagenTipo === 'video';
     return (
       <div key={img.name} className="duna-field" style={{ marginBottom: 'var(--duna-space-4)' }}>
         <span className="duna-field__label">{img.label}</span>
         <div style={{ display: 'flex', gap: 'var(--duna-space-3)', alignItems: 'flex-start', marginTop: 'var(--duna-space-1)' }}>
           <div className="duna-tile" style={{ width: 'calc(var(--duna-thumb-w) * 2)' }}>
-            {val
+            {val && !esVideoSinSubidaPropia
               ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={val} alt="" />
-              : <ImageIcon aria-hidden width={20} height={20} />}
+              : esVideoSinSubidaPropia
+                ? <Film aria-hidden width={20} height={20} />
+                : <ImageIcon aria-hidden width={20} height={20} />}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-2)', minWidth: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--duna-space-2)' }}>
-              <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo}>
+              <button type="button" onClick={() => ponerImagen(img.name)} className="duna-btn duna-btn--secondary duna-btn--sm" disabled={subiendo || esVideoSinSubidaPropia}>
                 <Upload /> Cambiar
               </button>
               {!esDefault && (
@@ -1988,7 +2066,11 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
             </div>
             {errorInline(img.name) ?? (
               <span className="duna-field__hint" style={{ margin: 0 }}>
-                {subiendoEste ? `Subiendo… ${subida.progreso ?? 0}%` : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
+                {subiendoEste
+                  ? `Subiendo… ${subida.progreso ?? 0}%`
+                  : esVideoSinSubidaPropia
+                    ? 'La subida de video para esta banda no está disponible desde el panel todavía.'
+                    : `JPG, PNG o WebP · máx ${MAX_SUBIDA_DIRECTA_MB} MB`}
               </span>
             )}
             {subiendoEste && <BarraProgreso pct={subida.progreso ?? 0} />}
@@ -2211,7 +2293,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // pidió verificar y, de confirmarse, quitar. `veloIntensidad` SIGUE declarado en `HERO.campos`
   // (§ panel-hero-toggles.test.ts: "el config nunca lo retira por el estado del gate") — sólo deja
   // de pintarse dos veces.
-  const CAMPOS_HERO_YA_DIBUJADOS = new Set(['titulo', 'tituloEnfasis', 'subtitulo', 'ctaPrimarioLabel', 'ctaSecundarioLabel', 'alto', 'veloNivel', 'veloIntensidad', 'puntoFocal']);
+  // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO1) — `titulo`/`tituloEnfasis`/`subtitulo`/los dos CTA SÓLO
+  // se sacan del loop genérico mientras las ZONAS aplican (`zonasHeroAplican`, arriba): fuera de
+  // "media"/"sticky" no hay zona que los dibuje, así que vuelven al `.duna-form` genérico como texto
+  // plano — exactamente donde viven para el resto de las secciones.
+  const CAMPOS_HERO_YA_DIBUJADOS = new Set([
+    ...(zonasHeroAplican ? ['titulo', 'tituloEnfasis', 'subtitulo', 'ctaPrimarioLabel', 'ctaSecundarioLabel'] : []),
+    'alto', 'veloNivel', 'veloIntensidad', 'puntoFocal',
+  ]);
   const IMAGENES_HERO_YA_DIBUJADAS = new Set(['imagen', 'imagenMovil', 'imagenMovilPoster']);
   const bloques = bloquesResueltos(config).map((b) => {
     if (b.tipo !== 'seccion') return b;
@@ -2223,7 +2312,15 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     }
     return { ...b, campos, imagenes };
   });
-  const tarjetasColapsadas = bloques.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
+  // § EDITOR-COMPOSICION-CAMPOS-1 — el FOLD por composición: `bloquesVisibles` es lo que entra al
+  // loop de abajo (bloque por bloque, cada uno YA recortado a sus campos/imágenes que aplican);
+  // `plegadosPorComposicion` es lo que queda afuera, agrupado por composición, para el acordeón
+  // «Sólo con…» cerrado por defecto (abajo del todo, § `renderGrupoPlegado`). Sin `config.
+  // composiciones` (la mayoría de las secciones) `activaComposicion` es `undefined` y
+  // `particionarBloques` deja todo en `visibles` — no-op, mismo comportamiento que antes de este
+  // slice.
+  const { visibles: bloquesVisibles, plegados: plegadosPorComposicion } = particionarBloques(bloques, config, activaComposicion);
+  const tarjetasColapsadas = bloquesVisibles.filter((b): b is Extract<BloqueResuelto, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && colapsado(b.slot));
   const agregarTarjeta = () => { const primera = tarjetasColapsadas[0]; if (primera) expandir(primera.slot); };
 
   // ── LECTURA: la sección es una FILA compacta (§ EDITOR-VISUAL-PANEL-1, REDISENO.md § 3: "lista
@@ -2257,8 +2354,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // divergir. Tocar una de las cuatro zonas de texto ABRE la sección Y baja directo a su nivel de
     // elemento (§ EDITOR-VISUAL-NIVELES-1: "al tocar una zona en el panel… abre su propio nivel");
     // "Fondo" sólo abre la sección (no tiene nivel de elemento propio, vive inline en "Alto y Fondo").
+    // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO5) — "Fondo" tampoco existe bajo "Grano"/"Cereza"
+    // (ilustración pura, § `HERO.imagenes.imagen`, arriba); el chip del chevron no debe prometer un
+    // fondo que esa composición no tiene.
+    const fondoAplica = activaComposicion === undefined || (activaComposicion !== 'grano' && activaComposicion !== 'cereza');
     const zonasHero = esHero ? [
-      { key: 'fondo' as const, gl: '▣', nombre: 'Fondo', valor: form.imagenTipo === 'video' ? 'Video' : 'Foto' },
+      ...(fondoAplica ? [{ key: 'fondo' as const, gl: '▣', nombre: 'Fondo', valor: form.imagenTipo === 'video' ? 'Video' : 'Foto' }] : []),
       ...ZONA_HERO_ORDEN.map(({ key, gl }) => {
         const def = ELEMENTO_HERO_DEFS[key];
         const { valor } = zonaHeroEstado(key);
@@ -2452,6 +2553,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                 </div>
               )}
 
+              {/* § EDITOR-COMPOSICION-CAMPOS-1 (item 3 del spec) — bajo «Taquilla», sin matriz 2×2
+                  válida en el catálogo, `SuscripcionPlanes.tsx` cae SOLA a «Tarjetas»
+                  (`derivarMatrizTaquilla`, lib/tienda/taquilla.ts) y lo hace en SILENCIO — el select
+                  de abajo sigue diciendo "Taquilla" mientras la tienda real muestra Tarjetas. Se
+                  recalcula la MISMA función sobre los productos ACTIVOS del catálogo que ya carga
+                  este editor (`catalogoReal`, filtrado a `.activo` — la misma condición de
+                  `/api/catalog`, que es lo que la tienda consulta de verdad; el orden no afecta la
+                  validez de la matriz, sólo el conteo de filas/columnas). */}
+              {seccion === 'suscripcionPlanes' && String(form.variante ?? '') === 'taquilla' && productosListos && (
+                !derivarMatrizTaquilla(catalogoReal.filter((p) => p.activo)) && (
+                  <div className="admin-bloque">
+                    <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+                      El catálogo activo no forma una tabla categoría × peso válida (como máximo 3
+                      valores por eje, sin dos productos en la misma celda) — la tienda está mostrando
+                      «Tarjetas» en su lugar, aunque acá diga «Taquilla».
+                    </p>
+                  </div>
+                )
+              )}
+
               {/* § TIENDA-CHAMISAS-ALBUM-1 — el SELECT de composición de Encabezado/Catálogo. No se
                   reusa `ComposicionHero` (su título «¿Cómo se arma tu hero?» está hardcodeado en ese
                   archivo, fuera de `touches:`): con sólo DOS opciones y sin zonas que avisar, el
@@ -2502,7 +2623,12 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   que deriva "controlado" de esa misma lista) — lo único que cambia es qué JSX los
                   consume. */}
               {config.booleanos && config.booleanos.length > 0 && (
-                seccion === 'hero' ? renderZonasHero() : (
+                // § EDITOR-COMPOSICION-CAMPOS-1 (H-HERO1) — fuera de "media"/"sticky" ninguno de los
+                // seis switches del hero tiene efecto (los cuatro de zona ya no aplican, § arriba;
+                // `alturaLlena`/`veloVisible` tampoco — exclusivos de "media"/"sticky"), así que no
+                // se ofrece NI la lista de zonas NI los switches genéricos: no hay nada que mostrar
+                // que no sea ruido.
+                seccion === 'hero' ? (zonasHeroAplican && renderZonasHero()) : (
                   <div className="admin-bloque">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
                       {config.booleanos.map(renderBooleano)}
@@ -2515,12 +2641,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                   punto focal + Oscurecer segmentado), en ese orden, DESPUÉS de las zonas — el spec. */}
               {seccion === 'hero' && renderAltoYFondo()}
 
-              {/* § TIENDA-CHAMISAS-ALBUM-1 — el color por café, DESPUÉS del select de composición:
-                  sólo tiene efecto bajo «Láminas», pero se edita siempre (§ el docstring de
-                  `TIENDA_CATALOGO` en tienda-secciones.ts). */}
+              {/* § TIENDA-CHAMISAS-ALBUM-1 — el color por café, DESPUÉS del select de composición.
+                  § EDITOR-COMPOSICION-CAMPOS-1 (T-CAT2, item 5 del spec) — CORRIGE la afirmación
+                  vieja de este comentario ("sólo tiene efecto bajo «Láminas»"): medido,
+                  `TiendaLaminas.tsx` lo lee bajo «Láminas», pero TAMBIÉN `TiendaEncabezado.tsx`
+                  (las píldoras del selector «¿Qué te provoca?» bajo «Carta») y
+                  `ProductoLamina.tsx` (la página de producto bajo «Lámina abierta») — se edita
+                  siempre, independiente de la composición activa de ESTA sección. */}
               {seccion === 'tiendaCatalogo' && config.coloresPorProducto && (
                 <div className="admin-bloque">
                   <p className="duna-field__label" style={{ marginBottom: 'var(--duna-space-3)' }}>Color por café</p>
+                  <AyudaCampo texto='Además de "Láminas", lo usan el selector "¿Qué te provoca?" de la composición "Carta" (Encabezado de la tienda) y la página de producto bajo "Lámina abierta".' />
                   <ColorPorCafe
                     productos={catalogoReal}
                     productosListos={productosListos}
@@ -2533,7 +2664,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
 
               {/* Cada bloque es una PIEZA. La `tarjeta` YA es su propia caja (`.bloque-tarjeta`), así
                   que no se re-envuelve —doble caja—; los demás van en la pieza genérica. */}
-              {bloques.map((b, i) => (
+              {bloquesVisibles.map((b, i) => (
                 <Fragment key={i}>
                   {b.tipo === 'tarjeta'
                     ? renderBloqueTarjeta(b)
@@ -2546,6 +2677,52 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                     )}
                 </Fragment>
               ))}
+              {/* § EDITOR-COMPOSICION-CAMPOS-1 — los grupos PLEGADOS: lo que no aplica a la
+                  composición activa, cerrado por defecto, NUNCA perdido (el owner puede abrirlo para
+                  preparar otra composición antes de cambiarla). Un grupo por conjunto de
+                  composiciones (casi siempre uno solo: "la otra"). */}
+              {config.composiciones && plegadosPorComposicion.map((grupo) => {
+                const clave = [...grupo.composiciones].sort().join('·');
+                const abierto = plegadosAbiertos.has(clave);
+                const alternar = () => setPlegadosAbiertos((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(clave)) next.delete(clave); else next.add(clave);
+                  return next;
+                });
+                return (
+                  <div className="admin-bloque" key={clave}>
+                    <button
+                      type="button"
+                      onClick={alternar}
+                      aria-expanded={abierto}
+                      className="duna-btn duna-btn--ghost duna-btn--sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}
+                    >
+                      <ChevronsUpDown style={{ width: '0.875rem', height: '0.875rem' }} aria-hidden />
+                      {tituloPlegado(grupo.composiciones, config.composiciones!)}
+                    </button>
+                    {abierto && (
+                      <div style={{ marginTop: 'var(--duna-space-3)' }}>
+                        {(grupo.campos.length > 0 || grupo.imagenes.length > 0) && (
+                          <>
+                            {grupo.imagenes.map(renderMiniatura)}
+                            {grupo.campos.length > 0 && <div className="duna-form">{grupo.campos.map(renderCampo)}</div>}
+                          </>
+                        )}
+                        {grupo.bloques.map((b, i) => (
+                          <div key={i} style={{ marginTop: i > 0 ? 'var(--duna-space-3)' : 0 }}>
+                            {b.tipo === 'tarjeta'
+                              ? renderBloqueTarjeta(b)
+                              : b.tipo === 'lista' ? renderBloqueLista(b)
+                              : b.tipo === 'collage' ? renderBloqueCollage(b)
+                              : renderBloqueSeccion(b)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {/* Los GRUPOS CRUZADOS (§ EDITOR-TIENDA-MARQUESINA-EN-HERO-1, arriba): una pieza por
                   sección destino, titulada con SU `titulo` real (derivado de SECCIONES_TIENDA, nunca
                   un literal que pudiera divergir si esa sección cambia de nombre). Van DESPUÉS de los
