@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { ArrowLeft, Shield, Lock, CreditCard, Clock, CheckCircle, Paperclip, FileText, X } from 'lucide-react';
+import { ArrowLeft, Lock, CreditCard, Clock, Paperclip, FileText, X, ChevronDown, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
@@ -30,6 +30,9 @@ import { ACCEPT_COMPROBANTE } from '@/constants/comprobante';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
+import { whatsappUrl } from '@/lib/config/site';
+import { contenidoEstadoPedido, verboBotonPago, type MetodoPedido } from '@/lib/checkout/estado-pedido';
+import EstadoPedido from '@/components/storefront/checkout/EstadoPedido';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -62,8 +65,17 @@ function leerCodigoComprobante(numeroOrden: string): string | null {
 }
 
 export default function Checkout() {
-  const { items, subtotal, clearCart } = useCartStore();
+  // CHECKOUT-LISTO-PARA-VENDER-1 — `departamentoCarrito` es el que el comprador ya eligió en
+  // el cajón del carrito (si lo hizo): el `useEffect` de abajo lo usa para ARRANCAR
+  // `address.departamento` sin volver a preguntarlo. `setDepartamentoCarrito` mantiene el
+  // CartContext al día si el comprador lo cambia DESDE acá (p. ej. porque el cajón lo tenía
+  // vacío) — una sola fuente para los dos sitios donde se puede elegir.
+  const { items, subtotal, clearCart, departamento: departamentoCarrito, setDepartamento: setDepartamentoCarrito } = useCartStore();
   const [step, setStep] = useState(0);
+  // CHECKOUT-LISTO-PARA-VENDER-1 — el resumen plegable de arriba («Tu pedido · n productos ·
+  // $total ▾», § el spec del slice): sólo en celular (`lg:hidden`), porque en escritorio el
+  // resumen YA está siempre a la vista en la columna fija de la derecha.
+  const [resumenAbierto, setResumenAbierto] = useState(false);
   const [loading, setLoading] = useState(false);
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
@@ -90,6 +102,17 @@ export default function Checkout() {
 
   const [info, setInfo] = useState({ nombre: '', apellido: '', email: '', telefono: '' });
   const [address, setAddress] = useState({ linea1: '', detalle: '', ciudad: '', departamento: '', cp: '' });
+
+  // CHECKOUT-LISTO-PARA-VENDER-1 — arranca con el departamento que el cajón del carrito ya
+  // tenía elegido (si lo tenía), UNA sola vez al montar. Nunca pisa una elección que el
+  // comprador ya haya hecho en ESTE formulario (§ el principio del admin, "un default jamás
+  // pisa un valor que ya existe" — aplica igual del lado del storefront).
+  useEffect(() => {
+    if (departamentoCarrito && !address.departamento) {
+      setAddress((a) => ({ ...a, departamento: departamentoCarrito }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [slot, setSlot] = useState<string | null>(null);
   const [payment, setPayment] = useState<MetodoPagoTipo>('nequi');
   // § CHECKOUT-COMPROBANTE-CLIENTE-1: reemplaza al viejo "Referencia de pago
@@ -314,11 +337,69 @@ export default function Checkout() {
 
   // Changing departamento re-derives the method; leaving Bogotá clears the franja. (No hace falta
   // resetear el método: `metodoActivo` cae al primero disponible cuando efectivo deja de estarlo.)
+  // CHECKOUT-LISTO-PARA-VENDER-1: también escribe al CartContext (`setDepartamentoCarrito`), para
+  // que el cajón del carrito —si el comprador vuelve a abrirlo— muestre el mismo departamento.
   const selectDepartamento = (value: string) => {
     setAddress((a) => ({ ...a, departamento: value }));
+    setDepartamentoCarrito(value || null);
     if (!isBogotaDC(value)) {
       setSlot(null);
     }
+  };
+
+  // ── CHECKOUT-LISTO-PARA-VENDER-1 — VALIDACIÓN DEL PASO 1 (§ el spec del slice) ──────────
+  //
+  // «El botón nunca queda gris y mudo: sigue activo y, al tocarlo, lleva al primer dato que
+  // falta.» Antes, "Continuar al pago" se DESHABILITABA con la condición entera y no decía
+  // nada — un botón apagado es una pregunta sin respuesta (misma doctrina que ya rige el resto
+  // del panel, § Principio rector del admin, aplicada acá del lado del storefront).
+  //
+  // `tocados` marca qué campo ya perdió el foco una vez (§ "el error se muestra al salir del
+  // campo"); `intentoEnviar` fuerza TODOS los errores a la vista de una vez cuando el
+  // comprador intenta avanzar sin completar algo — el resumen de arriba y el salto al primer
+  // campo faltante dependen de esa misma bandera.
+  const [tocados, setTocados] = useState<Record<string, boolean>>({});
+  const [intentoEnviar, setIntentoEnviar] = useState(false);
+  const marcarTocado = (campo: string) => setTocados((t) => ({ ...t, [campo]: true }));
+
+  const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email.trim());
+
+  // El ORDEN es el orden VISUAL del formulario (§ refero-compra.md §3: correo → celular →
+  // nombre → apellido → departamento → ciudad → dirección) — el mismo que usa "saltar al
+  // primer campo que falta": saltar a un campo que no es el primero en pantalla confundiría
+  // más de lo que ayuda.
+  const CAMPOS_PASO1: { id: string; invalido: boolean; mensaje: string }[] = [
+    { id: 'campo-email', invalido: info.email.trim() === '' || !emailValido, mensaje: 'Ingresa un correo válido.' },
+    { id: 'campo-telefono', invalido: !phoneValid, mensaje: 'Ingresa un celular colombiano de 10 dígitos.' },
+    { id: 'campo-nombre', invalido: info.nombre.trim() === '', mensaje: 'Ingresa tu nombre.' },
+    { id: 'campo-apellido', invalido: info.apellido.trim() === '', mensaje: 'Ingresa tu apellido.' },
+    { id: 'campo-departamento', invalido: address.departamento === '', mensaje: 'Selecciona tu departamento.' },
+    { id: 'campo-ciudad', invalido: address.ciudad.trim() === '', mensaje: 'Ingresa tu ciudad.' },
+    { id: 'campo-direccion', invalido: address.linea1.trim() === '', mensaje: 'Ingresa tu dirección.' },
+    { id: 'campo-franja', invalido: isBogota && !slot, mensaje: 'Elige una franja horaria.' },
+  ];
+  const camposInvalidosPaso1 = CAMPOS_PASO1.filter((c) => c.invalido);
+
+  const intentarContinuar = () => {
+    const primero = camposInvalidosPaso1[0];
+    if (!primero) {
+      setStep(1);
+      return;
+    }
+    setIntentoEnviar(true);
+    const el = document.getElementById(primero.id);
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    el?.focus();
+  };
+
+  // El error de UN campo se muestra si se tocó (perdió el foco) O si ya se intentó enviar —
+  // nunca antes: pintar de rojo un formulario recién abierto le echaría en cara algo que
+  // todavía no se hizo mal (regla ya fijada para el resto del panel, aplicada acá).
+  const errorVisible = (campoId: string, mensaje: string): string | undefined => {
+    const c = CAMPOS_PASO1.find((x) => x.id === campoId);
+    if (!c?.invalido) return undefined;
+    return (tocados[campoId] || intentoEnviar) ? mensaje : undefined;
   };
 
   // El payload COMÚN a cualquier camino de creación de orden — sólo cambia `payment`. Extraído
@@ -545,118 +626,75 @@ export default function Checkout() {
   // (cae al "else" del ícono/título/párrafo de abajo, que no distingue entre las dos causas: las
   // dos son "no se pudo cobrar con tarjeta, el equipo coordina el pago").
   if (confirmation && (!confirmation.wompi || pasarelaMetodoNoHabilitado || pasarelaAprobada || intentosAgotados)) {
+    // CHECKOUT-LISTO-PARA-VENDER-1 — LA PÁGINA DE ESTADO ÚNICA (§ `EstadoPedido.tsx`, § el
+    // spec del slice): esta pantalla ("¡Pedido recibido!"/"¡Tu pago fue aprobado!") y las
+    // cinco vistas de `RetornoCliente.tsx` comparten AHORA la misma plantilla y la misma
+    // fuente de texto (`lib/checkout/estado-pedido.ts`), para que no puedan divergir sobre el
+    // mismo hecho. `metodoParaEstado` es `null` en los dos desvíos de pasarela fallida
+    // (`pasarelaMetodoNoHabilitado`/`intentosAgotados`): el método elegido era la pasarela,
+    // que ya falló, así que lo que sigue es la confirmación humana GENÉRICA, no la frase de
+    // un método manual que el comprador nunca elegió.
+    const metodoParaEstado: MetodoPedido = pasarelaAprobada
+      ? 'wompi'
+      : (pasarelaSeleccionada ? null : metodoActivo);
     return (
         <div className={`min-h-[80vh] flex items-center justify-center ${offsetClase} px-4`}>
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full text-center">
-            <div className={`w-20 h-20 ${pasarelaAprobada ? 'bg-emerald-100' : 'bg-amber-100'} rounded-full flex items-center justify-center mx-auto mb-6`}>
-              {pasarelaAprobada
-                ? <CheckCircle className="w-10 h-10 text-emerald-600" />
-                : <Clock className="w-10 h-10 text-amber-600" />}
-            </div>
-            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">
-              {pasarelaAprobada ? '¡Tu pago fue aprobado!' : '¡Pedido recibido!'}
-            </h1>
-            <p className="text-[var(--sf-texto)] mb-2">
-              {pasarelaAprobada
-                ? `Gracias, ${info.nombre}. Tu pedido queda confirmado y pasa a preparación.`
-                : `Gracias, ${info.nombre}. Recibimos tu pedido.`}
-            </p>
-            {!pasarelaAprobada && (
-              <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
-                {tieneWhatsapp
-                  ? 'Tu pedido está reservado. Confirmaremos el pago por WhatsApp y luego preparamos tu envío.'
-                  : 'Tu pedido está reservado. Confirmaremos el pago y luego preparamos tu envío.'}
-              </p>
-            )}
-            {/* § CHECKOUT-ESTADO-LITERAL-CONFIRMACION-1: el badge con el estado crudo ("Estado:
-                Pendiente"/"Pagado") se retiró de las DOS ramas de esta pantalla — la frase de
-                arriba ya le dice al comprador qué pasó, en su idioma, y el nombre del estado del
-                modelo no le agrega nada. */}
-            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
-                migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
-                (§ TEMAS-P6-FAMILIAS-1) — el token viejo queda como fallback, byte-idéntico
-                para Nayoli (raíces null, sin inyección de la familia `superficie`). El número de
-                orden de abajo (fallback `--sf-acento-texto`) migró ACÁ, no en esa tanda:
-                PALETA-MIGRAR-ACENTO-TINTA-1 (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1,
-                DECISIONS.md) — el par vale OTRO color que `--sf-acento-texto` para un inquilino
-                CON paleta, y esta vez el owner aprobó ese cambio de tono para arreglar PATIO/
-                VETA. NO LIMPIAR EL FALLBACK: sin `content.tema`, el token nuevo no se inyecta y
-                el fallback es la única salida que pinta. */}
-            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] mb-4 text-center">{confirmation.numero_orden}</p>
-              <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)]">
-                {confirmation.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                    <span className="min-w-0 truncate pr-2">
-                      {item.producto_nombre}
-                      {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
-                    </span>
-                    <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-2 pt-3 mt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                  <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+            <EstadoPedido
+              estado={pasarelaAprobada ? 'aprobado' : 'manual'}
+              metodo={metodoParaEstado}
+              numeroOrden={confirmation.numero_orden}
+              correo={info.email}
+              nombre={info.nombre}
+              resumen={{
+                items: confirmation.items.map((item) => ({
+                  nombre: item.producto_nombre,
+                  cantidad: item.cantidad,
+                  subtotal: item.subtotal,
+                  molienda: item.moliendaSeleccionada,
+                })),
+                subtotal: confirmation.subtotal,
+                envio: confirmation.costo_envio,
+                total: confirmation.total,
+                metodoEnvioLabel: confirmation.metodo_envio
+                  ? `${getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}${findSlotLabel(confirmation.franja) ? ` · ${findSlotLabel(confirmation.franja)}` : ''}`
+                  : null,
+                direccionDetalle: confirmation.direccion_detalle,
+              }}
+              acciones={[
+                { label: 'Rastrear mi pedido', variante: 'primaria', href: `/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}&email=${encodeURIComponent(info.email)}` },
+                ...(tieneWhatsapp ? [{ label: 'Escríbenos por WhatsApp', variante: 'whatsapp' as const, externo: true, href: whatsappUrl(settings.whatsapp, `Hola, quiero consultar mi pedido ${confirmation.numero_orden}`) }] : []),
+                { label: 'Seguir comprando', variante: 'secundaria', href: '/tienda' },
+              ]}
+            >
+              {/* § CHECKOUT-COMPROBANTE-CLIENTE-1: el comprobante se sube DESPUÉS de crear la
+                  orden (arriba, en `handleOrder`). Si eso falla, la orden NO se pierde ni se
+                  duplica — queda exactamente como la pantalla de estado la muestra, y este
+                  bloque es la única diferencia: dice que falta la foto y ofrece reintentar con
+                  el MISMO archivo, sin tocar nada más del pedido ya confirmado. */}
+              {comprobanteEstado === 'subiendo' && (
+                <div className="bg-[var(--sf-superficie)] rounded-xl p-3 mb-4 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto-suave))] text-center">
+                  Subiendo tu comprobante…
                 </div>
-                <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                  <span>Envío</span>
-                  <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
+              )}
+              {comprobanteEstado === 'error' && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-4 text-left">
+                  <p className="text-xs font-medium text-red-700">
+                    Tu pedido quedó registrado, pero no pudimos subir el comprobante.
+                  </p>
+                  {comprobanteErrorSubida && (
+                    <p className="text-xs text-red-600 mt-0.5">{comprobanteErrorSubida}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => intentarSubirComprobante(confirmation.numero_orden)}
+                    className="mt-2 text-xs font-semibold text-red-700 underline hover:no-underline"
+                  >
+                    Reintentar subir el comprobante
+                  </button>
                 </div>
-                {confirmation.metodo_envio && (
-                  <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                    <span>Entrega</span>
-                    <span className="text-right">
-                      {getShippingMethod(confirmation.metodo_envio)?.label ?? confirmation.metodo_envio}
-                      {findSlotLabel(confirmation.franja) ? ` · ${findSlotLabel(confirmation.franja)}` : ''}
-                    </span>
-                  </div>
-                )}
-                {confirmation.direccion_detalle && (
-                  <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                    <span>Detalles</span>
-                    <span className="text-right">{confirmation.direccion_detalle}</span>
-                  </div>
-                )}
-                {/* PALETA-MIGRAR-ACENTO-TINTA-1: el Total tiene fallback `--sf-tinta` (no
-                    `--sf-texto`), § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
-                <div className="flex justify-between font-bold text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
-                  <span>Total</span><span>{formatCOP(confirmation.total)}</span>
-                </div>
-              </div>
-            </div>
-            {/* § CHECKOUT-COMPROBANTE-CLIENTE-1: el comprobante se sube DESPUÉS de crear la
-                orden (arriba, en `handleOrder`). Si eso falla, la orden NO se pierde ni se
-                duplica — queda exactamente como "¡Pedido recibido!" la muestra, y este bloque
-                es la única diferencia: dice que falta la foto y ofrece reintentar con el MISMO
-                archivo, sin tocar nada más del pedido ya confirmado. */}
-            {comprobanteEstado === 'subiendo' && (
-              <div className="bg-[var(--sf-superficie)] rounded-xl p-3 mb-4 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto-suave))] text-center">
-                Subiendo tu comprobante…
-              </div>
-            )}
-            {comprobanteEstado === 'error' && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-4 text-left">
-                <p className="text-xs font-medium text-red-700">
-                  Tu pedido quedó registrado, pero no pudimos subir el comprobante.
-                </p>
-                {comprobanteErrorSubida && (
-                  <p className="text-xs text-red-600 mt-0.5">{comprobanteErrorSubida}</p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => intentarSubirComprobante(confirmation.numero_orden)}
-                  className="mt-2 text-xs font-semibold text-red-700 underline hover:no-underline"
-                >
-                  Reintentar subir el comprobante
-                </button>
-              </div>
-            )}
-            <div className="flex flex-col gap-3">
-              <Link href={`/rastrear-pedido?orden=${encodeURIComponent(confirmation.numero_orden)}`} className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors">Rastrear mi pedido</Link>
-              <Link href="/tienda" className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Seguir comprando</Link>
-            </div>
+              )}
+            </EstadoPedido>
           </motion.div>
         </div>
     );
@@ -679,9 +717,41 @@ export default function Checkout() {
     );
   }
 
+  // ── CHECKOUT-LISTO-PARA-VENDER-1 — LA BARRA DE TOTAL FIJA (§ el spec del slice) ─────────
+  //
+  // Verbo (step 0: siempre "Continuar al pago"; step 1: el verbo del MÉTODO — "Pagar con
+  // Wompi", "Enviar por WhatsApp", "Confirmar pedido") y a qué dispara el botón. `null` =
+  // sin botón: la acción real vive en un control que YA está en pantalla (ver el comentario
+  // junto al JSX de la barra, más abajo).
+  const sinMetodoYsinPasarela = availablePayments.length === 0 && !pasarelaOfrecida;
+  const metodoParaVerboBarra: MetodoPedido = pasarelaSeleccionada
+    ? 'wompi'
+    : sinMetodoYsinPasarela
+      ? (tieneWhatsapp ? 'whatsapp' : null)
+      : metodoActivo;
+  const verboBarraFija = step === 0 ? 'Continuar al pago' : verboBotonPago(metodoParaVerboBarra);
+  const accionBarraFija: (() => void) | null =
+    step === 0
+      ? intentarContinuar
+      : confirmation // la pasarela ya está en curso: el botón real es el de Wompi/el formulario
+        ? null
+      : (pasarelaSeleccionada && modoApiDirecta) // `SelectorMetodoPasarela` ya tiene su "Pagar"
+        ? null
+      : sinMetodoYsinPasarela
+        ? (tieneWhatsapp ? () => window.open(whatsappUrl(settings.whatsapp, `Hola, quiero coordinar el pago de mi pedido por ${formatCOP(montoAPagar)}.`), '_blank') : null)
+      : handleOrder;
+
+  // El resumen plegable de arriba (§ el spec, sólo celular — ver el JSX): mismo total que la
+  // barra fija; la cuenta de productos cambia de fuente según haya o no una orden ya creada.
+  const totalItemsResumen = confirmation
+    ? confirmation.items.reduce((sum, i) => sum + i.cantidad, 0)
+    : items.reduce((sum, i) => sum + i.quantity, 0);
+
   return (
       <div className={`${offsetClase} min-h-screen bg-[var(--sf-fondo)]`}>
-        <div className={`${contenedorClase} mx-auto py-8`}>
+        {/* `pb-28`: deja sitio para la barra de total fija (§ abajo), para que no tape el
+            último campo/botón del formulario. */}
+        <div className={`${contenedorClase} mx-auto py-8 pb-28`}>
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
             <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] sf-radio-lg transition-colors cursor-pointer">
@@ -705,6 +775,41 @@ export default function Checkout() {
             ))}
           </div>
 
+          {/* CHECKOUT-LISTO-PARA-VENDER-1 — «Tu pedido · n productos · $total ▾», SIEMPRE
+              arriba (§ el spec, § refero-compra.md §3). Sólo en celular (`lg:hidden`): en
+              escritorio el resumen ya está fijo en la columna de la derecha, mostrarlo dos
+              veces sería redundante. */}
+          <div className="lg:hidden mb-4">
+            <button
+              type="button"
+              onClick={() => setResumenAbierto((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-[var(--sf-superficie)] text-sm text-[var(--sf-texto)]"
+              aria-expanded={resumenAbierto}
+            >
+              <span className="truncate">
+                Tu pedido · {totalItemsResumen} producto{totalItemsResumen === 1 ? '' : 's'} · {formatCOP(montoAPagar)}
+              </span>
+              <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${resumenAbierto ? 'rotate-180' : ''}`} />
+            </button>
+            {resumenAbierto && (
+              <div className="mt-2 rounded-xl bg-[var(--sf-superficie)] p-4 space-y-2">
+                {(confirmation ? confirmation.items : items).map((item, i) => {
+                  const esConfirmado = 'producto_nombre' in item;
+                  const nombre = esConfirmado ? item.producto_nombre : item.nombre;
+                  const cantidad = esConfirmado ? item.cantidad : item.quantity;
+                  const monto = esConfirmado ? item.subtotal : item.precio * item.quantity;
+                  const key = esConfirmado ? `${nombre}-${i}` : item.key;
+                  return (
+                    <div key={key} className="flex justify-between text-xs text-[var(--sf-texto)]">
+                      <span className="min-w-0 truncate pr-2">{nombre} × {cantidad}</span>
+                      <span className="shrink-0 font-medium">{formatCOP(monto)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-2">
@@ -717,44 +822,94 @@ export default function Checkout() {
                 {/* Step 0: Info */}
                 {step === 0 && (
                   <motion.div key="step-0" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="space-y-4">
+                    {/* CHECKOUT-LISTO-PARA-VENDER-1 — el resumen de errores, arriba de TODO el
+                        formulario (§ el spec: "el error se muestra al salir del campo, más un
+                        resumen arriba al enviar"). Sólo aparece tras un intento de avanzar con
+                        algo incompleto — nunca antes. */}
+                    {intentoEnviar && camposInvalidosPaso1.length > 0 && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                        <p className="font-medium mb-1">Revisa estos datos antes de continuar:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {camposInvalidosPaso1.map((c) => (
+                            <li key={c.id}>
+                              <button type="button" onClick={() => { document.getElementById(c.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.getElementById(c.id)?.focus(); }} className="underline hover:no-underline">
+                                {c.mensaje}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Información de contacto</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Nombre *" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })} />
-                      <Field label="Apellido *" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })} />
-                    </div>
-                    <Field label="Correo electrónico *" type="email" value={info.email} onChange={v => setInfo({ ...info, email: v })} />
+                    {/* CHECKOUT-LISTO-PARA-VENDER-1: orden reordenado a correo → celular → nombre
+                        → apellido (§ refero-compra.md §3: "correo → celular/WhatsApp → nombre").
+                        Departamento (ancho completo) → ciudad quedan más abajo, § el spec
+                        "Departamento primero". */}
+                    <Field
+                      id="campo-email" label="Correo electrónico *" type="email" value={info.email}
+                      onChange={v => setInfo({ ...info, email: v })} onBlur={() => marcarTocado('campo-email')}
+                      autoComplete="email" inputMode="email"
+                      error={errorVisible('campo-email', 'Ingresa un correo válido.')}
+                    />
                     <div>
-                      <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
+                      <label htmlFor="campo-telefono" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
                       <div className="flex items-stretch">
                         {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
-                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-sm font-medium text-[var(--sf-sobre-superficie,var(--sf-texto))] select-none">+57</span>
+                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-base font-medium text-[var(--sf-sobre-superficie,var(--sf-texto))] select-none">+57</span>
                         <input
-                          type="tel" inputMode="numeric" value={info.telefono}
-                          onChange={e => setInfo({ ...info, telefono: e.target.value })} placeholder="300 000 0000"
-                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-r-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                          id="campo-telefono" name="campo-telefono" type="tel" inputMode="numeric" autoComplete="tel-national" value={info.telefono}
+                          onChange={e => setInfo({ ...info, telefono: e.target.value })} onBlur={() => marcarTocado('campo-telefono')} placeholder="300 000 0000"
+                          aria-invalid={!phoneValid ? true : undefined}
+                          className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${errorVisible('campo-telefono', 'x') ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-r-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
                         />
                       </div>
-                      {info.telefono && !phoneValid && (
+                      {errorVisible('campo-telefono', 'Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).') && (
                         <p className="mt-1 text-xs text-red-600">Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).</p>
                       )}
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field
+                        id="campo-nombre" label="Nombre *" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })}
+                        onBlur={() => marcarTocado('campo-nombre')} autoComplete="given-name"
+                        error={errorVisible('campo-nombre', 'Ingresa tu nombre.')}
+                      />
+                      <Field
+                        id="campo-apellido" label="Apellido *" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })}
+                        onBlur={() => marcarTocado('campo-apellido')} autoComplete="family-name"
+                        error={errorVisible('campo-apellido', 'Ingresa tu apellido.')}
+                      />
+                    </div>
                     <div className="space-y-4">
                     <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Dirección de entrega</h2>
-                    <Field label="Dirección *" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })} placeholder="Calle, Carrera, número" />
-                    <Field label="Detalles adicionales (opcional)" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })} placeholder="Apto, torre, interior, indicaciones de entrega." />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Ciudad *" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })} />
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Departamento *</label>
-                        <select
-                          value={address.departamento} onChange={e => selectDepartamento(e.target.value)}
-                          className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
-                        >
-                          <option value="" disabled>Selecciona departamento</option>
-                          {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      </div>
+                    <div>
+                      <label htmlFor="campo-departamento" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Departamento *</label>
+                      <select
+                        id="campo-departamento" name="campo-departamento" autoComplete="address-level1"
+                        value={address.departamento} onChange={e => selectDepartamento(e.target.value)} onBlur={() => marcarTocado('campo-departamento')}
+                        aria-invalid={address.departamento === '' ? true : undefined}
+                        className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${errorVisible('campo-departamento', 'x') ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
+                      >
+                        <option value="" disabled>Selecciona departamento</option>
+                        {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      {errorVisible('campo-departamento', 'Selecciona tu departamento.') && (
+                        <p className="mt-1 text-xs text-red-600">Selecciona tu departamento.</p>
+                      )}
                     </div>
+                    <Field
+                      id="campo-ciudad" label="Ciudad *" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })}
+                      onBlur={() => marcarTocado('campo-ciudad')} autoComplete="address-level2"
+                      error={errorVisible('campo-ciudad', 'Ingresa tu ciudad.')}
+                    />
+                    <Field
+                      id="campo-direccion" label="Dirección *" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })}
+                      onBlur={() => marcarTocado('campo-direccion')} autoComplete="address-line1" placeholder="Calle, Carrera, número"
+                      error={errorVisible('campo-direccion', 'Ingresa tu dirección.')}
+                    />
+                    <Field
+                      id="campo-detalle" label="Detalles adicionales (opcional)" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })}
+                      autoComplete="address-line2" placeholder="Apto, torre, interior, indicaciones de entrega."
+                    />
                     <div className="space-y-3 mt-4">
                       <p className="text-sm font-semibold text-[var(--sf-tinta)]">Método de envío</p>
                       {/* Method, price and franja are derived from departamento. */}
@@ -764,36 +919,39 @@ export default function Checkout() {
                         </p>
                       ) : (
                         <div>
-                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-acento)] bg-[var(--sf-acento)]/5">
+                          {/* CHECKOUT-LISTO-PARA-VENDER-1: la selección va en TINTA, no en el
+                              acento del botón principal (§ el spec, "la selección… va en
+                              tinta") — ya no se confunde con un error cuando el acento del
+                              tema es rojo (Onix). */}
+                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5">
                             <div>
                               <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
                               <span className="block text-xs text-[var(--sf-texto-suave)]">{shippingMethod.description}</span>
                             </div>
-                            <span className="text-sm font-bold text-[var(--sf-acento-texto)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
+                            <span className="text-sm font-bold text-[var(--sf-tinta)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
                           </div>
                           {/* Franja horaria — required for Bogotá D.C., framed as a preference */}
                           {isBogota && shippingMethod.slots && (
-                            <div className="mt-3 ml-4 pl-4 border-l-2 border-[var(--sf-linea)] space-y-2">
-                              <p className="text-xs font-semibold text-[var(--sf-texto)]">Franja horaria * <span className="font-normal text-[var(--sf-texto-suave)]">(preferencia)</span></p>
+                            <div id="campo-franja" tabIndex={-1} className="mt-3 ml-4 pl-4 border-l-2 border-[var(--sf-linea)] space-y-2">
+                              <p className="text-xs font-semibold text-[var(--sf-texto)]">Franja horaria *</p>
                               {shippingMethod.slots.map(s => (
-                                <label key={s.id} className={`flex items-center gap-3 p-3 sf-radio-lg sf-borde cursor-pointer transition-all ${slot === s.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                                  <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[var(--sf-acento)]" />
+                                <label key={s.id} className={`flex items-center gap-3 p-3 sf-radio-lg sf-borde cursor-pointer transition-all ${slot === s.id ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`}>
+                                  <input type="radio" name="slot" value={s.id} checked={slot === s.id} onChange={() => setSlot(s.id)} className="accent-[var(--sf-tinta)]" />
                                   <span className="text-sm text-[var(--sf-tinta)]">{s.label}</span>
                                 </label>
                               ))}
+                              {errorVisible('campo-franja', 'Elige una franja horaria.') && (
+                                <p className="text-xs text-red-600">Elige una franja horaria.</p>
+                              )}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-3 mt-2">
-                      {/* El paso Información no tiene "Atrás": es el primer paso, y la única
-                          salida ya es la flecha del encabezado (→ /tienda). Un "Atrás" acá
-                          hacía setStep(0) sobre el paso 0 — un botón activo que no hacía nada
-                          (§ CHECKOUT-BOTON-ATRAS-MUERTO-1). El botón que queda ocupa el ancho
-                          completo con flex-1: es la única acción del paso. */}
-                      <button onClick={() => setStep(1)} disabled={!address.linea1 || !address.ciudad || !address.departamento || !phoneValid || (isBogota && !slot)} className="flex-1 bg-[var(--sf-tinta)] disabled:opacity-40 disabled:pointer-events-none text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)]">Continuar al pago</button>
-                    </div>
+                    {/* CHECKOUT-LISTO-PARA-VENDER-1: el botón "Continuar al pago" de este paso
+                        VIVE AHORA en la barra de total fija (§ más abajo, `accionBarraFija`) —
+                        ahí nunca se deshabilita mudo, y es el único CTA del paso, sin un
+                        segundo botón inline compitiendo por la misma acción. */}
                   </div>
                   </motion.div>
                 )}
@@ -865,17 +1023,37 @@ export default function Checkout() {
                       // gate del canal, #8). El dueño se entera del combo —sin pago Y sin canal, que es
                       // una venta muerta— por el aviso `checkout-sin-salida` del Dashboard.
                       // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1
-                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                        {tieneWhatsapp
-                          ? 'No hay un método de pago disponible ahora mismo. Escríbenos por WhatsApp para coordinar el pago y completar tu pedido.'
-                          : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
+                      //
+                      // CHECKOUT-LISTO-PARA-VENDER-1 — «Paso 2 siempre con salida por
+                      // WhatsApp» (§ el spec del slice, § `refero-compra.md` §5 P0): la frase
+                      // mencionaba WhatsApp sin dar ningún enlace (`paginas-pendientes.md`
+                      // §2.1, Onix: "esa frase no es un enlace. El comprador tiene que ir a
+                      // buscar el número al pie"). Ahora es un `<a href="wa.me/…">` real, con
+                      // el pedido ya resumido en el mensaje.
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-sm text-[var(--sf-sobre-superficie,var(--sf-texto))] space-y-2">
+                        <p>
+                          {tieneWhatsapp
+                            ? 'No hay un método de pago disponible ahora mismo.'
+                            : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
+                        </p>
+                        {tieneWhatsapp && (
+                          <a
+                            href={whatsappUrl(settings.whatsapp, `Hola, quiero coordinar el pago de mi pedido por ${formatCOP(montoAPagar)}.`)}
+                            target="_blank" rel="noopener"
+                            className="inline-flex items-center gap-1.5 font-semibold text-[var(--sf-tinta)] underline hover:no-underline"
+                          >
+                            <MessageCircle className="w-4 h-4" /> Escríbenos por WhatsApp
+                          </a>
+                        )}
                       </div>
                     ) : (
                       <>
                         <div className="space-y-3">
                           {availablePayments.map(opt => (
-                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                              <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-acento)] disabled:pointer-events-none" />
+                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              {/* CHECKOUT-LISTO-PARA-VENDER-1: selección en TINTA, no en el acento del
+                                  botón principal (§ el spec: "la selección… va en tinta"). */}
+                              <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
                                 <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
@@ -905,8 +1083,8 @@ export default function Checkout() {
                               el eje real: QUIÉN CONFIRMA (instantáneo, nunca el equipo). TEXTO DEL OWNER
                               (2026-09-17) — ya no provisional. */}
                           {pasarelaOfrecida && bloquePasarela && (
-                            <label className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-acento)] bg-[var(--sf-acento)]/5' : 'border-[var(--sf-linea)]'}`}>
-                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-acento)] disabled:pointer-events-none" />
+                            <label className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`}>
+                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
                                 <p className="text-xs text-[var(--sf-texto-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
@@ -943,7 +1121,7 @@ export default function Checkout() {
                                 type="button"
                                 onClick={() => comprobanteInputRef.current?.click()}
                                 disabled={bloqueoMetodoDePago}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto-suave)] hover:border-[var(--sf-acento)] hover:text-[var(--sf-texto)] transition-colors disabled:opacity-60 disabled:pointer-events-none"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto-suave)] hover:border-[var(--sf-tinta)] hover:text-[var(--sf-texto)] transition-colors disabled:opacity-60 disabled:pointer-events-none"
                               >
                                 <Paperclip className="w-4 h-4" /> Adjuntar comprobante
                               </button>
@@ -1036,6 +1214,11 @@ export default function Checkout() {
                         </span>
                       </div>
                     )}
+                    {/* TIENDA-LEGAL-1 — van ACÁ, antes del botón de confirmar: la CASILLA
+                        obligatoria de aceptación de términos/tratamiento de datos, y el
+                        bloque «Vendedor» (razón social, documento, ciudad, enlaces). No se
+                        inventan datos: sin esa configuración, este slice no renderiza nada
+                        en su lugar. */}
                     {!confirmation && (
                       pasarelaSeleccionada && modoApiDirecta ? (
                         // El botón "Pagar · $X" del formulario de arriba es el ÚNICO que
@@ -1045,11 +1228,12 @@ export default function Checkout() {
                           <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Atrás</button>
                         </div>
                       ) : (
+                        // CHECKOUT-LISTO-PARA-VENDER-1: "Confirmar pedido" vive ahora en la
+                        // barra de total fija (`accionBarraFija` → `handleOrder`, igual que
+                        // acá) — un solo botón que confirma, visible siempre, no uno inline
+                        // que además podía quedar fuera de la pantalla en celular.
                         <div className="flex gap-3">
                           <button onClick={() => setStep(0)} className="flex-1 sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors">Atrás</button>
-                          <button onClick={handleOrder} disabled={loading || (availablePayments.length === 0 && !pasarelaOfrecida)} className="flex-1 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold py-3.5 rounded-xl text-sm transition-colors">
-                            {loading ? 'Procesando...' : `Confirmar pedido · ${formatCOP(total)}`}
-                          </button>
                         </div>
                       )
                     )}
@@ -1151,12 +1335,36 @@ export default function Checkout() {
                     </div>
                   </>
                 )}
-                <div className="flex items-center gap-2 mt-4 text-xs text-[var(--sf-texto-suave)]">
-                  <Shield className="w-3.5 h-3.5 text-[var(--sf-acento-texto)]" />
-                  <span>Compra 100% segura y verificada</span>
-                </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* CHECKOUT-LISTO-PARA-VENDER-1 — LA BARRA DE TOTAL FIJA (§ el spec del slice, §
+            refero-compra.md §3): "Total $X · envío a [departamento] incluido" + el botón con
+            el VERBO del método, en LOS DOS pasos, en escritorio y en celular. El botón
+            DESAPARECE (nunca se deshabilita mudo) cuando la acción real vive en un control
+            ajeno que ya está en pantalla — el widget de Wompi inyectado por el proveedor, o el
+            formulario propio de `SelectorMetodoPasarela` que valida sus propios campos antes
+            de poder confirmar (§ CHECKOUT-UNA-SOLA-PANTALLA-1: "el único botón que confirma
+            dice cuánto se paga" — duplicarlo acá sería un segundo botón compitiendo con ése). */}
+        <div className="fixed bottom-0 inset-x-0 z-30 bg-[var(--sf-tarjeta)] sf-divisor-t border-[var(--sf-linea)] px-4 py-3">
+          <div className={`${contenedorClase} mx-auto flex items-center justify-between gap-4`}>
+            <div className="min-w-0">
+              <p className="text-xs text-[var(--sf-texto-suave)] truncate">
+                {address.departamento ? `Envío a ${address.departamento} incluido` : 'Envío por confirmar'}
+              </p>
+              <p className="text-base font-bold text-[var(--sf-tinta)]">Total {formatCOP(montoAPagar)}</p>
+            </div>
+            {accionBarraFija && (
+              <button
+                onClick={accionBarraFija}
+                disabled={loading}
+                className="shrink-0 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors"
+              >
+                {loading ? 'Procesando…' : verboBarraFija}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1164,15 +1372,34 @@ export default function Checkout() {
 }
 
 interface FieldProps {
+  /** El `id` ESTABLE del campo — lo usa `intentarContinuar` (más arriba) para enfocar/saltar
+   *  al primer campo que falta (§ CHECKOUT-LISTO-PARA-VENDER-1), y `<label htmlFor>` para
+   *  asociar la etiqueta (§ `paginas-pendientes.md` §2.1: "las etiquetas no están asociadas a
+   *  sus campos" — antes `Field` no tenía `id`, así que no había nada que asociar). */
+  id: string;
+
   label: string;
 
   value: string;
 
   onChange: (value: string) => void;
 
+  onBlur?: () => void;
+
   type?: string;
 
   placeholder?: string;
+
+  /** `autoComplete`/`inputMode` del navegador (§ el spec del slice y §
+   *  `paginas-pendientes.md` §2.1: "los campos no tienen autoComplete ni name… ni el
+   *  autollenado del navegador ni el de Google llenan nombre, correo, teléfono ni dirección"). */
+  autoComplete?: string;
+
+  inputMode?: 'text' | 'tel' | 'email' | 'numeric' | 'decimal' | 'search' | 'url' | 'none';
+
+  /** El mensaje de error a mostrar, o `undefined` si el campo está bien (o si todavía no toca
+   *  mostrarlo — esa decisión la toma el llamador, vía `errorVisible`). */
+  error?: string;
 }
 
 // § CHECKOUT-COMPROBANTE-CLIENTE-1: `disabled` se RETIRÓ de acá — su único motivo
@@ -1182,14 +1409,25 @@ interface FieldProps {
 // siempre (§ CLAUDE.md, `Customer.activo`/`Product.agotado`) — se borra, no se deja
 // ambiguo. El picker de comprobante que reemplazó al campo bloquea los SUYOS
 // (el input de archivo, el botón de quitar) directamente con `bloqueoMetodoDePago`.
-function Field({ label, value, onChange, type = 'text', placeholder }: FieldProps) {
+//
+// CHECKOUT-LISTO-PARA-VENDER-1 — 16px de texto (`text-base`, no `text-sm`/14px: § "iOS hace
+// zoom al enfocar cualquier campo de menos de 16px", medido en `paginas-pendientes.md` §2.1)
+// y 48px de alto (`h-12`). El foco va en TINTA (`--sf-tinta`), no en el acento del botón
+// principal (§ el spec: "el color del botón principal sólo en ese botón; la selección y el
+// foco van en tinta") — antes el mismo `--sf-acento` del botón "Confirmar pedido" pintaba
+// también el aro de foco de CADA campo, lo que hacía parecer que un campo activo era un error
+// (`paginas-pendientes.md` §2.1: "Ciudad con borde rojo" bajo Onix, donde el acento es rojo).
+function Field({ id, label, value, onChange, onBlur, type = 'text', placeholder, autoComplete, inputMode, error }: FieldProps) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
+      <label htmlFor={id} className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
       <input
-        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+        id={id} name={id} type={type} value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur}
+        placeholder={placeholder} autoComplete={autoComplete} inputMode={inputMode}
+        aria-invalid={error ? true : undefined}
+        className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${error ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
       />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }

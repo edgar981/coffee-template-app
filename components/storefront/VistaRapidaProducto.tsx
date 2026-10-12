@@ -273,7 +273,9 @@ export default function VistaRapidaProducto({ producto, disparador, onClose }: V
     // una función declarada más abajo en el mismo cuerpo — el mismo patrón que ya acepta
     // /tienda/[slug] con `product.moliendasOpciones!`.
     addItem(productoMostrado!, cantidad, molienda ? { molienda } : {});
-    toast.success(`${productoMostrado!.nombre} agregado al carrito`);
+    // CHECKOUT-LISTO-PARA-VENDER-1 — `top-right`, junto al ícono del carrito del nav, nunca
+    // tapando el pie fijo del cajón (§ `ProductCard.tsx`, el mismo fix).
+    toast.success(`${productoMostrado!.nombre} agregado al carrito`, { position: 'top-right' });
     cerrarYDevolverFoco();
   }
 

@@ -46,7 +46,9 @@ function Lamina({ product, color, whatsapp }: { product: Product; color: string;
     if (!agregaDirecto) return;
     e.preventDefault();
     addItem(product, 1, decision.modo === 'automatica' ? { molienda: decision.nombre } : {});
-    toast.success(`${product.nombre} agregado al carrito`);
+    // CHECKOUT-LISTO-PARA-VENDER-1 — `top-right`, junto al ícono del carrito del nav, nunca
+    // tapando el pie fijo del cajón (§ `ProductCard.tsx`, el mismo fix).
+    toast.success(`${product.nombre} agregado al carrito`, { position: 'top-right' });
   };
 
   return (

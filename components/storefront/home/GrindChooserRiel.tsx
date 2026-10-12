@@ -467,7 +467,9 @@ export default function GrindChooserRiel({ negocio, style }: { negocio?: string;
     const decision = decidirMolienda(producto.moliendasOpciones);
     if (decision.modo === 'ninguna' || decision.modo === 'automatica') {
       addItem(producto, 1, decision.modo === 'automatica' ? { molienda: decision.nombre } : {});
-      toast.success(`${producto.nombre} agregado al carrito`);
+      // CHECKOUT-LISTO-PARA-VENDER-1 — `top-right`, junto al ícono del carrito del nav, nunca
+      // tapando el pie fijo del cajón (§ `ProductCard.tsx`, el mismo fix).
+      toast.success(`${producto.nombre} agregado al carrito`, { position: 'top-right' });
       return;
     }
     abrirVistaRapida(producto, disparador);

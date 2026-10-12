@@ -329,7 +329,9 @@ export default function Spotlight({ style }: { style?: React.CSSProperties } = {
       return;
     }
     addItem(activo, 1, { ...(molienda ? { molienda } : {}) });
-    toast.success(`${activo.nombre} agregado al carrito`);
+    // CHECKOUT-LISTO-PARA-VENDER-1 — `top-right`, junto al ícono del carrito del nav, nunca
+    // tapando el pie fijo del cajón (§ `ProductCard.tsx`, el mismo fix).
+    toast.success(`${activo.nombre} agregado al carrito`, { position: 'top-right' });
   };
 
   // SIN ENCABEZADO, LA GRILLA NO PUEDE SEGUIR SIENDO DE TRES COLUMNAS (§ PARIDAD-CAFE-Y-ORIGEN-1,

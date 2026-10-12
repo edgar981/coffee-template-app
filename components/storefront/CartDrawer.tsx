@@ -18,7 +18,12 @@ import {
 import { useCartStore } from "@/lib/cartStore";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { formatCOP } from "@duna/core/utils";
-import { freeShippingThreshold } from "@duna/core/shipping-config";
+import {
+  freeShippingThreshold,
+  computeShippingCost,
+  getShippingMethod,
+} from "@duna/core/shipping-config";
+import { COLOMBIA_DEPARTMENTS, isBogotaDC } from "@duna/core/colombia-departments";
 import { composicionCarrito } from "@/lib/storefront/carrito-drawer";
 
 // CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
@@ -189,8 +194,19 @@ export default function CartDrawer() {
     removeItem,
     updateQuantity,
     subtotal,
+    departamento,
+    setDepartamento,
   } = useCartStore();
   const { carritoEnvio, carrito } = useSiteContent();
+
+  // CHECKOUT-LISTO-PARA-VENDER-1 — el envío YA NO dice "Se calcula en el checkout" (§ el
+  // reporte del slice, § `paginas-pendientes.md` §2.1): el costo depende SOLO del
+  // departamento, que ahora se puede elegir desde ACÁ mismo. `departamento` vive en el
+  // CartContext (persistido junto con los items, § `lib/cartStore.tsx`), así que el checkout
+  // arranca con el que el comprador ya eligió en el cajón, sin volver a preguntarlo.
+  const metodoEnvioCajon = departamento ? (isBogotaDC(departamento) ? 'bogota' : 'nacional') : null;
+  const shippingMethodCajon = metodoEnvioCajon ? getShippingMethod(metodoEnvioCajon) : null;
+  const shippingCostCajon = metodoEnvioCajon ? computeShippingCost(metodoEnvioCajon, subtotal) : null;
 
   // El costo de envío depende de la dirección; se calcula en el checkout. Aquí
   // solo mostramos el subtotal (el total real lo recalcula el servidor).
@@ -347,7 +363,10 @@ export default function CartDrawer() {
                           {formatCOP(item.precio)}
                         </p>
 
-                        {/* Quantity Controls */}
+                        {/* Quantity Controls — CHECKOUT-LISTO-PARA-VENDER-1: el tap target sube
+                            a 44px (§ el spec del slice, "stepper de 44 px"), el tamaño mínimo
+                            táctil recomendado — 28px (`h-7 w-7`, de antes) es chico para un dedo
+                            en celular, que es donde este cajón ocupa toda la pantalla. */}
                         <div className="mt-2 flex items-center gap-3">
                           <div className={`flex items-center gap-1 sf-radio-lg ${composicion.claseCajaCantidad}`}>
                             <button
@@ -357,12 +376,13 @@ export default function CartDrawer() {
                                   item.quantity - 1
                                 )
                               }
-                              className="flex h-7 w-7 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              aria-label="Reducir cantidad"
+                              className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
                             >
-                              <Minus className="h-3 w-3" />
+                              <Minus className="h-4 w-4" />
                             </button>
 
-                            <span className="w-6 text-center text-sm font-medium">
+                            <span className="w-8 text-center text-sm font-medium">
                               {item.quantity}
                             </span>
 
@@ -373,9 +393,10 @@ export default function CartDrawer() {
                                   item.quantity + 1
                                 )
                               }
-                              className="flex h-7 w-7 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              aria-label="Aumentar cantidad"
+                              className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="h-4 w-4" />
                             </button>
                           </div>
 
@@ -404,13 +425,37 @@ export default function CartDrawer() {
             {items.length > 0 && (
               <div className="space-y-3 sf-divisor-t border-[var(--sf-linea)] px-5 py-4">
                 <div className="space-y-1.5 text-sm">
-                  <div className="flex justify-between text-[var(--sf-texto)]">
-                    <span>Envío</span>
-
-                    <span className="text-[var(--sf-texto-suave)]">
-                      Se calcula en el checkout
-                    </span>
+                  {/* CHECKOUT-LISTO-PARA-VENDER-1 — "Envío a [departamento]", con SELECTOR real
+                      (§ el spec del slice): el envío sólo depende del departamento, así que
+                      "se calcula en el checkout" era una frase de espera para un dato que el
+                      comprador puede elegir ACÁ mismo. Con un departamento ya elegido se
+                      muestra el costo REAL (`shippingCostCajon`); sin elegir, el selector pide
+                      el dato con la MISMA etiqueta ("Envío a…") para que el comprador entienda
+                      qué decide. El valor viaja al checkout vía el CartContext (persistido). */}
+                  <div className="flex items-center justify-between gap-3 text-[var(--sf-texto)]">
+                    <label htmlFor="carrito-departamento" className="shrink-0">
+                      Envío{departamento ? ` a ${departamento}` : ''}
+                    </label>
+                    <select
+                      id="carrito-departamento"
+                      value={departamento ?? ''}
+                      onChange={(e) => setDepartamento(e.target.value || null)}
+                      className="min-w-0 max-w-[60%] truncate rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-2 py-1.5 text-xs text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
+                    >
+                      <option value="">Selecciona departamento</option>
+                      {COLOMBIA_DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </div>
+                  {shippingMethodCajon && (
+                    <div className="flex justify-between text-[var(--sf-texto-suave)]">
+                      <span>{shippingMethodCajon.label}</span>
+                      <span className={shippingCostCajon === 0 ? 'text-emerald-600' : undefined}>
+                        {shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}
+                      </span>
+                    </div>
+                  )}
 
                   {!carritoEnvio.visible && (
                     <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
@@ -436,6 +481,11 @@ export default function CartDrawer() {
                     </div>
                   )}
                 </div>
+
+                {/* TIENDA-LEGAL-1 — el pie del cajón gana ACÁ, debajo del total y antes del
+                    CTA, una línea «Vende [nombre] · [documento] · [ciudad]» (§ el spec del
+                    slice). No se inventan datos: sin esa configuración, este slice no
+                    renderiza nada en su lugar. */}
 
                 <CartCTA onClick={closeCart} label={composicion.ctaLabel} />
 

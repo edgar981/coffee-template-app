@@ -1,0 +1,200 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { CheckCircle, Clock, XCircle, MessageCircle, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
+import { formatCOP } from "@duna/core/utils";
+import { contenidoEstadoPedido, type EstadoPedidoPagina, type MetodoPedido } from "@/lib/checkout/estado-pedido";
+
+// CHECKOUT-LISTO-PARA-VENDER-1 — LA PÁGINA DE ESTADO ÚNICA (§ refero-compra.md §3): una sola
+// plantilla para los cinco estados que el spec nombra (aprobado, pendiente, rechazado,
+// confirmación manual, sin referencia), consumida tanto por la pantalla "¡Pedido recibido!"
+// de `checkout/page.tsx` como por las vistas terminales de `app/(storefront)/checkout/retorno/
+// RetornoCliente.tsx`. Antes CADA pantalla tenía su propio texto cosido a mano por rama; esta
+// pieza es la ÚNICA forma visual, y `lib/checkout/estado-pedido.ts` es la ÚNICA fuente de las
+// palabras — las dos no pueden divergir entre las dos pantallas (misma razón que
+// `razonDelServidor`/`cruzoMinimo`, CLAUDE.md).
+//
+// NO sustituye los estados de FORMULARIO de `RetornoCliente.tsx` (pidiendo el correo,
+// buscando, techo de 5 minutos con "Volver a consultar") — ésos piden una ACCIÓN del
+// comprador antes de poder anunciar nada, y no son uno de los cinco estados de la página.
+
+const ICONO_POR_ESTADO: Record<EstadoPedidoPagina, { Icono: typeof CheckCircle; claseFondo: string; claseIcono: string; pulso?: boolean }> = {
+  aprobado:       { Icono: CheckCircle, claseFondo: 'bg-emerald-100', claseIcono: 'text-emerald-600' },
+  pendiente:      { Icono: Clock,       claseFondo: 'bg-amber-100',   claseIcono: 'text-amber-600', pulso: true },
+  rechazado:      { Icono: XCircle,     claseFondo: 'bg-red-100',     claseIcono: 'text-red-600' },
+  manual:         { Icono: Clock,       claseFondo: 'bg-amber-100',   claseIcono: 'text-amber-600' },
+  sin_referencia: { Icono: XCircle,     claseFondo: 'bg-[var(--sf-superficie)]', claseIcono: 'text-[var(--sf-tostado-2)]' },
+};
+
+export interface ItemResumenEstadoPedido {
+  nombre: string;
+  cantidad: number;
+  subtotal: number;
+  molienda?: string | null;
+}
+
+export interface ResumenEstadoPedido {
+  items: ItemResumenEstadoPedido[];
+  subtotal: number;
+  envio: number;
+  total: number;
+  metodoEnvioLabel?: string | null;
+  direccionDetalle?: string | null;
+}
+
+export interface AccionEstadoPedido {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  /** `primaria` (sólida, tinta), `secundaria` (borde), `whatsapp` (terciaria, con ícono). */
+  variante: 'primaria' | 'secundaria' | 'whatsapp';
+  /** Abre en pestaña nueva — para el enlace de WhatsApp. */
+  externo?: boolean;
+}
+
+export interface EstadoPedidoProps {
+  estado: EstadoPedidoPagina;
+  metodo: MetodoPedido;
+  /** `null` sólo en `sin_referencia` — ahí no hay pedido que mostrar. */
+  numeroOrden: string | null;
+  correo?: string | null;
+  nombre?: string | null;
+  resumen?: ResumenEstadoPedido | null;
+  acciones: AccionEstadoPedido[];
+  /** Ranura adicional bajo el bloque de "Qué sigue" — el widget de Wompi en curso, o el
+   *  formulario de correo de `RetornoCliente.tsx`. */
+  children?: React.ReactNode;
+}
+
+function claseBoton(variante: AccionEstadoPedido['variante']): string {
+  if (variante === 'primaria') {
+    return 'block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors text-center';
+  }
+  if (variante === 'secundaria') {
+    return 'block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors text-center';
+  }
+  return 'flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--sf-texto-suave)] hover:text-[var(--sf-texto)] transition-colors';
+}
+
+export default function EstadoPedido({ estado, metodo, numeroOrden, correo, nombre, resumen, acciones, children }: EstadoPedidoProps) {
+  const contenido = contenidoEstadoPedido(estado, metodo, nombre);
+  const { Icono, claseFondo, claseIcono, pulso } = ICONO_POR_ESTADO[estado];
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarNumero = async () => {
+    if (!numeroOrden) return;
+    try {
+      await navigator.clipboard.writeText(numeroOrden);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // Clipboard API ausente/bloqueada (http sin TLS, permiso denegado) — el número ya está
+      // visible en pantalla para copiar a mano; no hay nada más que hacer acá.
+      toast.error('No se pudo copiar. El número ya está escrito arriba.');
+    }
+  };
+
+  return (
+    <div className="max-w-md w-full text-center">
+      <div className={`w-20 h-20 ${claseFondo} rounded-full flex items-center justify-center mx-auto mb-6`}>
+        <Icono className={`w-10 h-10 ${claseIcono} ${pulso ? 'animate-pulse' : ''}`} />
+      </div>
+      <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">{contenido.titulo}</h1>
+      <p className="text-sm text-[var(--sf-texto)] mb-4">{contenido.frase}</p>
+
+      {numeroOrden && (
+        <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-4 text-left">
+          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))]">{numeroOrden}</p>
+            <button
+              type="button"
+              onClick={copiarNumero}
+              aria-label="Copiar número de orden"
+              className="p-1.5 rounded-lg hover:bg-[var(--sf-linea)]/40 text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] transition-colors"
+            >
+              {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          {correo && (
+            <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] text-center">
+              Te enviamos copia a {correo}.
+            </p>
+          )}
+        </div>
+      )}
+
+      {contenido.queSigue && (
+        <div className="bg-[var(--sf-superficie)] rounded-xl p-4 mb-4 text-left text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+          <p className="font-semibold mb-0.5">Qué sigue</p>
+          <p>{contenido.queSigue}</p>
+        </div>
+      )}
+
+      {resumen && (
+        <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-4 text-left">
+          <div className="space-y-2">
+            {resumen.items.map((item, i) => (
+              <div key={i} className="flex justify-between text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                <span className="min-w-0 truncate pr-2">
+                  {item.nombre}
+                  {item.molienda ? ` · ${item.molienda}` : ''} × {item.cantidad}
+                </span>
+                <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2 pt-3 mt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
+            <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+              <span>Subtotal</span><span>{formatCOP(resumen.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+              <span>Envío</span>
+              <span className={resumen.envio === 0 ? 'text-emerald-600' : ''}>{resumen.envio === 0 ? 'Gratis' : formatCOP(resumen.envio)}</span>
+            </div>
+            {resumen.metodoEnvioLabel && (
+              <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                <span>Entrega</span>
+                <span className="text-right">{resumen.metodoEnvioLabel}</span>
+              </div>
+            )}
+            {resumen.direccionDetalle && (
+              <div className="flex justify-between text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                <span>Detalles</span>
+                <span className="text-right">{resumen.direccionDetalle}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-[var(--sf-sobre-superficie,var(--sf-tinta))] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
+              <span>Total</span><span>{formatCOP(resumen.total)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {children}
+
+      {/* TIENDA-LEGAL-1 — el bloque «Vendedor» (razón social, documento, ciudad, enlaces) va
+          ACÁ, bajo el resumen y antes de las acciones. No se inventan datos: sin la info del
+          vendedor configurada, este slice no renderiza nada en su lugar. */}
+
+      {acciones.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {acciones.map((a, i) =>
+            a.variante === 'whatsapp' ? (
+              <a key={i} href={a.href} target={a.externo ? '_blank' : undefined} rel={a.externo ? 'noopener' : undefined} onClick={a.onClick} className={claseBoton(a.variante)}>
+                <MessageCircle className="w-3.5 h-3.5" />
+                {a.label}
+              </a>
+            ) : a.href ? (
+              <Link key={i} href={a.href} onClick={a.onClick} className={claseBoton(a.variante)}>{a.label}</Link>
+            ) : (
+              <button key={i} type="button" onClick={a.onClick} className={claseBoton(a.variante)}>{a.label}</button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

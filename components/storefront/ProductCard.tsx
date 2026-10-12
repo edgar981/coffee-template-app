@@ -103,8 +103,16 @@ export default function ProductCard({
       decision.modo === 'automatica' ? { molienda: decision.nombre } : {}
     );
 
+    // CHECKOUT-LISTO-PARA-VENDER-1 — «La confirmación de "agregado" va junto al ícono del
+    // carrito, nunca tapando el botón» (§ el spec del slice, § `paginas-pendientes.md` §2.2:
+    // el toast de abajo tapaba por completo "Pagar" en el cajón, en celular). El ícono de la
+    // bolsa vive arriba a la derecha del nav (`StoreNav.tsx`) en TODAS las variantes del tema;
+    // `top-right` pone el aviso junto a él y lejos del pie FIJO del cajón, que siempre vive
+    // abajo. Override por-toast, no del `<Toaster/>` global: ningún otro aviso de la tienda
+    // cambia de posición.
     toast.success(
-      `${product.nombre} agregado al carrito`
+      `${product.nombre} agregado al carrito`,
+      { position: 'top-right' },
     );
   };
 

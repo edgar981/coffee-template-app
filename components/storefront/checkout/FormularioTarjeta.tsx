@@ -566,6 +566,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
               inputRef={numeroRef}
               error={errores.numero}
               inputMode="numeric"
+              autoComplete="cc-number"
               placeholder="0000 0000 0000 0000"
               marcaDetectada={marcaDetectada}
               logoRedDetectada={logoRedDetectada}
@@ -578,6 +579,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
                 onChangeEvento={handleVencimientoChange}
                 inputRef={vencimientoRef}
                 error={errores.vencimiento}
+                autoComplete="cc-exp"
                 placeholder="MM/AA"
                 disabled={procesando}
               />
@@ -587,6 +589,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
                 onChange={(v) => setCampos((c) => ({ ...c, cvv: v }))}
                 error={errores.cvv}
                 inputMode="numeric"
+                autoComplete="cc-csc"
                 placeholder="123"
                 disabled={procesando}
               />
@@ -596,6 +599,7 @@ export default function FormularioTarjeta({ aceptaciones, publicKey, crearOrdenP
               value={campos.nombreTitular}
               onChange={(v) => setCampos((c) => ({ ...c, nombreTitular: v }))}
               error={errores.nombreTitular}
+              autoComplete="cc-name"
               placeholder="Como aparece en la tarjeta"
               disabled={procesando}
             />
@@ -693,6 +697,11 @@ interface CampoTarjetaProps {
   error?: string;
   placeholder?: string;
   inputMode?: 'numeric' | 'text';
+  /** CHECKOUT-LISTO-PARA-VENDER-1 — autocompletado del navegador (§ el spec del slice). Nunca
+   *  toca el servidor: la tarjeta se tokeniza directo navegador→Wompi (§ el docstring de
+   *  `tokenizarTarjeta`, arriba en el repo), así que esto es sólo una señal de UX, no un dato
+   *  que viaje a ningún lado nuevo. */
+  autoComplete?: string;
   /** El nombre de la red emisora detectada (§ CHECKOUT-DETECCION-EMISOR-BIN-1), o `null` si
    *  todavía no se sabe o el prefijo no cae en ninguna red reconocida — en esos dos casos no se
    *  renderiza nada, ni el texto ni el ícono. Sólo lo usa el campo de número. */
@@ -731,7 +740,7 @@ function IconoTarjetaGenerica() {
   );
 }
 
-function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, marcaDetectada, logoRedDetectada, disabled }: CampoTarjetaProps) {
+function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error, placeholder, inputMode, autoComplete, marcaDetectada, logoRedDetectada, disabled }: CampoTarjetaProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -756,11 +765,13 @@ function CampoTarjeta({ label, value, onChange, onChangeEvento, inputRef, error,
         ref={inputRef}
         type="text"
         inputMode={inputMode}
+        autoComplete={autoComplete}
         value={value}
         onChange={onChangeEvento ?? ((e) => onChange?.(e.target.value))}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60"
+        aria-invalid={error ? true : undefined}
+        className="w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)] disabled:opacity-60"
       />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>

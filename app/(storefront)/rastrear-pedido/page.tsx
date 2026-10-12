@@ -8,13 +8,16 @@ import { TrackedOrder } from "@/types/order";
 
 import { getOrderByNumber } from "@/services/order.service";
 
-import { Search, Package, CheckCircle, Truck, MapPin, Coffee, XCircle, AlertTriangle } from 'lucide-react';
+import { Search, Package, CheckCircle, Truck, MapPin, Coffee, XCircle, AlertTriangle, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatCOP } from '@duna/core/utils';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { navOffsetClase } from '@/lib/config/themes';
+import { whatsappUrl } from '@/lib/config/site';
+import { TENANT_ORDER_PREFIX } from '@duna/core/metrics/order-stat-filters';
 
 interface TimelineStep {
   estado: string;
@@ -53,20 +56,50 @@ function computeStep(estado: string, shippingEstado: string | null): number {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 
+// CHECKOUT-LISTO-PARA-VENDER-1 — ejemplo con el prefijo REAL de la tienda, no el de Café
+// Nayoli a secas (§ `paginas-pendientes.md` §2.3: "El placeholder «Ej: CN-000041» trae el
+// prefijo de Café Nayoli, no el de esta tienda"). `TENANT_ORDER_PREFIX` es la MISMA constante
+// que ya usa el resto del repo para distinguir órdenes reales (CLAUDE.md, § "El dinero pagado
+// por cliente" — las `SN-` nunca cuentan); es pura y ya se importa en cliente en otros sitios
+// (`StatCard`), así que no trae nada server-only.
+const EJEMPLO_NUMERO_ORDEN = `${TENANT_ORDER_PREFIX}000041`;
+
 function OrderTrackingInner() {
   const searchParams = useSearchParams();
   // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
   // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
   const { navTratamiento } = useSiteContent();
   const offsetClase = navOffsetClase(navTratamiento.posicion);
+  const settings = useSiteSettings();
+  const tieneWhatsapp = settings.whatsapp.trim() !== '';
+
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(!!(searchParams.get('orden') && searchParams.get('email')));
+  // CHECKOUT-LISTO-PARA-VENDER-1 — «"Buscar" vacío dice qué falta» (§ el spec, §
+  // `paginas-pendientes.md` §2.3: antes `if (!query.trim() || !email.trim()) return;` no
+  // decía nada — el botón se quedaba mudo). El botón sigue SIEMPRE activo.
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
+  const [tocados, setTocados] = useState<{ orden: boolean; email: boolean }>({ orden: false, email: false });
+
+  const faltaOrden = query.trim() === '';
+  const faltaEmail = email.trim() === '';
 
   const handleSearch = async () => {
-    if (!query.trim() || !email.trim()) return;
+    if (faltaOrden || faltaEmail) {
+      setTocados({ orden: true, email: true });
+      setErrorBusqueda(
+        faltaOrden && faltaEmail
+          ? 'Ingresa tu número de orden y tu correo.'
+          : faltaOrden
+            ? 'Ingresa tu número de orden.'
+            : 'Ingresa el correo de tu compra.',
+      );
+      return;
+    }
+    setErrorBusqueda(null);
     setLoading(true);
     setSearched(true);
     try {
@@ -98,42 +131,64 @@ function OrderTrackingInner() {
     : '';
 
   return (
-      <div className={`${offsetClase} min-h-screen`}>
-        {/* Header */}
-        <div className="bg-[var(--sf-tinta)] py-16 text-center">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-[var(--sf-tostado)] text-xs tracking-widest uppercase mb-3">Seguimiento</p>
-            <h1 className="text-4xl font-playfair text-[var(--sf-sobre)] mb-3">Rastrear Pedido</h1>
-            <p className="text-[var(--sf-sobre)]/60 text-sm">Ingresa tu número de orden y el correo de tu compra para ver el estado de tu envío.</p>
-          </motion.div>
-        </div>
+      <div className={`${offsetClase} min-h-screen bg-[var(--sf-fondo)]`}>
+        {/* CHECKOUT-LISTO-PARA-VENDER-1 — «formulario DENTRO de la página, SIN tarjeta
+            flotante» (§ el spec del slice, § refero-compra.md §3, referencia West Elm "Track
+            your order": "formulario plano dentro de la página, sin tarjeta flotante"). Antes
+            era una banda oscura de 16 de alto + una tarjeta blanca con sombra montada encima
+            con margen negativo (`-mt-8`), que además dejaba el subtítulo tocando los bordes
+            en celular (`paginas-pendientes.md` §2.3) — ese defecto desaparece con la banda. */}
+        <div className="max-w-xl mx-auto px-4 py-12">
+          <div className="mb-8">
+            <p className="text-[var(--sf-acento-texto)] text-xs tracking-widest uppercase mb-2">Seguimiento</p>
+            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">Rastrear Pedido</h1>
+            <p className="text-[var(--sf-texto-suave)] text-sm">Ingresa tu número de orden y el correo de tu compra para ver el estado de tu envío.</p>
+          </div>
 
-        {/* Search */}
-        <div className="max-w-xl mx-auto px-4 -mt-8 relative z-10">
-          <div className="bg-[var(--sf-tarjeta)] rounded-2xl shadow-lg sf-borde border-[var(--sf-linea)] p-5 space-y-4">
+          <div className="space-y-4">
+            {errorBusqueda && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                {errorBusqueda}
+              </div>
+            )}
             <div>
               <label htmlFor="track-orden" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Número de orden</label>
               <input
                 id="track-orden"
+                name="track-orden"
                 type="text"
+                autoComplete="off"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
+                onBlur={() => setTocados(t => ({ ...t, orden: true }))}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                placeholder="Ej: CN-000041"
-                className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                placeholder={`Ej: ${EJEMPLO_NUMERO_ORDEN}`}
+                aria-invalid={tocados.orden && faltaOrden ? true : undefined}
+                className={`w-full h-12 px-4 bg-[var(--sf-superficie)] sf-borde ${tocados.orden && faltaOrden ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-[var(--sf-tinta)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
               />
+              {tocados.orden && faltaOrden && (
+                <p className="mt-1 text-xs text-red-600">Ingresa tu número de orden.</p>
+              )}
             </div>
             <div>
               <label htmlFor="track-email" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Correo de tu compra</label>
               <input
                 id="track-email"
+                name="track-email"
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                onBlur={() => setTocados(t => ({ ...t, email: true }))}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder="Ej: correo@ejemplo.com"
-                className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                aria-invalid={tocados.email && faltaEmail ? true : undefined}
+                className={`w-full h-12 px-4 bg-[var(--sf-superficie)] sf-borde ${tocados.email && faltaEmail ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-[var(--sf-tinta)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
               />
+              {tocados.email && faltaEmail && (
+                <p className="mt-1 text-xs text-red-600">Ingresa el correo de tu compra.</p>
+              )}
             </div>
             <button
               onClick={handleSearch}
@@ -143,10 +198,9 @@ function OrderTrackingInner() {
               <Search className="w-4 h-4" /> {loading ? 'Buscando...' : 'Buscar'}
             </button>
           </div>
-        </div>
 
-        {/* Result */}
-        <div className="max-w-2xl mx-auto px-4 py-12">
+          {/* Result */}
+          <div className="pt-10">
           {/* RASTREAR-PEDIDO-ESTADOS-SIN-TRANSICION-1: los tres estados de resultado —sin buscar,
               sin resultado, con orden— entran/salen con AnimatePresence + motion.div (fade +
               desplazamiento vertical), en vez de `{cond && (<div>…)}` planos que cambiaban de
@@ -165,7 +219,22 @@ function OrderTrackingInner() {
                 <Search aria-hidden="true" className="w-7 h-7 text-[var(--sf-tostado-2)]" />
               </div>
               <p className="font-medium text-[var(--sf-tinta)] mb-1">Orden no encontrada</p>
-              <p className="text-sm text-[var(--sf-texto-suave)]">Verifica el número de orden y el correo con el que hiciste tu compra.</p>
+              {/* CHECKOUT-LISTO-PARA-VENDER-1 — «no encontrado… explica dónde está el número y
+                  ofrece WhatsApp» (§ el spec, § `paginas-pendientes.md` §2.3: "ni dónde
+                  encuentro mi número, ni WhatsApp. El único camino es reintentar"). Lo
+                  escrito (`query`/`email`) se CONSERVA — ningún campo se limpia al fallar. */}
+              <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
+                Verifica el número de orden y el correo con el que hiciste tu compra. El número de orden está en el correo de confirmación que te enviamos.
+              </p>
+              {tieneWhatsapp && (
+                <a
+                  href={whatsappUrl(settings.whatsapp, `Hola, no encuentro mi pedido ${query.trim() ? `(${query.trim()})` : ''}.`)}
+                  target="_blank" rel="noopener"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--sf-tinta)] underline hover:no-underline"
+                >
+                  <MessageCircle className="w-4 h-4" /> Escríbenos por WhatsApp
+                </a>
+              )}
             </motion.div>
           )}
 
@@ -283,9 +352,22 @@ function OrderTrackingInner() {
                   </div>
                 </div>
               )}
+
+              {/* CHECKOUT-LISTO-PARA-VENDER-1 — WhatsApp SIEMPRE disponible junto al resultado,
+                  también cuando SÍ se encontró la orden (§ el spec: "guía… WhatsApp"). */}
+              {tieneWhatsapp && (
+                <a
+                  href={whatsappUrl(settings.whatsapp, `Hola, quiero consultar mi pedido ${order.numero_orden}`)}
+                  target="_blank" rel="noopener"
+                  className="flex items-center justify-center gap-1.5 py-1 text-sm text-[var(--sf-texto-suave)] hover:text-[var(--sf-texto)] transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" /> Escríbenos por WhatsApp
+                </a>
+              )}
             </motion.div>
           )}
           </AnimatePresence>
+          </div>
         </div>
       </div>
   );

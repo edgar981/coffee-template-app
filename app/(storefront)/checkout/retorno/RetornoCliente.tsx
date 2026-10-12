@@ -2,10 +2,9 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { CheckCircle, Clock, MessageCircle, XCircle } from "lucide-react";
+import { Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -17,6 +16,8 @@ import { whatsappUrl } from "@/lib/config/site";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { navOffsetClase } from "@/lib/config/themes";
+import { referenciaDesdeQuery, resolverReferenciaPorId } from "@/lib/checkout/retorno-wompi";
+import EstadoPedido from "@/components/storefront/checkout/EstadoPedido";
 
 // ── LA PANTALLA DE RETORNO — Wompi devuelve al comprador acá ─────────────────────
 //
@@ -57,6 +58,7 @@ function esperaSiguienteMs(intento: number): number {
 }
 
 type Vista =
+  | { fase: "resolviendo_id" }
   | { fase: "sin_referencia" }
   | { fase: "pidiendo_email" }
   | { fase: "buscando" }
@@ -78,7 +80,16 @@ interface RetornoInnerProps {
 
 function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
   const searchParams = useSearchParams();
-  const reference = searchParams.get("reference");
+  // CHECKOUT-LISTO-PARA-VENDER-1 — EL REGRESO DEL WIDGET (§ el spec del slice,
+  // `pagos-estado.md` §3.4): Wompi redirige el widget con `?id=<transacción>`, no
+  // `?reference=`. `referenciaDesdeQuery` decide cuál de los dos hay, y si es `id`, lo resuelve
+  // contra el endpoint PÚBLICO de transacciones de Wompi (`resolverReferenciaPorId`, § el
+  // `useEffect` de abajo) antes de poder pedir el correo. `reference` directo sigue
+  // funcionando EXACTAMENTE igual que antes — nunca se llama a Wompi para ese caso.
+  const decisionReferencia = referenciaDesdeQuery({
+    reference: searchParams.get("reference"),
+    id: searchParams.get("id"),
+  });
 
   // El NÚMERO de WhatsApp sale del contexto del storefront (ya inyectado por el layout,
   // misma request que resolvió `tieneWhatsapp` en el server, § `page.tsx`) — `tieneWhatsapp`
@@ -91,9 +102,38 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
   const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   const [email, setEmail] = useState("");
-  const [vista, setVista] = useState<Vista>(
-    reference ? { fase: "pidiendo_email" } : { fase: "sin_referencia" },
+  const [errorCorreo, setErrorCorreo] = useState<string | null>(null);
+  // `reference` es la referencia YA RESUELTA que el resto de la pantalla usa — directa desde
+  // el query, o la que `resolverReferenciaPorId` devuelva (§ el efecto de abajo). `null`
+  // mientras se resuelve el `id` o cuando no hay ninguna de las dos.
+  const [reference, setReference] = useState<string | null>(
+    decisionReferencia.tipo === "directa" ? decisionReferencia.referencia : null,
   );
+  const [vista, setVista] = useState<Vista>(
+    decisionReferencia.tipo === "directa"
+      ? { fase: "pidiendo_email" }
+      : decisionReferencia.tipo === "por_id"
+        ? { fase: "resolviendo_id" }
+        : { fase: "sin_referencia" },
+  );
+
+  useEffect(() => {
+    if (decisionReferencia.tipo !== "por_id") return;
+    let cancelado = false;
+    resolverReferenciaPorId(decisionReferencia.id, fetch).then((referenciaResuelta) => {
+      if (cancelado) return;
+      if (referenciaResuelta) {
+        setReference(referenciaResuelta);
+        setVista({ fase: "pidiendo_email" });
+      } else {
+        // Ningún host de Wompi reconoce esa transacción — misma vista que "no había ningún
+        // dato en la URL" (§ el spec: "Sin referencia: «No encontramos este pago»").
+        setVista({ fase: "sin_referencia" });
+      }
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // El reloj del backoff vive en refs — no debe disparar un re-render por sí
   // mismo, sólo el RESULTADO de cada consulta cambia `vista`.
@@ -148,7 +188,12 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
   // están en scope (la vista `techo` sólo se alcanza tras un `EN_VUELO` exitoso previo), así
   // que no hace falta volver a pedir el correo.
   const handleBuscar = async () => {
-    if (!reference || !email.trim()) return;
+    // CHECKOUT-LISTO-PARA-VENDER-1 — «el botón nunca queda gris y mudo» (§ el spec): antes
+    // "Ver el estado de mi pago" se deshabilitaba con el correo vacío, sin decir nada. Ahora
+    // queda activo y, al tocarlo sin correo, lo dice en vez de no hacer nada.
+    if (!email.trim()) { setErrorCorreo("Ingresa el correo de tu compra."); return; }
+    setErrorCorreo(null);
+    if (!reference) return; // defensivo — este formulario sólo se monta con la referencia ya resuelta.
     const correo = email.trim();
     setVista({ fase: "buscando" });
     intentoRef.current = 0;
@@ -178,24 +223,26 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full text-center"
       >
+        {vista.fase === "resolviendo_id" && (
+          // CHECKOUT-LISTO-PARA-VENDER-1 — mientras se resuelve la `reference` a partir del
+          // `id` del widget (§ el `useEffect` de arriba): un instante, nunca más de dos
+          // requests livianos. No es uno de los cinco estados de la página — es la espera
+          // ANTES de poder mostrar cualquiera de ellos.
+          <div className="w-20 h-20 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+            <Clock className="w-10 h-10 text-[var(--sf-tostado-2)]" />
+          </div>
+        )}
+
         {vista.fase === "sin_referencia" && (
-          <>
-            <div className="w-20 h-20 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-6">
-              <XCircle className="w-10 h-10 text-[var(--sf-tostado-2)]" />
-            </div>
-            <h1 className="text-2xl font-playfair text-[var(--sf-tinta)] mb-2">
-              No encontramos la información de tu pago
-            </h1>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
-              Si ya pagaste, revisa el estado de tu pedido con tu número de orden y tu correo.
-            </p>
-            <Link
-              href="/rastrear-pedido"
-              className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
-            >
-              Rastrear mi pedido
-            </Link>
-          </>
+          <EstadoPedido
+            estado="sin_referencia"
+            metodo={null}
+            numeroOrden={null}
+            acciones={[
+              { label: 'Rastrear mi pedido', variante: 'primaria', href: '/rastrear-pedido' },
+              ...(tieneWhatsapp ? [{ label: 'Escríbenos por WhatsApp', variante: 'whatsapp' as const, externo: true, href: whatsappUrl(settings.whatsapp, 'Hola, no encuentro la confirmación de mi pago.') }] : []),
+            ]}
+          />
         )}
 
         {(vista.fase === "pidiendo_email" || vista.fase === "buscando" || vista.fase === "no_encontrado") && (
@@ -214,21 +261,27 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
                 </label>
                 <input
                   id="retorno-email"
+                  name="retorno-email"
                   type="email"
+                  autoComplete="email"
+                  inputMode="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
                   placeholder="Ej: correo@ejemplo.com"
-                  className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)]"
+                  className="w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-[var(--sf-tinta)] text-base focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
                 />
               </div>
               <button
                 onClick={handleBuscar}
-                disabled={vista.fase === "buscando" || !email.trim()}
+                disabled={vista.fase === "buscando"}
                 className="w-full bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors"
               >
                 {vista.fase === "buscando" ? "Consultando..." : "Ver el estado de mi pago"}
               </button>
+              {errorCorreo && (
+                <p className="text-xs text-red-600">{errorCorreo}</p>
+              )}
               {vista.fase === "no_encontrado" && (
                 <p className="text-xs text-red-600">
                   No pudimos confirmar estos datos. Verifica el correo con el que hiciste tu compra.
@@ -239,134 +292,59 @@ function RetornoInner({ tieneWhatsapp }: RetornoInnerProps) {
         )}
 
         {vista.fase === "en_vuelo" && (
-          <>
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Clock className="w-10 h-10 text-amber-600 animate-pulse" />
-            </div>
-            <h1 className="text-2xl font-playfair text-[var(--sf-tinta)] mb-2">Estamos confirmando tu pago</h1>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
-              Esto puede tardar unos minutos. No cierres esta página; se actualiza sola.
-            </p>
-            {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie`
-                migrado al par `var(--sf-sobre-superficie[-suave],<token de hoy>)`
-                (§ TEMAS-P6-FAMILIAS-1) — token viejo como fallback, byte-idéntico para Nayoli.
-                El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-ACENTO-
-                TINTA-1 (§ PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md). */}
-            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 text-left">
-              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
-            </div>
-          </>
+          <EstadoPedido estado="pendiente" metodo="wompi" numeroOrden={vista.numeroOrden} correo={email} acciones={[]} />
         )}
 
         {vista.fase === "techo" && (
-          <>
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Clock className="w-10 h-10 text-amber-600" />
-            </div>
-            <h1 className="text-2xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pago sigue procesándose</h1>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
-              Te avisaremos apenas se confirme. Puedes revisar el estado de tu pedido más tarde con tu número de
-              orden y tu correo.
-            </p>
-            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
-                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. Este es
-                uno de los TRES sitios que sólo se ven cuando el sondeo de retorno AGOTA su techo
-                (5 min, `TECHO_MS` arriba). */}
-            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
-            </div>
-            {/* Jerarquía fijada por el owner (§2, WOMPI-RETORNO-307-Y-TECHO-1): principal = número +
-                rastrear-pedido; secundaria = "Volver a consultar"; WhatsApp = terciaria y CONDICIONAL
-                a `tieneWhatsapp` — sin canal configurado, no se ofrece un camino que no existe (misma
-                guarda de veracidad que el checkout y el footer). No invertir el orden. */}
-            <div className="flex flex-col gap-3">
-              <Link
-                href={`/rastrear-pedido?orden=${encodeURIComponent(vista.numeroOrden)}`}
-                className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
-              >
-                Rastrear mi pedido
-              </Link>
-              <button
-                type="button"
-                onClick={handleBuscar}
-                className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors"
-              >
-                Volver a consultar
-              </button>
-              {tieneWhatsapp && (
-                <a
-                  href={whatsappUrl(
-                    settings.whatsapp,
-                    `Hola, quiero consultar el estado de mi pago de la orden ${vista.numeroOrden}`,
-                  )}
-                  target="_blank"
-                  rel="noopener"
-                  className="flex items-center justify-center gap-1.5 py-1 text-xs text-[var(--sf-texto-suave)] hover:text-[var(--sf-texto)] transition-colors"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Escríbenos por WhatsApp
-                </a>
-              )}
-            </div>
-          </>
+          // Jerarquía fijada por el owner (§2, WOMPI-RETORNO-307-Y-TECHO-1): principal = número +
+          // rastrear-pedido; secundaria = "Volver a consultar"; WhatsApp = terciaria y CONDICIONAL
+          // a `tieneWhatsapp` — sin canal configurado, no se ofrece un camino que no existe (misma
+          // guarda de veracidad que el checkout y el footer). No invertir el orden.
+          <EstadoPedido
+            estado="pendiente"
+            metodo="wompi"
+            numeroOrden={vista.numeroOrden}
+            correo={email}
+            acciones={[
+              { label: 'Rastrear mi pedido', variante: 'primaria', href: `/rastrear-pedido?orden=${encodeURIComponent(vista.numeroOrden)}&email=${encodeURIComponent(email)}` },
+              { label: 'Volver a consultar', variante: 'secundaria', onClick: handleBuscar },
+              ...(tieneWhatsapp ? [{ label: 'Escríbenos por WhatsApp', variante: 'whatsapp' as const, externo: true, href: whatsappUrl(settings.whatsapp, `Hola, quiero consultar el estado de mi pago de la orden ${vista.numeroOrden}`) }] : []),
+            ]}
+          />
         )}
 
         {vista.fase === "aprobado" && (
-          <>
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-emerald-600" />
-            </div>
-            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">¡Tu pago fue aprobado!</h1>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
-              Tu pedido queda confirmado y pasa a preparación.
-            </p>
-            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
-                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
-            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Link
-                href={`/rastrear-pedido?orden=${encodeURIComponent(vista.numeroOrden)}`}
-                className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
-              >
-                Rastrear mi pedido
-              </Link>
-              <Link
-                href="/tienda"
-                className="block w-full sf-borde border-[var(--sf-linea)] text-[var(--sf-texto)] font-medium py-3.5 rounded-xl text-sm hover:bg-[var(--sf-superficie)] transition-colors"
-              >
-                Seguir comprando
-              </Link>
-            </div>
-          </>
+          <EstadoPedido
+            estado="aprobado"
+            metodo="wompi"
+            numeroOrden={vista.numeroOrden}
+            correo={email}
+            acciones={[
+              { label: 'Rastrear mi pedido', variante: 'primaria', href: `/rastrear-pedido?orden=${encodeURIComponent(vista.numeroOrden)}&email=${encodeURIComponent(email)}` },
+              { label: 'Seguir comprando', variante: 'secundaria', href: '/tienda' },
+            ]}
+          />
         )}
 
         {vista.fase === "fallido" && (
-          <>
-            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <XCircle className="w-10 h-10 text-red-600" />
-            </div>
-            <h1 className="text-3xl font-playfair text-[var(--sf-tinta)] mb-2">Tu pago no fue aprobado</h1>
-            <p className="text-sm text-[var(--sf-texto-suave)] mb-6">
-              No te preocupes, no se realizó ningún cobro. Puedes volver a la tienda e intentarlo de nuevo.
-            </p>
-            {/* El número de orden (fallback `--sf-acento-texto`) migró en PALETA-MIGRAR-
-                ACENTO-TINTA-1 -- § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
-            <div className="bg-[var(--sf-superficie)] rounded-2xl p-5 mb-6 text-left">
-              <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))] mb-1 text-center">Número de orden</p>
-              <p className="text-2xl font-bold text-[var(--sf-sobre-superficie,var(--sf-acento-texto))] text-center">{vista.numeroOrden}</p>
-            </div>
-            <Link
-              href="/tienda"
-              className="block w-full bg-[var(--sf-tinta)] text-[var(--sf-sobre)] font-semibold py-3.5 rounded-xl text-sm hover:bg-[var(--sf-tinta-2)] transition-colors"
-            >
-              Volver a la tienda
-            </Link>
-          </>
+          // CHECKOUT-LISTO-PARA-VENDER-1 — PENDIENTE (§ el reporte del slice): el spec pide
+          // «Intentar de nuevo» (reabre el widget) y «Elegir otro método» sobre la MISMA
+          // orden, vía `POST /api/checkout/reintento` (igual que `reintentarConOtroMetodo` en
+          // `checkout/page.tsx`). Montar ESE flujo acá exige repetir el picker de método
+          // (`SelectorMetodoPasarela`/`PagoPasarela`) fuera del carrito/paso de pago donde
+          // vive hoy — se detuvo ese ítem en vez de ofrecer un "Intentar de nuevo" que en
+          // realidad no reintenta nada (el carrito ya está vacío). "Volver a la tienda" sigue
+          // siendo un reintento real, desde cero.
+          <EstadoPedido
+            estado="rechazado"
+            metodo="wompi"
+            numeroOrden={vista.numeroOrden}
+            correo={email}
+            acciones={[
+              { label: 'Volver a la tienda', variante: 'primaria', href: '/tienda' },
+              ...(tieneWhatsapp ? [{ label: 'Escríbenos por WhatsApp', variante: 'whatsapp' as const, externo: true, href: whatsappUrl(settings.whatsapp, `Hola, mi pago de la orden ${vista.numeroOrden} no fue aprobado y quiero coordinar otra forma de pagar.`) }] : []),
+            ]}
+          />
         )}
       </motion.div>
     </div>

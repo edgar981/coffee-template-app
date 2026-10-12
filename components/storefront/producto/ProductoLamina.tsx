@@ -136,7 +136,9 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
       return;
     }
     addItem(product, qty, molienda ? { molienda } : {});
-    toast.success(`${product.nombre} agregado al carrito`);
+    // CHECKOUT-LISTO-PARA-VENDER-1 — `top-right`, junto al ícono del carrito del nav, nunca
+    // tapando el pie fijo del cajón (§ `ProductCard.tsx`, el mismo fix).
+    toast.success(`${product.nombre} agregado al carrito`, { position: 'top-right' });
   };
 
   return (

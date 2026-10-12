@@ -296,6 +296,7 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
             <input
               type="text"
               inputMode="numeric"
+              autoComplete="tel-national"
               value={dato}
               onChange={(e) => setDato(e.target.value)}
               // `.placeholder` sólo existe en la naturaleza `texto_libre` (unión discriminada,
@@ -303,7 +304,8 @@ export default function FormularioOtroMetodoPasarela({ descriptor, aceptaciones,
               // naturaleza, así que este ternario no cambia nada de lo que el comprador ve.
               placeholder={campo.naturaleza === 'texto_libre' ? campo.placeholder : undefined}
               disabled={procesando}
-              className="w-full px-4 py-3 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-acento)]/20 focus:border-[var(--sf-acento)] disabled:opacity-60"
+              aria-invalid={errorDato ? true : undefined}
+              className="w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde border-[var(--sf-linea)] rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)] disabled:opacity-60"
             />
             {errorDato && <p className="mt-1 text-xs text-red-600">{errorDato}</p>}
           </div>
