@@ -42,10 +42,15 @@ export interface ResumenPublicarProps {
   /** Tocar una fila de la lista navega a ese elemento en el lienzo (§ el spec) — resuelto por
    *  `EditorTiendaPantallaCompleta`/`TiendaPaginas.irAItem`; este componente sólo manda la `clave`. */
   onIrAItem: (clave: string) => void;
+  /** § EDITOR-ESTADO-PAGINAS-1 (G3) — una línea que dice el ALCANCE de "Publicar": sólo la página
+   *  abierta más lo compartido (encabezado/menú/pie/estilo) — NUNCA todas las páginas con borrador.
+   *  `EditorTiendaPantallaCompleta.tsx` ya nombra la página activa (`paginaActualLabel`); este
+   *  componente no sabe de páginas, sólo imprime el texto que le llega. */
+  alcance: string;
 }
 
 export function ResumenPublicar({
-  pendientes, deshabilitado, procesando, cargarResumen, onPublicar, onDescartar, onIrAItem,
+  pendientes, deshabilitado, procesando, cargarResumen, onPublicar, onDescartar, onIrAItem, alcance,
 }: ResumenPublicarProps) {
   const contenedor = useContenedorDunaPortal();
   const [abierto, setAbierto] = useState(false);
@@ -82,7 +87,10 @@ export function ResumenPublicar({
             (`return null` arriba), así que ese paso se SALTA SOLO en un editor recién abierto sin
             cambios sin publicar — comportamiento correcto, no un hueco: resaltar un botón que no
             está en pantalla sería peor que no mostrarlo. */}
-        <button type="button" className="duna-btn duna-btn--primary duna-btn--sm" disabled={deshabilitado} data-tour="publicar">
+        {/* § EDITOR-ESTADO-PAGINAS-1 (G3) — `title` dice el ALCANCE sin esperar a que el dueño abra
+            el popover: un botón "Publicar 3" a secas sugiere "todo lo pendiente", cuando en
+            realidad son sólo esta página + lo compartido (§ el docstring de `alcance`, arriba). */}
+        <button type="button" className="duna-btn duna-btn--primary duna-btn--sm" disabled={deshabilitado} data-tour="publicar" title={alcance}>
           {procesando ? 'Publicando…' : (
             <>
               Publicar <span className="duna-badge duna-badge--attention">{pendientes}</span>
@@ -91,6 +99,9 @@ export function ResumenPublicar({
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" container={contenedor} style={{ width: '22rem' }}>
+        {/* § EDITOR-ESTADO-PAGINAS-1 (G3) — el mismo alcance, ahora escrito (no sólo en el `title`
+            del botón, que un dueño puede no pasar a leer con el mouse). */}
+        <p className="duna-caption" style={{ margin: 0, marginBottom: 'var(--duna-space-2)' }}>{alcance}</p>
         {/* El encabezado cuenta las FILAS que la lista de abajo realmente muestra (`cambios.length`),
             no las CLAVES pendientes (`pendientes`, el badge del botón): una sola sección puede traer
             varios campos cambiados a la vez — como en el ejemplo del spec, "Hero · Titular · nuevo"

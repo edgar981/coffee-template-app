@@ -42,6 +42,9 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistorial } from '@/lib/admin/historial-editor';
 import { resumenCambios, type CambioResumen } from '@/lib/admin/resumen-cambios';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
+import { getSiteContentPublicado } from '@/lib/api/site-content';
+import type { SiteContentData, PaginasContent } from '@/lib/config/site-content-defaults';
+import { debeMostrarControlesHome, nombreNivelInicio, paginaEstaApagada } from '@/lib/admin/editor-estado-paginas';
 // § EDITOR-AGREGAR-SECCION-1 — EL CATÁLOGO CURADO Y SU MECANISMO (§ lib/config/secciones-instancias.ts,
 // construido por SECCIONES-INSTANCIAS-1; esta tanda le agrega la UI). `resolverOrdenCompleto`
 // generaliza `resolverOrden` a bandas ∪ instancias — el `orden` que YA llega en `doc.contenido` está
@@ -178,6 +181,11 @@ export interface TiendaPaginasHandle {
 // llegan por prop desde `EditorTiendaPantallaCompleta`, que los pone en su barra superior.
 const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(function TiendaPaginas({ pagina, resaltar, dispositivo = DISPOSITIVO_DEFECTO, modo = 'paginas', onAbrirAyuda, onIniciarRecorrido, onEstadoGlobal }, ref) {
   const paginaMeta = PAGINAS.find(p => p.key === pagina)!;
+  // § EDITOR-ESTADO-PAGINAS-1 (G7) — el nivel «Inicio» del panel nombra la página ABIERTA, no
+  // siempre "Inicio": el título y la miga de vuelta decían «Inicio» aunque la pestaña activa fuera
+  // Suscripciones o Nosotros. "Inicio" se queda como el nombre del HOME (el mismo que ya usa el
+  // selector de página, `LABEL_PAGINA_SELECTOR.home` en `EditorTiendaPantallaCompleta.tsx`).
+  const nombreInicioPagina = nombreNivelInicio(pagina, paginaMeta.label);
   const secciones = SECCIONES_TIENDA.filter(c => c.pagina === pagina);
 
   // EL IFRAME COMPARTIDO (§ EDITOR-TIENDA-IFRAME-VISTA-1): UNA sola vista en vivo por página, no una
@@ -604,14 +612,46 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // que re-leía). Las ESCRITURAS (PUT autoguardado, POST publicar/descartar) siguen POR SECCIÓN, sin tocar.
   const [doc, setDoc] = useState<{ contenido: Record<string, unknown>; sinPublicar: Record<string, boolean> } | null>(null);
   const [errorDoc, setErrorDoc] = useState(false);
+  // § EDITOR-ESTADO-PAGINAS-1 — LO PUBLICADO, sembrado junto al borrador (G1/G2): sin esto, el punto
+  // ámbar de cada sección sólo podía leer `sinPublicar[seccion] = key in borrador`
+  // (`lib/config/site-content-read.ts`, fuera de `touches:`) — verdadero incluso con un borrador que
+  // YA VUELVE a valer lo mismo que lo publicado (prender y apagar un ojo). Con `publicado` en mano,
+  // cada sección compara VALOR contra valor (§ `hayBorradorReal`, `lib/admin/editor-estado-
+  // paginas.ts`). `getSiteContentPublicado` es el MISMO lector que ya usa el resumen de "Publicar"
+  // (§ EDITOR-TIENDA-PUBLICAR-RESUMEN-1) — no una segunda lectura con otra forma.
+  const [publicado, setPublicado] = useState<SiteContentData | null>(null);
+  const recargarPublicado = useCallback(async () => {
+    try {
+      const pub = await getSiteContentPublicado();
+      setPublicado(pub);
+      return pub;
+    } catch {
+      // Sin esto, "sinPublicar" se queda en el flag crudo del servidor (§ `hayBorradorReal`) — mejor
+      // una señal vieja-pero-real que afirmar "sin cambios" sin base.
+      return null;
+    }
+  }, []);
   const recargarDoc = useCallback(async () => {
-    const r = await fetch('/api/site-content');
+    const [r] = await Promise.all([fetch('/api/site-content'), recargarPublicado()]);
     if (!r.ok) throw new Error();
     const d = await r.json();
     setDoc({ contenido: d.contenido ?? {}, sinPublicar: d.sinPublicar ?? {} });
     return d as { contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> };
+  }, [recargarPublicado]);
+  // § EDITOR-ESTADO-PAGINAS-1 — G1: refetch también al CAMBIAR de página, no sólo al montar. Cada
+  // sección remonta al cambiar de página (`secciones` se filtra por `pagina`, § el docstring grande
+  // de `seccionActiva` más abajo), y su siembra única (`TiendaSeccionEditor.tsx`, `form === null`)
+  // leía el `doc` de la PRIMERA carga — rancio si algo se publicó o se editó desde entonces. Volver a
+  // pedir el doc al entrar a una página dos veces cuesta un GET de más, no una segunda forma de leer.
+  useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [pagina, recargarDoc]);
+
+  // § EDITOR-ESTADO-PAGINAS-1 (G1) — la actualización SINCRÓNICA de `publicado` que
+  // `TiendaSeccionEditor.marcarPublicado()`/el "Publicar" individual llaman tras un publish exitoso
+  // (`carga.marcarPublicadoLocal`, § el docstring de esa prop): pisa SÓLO la clave de la sección
+  // publicada, sin refetch — evita el parpadeo de "Sin publicar" reapareciendo mientras un GET viaja.
+  const marcarPublicadoSeccion = useCallback((seccion: SeccionVista, valor: Record<string, unknown>) => {
+    setPublicado((prev) => (prev ? ({ ...prev, [seccion]: valor } as SiteContentData) : prev));
   }, []);
-  useEffect(() => { recargarDoc().catch(() => setErrorDoc(true)); }, [recargarDoc]);
 
   // ── § EDITOR-TIENDA-DESHACER-1 — EL HISTORIAL COMPARTIDO, dueño de TiendaPaginas ────────────────
   //
@@ -1188,10 +1228,23 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
   // ésta se queda intacta para quien no mezcla instancias, § su propio docstring) — SÓLO home tiene
   // `ordenLocal`; las demás páginas quedan en el orden fijo del registro, envuelto en la MISMA forma
   // `ItemOrdenMixto` para que el `.map` de abajo no tenga dos casos que distinguir.
-  const seccionesOrdenadas: ItemOrdenMixto<SeccionConfig>[] = ordenLocal
+  //
+  // § EDITOR-ESTADO-PAGINAS-1 (G4) — `debeMostrarControlesHome(pagina)`, NO sólo `ordenLocal`:
+  // `ordenLocal`/`seccionesHomeLocal` se siembran UNA vez por sesión del editor (§ sus propios
+  // efectos, arriba) y se QUEDAN sembrados al cambiar de página — sin este guard,
+  // `ordenarSeccionesConInstancias` mezclaba las secciones AGREGADAS del home dentro de la lista de
+  // CUALQUIER otra página (Nosotros, Tienda, Suscripciones), porque su propia red de "ítems sin
+  // bandaId van al final" no distingue "otra página" de "el home sin sembrar todavía".
+  const seccionesOrdenadas: ItemOrdenMixto<SeccionConfig>[] = debeMostrarControlesHome(pagina) && ordenLocal
     ? ordenarSeccionesConInstancias(secciones, Object.keys(seccionesHomeLocal ?? {}), ordenLocal)
     : secciones.map((config) => ({ tipo: 'banda' as const, config }));
   const puedePublicarOrden = autoOrden.estado === 'guardado' && !procesandoOrden;
+
+  // § EDITOR-ESTADO-PAGINAS-1 (G5) — con /nosotros o /suscripciones apagadas, el storefront
+  // redirige a "/" y el vigía de ruta del iframe (`VistaTiendaIframe.tsx`) la mandaba de vuelta cada
+  // 400ms, en loop. `doc.contenido.paginas` ya llega resuelto (§ `resolverSiteContent`); mientras
+  // `doc` no cargó, `paginaEstaApagada` cae a `false` (no afirma "apagada" sin dato).
+  const paginaApagada = paginaEstaApagada(pagina, doc ? (doc.contenido.paginas as PaginasContent | undefined) : undefined);
 
   // § EDITOR-TIENDA-MARQUESINA-EN-HERO-1 — el valor que cada `TiendaSeccionEditor` recibe para pintar
   // SUS campos cruzados (§ `valoresCruzadosEnVivo`, arriba): lo EN VIVO si ya llegó, si no el `doc`
@@ -1488,7 +1541,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
       <div className="editor-cuerpo-chrome">
       {modo === 'paginas' && nivelActivo && !hayElementoActivo && (
         <Migas
-          nivelAnterior="Inicio"
+          nivelAnterior={nombreInicioPagina}
           actual={seccionActiva ? (secciones.find(c => c.seccion === seccionActiva)?.titulo ?? seccionActiva) : CROMO_TITULOS[cromoActivo as CromoKey]}
           onVolver={volverAInicio}
           onAyuda={() => abrirAyuda(temaDeNivel(nivelActivo))}
@@ -1508,8 +1561,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           en su propia barra, arriba de la lista. Mismo vocabulario que cada tarjeta (duna-badge/
           duna-btn) para que no se lea como un control distinto. SÓLO en modo 'paginas' (§ EDITOR-
           TIENDA-TEMA-1) y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1): el orden es de LA PÁGINA
-          home, no del tema ni de una sección puntual. */}
-      {modo === 'paginas' && !nivelActivo && hayBorradorOrden && (
+          home, no del tema ni de una sección puntual.
+          § EDITOR-ESTADO-PAGINAS-1 (G4) — `debeMostrarControlesHome(pagina)` EXPLÍCITO: el comentario
+          de arriba ya decía "el orden es de la página home", pero `hayBorradorOrden` se siembra una
+          vez por sesión (como `ordenLocal`) y se queda sembrado al cambiar de página — sin el guard,
+          esta barra se mostraba en Nosotros/Tienda/Suscripciones apenas el home tenía un borrador de
+          orden sin publicar. */}
+      {modo === 'paginas' && !nivelActivo && debeMostrarControlesHome(pagina) && hayBorradorOrden && (
         <div style={{
           flexShrink: 0, marginBottom: 'var(--duna-space-4)', display: 'flex', alignItems: 'center',
           flexWrap: 'wrap', gap: 'var(--duna-space-3)', padding: 'var(--duna-space-3) var(--duna-space-4)',
@@ -1588,11 +1646,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
               'paginas' (§ EDITOR-TIENDA-TEMA-1) Y en el nivel «Inicio» (§ EDITOR-TIENDA-SHELL-1) —
               con una sección/el cromo abiertos, el título de ESA sección ya lo pinta su propio
               editor (`duna-title`, § TiendaSeccionEditor.tsx/EncabezadoSeccion.tsx…), y repetirlo acá
-              sería la misma redundancia que la `Migas` restyleada ya evita (§ su docstring). */}
+              sería la misma redundancia que la `Migas` restyleada ya evita (§ su docstring).
+              § EDITOR-ESTADO-PAGINAS-1 (G7) — el título nombra la página ABIERTA (`nombreInicioPagina`,
+              arriba), no un «Inicio» fijo que confundía el nivel raíz del panel con la página home. */}
           {modo === 'paginas' && !nivelActivo && (
             <div style={{ marginBottom: 'var(--duna-space-2)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--duna-space-2)' }}>
               <div>
-                <h2 className="editor-pv-title">Inicio</h2>
+                <h2 className="editor-pv-title">{nombreInicioPagina}</h2>
                 <p className="editor-pv-sub">Toca cualquier cosa en la vista para editarla, o elígela aquí.</p>
               </div>
               {/* § EDITOR-AYUDA-1 — el «?» de «Inicio» abre la guía de «Secciones»: es el nivel del
@@ -1689,19 +1749,23 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                 </div>
               </div>
 
+              {/* § EDITOR-ESTADO-PAGINAS-1 (G6) — el toggle de página SALE de la cabecera "Contenido"
+                  (abajo) y vuelve a su propia fila, compacta, ARRIBA de la lista de secciones — ya no
+                  comparte línea con el rótulo del grupo, que es donde quedaba apretado contra la
+                  `nota` cortada (§ G8). Mismo guard `paginaMeta.apagable`; `TogglePagina.tsx` no
+                  cambió su lógica, sólo dejó de compartir fila con "Contenido". */}
+              {!nivelActivo && paginaMeta.apagable && (
+                <div style={{ margin: '0 2px var(--duna-space-3)' }}>
+                  <TogglePagina pagina={pagina} label={paginaMeta.label} nota={paginaMeta.nota} />
+                </div>
+              )}
               {/* § EDITOR-VISUAL-PANEL-1 — EL GRUPO «CONTENIDO» (el spec): envuelve las secciones de
                   la página, las agregadas, y el botón «+ Agregar sección» — mismo criterio de rótulo
-                  condicional y de envoltorio único que «Arriba».
-                  § EDITOR-PAGINAS-ONIX-ARREGLOS-1 — el toggle de encender/apagar la PÁGINA (sólo
-                  Nosotros/Suscripciones, `paginaMeta.apagable`) vive ACÁ, a la derecha del rótulo:
-                  es el lugar discreto que pidió el owner, en vez de la banda propia de arriba (ya
-                  retirada). `justify-content:space-between` para que el rótulo quede a la izquierda
-                  como siempre y el toggle al extremo derecho, sin empujar la lista de abajo. */}
+                  condicional y de envoltorio único que «Arriba». */}
               <div>
               {!nivelActivo && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--duna-space-3)', margin: '0 2px var(--duna-space-2)' }}>
                   <div className="editor-grp" style={{ margin: 0 }}>Contenido</div>
-                  {paginaMeta.apagable && <TogglePagina pagina={pagina} label={paginaMeta.label} nota={paginaMeta.nota} />}
                 </div>
               )}
               <div className="editor-rows">
@@ -1794,9 +1858,11 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                         carga={{
                           valor: doc ? (doc.contenido[config.seccion] as Record<string, unknown> | undefined) : undefined,
                           sinPublicar: doc ? !!doc.sinPublicar[config.seccion] : false,
+                          publicado: publicado ? (publicado[config.seccion] as unknown as Record<string, unknown> | undefined) : undefined,
                           listo: !!doc,
                           error: errorDoc,
                           recargar: recargarDoc,
+                          marcarPublicadoLocal: (valor) => marcarPublicadoSeccion(config.seccion, valor),
                         }}
                       />
                     </div>
@@ -1814,8 +1880,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                   idéntico mecanismo que los separadores (inserta "después de null" = al final), pero
                   SIEMPRE visible (no sólo al pasar el mouse): es el punto de entrada PRINCIPAL, el
                   que un dueño que nunca agregó una sección va a encontrar primero. `.editor-add-sec`
-                  (§ EDITOR-VISUAL-PANEL-1) reemplaza al botón sólido `duna-btn--secondary`. */}
-              {!nivelActivo && ordenLocal && seccionesHomeLocal && (
+                  (§ EDITOR-VISUAL-PANEL-1) reemplaza al botón sólido `duna-btn--secondary`.
+                  § EDITOR-ESTADO-PAGINAS-1 (G4) — `debeMostrarControlesHome(pagina)` EXPLÍCITO: a
+                  diferencia del separador por fila (arriba), este botón NO depende de
+                  `config.bandaId` —es de PIE DE LISTA, una vez por página— así que sin este guard
+                  `ordenLocal && seccionesHomeLocal` (sembrados una vez, nunca null fuera de home)
+                  lo mostraba también en Nosotros/Tienda/Suscripciones. */}
+              {!nivelActivo && debeMostrarControlesHome(pagina) && ordenLocal && seccionesHomeLocal && (
                 <button
                   type="button"
                   onClick={() => abrirBiblioteca(null)}
@@ -1910,6 +1981,7 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
           <VistaTiendaIframe
             ref={iframeRef}
             pagina={pagina}
+            apagada={paginaApagada}
             dispositivo={dispositivo}
             onSeccionSeleccionada={manejarSeleccionDesdeIframe}
             onCampoCambio={manejarCampoCambioDesdeIframe}

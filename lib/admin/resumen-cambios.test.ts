@@ -405,6 +405,78 @@ test('repeater: editar el texto del mismo ítem (misma posición) es "cambiado"'
   }]);
 });
 
+// ── § EDITOR-ESTADO-PAGINAS-1 (G2) · VISIBILIDAD, LISTAS EN BLOQUES, COLOR POR PRODUCTO ───────────
+// «El resumen de "Publicar" describe cambios de visibilidad y de listas en palabras (…), nunca por
+// clave interna» — antes de este slice, ninguna de las tres tenía fila: encendían el punto ámbar
+// sin que el popover pudiera decir POR QUÉ.
+
+test('visibilidad: ocultar una sección (ocultable:true) se resume "se oculta"', () => {
+  const publicado = { visible: true };
+  const borrador = { visible: false };
+  const cambios = resumenCambios(['trustBadges'], { trustBadges: borrador }, { trustBadges: publicado });
+  assert.deepEqual(cambios, [{
+    clave: 'trustBadges', tituloSeccion: 'Confianza', elemento: 'Visibilidad', tipo: 'cambiado',
+    etiqueta: 'Confianza · se oculta',
+  }]);
+});
+
+test('visibilidad: volver a mostrarla se resume "se muestra"', () => {
+  const publicado = { visible: false };
+  const borrador = { visible: true };
+  const cambios = resumenCambios(['trustBadges'], { trustBadges: borrador }, { trustBadges: publicado });
+  const item = cambios.find((c) => c.elemento === 'Visibilidad');
+  assert.ok(item);
+  assert.equal(item!.etiqueta, 'Confianza · se muestra');
+});
+
+test('visibilidad: sin cambio en `visible` no reporta nada', () => {
+  const cambios = resumenCambios(['trustBadges'], { trustBadges: { visible: true } }, { trustBadges: { visible: true } });
+  assert.deepEqual(cambios, []);
+});
+
+test('visibilidad: una sección NO ocultable (hero) nunca reporta "Visibilidad", aunque `visible` difiera', () => {
+  const publicado = { ...heroBase(), visible: true };
+  const borrador = { ...heroBase(), visible: false };
+  const cambios = resumenCambios(['hero'], { hero: borrador }, { hero: publicado });
+  assert.ok(!cambios.some((c) => c.elemento === 'Visibilidad'), 'hero.ocultable es false: no hay ojo que resumir');
+});
+
+test('listas declaradas en `bloques` (nunca en `campos`): un beneficio nuevo de un plan de Suscripción se resume por posición', () => {
+  const publicado = { ben1_1: 'Grano premium' };
+  const borrador = { ben1_1: 'Grano premium', ben1_2: 'Envío gratis' };
+  const cambios = resumenCambios(['suscripcionPlanes'], { suscripcionPlanes: borrador }, { suscripcionPlanes: publicado });
+  const item = cambios.find((c) => c.elemento === 'beneficio 2');
+  assert.ok(item, 'un slot de un bloque-lista debe resumirse aunque no esté declarado en `campos`');
+  assert.equal(item!.tipo, 'nuevo');
+  assert.equal(item!.etiqueta, 'Planes · beneficio 2 · nuevo');
+});
+
+test('listas declaradas en `bloques`: quitar un beneficio existente es "quitado"', () => {
+  const publicado = { ben2_1: 'Molido o en grano', ben2_2: 'Tueste a elección' };
+  const borrador = { ben2_1: 'Molido o en grano' };
+  const cambios = resumenCambios(['suscripcionPlanes'], { suscripcionPlanes: borrador }, { suscripcionPlanes: publicado });
+  const item = cambios.find((c) => c.elemento === 'beneficio 2');
+  assert.ok(item);
+  assert.equal(item!.tipo, 'quitado');
+});
+
+test('color por producto (tiendaCatalogo): el mapa libre producto→color se resume como UN cambio, sin nombrar productos', () => {
+  const publicado = { coloresPorProducto: { 'cafe-organico': '#111111' } };
+  const borrador = { coloresPorProducto: { 'cafe-organico': '#222222' } };
+  const cambios = resumenCambios(['tiendaCatalogo'], { tiendaCatalogo: borrador }, { tiendaCatalogo: publicado });
+  const item = cambios.find((c) => c.elemento === 'Colores por producto');
+  assert.ok(item);
+  assert.equal(item!.tipo, 'cambiado');
+  assert.ok(!item!.etiqueta.includes('cafe-organico'), 'no debe nombrar el producto, sólo que algo cambió');
+});
+
+test('color por producto: una sección SIN `coloresPorProducto` (hero) nunca reporta "Colores por producto"', () => {
+  const publicado = { ...heroBase() };
+  const borrador = { ...heroBase(), coloresPorProducto: { x: '#000' } };
+  const cambios = resumenCambios(['hero'], { hero: borrador }, { hero: publicado });
+  assert.ok(!cambios.some((c) => c.elemento === 'Colores por producto'));
+});
+
 // ── VARIOS A LA VEZ, Y CLAVES DESCONOCIDAS ──────────────────────────────────────────────────────
 
 test('varias claves pendientes a la vez agregan sus cambios en el orden recibido', () => {

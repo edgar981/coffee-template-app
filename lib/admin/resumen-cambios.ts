@@ -98,6 +98,17 @@ function cambiosDeSeccion(config: SeccionConfig, publicado: Record<string, unkno
   const out: CambioResumen[] = [];
   const tituloSeccion = config.titulo;
 
+  // 0 · LA VISIBILIDAD de la sección ENTERA (el ojo, § `SeccionConfig.ocultable`) — § EDITOR-ESTADO-
+  // PAGINAS-1 (G2). Antes este módulo nunca comparaba `visible`: una sección que se ocultaba, o que
+  // se ocultaba y se volvía a mostrar sin publicar entre medio, encendía el punto ámbar (`sinPublicar
+  // = key in borrador`, § `lib/config/site-content-read.ts`) sin que el popover dijera POR QUÉ —el
+  // ejemplo del spec, «Cómo funciona · se oculta»—. Mismo trato que un `CampoBooleano`: SIEMPRE tiene
+  // un valor, nunca "nuevo"/"quitado".
+  if (config.ocultable && !sonIguales(antes.visible, despues.visible)) {
+    const oculta = despues.visible === false;
+    out.push(hecho(config.seccion, tituloSeccion, 'Visibilidad', 'cambiado', `${tituloSeccion} · ${oculta ? 'se oculta' : 'se muestra'}`));
+  }
+
   // 1 · LA COMPOSICIÓN (`variante`), si la sección la ofrece desde el panel (§ `composiciones`,
   // EDITOR-TIENDA-COMPOSICION-1). Nunca "nuevo"/"quitado": es un escalar que SIEMPRE tiene un valor
   // (la canónica si nadie lo tocó), así que cambiar de composición es siempre un REEMPLAZO — se
@@ -115,7 +126,8 @@ function cambiosDeSeccion(config: SeccionConfig, publicado: Record<string, unkno
   // 2 · LOS CAMPOS DE TEXTO (incluye los `seccionCruzada` de otra sección, § `camposEfectivos`).
   // Un campo con `opciones` (select de opciones fijas, SIEMPRE con un valor — `alto`/`veloIntensidad`/
   // `puntoFocal`/etc.) sigue el MISMO trato que la composición: se reemplaza, nunca "nuevo"/"quitado".
-  for (const campo of camposEfectivos(config.seccion)) {
+  const campos = camposEfectivos(config.seccion);
+  for (const campo of campos) {
     const a = antes[campo.name];
     const d = despues[campo.name];
     if (sonIguales(a, d)) continue;
@@ -193,6 +205,34 @@ function cambiosDeSeccion(config: SeccionConfig, publicado: Record<string, unkno
         out.push(hecho(config.seccion, tituloSeccion, nombreItem, 'cambiado', `${tituloSeccion} · ${nombreItem} · cambiado`));
       }
     }
+  }
+
+  // 7 · LOS SLOTS DE LISTA declarados SÓLO en `bloques` (tipo `'lista'`), NUNCA en `campos` — § el
+  // ejemplo del spec, "y de listas en palabras": los beneficios de cada plan de Suscripción
+  // (`ben1_1..4`, `SUSCRIPCION_PLANES`) son campos PLANOS que `bloques` nombra por NOMBRE para
+  // presentarlos como lista (§ `lib/tienda/lista-plana.ts`), pero `camposEfectivos` sólo lee
+  // `config.campos` — sin esto, cambiar un beneficio de un plan encendía el punto ámbar sin que el
+  // popover pudiera nombrar NADA (la clave no estaba en ningún `campo` conocido). Mismo trato
+  // posicional que el repeater (6), pero sobre campos planos en vez de un array de ítems.
+  const nombresEnCampos = new Set(campos.map((f) => f.name));
+  for (const bloque of config.bloques ?? []) {
+    if (bloque.tipo !== 'lista') continue;
+    const slots = bloque.slots.filter((s) => !nombresEnCampos.has(s));
+    for (let i = 0; i < slots.length; i++) {
+      const a = antes[slots[i]];
+      const d = despues[slots[i]];
+      const tipo = tipoDeTransicion(a, d);
+      if (!tipo) continue;
+      const nombreItem = `${bloque.itemLabel} ${i + 1}`;
+      out.push(hecho(config.seccion, tituloSeccion, nombreItem, tipo, `${tituloSeccion} · ${nombreItem} · ${PALABRA_TIPO[tipo]}`));
+    }
+  }
+
+  // 8 · COLOR POR PRODUCTO (`ColorPorCafe`, § `SeccionConfig.coloresPorProducto`) — un mapa libre
+  // producto→color; se compara como UN bloque (nombrar el producto acoplaría este módulo al
+  // catálogo, que no conoce).
+  if (config.coloresPorProducto && !sonIguales(antes.coloresPorProducto, despues.coloresPorProducto)) {
+    out.push(hecho(config.seccion, tituloSeccion, 'Colores por producto', 'cambiado', `${tituloSeccion} · Colores por producto · cambiado`));
   }
 
   return out;

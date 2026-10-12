@@ -261,6 +261,15 @@ export default function DetallesSitioSeccion() {
             <h2 className="duna-title">Detalles del sitio</h2>
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
+          {/* § EDITOR-ESTADO-PAGINAS-1 (G3) — "Detalles del sitio" tiene su PROPIO Publicar/Descartar
+              (los botones a la derecha), ajeno al botón global "Publicar" de la barra superior y a su
+              resumen (§ ResumenPublicar.tsx) — ese botón global cuenta la página activa + el cromo
+              compartido, nunca esta sección. Sin esta línea, el dueño no tenía forma de saber que
+              estos dos botones son la ÚNICA puerta para publicar este bloque. */}
+          <p className="duna-caption" style={{ marginTop: 'var(--duna-space-1)' }}>
+            Se guarda y publica aparte del resto de la tienda, con sus propios botones — no cuenta
+            en el "Publicar" de la barra de arriba.
+          </p>
           {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
         </div>
         <div style={{ display: 'flex', gap: 'var(--duna-space-2)', flexShrink: 0, flexWrap: 'wrap' }}>

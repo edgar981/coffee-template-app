@@ -48,6 +48,7 @@ import { remuxMovAMp4 } from '@/lib/video-remux';
 import { ejesSpotlight, etiquetaEjesSpotlight, parcialAlCambiarPinSpotlight } from '@/lib/config/spotlight';
 import { DEFAULTS, MARCAS_VELO, nivelEfectivoDeVelo, type SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
+import { hayBorradorReal } from '@/lib/admin/editor-estado-paginas';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import {
   MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES, TIPOS_PERMITIDOS, TIPOS_VIDEO, ACCEPT_VIDEO,
@@ -285,11 +286,12 @@ export interface TiendaSeccionEditorHandle {
    *  `imagenPoster` fuera de modo video) no hace nada. */
   abrirSelectorImagen: (campo: string) => void;
   /** § EDITOR-TIENDA-DESHACER-1 — llamado por `TiendaPaginas` tras un "Publicar" EN LOTE
-   *  (`publicarVariasSecciones`, `app/api/site-content/route.ts`) que incluyó esta sección. Sólo
-   *  baja la píldora "Sin publicar" LOCAL (`hayBorrador=false`) — el `form` ya mostraba exactamente
-   *  lo que se acaba de publicar (es lo que el borrador YA tenía), así que no hay nada que
-   *  re-sembrar. Mismo efecto que la rama `accion==='publicar'` de `accionBorrador`, sin el toast
-   *  (el lote muestra UN solo toast, no uno por sección). */
+   *  (`publicarVariasSecciones`, `app/api/site-content/route.ts`) que incluyó esta sección. El
+   *  `form` ya mostraba exactamente lo que se acaba de publicar (es lo que el borrador YA tenía),
+   *  así que no hay nada que re-sembrar — sólo avisa al padre (`carga.marcarPublicadoLocal`, § G1)
+   *  cuál es el nuevo valor publicado, para que la píldora "Sin publicar" (ahora DERIVADA, § G2) se
+   *  apague sin esperar un refetch. Mismo efecto que la rama `accion==='publicar'` de
+   *  `accionBorrador`, sin el toast (el lote muestra UN solo toast, no uno por sección). */
   marcarPublicado: () => void;
   /** § EDITOR-TIENDA-DESHACER-1 — llamado por `TiendaPaginas` tras un "Descartar" EN LOTE
    *  (`descartarVariasSecciones`) que incluyó esta sección: re-siembra el `form` con el valor YA
@@ -338,10 +340,22 @@ interface TiendaSeccionEditorProps {
    *  re-lee el doc COMPLETO y devuelve lo fresco, para re-sembrar tras "Descartar" (el wrinkle del refetch). */
   carga: {
     valor?: Datos;          // valor draft-merged de esta sección; undefined = aún cargando
-    sinPublicar: boolean;   // el flag `sinPublicar[seccion]` bajado por el padre
+    // El flag `sinPublicar[seccion]` bajado por el padre — FALLBACK mientras `publicado` (abajo)
+    // no está, ya no la última palabra (§ G2).
+    sinPublicar: boolean;
+    /** § EDITOR-ESTADO-PAGINAS-1 (G2) — el valor YA PUBLICADO de esta sección, para que el punto
+     *  ámbar compare VALOR contra valor en vez de "¿la clave está en el borrador del servidor?"
+     *  (`undefined` = todavía no llegó; el componente cae a `sinPublicar` mientras tanto). */
+    publicado?: Datos;
     listo: boolean;         // el padre terminó de cargar el doc
     error: boolean;         // el fetch del padre falló
     recargar: () => Promise<{ contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> }>;
+    /** § EDITOR-ESTADO-PAGINAS-1 (G1/G2) — avisa al padre que ESTA sección quedó publicada con
+     *  `valor`, para que actualice su copia local de `publicado` SIN esperar un refetch (evita el
+     *  parpadeo de "Sin publicar" reapareciendo un instante después de publicar). Llamado por
+     *  `marcarPublicado()`/el "Publicar" individual — nunca por "Descartar", que ya vuelve a un
+     *  valor que `publicado` YA tiene. */
+    marcarPublicadoLocal?: (valor: Datos) => void;
   };
   /** Se llama al abrir esta sección (manual, deep-link o selección en contexto) — el padre
    *  (`TiendaPaginas`) lo usa para desplazar+resaltar el iframe compartido hasta el marcador de esta
@@ -470,7 +484,13 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   }, [seccion]);
 
   const [form, setForm]               = useState<Datos | null>(null);
-  const [hayBorrador, setHayBorrador] = useState(false);
+  // § EDITOR-ESTADO-PAGINAS-1 (G2) — este flag ya NO es "sin publicar": es el FALLBACK mientras
+  // `carga.publicado` todavía no llegó. La verdad vive en `hayBorrador` (derivado, abajo), que
+  // compara `form` contra `carga.publicado` valor a valor — prender y apagar un ojo, o volver al
+  // texto original, apaga el punto SIN esperar un refetch. `setHayBorradorBruto` sigue siendo el
+  // único lugar que se toca al editar/publicar/descartar: lo que cambió es cómo se LEE.
+  const [hayBorradorBruto, setHayBorradorBruto] = useState(false);
+  const hayBorrador = hayBorradorReal(form, carga.publicado, hayBorradorBruto);
   const [editando, setEditando]       = useState(false);
   // § EDITOR-VISUAL-PANEL-1 — el CHEVRON de la fila del Hero en el nivel Inicio (el spec: "el hero
   // desplegable en sus zonas y el valor de cada una"). SÓLO presentación: no toca `form` ni dispara
@@ -815,7 +835,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   useEffect(() => {
     if (form !== null || !carga.listo || carga.valor === undefined) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- siembra única del form desde el dato bajado por el padre (guarda `form === null`); no hay fetch que esperar
-    setForm(carga.valor); setHayBorrador(carga.sinPublicar);
+    setForm(carga.valor); setHayBorradorBruto(carga.sinPublicar);
   }, [carga.listo, carga.valor, carga.sinPublicar, form]);
   const cargando = form === null && !carga.error;
   const errorCarga = carga.error ? 'No se pudo cargar el contenido.' : null;
@@ -871,7 +891,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // primera — sólo la ÚLTIMA sobreviviría. Con esto, cada llamada ve el resultado de la anterior.
     formRef.current = nf;
     setForm(nf);
-    setHayBorrador(true);
+    setHayBorradorBruto(true);
     auto.marcarSucio(nf);
   };
 
@@ -1120,10 +1140,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // del dueño, son el padre informando el RESULTADO de un publish/discard que YA ocurrió en el
   // servidor — empujar un paso de historial acá dejaría "deshacer" revirtiendo una publicación en
   // vez de una edición, que es otra cosa (§ el alcance declarado del historial, sólo ediciones).
-  const marcarPublicado = () => setHayBorrador(false);
+  // § EDITOR-ESTADO-PAGINAS-1 (G1) — `marcarPublicadoLocal` (SINCRÓNICO, sin red): sin esto, el
+  // punto derivado (`hayBorradorReal`) seguiría comparando contra el `carga.publicado` VIEJO —el de
+  // antes de este publish— hasta que algún refetch futuro lo renueve, y reaparecería "Sin publicar"
+  // un instante después de publicar (el defecto original, § EDITOR-PAGINAS-ONIX-ARREGLOS-1 §5).
+  const marcarPublicado = () => {
+    setHayBorradorBruto(false);
+    carga.marcarPublicadoLocal?.(formRef.current as Datos);
+  };
   const restaurarDesdePublicado = (valor: Record<string, unknown>) => {
     setForm(valor as Datos);
-    setHayBorrador(false);
+    setHayBorradorBruto(false);
   };
 
   // ── LA SELECCIÓN EN CONTEXTO (§ EDITOR-TIENDA-SELECCION-1) — iframe→lista ─────────────────────
@@ -1232,16 +1259,22 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         return;
       }
       if (accion === 'publicar') {
-        setHayBorrador(false);
+        // § EDITOR-ESTADO-PAGINAS-1 (G1) — gemelo SIN red de `marcarPublicado()` (el camino en lote):
+        // sin `marcarPublicadoLocal`, `hayBorradorReal` seguiría comparando contra el `carga.publicado`
+        // de ANTES de este publish y el punto volvería a encenderse solo.
+        setHayBorradorBruto(false);
+        carga.marcarPublicadoLocal?.(formRef.current as Datos);
         toast.success('Publicado — ya está en vivo.');
       } else {
         // Descartar re-lee lo PUBLICADO. Con el GET lifted, se pide el refetch COMPARTIDO al padre (que
         // devuelve el doc fresco) y se re-siembra el form de ESTA sección desde él → la vista en vivo
         // vuelve a lo publicado. Se re-siembra directo del retorno (no se espera el prop) y sólo esta
         // sección: el borrador de las otras no se toca (su `form !== null` bloquea la re-siembra por prop).
+        // `carga.recargar()` TAMBIÉN refresca `publicado` en el padre (§ TiendaPaginas.tsx), así que
+        // `hayBorradorReal` ya compara contra el valor fresco en el próximo render.
         const fresco = await carga.recargar();
         setForm((fresco.contenido?.[seccion] ?? {}) as Datos);
-        setHayBorrador(false);
+        setHayBorradorBruto(false);
         toast.success('Cambios descartados — volviste a lo publicado.');
       }
       // Las DOS mutan lo que el visitante ve (publicar lo escribe; descartar lo revierte a lo

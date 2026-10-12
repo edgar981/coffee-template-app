@@ -30,6 +30,23 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
   const reduce = useReducedMotion();
   const estatico = preview || !!reduce;
 
+  // § EDITOR-ESTADO-PAGINAS-1 (N-CIE1) — LOS TRES HOOKS DE ABAJO van ANTES de cualquier `return`
+  // temprano, no después (regla de los hooks: SIEMPRE el mismo orden, en TODO render). Vivían bajo
+  // los tres returns de abajo (hide-on-empty, titulo vacío, composición «Frase y botón»), así que
+  // cualquier edición que cambiara de rama —cambiar de composición con el Titular lleno, escribir
+  // la primera letra de un Titular vacío, vaciarlo, o apagar el ojo bajo «Imagen de fondo»— alteraba
+  // CUÁNTOS hooks corrían ese render y React tiraba "Rendered more/fewer hooks than during the
+  // previous render" — un error real de React, no del editor: el editor sólo lo DISPARA porque es
+  // quien re-renderiza este componente con cada tecla (`EditorPuenteVivo.tsx`,
+  // `fusionarContenidoSeccion`), pero el mismo cambio hecho a mano en la base lo rompería igual.
+  const sectionRef = useRef<HTMLElement>(null);
+  const progreso = useProgresoScroll(sectionRef);
+  const parallaxY = useTransform(progreso, (p) => {
+    if (estatico) return "0%";
+    const t = Math.max(0, Math.min(1, p));
+    return `${((t - 0.5) * -10).toFixed(2)}%`;
+  });
+
   if (!seccionEsVisible(REGISTRY.nosotrosCierre, nosotrosCierre)) return null;
   if (nosotrosCierre.titulo.trim() === "") return null;
 
@@ -38,7 +55,9 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
   // LA COMPOSICIÓN «FRASE Y BOTÓN» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): reusa `titulo` COMO LA
   // FRASE —cero campos nuevos, mismo criterio que `tiendaCierre.variante==='fraseYBoton'` reusando
   // `frase`/`boton`—; `parrafo`/`imagenFondo` quedan SIN EFECTO bajo esta composición (siguen
-  // editables, por si el dueño vuelve a «Línea»).
+  // editables, por si el dueño vuelve a «Línea»). Los tres hooks de arriba YA CORRIERON para esta
+  // rama también —no se usan, y eso es correcto: lo que importa es que corran SIEMPRE, no que su
+  // resultado se consuma siempre.
   if (nosotrosCierre.variante === "fraseYBoton") {
     const cta = ctaHref ? { label: nosotrosCierre.ctaLabel, href: ctaHref } : null;
     return (
@@ -52,14 +71,6 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
   }
 
   const tieneImagenFondo = nosotrosCierre.imagenFondo.trim() !== "";
-
-  const sectionRef = useRef<HTMLElement>(null);
-  const progreso = useProgresoScroll(sectionRef);
-  const parallaxY = useTransform(progreso, (p) => {
-    if (estatico) return "0%";
-    const t = Math.max(0, Math.min(1, p));
-    return `${((t - 0.5) * -10).toFixed(2)}%`;
-  });
 
   return (
     <section

@@ -213,7 +213,13 @@ export type PaginaKey = 'home' | 'tienda' | 'nosotros' | 'suscripciones';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'tienda',   label: 'Tienda',   apagable: false },
-  { key: 'nosotros', label: 'Nosotros', apagable: true },
+  // § EDITOR-ESTADO-PAGINAS-1 (G6) — Nosotros no tenía `nota`, a diferencia de Suscripciones (abajo):
+  // el interruptor también gatea el enlace del menú (SCD, `itemsDeMenu`/`MENU_PAGE_GATE`), el enlace
+  // «Nuestra Historia» del pie (SCD:4931) y cualquier botón cuyo destino sea esta página
+  // (`resolverCtaSeccion`, SCD:4731-4733) — tres superficies que apagarla se lleva por delante sin
+  // que el toggle lo dijera.
+  { key: 'nosotros', label: 'Nosotros', apagable: true,
+    nota: 'El interruptor muestra u oculta la página Nosotros en toda la tienda: la página en sí, el enlace del menú, el enlace «Nuestra Historia» del pie, y cualquier botón que apunte a esta página.' },
   // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes,
   // sus pasos y su FAQ editables (§ Backlog #49, opción 1; § SUSCRIPCIONES-FAQ-DATO-1). El interruptor
   // gobierna las SEIS superficies que enlazan a /suscripciones: la página, el menú, el pie, el bloque

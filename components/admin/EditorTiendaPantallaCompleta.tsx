@@ -406,6 +406,11 @@ export default function EditorTiendaPantallaCompleta() {
             onPublicar={publicarTodo}
             onDescartar={descartarTodo}
             onIrAItem={irAItemResumen}
+            // § EDITOR-ESTADO-PAGINAS-1 (G3) — "Publicar" sigue publicando SÓLO la página activa más
+            // lo compartido (`TiendaPaginasHandle.publicarPendientes`, sin cambio de alcance); lo que
+            // cambia es que el botón y su resumen ahora LO DICEN, con el mismo nombre de página que
+            // ya usa el selector de arriba (`paginaActualLabel`).
+            alcance={`Incluye la página «${paginaActualLabel}» y lo compartido: encabezado, menú, pie y estilo.`}
           />
         </div>
       </div>

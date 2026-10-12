@@ -35,6 +35,7 @@ import {
   TIPO_MENSAJE_CONTENIDO_SECCION, TIPO_MENSAJE_MODO_NAVEGAR, esMensajeSeccionClick, esMensajeCampoCambio,
   esMensajeAgregarSeccion, esMensajeCamposCambio,
 } from '@/lib/storefront/editor-puente';
+import { debeReintentarVigiaRuta } from '@/lib/admin/editor-estado-paginas';
 
 // LA PÁGINA REAL de la tienda, completa, dentro del panel (§ EDITOR-TIENDA-IFRAME-VISTA-1).
 // Reemplaza las vistas previas sueltas por sección (`VistaTiendaEnVivo`) que montaba cada
@@ -131,6 +132,15 @@ const UMBRAL_CLIC_DESDE_IFRAME_MS = 500;
 
 interface VistaTiendaIframeProps {
   pagina: PaginaKey;
+  /** § EDITOR-ESTADO-PAGINAS-1 (G5) — `true` cuando `pagina` es /nosotros o /suscripciones Y está
+   *  apagada (`content.paginas.<pagina>.visible === false`, § `lib/admin/editor-estado-paginas.ts`).
+   *  Apagada, el storefront redirige esa ruta a "/", y el vigía de ruta de abajo —que existe para
+   *  traer de vuelta al dueño cuando se desvía de la página que edita— mandaría al iframe de vuelta a
+   *  esa misma ruta cada `INTERVALO_VIGIA_RUTA_MS`, en loop: la página apagada NUNCA puede quedarse
+   *  en la ruta esperada. Con `apagada`, el `<iframe>` NI SE MONTA (§ el render, abajo) — sin él en
+   *  el DOM el vigía no tiene `contentWindow` que comparar, así que el loop queda imposible por
+   *  construcción, no sólo evitado por una condición. Ausente/`false` = comportamiento de siempre. */
+  apagada?: boolean;
   dispositivo?: DispositivoKey;
   /** § EDITOR-TIENDA-SELECCION-1 — llamado cuando llega un `postMessage` de "clic DENTRO del
    *  iframe" válido (`esMensajeSeccionClick`), con el MARCADOR tal cual (no resuelto todavía a una
@@ -170,7 +180,7 @@ interface VistaTiendaIframeProps {
 
 const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeProps>(
   function VistaTiendaIframe({
-    pagina, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, onCamposCambio, onAgregarSeccion, tituloPorMarcador,
+    pagina, apagada = false, dispositivo = DISPOSITIVO_DEFECTO, onSeccionSeleccionada, onCampoCambio, onCamposCambio, onAgregarSeccion, tituloPorMarcador,
   }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const scrollPendiente = useRef<number | null>(null);
@@ -438,6 +448,13 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
     // clickear una tarjeta de producto habría navegado un instante y el vigía lo habría devuelto a
     // los 400ms — el interruptor habría parecido roto.
     useEffect(() => {
+      // § EDITOR-ESTADO-PAGINAS-1 (G5) — EL TOPE: antes insistía con `replace` cada 400ms sin
+      // límite ante cualquier ruta que no coincidiera con la esperada. La página apagada ya no
+      // puede disparar este loop (el `<iframe>` ni se monta, § `apagada` arriba), pero este tope es
+      // la red GENERAL para cualquier otra causa que hoy no se conoce — un intento resuelto
+      // (`actual === rutaPagina`) resetea el contador, así que sólo deja de insistir ante una ruta
+      // que nunca vuelve a la esperada, nunca ante un desvío normal que el `replace` sí corrige.
+      let intentosReplace = 0;
       const id = window.setInterval(() => {
         if (navegandoRef.current) return;
         // Mientras el documento está a mitad de cargar (incluida la primera carga, antes del
@@ -455,7 +472,9 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
           // próximo tick, nunca se trata como "se fue a otra página".
           return;
         }
-        if (actual === rutaPagina) return;
+        if (actual === rutaPagina) { intentosReplace = 0; return; }
+        if (!debeReintentarVigiaRuta(intentosReplace)) return;
+        intentosReplace += 1;
         // El admin navegó FUERA de la página que está editando (un clic en el nav/una tarjeta,
         // un redirect de un submit...): vuelve a ESTA página, con el modo editor puesto.
         limpiarResalte();
@@ -620,56 +639,73 @@ const VistaTiendaIframe = forwardRef<VistaTiendaIframeHandle, VistaTiendaIframeP
               borderRadius: dispositivo === 'telefono' ? 'var(--duna-r-xl)' : 'var(--duna-r-l)',
             }}
           >
-            <div
-              style={{
-                width: anchoDispositivo,
-                height: altoInterno ?? '100%',
-                transform: medido ? `scale(${escala})` : undefined,
-                transformOrigin: 'top left',
-              }}
-            >
-              <iframe
-                ref={iframeRef}
-                key={pagina}
-                src={rutaEditor}
-                title="Vista previa de la tienda"
-                onLoad={onLoad}
-                style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
-              />
-            </div>
-            {/* EL RÓTULO DE HOVER (§ arriba): vive DENTRO del envoltorio ya escalado (`anchoVisible`,
-                `position:relative`, ahora `.editor-st-frame`), nunca dentro del stage que lleva el
-                `transform` — `cajaDeHover` ya aplicó la escala a la caja medida, así que una SEGUNDA
-                transformación la deformaría. `pointer-events:none`: el rótulo no debe robarle el
-                clic al iframe de abajo. */}
-            {hover && (() => {
-              const titulo = tituloPorMarcadorRef.current?.[hover.marcador];
-              if (!titulo) return null;
-              return (
+            {/* § EDITOR-ESTADO-PAGINAS-1 (G5) — con la página apagada, el `<iframe>` NI SE MONTA
+                (§ el docstring de `apagada` en la interfaz de props, arriba): un aviso DECLARA el
+                estado en vez de dejar que el dueño vea un rebote, o peor, la home silenciosa dentro
+                de un marco rotulado "Borrador · /nosotros". */}
+            {apagada ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%',
+                padding: 'var(--duna-space-6)', textAlign: 'center',
+              }}>
+                <p className="duna-sub" style={{ maxWidth: '26rem', margin: 0 }}>
+                  Esta página está apagada: los clientes van al inicio.
+                </p>
+              </div>
+            ) : (
+              <>
                 <div
-                  aria-hidden
                   style={{
-                    position: 'absolute',
-                    left: hover.caja.left,
-                    top: Math.max(0, hover.caja.top - 24),
-                    pointerEvents: 'none',
-                    background: 'var(--duna-ink)',
-                    color: 'var(--duna-bg)',
-                    font: '600 11px var(--duna-font-ui, inherit)',
-                    padding: '2px 8px',
-                    borderRadius: 'var(--duna-r-full, 999px)',
-                    whiteSpace: 'nowrap',
-                    zIndex: 1,
+                    width: anchoDispositivo,
+                    height: altoInterno ?? '100%',
+                    transform: medido ? `scale(${escala})` : undefined,
+                    transformOrigin: 'top left',
                   }}
                 >
-                  {titulo}
+                  <iframe
+                    ref={iframeRef}
+                    key={pagina}
+                    src={rutaEditor}
+                    title="Vista previa de la tienda"
+                    onLoad={onLoad}
+                    style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                  />
                 </div>
-              );
-            })()}
+                {/* EL RÓTULO DE HOVER (§ arriba): vive DENTRO del envoltorio ya escalado (`anchoVisible`,
+                    `position:relative`, ahora `.editor-st-frame`), nunca dentro del stage que lleva el
+                    `transform` — `cajaDeHover` ya aplicó la escala a la caja medida, así que una SEGUNDA
+                    transformación la deformaría. `pointer-events:none`: el rótulo no debe robarle el
+                    clic al iframe de abajo. */}
+                {hover && (() => {
+                  const titulo = tituloPorMarcadorRef.current?.[hover.marcador];
+                  if (!titulo) return null;
+                  return (
+                    <div
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        left: hover.caja.left,
+                        top: Math.max(0, hover.caja.top - 24),
+                        pointerEvents: 'none',
+                        background: 'var(--duna-ink)',
+                        color: 'var(--duna-bg)',
+                        font: '600 11px var(--duna-font-ui, inherit)',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--duna-r-full, 999px)',
+                        whiteSpace: 'nowrap',
+                        zIndex: 1,
+                      }}
+                    >
+                      {titulo}
+                    </div>
+                  );
+                })()}
+                {cargando && (
+                  <div className="duna-skel" aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 0 }} />
+                )}
+              </>
+            )}
           </div>
-          {cargando && (
-            <div className="duna-skel" aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 0 }} />
-          )}
         </div>
       </div>
     );
