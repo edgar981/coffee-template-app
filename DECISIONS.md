@@ -62588,3 +62588,227 @@ repositorio.
 **AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
 `npm test` 4620/4620, `npm run test:integracion` 409/409. No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — El camino de compra gana las TRES composiciones elegibles por tienda: cajón, confirmación y seguimiento (`COMPRA-LINEAS-ONIX-CHAMISAS-1`)
+
+**Alcance: P2 de `refero-compra.md` §5 — el TRATAMIENTO por línea (Onix/Las Chamisas), sobre la
+ESTRUCTURA común que `CHECKOUT-LISTO-PARA-VENDER-1` ya dejó construida.** Spec validado CLEAR,
+`tier:1`, `writes: yes`, aprobado por el owner sobre la maqueta `compra.html` (2026-10-12, la misma
+sesión con Refero que validó la estructura común). Onix y Las Chamisas corren el MISMO preset de
+tema (CORTE) y se distinguen sólo por DATO (§ CLAUDE.md, "'Onix' acá es el preset CORTE... aplicado
+sobre la base efímera"), así que este slice construye el MECANISMO genérico (tres ejes elegibles por
+cualquier tienda) — la elección real para cada una queda para el owner, desde el panel, por fuera de
+este slice.
+
+### 1 · El mecanismo — una sección nueva del REGISTRY, sin tocar `app/api/`
+
+`content.compra` es una sección NUEVA de `REGISTRY` (`lib/config/site-content-defaults.ts`), SIN
+`campos` ni `imagenes` — pura composición, TRES `escalares` (`cajon`/`confirmacion`/`seguimiento`),
+cada uno con `claves: ['comun', <Onix>, <Chamisas>]` y `canonica: 'comun'`:
+
+| eje | claves | 'comun' se lee | Onix | Las Chamisas |
+| --- | --- | --- | --- | --- |
+| `cajon` | `comun · creditos · album` | el cajón de hoy | «Créditos» | «Álbum» |
+| `confirmacion` | `comun · boleto · lamina` | «Sobria» (§ refero-compra.md §4: "Sobria: la común") | «Boleto» | «Lámina» |
+| `seguimiento` | `comun · escaleta · album` | el seguimiento de hoy | «Escaleta» | «Álbum» |
+
+**Por qué una SECCIÓN del REGISTRY y no una META** (como `carrito`/`carritoEnvio`): el PUT/POST
+genérico de `/api/site-content` (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`, § site-
+content-write.ts) es KEY-AGNÓSTICO para cualquier clave de `REGISTRY` — medido leyendo
+`app/api/site-content/route.ts` ANTES de decidir: `accion === 'publicar' && seccion in REGISTRY`,
+sin un `if` por sección. Una META nueva habría necesitado su PROPIA ruta bespoke (como `/detalles`,
+`/encabezado`, `/tema`), las tres bajo `app/api/` — vetado por la frontera con Carlos. Modelando
+`compra` como sección, el mecanismo entero se cablea sin tocar `app/api/` ni `lib/config/site-
+content-write.ts`, ninguno de los dos en `touches:`.
+
+**Editor BESPOKE** (`components/admin/CompraSeccion.tsx`, patrón exacto de `VendedorSeccion.tsx`:
+mismo hook `useAutoguardado`, mismo PUT/POST genérico con `seccion:'compra'`, mismo
+`ConfirmDescartarDialog`), no `TiendaSeccionEditor`: no hay una página real del storefront a la que
+estos tres ejes "pertenezcan" para armar una vista previa en vivo (el cajón necesita estado de
+carrito, la confirmación un pedido ya creado, el seguimiento una búsqueda) — el MISMO argumento que
+ya descartó ese camino para `vendedor`/`menu`/`footer`. Montado en `TiendaPaginas.tsx`, HERMANO de
+`VendedorSeccion`, con la misma condición de ocultamiento (`nivelActivo`).
+
+**`lib/config/panel-controles.ts`**: `compra.cajon`/`.confirmacion`/`.seguimiento` CONTROLADOS desde
+este commit (`CONTROLADOS_COMPRA_SECCION`), nunca pasan por `PENDIENTE_PANEL` — mismo criterio que
+`vendedor.*`. El chequeo derivado (`huecosDelPanel`) sigue dando `[]`.
+
+### 2 · La resolución pura — `lib/checkout/composiciones-compra.ts`
+
+Tres funciones (`composicionCajon`/`composicionConfirmacion`/`composicionSeguimiento`) que clampan
+CUALQUIER valor (incluido uno de OTRO eje, o basura) al set cerrado propio, cayendo a `'comun'` —
+segunda capa de defensa sobre lo que `resolverSiteContent` ya clampa al leer de la base, para los
+componentes del storefront que reciben el valor por `useSiteContent()`. Más dos helpers de
+presentación que NO inventan dato nuevo: `stickerConfirmacion(estado)` (la palabra del sticker de
+«Lámina», derivada de los MISMOS cinco estados que `contenidoEstadoPedido` — nunca una sexta fuente
+de verdad) y `etiquetaMetodoPedido(metodo)` (el nombre llano del método para la fila «Método» del
+«Boleto», nunca el verbo del botón).
+
+**Desviación medida del `touches:`:** la lista sólo nombraba `lib/checkout/composiciones-compra.
+test.ts` — el archivo de test sin su implementación. Un test sin lo que prueba no es ejecutable;
+`lib/checkout/composiciones-compra.ts` se creó como el par inseparable del test nombrado, y es
+DONDE vive TODA la lógica pura nueva de este slice (incluidos los dos helpers de presentación), para
+no necesitar un segundo archivo nuevo fuera de la única ruta de `lib/checkout/` que el `touches:`
+autorizaba por nombre.
+
+### 3 · Cajón — `CartDrawer.tsx`
+
+- **«Créditos» (Onix):** la fila de molienda pierde el prefijo "Molienda:" y gana mayúscula
+  espaciada (`EN GRANO`, al estilo Taquilla); el pie de totales (antes "Subtotal" o "Total
+  estimado") pasa a SUBTOTAL / ENVÍO / TOTAL en filas con filete, mayúscula espaciada, TOTAL en
+  `--sf-acento-texto` — con prioridad sobre la rama `'flotante'` en el mismo ternario (es el
+  tratamiento del PIE que la tienda eligió, independiente de la posición del cajón). La fila de
+  envío de arriba (`shippingMethodCajon`) se apaga bajo Créditos para no repetir el dato — la
+  `FraseEnvioGratis` de abajo NO se tocó (no hay duplicado real; medido con el test de regresión de
+  `lib/config/detalles-sitio.test.ts`, que grep-ea esa línea byte a byte y rompió en el primer
+  intento).
+- **«Álbum» (Las Chamisas):** una franja de tejido (rayas diagonales, tokens de tema) sobre la
+  cabecera; la miniatura de cada ítem se pinta sobre el color de ESE café —
+  `tiendaCatalogo.coloresPorProducto[item.id]`, el MISMO mapa que ya alimenta la lámina de /tienda
+  (§ TIENDA-CHAMISAS-ALBUM-1), reusado con `HEX6` de `lib/tienda/laminas.ts` — nunca un color nuevo;
+  sin color elegido para ESE producto cae a la superficie neutra (no se deriva el color de reserva
+  por orden de catálogo: ese cálculo pide el índice del producto en el catálogo completo, que el
+  cajón no tiene — simplificación medida, no un defecto).
+- **Movimiento:** `BarraEnvioGratis` gana `tejido?: boolean` (default `false`, byte-idéntico): bajo
+  Álbum el relleno es un patrón de rayas en vez de liso, pero conserva la MISMA `transition-all
+  duration-500` de siempre — ésa es la animación "el tejido avanza al subir el subtotal" del spec,
+  no una nueva.
+
+### 4 · Confirmación — `EstadoPedido.tsx` (la página de estado única, § CHECKOUT-LISTO-PARA-VENDER-1)
+
+- **«Boleto» (Onix):** el bloque "Número de orden" pasa de superficie neutra a `--sf-acento` con
+  DOS muescas laterales (círculos del color de página "perforando" el borde) y una línea troquelada
+  (`border-dashed`) antes de las filas FECHA (`formatFecha(new Date())`, § el deviation abajo) ·
+  MÉTODO (`etiquetaMetodoPedido`) · ENVÍO A (`resumen.metodoEnvioLabel`, la aproximación más cercana
+  disponible sin nuevos props) · TOTAL. El número de pedido pasa a `font-playfair text-3xl`.
+- **«Lámina» (Las Chamisas):** el bloque pasa a tarjeta de álbum (`border-dashed`, radio grande),
+  franja de tejido arriba, y un sticker de estado inclinado (`-rotate-6`) con la palabra de
+  `stickerConfirmacion(estado)` — remonta (`key={estado}`) cada vez que el estado cambia, para que
+  la animación "se pega" se repita.
+- **Movimiento:** un `<style>` scoped al componente (nunca `app/globals.css`, fuera de `touches:`)
+  declara las tres animaciones — fundido de 200ms (Onix, toda la ticket), el filete que se llena en
+  bucle (Onix, SÓLO en `estado==='pendiente'`), y la escala+rotación de 180ms del sticker (Las
+  Chamisas). El guard GLOBAL de `prefers-reduced-motion` de `app/globals.css` (`*, *::before,
+  *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }`,
+  sin scope) ya cubre las tres sin que esta hoja necesite su propio guard.
+- **«Sobria»/`'comun'`:** el bloque es BYTE-IDÉNTICO al de antes de este slice (mismo div, mismas
+  clases) — afirmado por render (`EstadoPedido.test.ts`).
+
+### 5 · Seguimiento — `rastrear-pedido/page.tsx`
+
+- **«Escaleta» (Onix):** la línea de tiempo cambia del círculo grueso + barra gruesa a un filete
+  vertical FINO (puntos de 2px + línea de 1px), el nombre de estado en MAYÚSCULAS, y la fecha —
+  `formatFecha(order.createdAt)`, la ÚNICA fecha que el seguimiento conoce; NUNCA una fecha
+  inventada por paso — con cifras tabulares, SÓLO en el paso ACTIVO.
+- **«Álbum» (Las Chamisas):** los pasos CUMPLIDOS se pintan como sticker pegado (círculo relleno,
+  `-rotate-6`, sombra); los PENDIENTES como casilla punteada vacía (`border-2 border-dashed`).
+- **«Común»:** sin tocar — tercera rama del mismo ternario, idéntica a antes.
+
+### 6 · Qué NO se construyó, medido antes de intentarlo
+
+- **La fecha del Boleto es `new Date()` (hoy), no la fecha real de creación de la orden.**
+  `CheckoutResult` (`services/checkout.service.ts`) no expone `createdAt` — agregarlo exigiría tocar
+  `app/api/checkout/route.ts`, fuera de `touches:` y vetado por la frontera con Carlos. Simplificación
+  honesta: la confirmación se ve en el instante en que se crea/se resuelve el pago, así que "hoy" es
+  correcto en el caso normal; se degrada sólo si alguien reabre el enlace de confirmación días
+  después (caso ya cubierto por la página de estado — ver `/rastrear-pedido`, que sí tiene la fecha
+  real).
+- **El `ENVÍO A` del Boleto usa `resumen.metodoEnvioLabel`** (p. ej. "Bogotá · 8am-12pm"), no el
+  departamento/ciudad literal — es el dato más cercano que `EstadoPedidoProps` ya expone; agregar un
+  campo de dirección nuevo era expandir una interfaz compartida por dos llamadores sin necesidad.
+
+### 7 · Gate y verificación
+
+- **`npx tsc --noEmit`**: limpio, en el árbol final (cero errores en los 14 archivos tocados/creados).
+- **`npm test`**: **4658/4658** (antes de este slice, tip de `slice/editor-secciones-1`: 4620/4620,
+  § el asiento anterior de `TIENDA-LEGAL-1`). +38 tests nuevos: 9 en `lib/checkout/composiciones-
+  compra.test.ts`, 8 en `lib/config/site-content-defaults.test.ts` (REGISTRY/DEFAULTS/resolver de
+  `compra`), 10 en `components/storefront/CartDrawer.test.ts` (source-grep del cajón +
+  render de `BarraEnvioGratis` con/sin `tejido`), 7 en `components/storefront/checkout/
+  EstadoPedido.test.ts` (render en memoria de las tres composiciones de confirmación, en varios
+  estados, con byte-identidad de la común), 4 en `app/(storefront)/rastrear-pedido/page.test.ts`
+  (source-grep de las tres ramas de seguimiento).
+- **`npm run test:integracion`**: **409/409** — sin cambio (este slice no toca schema, migraciones
+  ni ninguna cadena del motor; las tres composiciones son puramente de presentación, afirmadas por
+  render/source-grep en capa 1).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios), diff contra `main`:
+
+  | ruta | resultado | comparación contra el piso de `TIENDA-LEGAL-1` |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo | **IDÉNTICO número a número** |
+  | `/tienda` | 209/2433280 · 407 | **IDÉNTICO** |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px) | **IDÉNTICO** (heredado de `TIENDA-LEGAL-1`, las garantías vacías de Nayoli — nada de este slice toca esa página) |
+  | `/checkout` | 163/1152000 · 361 | **IDÉNTICO** |
+  | `/nosotros` | 224/1152000 · 422 | **IDÉNTICO** |
+  | `/suscripciones` | 258/2144000 · 456 | **IDÉNTICO** |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **Las SEIS cifras son idénticas, dígito a dígito, a las que `TIENDA-LEGAL-1` ya reportó contra el
+  mismo `main`** — la prueba por EJECUCIÓN de que este slice no movió un solo píxel para Nayoli: los
+  tres ejes nuevos (`compra.cajon`/`.confirmacion`/`.seguimiento`) resuelven a `'comun'` sin fila, y
+  ninguna de las tres ramas `'comun'` de `CartDrawer.tsx`/`EstadoPedido.tsx`/`rastrear-pedido/
+  page.tsx` cambió una clase. `exit 1` esperado (el mismo piso heredado de la rama, sin un píxel
+  nuevo).
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+- **`lib/config/site-content-defaults.ts`/`lib/config/site-content-schema.ts`** (CLAUDE.md:39, la
+  lista de Tier 1): ambos YA estaban en la lista — este slice no la cambia, sólo confirma que el
+  `tier:1` del spec era correcto.
+- **`app/(storefront)/`** (CLAUDE.md:39 y la sección "LA LISTA TAMBIÉN GANA SUBÁRBOLES"): cubre
+  `app/(storefront)/rastrear-pedido/page.tsx` sin necesitar una entrada nueva.
+- **`components/storefront/`** (la sección de subárboles, "son los bytes del visitante"): cubre
+  `CartDrawer.tsx`/`EstadoPedido.tsx` igual.
+- **"'Onix' acá es el preset CORTE... aplicado sobre la base efímera"** (§ el asiento de
+  `TIENDA-PRODUCTO-INSIGNIAS-1` u otro slice de la serie Onix/Chamisas, citado en varias entradas):
+  sigue siendo cierto — este slice no introduce un preset nuevo ni toca `themes.ts`; Onix y Las
+  Chamisas siguen siendo DATO sobre el mismo preset.
+- **`lib/config/panel-controles.ts`** no tiene entrada propia en `CLAUDE.md` (el archivo documenta
+  su propio mecanismo en sus comentarios de cabecera, no en CLAUDE.md) — nada que falsear.
+- Sin otras coincidencias de los símbolos nuevos (`CompraContent`, `composicionCajon`,
+  `composicionConfirmacion`, `composicionSeguimiento`, `CompraSeccion`, `stickerConfirmacion`,
+  `etiquetaMetodoPedido`) contra `CLAUDE.md`.
+- **Hallazgo adyacente, fuera de `touches:`, no de este slice:** `CLAUDE.md:1919` cita
+  `lib/config/site-content-defaults.ts:411` para `hero.titulo`; esa línea hoy vive en 2448 (el
+  valor en sí sigue siendo `'Productos que cuentan'`, correcto — sólo el NÚMERO de línea envejeció,
+  por ~2037 líneas de slices anteriores a éste, no por este diff). Se reporta como open follow-up,
+  no se corrige acá.
+
+### Deviations
+
+Una, documentada en línea arriba (§2): `lib/checkout/composiciones-compra.ts` se creó sin estar
+nombrado literal en `touches:` (que sólo nombraba su `.test.ts`) — medido que un test sin su
+implementación no es ejecutable, y que el archivo es el único lugar de `touches:` donde la lógica
+pura nueva podía vivir sin abrir una ruta no autorizada.
+
+### Open follow-ups
+
+- **`CLAUDE-MD-LINEA-411-VENCIDA-1`** — `CLAUDE.md:1919` cita `site-content-defaults.ts:411`, hoy en
+  la línea 2448. *Por qué no ahora:* `CLAUDE.md` no está en `touches:` de este slice.
+- **`COMPRA-STICKER-TEXTO-EDITABLE-1`** — `refero-compra.md` describe los stickers de «Lámina» como
+  "editables"; este slice los deriva de `contenidoEstadoPedido` (texto fijo por estado, sin campo
+  nuevo en el panel). *Por qué no ahora:* el spec de este slice no pidió un campo de texto nuevo —
+  "editables" describe el lenguaje de diseño general de Refero, no una exigencia explícita de este
+  spec; convertirlos en dato del panel es una decisión de producto aparte (¿vale la pena un campo
+  por estado, para una etiqueta de 1-2 palabras?).
+- **`COMPRA-BOLETO-FECHA-REAL-1`** — la fecha del Boleto usa `new Date()` en vez de la fecha real de
+  creación de la orden (§6). *Por qué no ahora:* exige exponer `createdAt` en `CheckoutResult`, que
+  sale de `app/api/checkout/route.ts` — fuera de `touches:` y vetado por la frontera con Carlos.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes`. Entra por los mismos subárboles ya ganados en CLAUDE.md:
+`app/(storefront)/`, `components/storefront/` (bytes del visitante), más los dos archivos ya
+listados por nombre (`site-content-defaults.ts`, `site-content-schema.ts`). El diff cambia markup,
+copy (los stickers/filas nuevas) y comportamiento (el pie Créditos, la franja Álbum) alcanzables por
+cualquier comprador real HOY — pero sólo si el owner elige una composición distinta de `'comun'`,
+que hoy nadie elige. `customer_bytes.changed=true`: el código que renderiza esos bytes YA está en la
+rama, alcanzable desde el panel sin otro deploy. Sin cambio de schema/migración (cero `packages/
+core/prisma/`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4658/4658, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
+solo píxel nuevo para Nayoli (las seis cifras idénticas a `TIENDA-LEGAL-1`). No es `GATE_RED`.
+Commiteado en `slice/editor-secciones-1`, sin mergear.
