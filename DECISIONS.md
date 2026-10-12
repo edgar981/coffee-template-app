@@ -61753,3 +61753,97 @@ esperada de cambiar visualmente las piezas compartidas, medida en un archivo que
 independientemente de que el diff en sí sea de bytes de cliente (que sí lo es:
 `customer_bytes.changed=true` — el storefront de ONIX, nunca el de Nayoli, § arriba). Commiteado
 en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — Los 5 "ANTES" de `piezas-compartidas.test.ts` se actualizan al árbol aprobado
+(`ONIX-PAGINAS-FIDELIDAD-ASSERTS-1`), cierra `ONIX-PAGINAS-FIDELIDAD-STALE-ASSERTS-1`
+
+Cambio MECÁNICO sobre `lib/tienda/piezas-compartidas.test.ts` — reemplazar los 5 strings
+esperados (`apertura`, `interludioPlano`, `cierreFraseYBotonSinWhatsapp`,
+`cierreFraseYBotonConWhatsapp`, `taquilla`) por el HTML que las piezas tocadas por
+`ONIX-PAGINAS-FIDELIDAD-1` producen HOY, sin tocar la lógica de la prueba (sigue siendo
+byte-identidad salvo `<img>`/`<link preload>`) ni los componentes del storefront. Cierra el
+`GATE_RED` que ese slice dejó abierto a propósito (el archivo estaba fuera de su `touches:`).
+
+### Cada diferencia, atribuida a su punto del asiento de `ONIX-PAGINAS-FIDELIDAD-1`
+
+Medido corriendo el archivo contra HEAD de esta rama (`44907b3`) ANTES de tocar nada: 5/10 tests
+fallan, los 5 nombrados arriba. Cada diferencia del diff reportado por el test se explica por un
+bullet puntual de esa sección de `DECISIONS.md` — ninguna diferencia quedó sin atribuir (si
+alguna no hubiera encajado, el protocolo pedía parar; no fue el caso):
+
+| caso | diferencia medida (viejo → nuevo) | bullet de `ONIX-PAGINAS-FIDELIDAD-1` que la explica |
+| --- | --- | --- |
+| `apertura` | velo `tinta/40→transparente→tinta/80` → `rgba(0,0,0,.18)→transparente(30%)→tinta/35% (color-mix)` | "Apertura.tsx" — el velo |
+| `apertura` | rótulos de esquina `text-[var(--sf-fondo)]/60` → `text-[var(--sf-fondo)]` | "Apertura.tsx" — rótulos a 100% |
+| `apertura` | wrapper del título pierde `overflow-hidden` | "Apertura.tsx" — fix de recorte de acentos, universal |
+| `interludioPlano` | móvil `aspect-[4/5]` (≈488px) → `h-[400px]` fijo + `sm:h-auto` | "InterludioPlano.tsx" — alto fijo móvil |
+| `interludioPlano` | pie: franja con degradé (`div` + `p` a `/90`) → `p` con `text-shadow`, crema plena | "InterludioPlano.tsx" — el pie |
+| `cierreFraseYBotonSinWhatsapp`/`ConWhatsapp` | layout `flex-col items-start … sm:justify-between` → `flex-wrap items-center justify-center … sm:gap-[144px]` | "CierreFraseYBoton.tsx" — layout centrado |
+| `cierreFraseYBotonSinWhatsapp`/`ConWhatsapp` | frase `text-3xl sm:text-4xl` (30/36px) → `text-[28px] sm:text-[44px]` | "CierreFraseYBoton.tsx" — frase a 44px |
+| `cierreFraseYBotonSinWhatsapp`/`ConWhatsapp` | botón píldora (`sf-pildora`, `text-sm font-medium`) → esquina recta (`rounded-[2px]`, `text-[13px] font-semibold uppercase tracking-[0.06em]`) | "CierreFraseYBoton.tsx" — botón uppercase sin píldora |
+| `taquilla` | créditos: `border-t … first:border-t-0` (N−1 bordes, `--sf-linea`/15) → `border-b` en las 3 + `border-t` en la 1ª (N+1, `--sf-tinta`/15) | "TiendaCreditos.tsx (CreditosFilas)" — filete de tinta, N+1 |
+| `taquilla` | créditos: rótulo `text-xs … text-[var(--sf-texto-suave)]` / valor `text-base` → rótulo `text-[11.5px] font-bold … text-[var(--sf-tinta)]` / valor `text-[15px]` | "TiendaCreditos.tsx (CreditosFilas)" — dt/dd al rol único «texto principal en la tinta» |
+
+El resto de cada composición (grid de precios de la Taquilla, el `<h1>`/`Movimiento id="T06"` de
+`/tienda` sin `quieto`, `interludioRetrato` entero) no cambió — ninguno de esos bullets estaba en
+el alcance de `ONIX-PAGINAS-FIDELIDAD-1`, y el test lo confirma quedando byte-idéntico ahí.
+
+### El hallazgo de método: el Edit tool decodifica `\uXXXX` antes de escribir
+
+La convención ya escrita en el archivo (§ docstring de `ANTES`) pide los no-ASCII como `\uXXXX`
+literal — generados por script, nunca a mano — porque la NBSP de `formatCOP` (U+00A0 entre "$" y
+el monto) es invisible y se confunde con un espacio normal. **Medido: los argumentos de la
+herramienta Edit viajan como JSON, y JSON decodifica `\uXXXX` dentro de un string ANTES de que la
+herramienta vea el texto** — así que escribir `é` en el parámetro de un `Edit` produce el
+carácter real `é` en el archivo, no el texto de 6 caracteres `é`. Los primeros cuatro
+reemplazos (`apertura`, `interludioPlano`, los dos `cierreFraseYBoton*`) quedaron con caracteres
+crudos por esto. Se corrigió con un script Node que escribe la línea completa (evitando la capa
+JSON del tool call): las 5 entradas tocadas quedan hoy con `\uXXXX` literal, verificado por
+conteo de bytes > 0x7E (cero en las 5). `interludioRetrato` y el resto de `taquilla` (sin tocar)
+siguen con caracteres crudos — medido que YA estaban así antes de este slice, pese a que el
+docstring afirma la convención `\uXXXX` para todo el archivo: discrepancia preexistente entre lo
+que el comentario documenta y lo que el archivo hace, fuera de `touches:`, no corregida.
+
+**Las dos funciones del repeater que extraen la verificación del valor** — no aplica acá, no hay
+mecanismo nuevo. El hallazgo es puramente del PROCESO de edición (herramienta↔byte), no del
+código de producción.
+
+### El gate
+
+- **`npx tsc --noEmit`**: limpio.
+- **`npm test`**: **4514/4514**, 0 fallos (antes 4509/4514 con los 5 fallos de este archivo).
+- **`npm run test:integracion`**: **409/409**, 0 fallos.
+- **`npm run verificar:nayoli:visual`**: corrido sobre el árbol final. Las 6 rutas DIFIEREN contra
+  `main` — **MISMA CIFRA, DÍGITO A DÍGITO**, que el piso heredado ya medido por
+  `ONIX-PAGINAS-FIDELIDAD-1` (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000
+  px (AA) / 174711 crudo, caja `[105,862]–[1183,3581]`; `tienda` 209/2433280; `producto`
+  209/2535680; `checkout` 163/1152000; `nosotros` 224/1152000; `suscripciones` 258/2144000; los 2
+  hovers IDÉNTICOS (0 px). Confirma que este slice —que sólo toca un archivo de test— no agregó
+  drift nuevo sobre el ya documentado. `exit 1` esperado, igual que la corrida anterior.
+
+### Open follow-ups
+
+- **La discrepancia `\uXXXX` vs. carácter crudo** en el resto de `piezas-compartidas.test.ts`
+  (`interludioRetrato`, y la mitad de `taquilla` que no tocó este slice: el grid de precios) entre
+  lo que el docstring documenta y lo que el archivo realmente tiene — no se corrige acá, fuera de
+  `touches:`. Si alguna vez se re-captura ese archivo entero, alinear con la convención real
+  (`\uXXXX`) o corregir el docstring para que describa lo que el archivo hace.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-10-12, mismo sign-off que `ONIX-PAGINAS-FIDELIDAD-1` —
+"LA APROBACION AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). El único archivo tocado,
+`lib/tienda/piezas-compartidas.test.ts`, es un test — no toca código de producción, pero vive bajo
+`components/storefront/` por relación de contenido (afirma el render de piezas del storefront de
+Onix) y el spec lo declaró `tier: 1` explícitamente.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). El gate completo cerró en VERDE (`typecheck` limpio,
+`npm test` 4514/4514, `npm run test:integracion` 409/409), así que esto NO es `GATE_RED`. El diff
+en sí es un archivo de TEST — no escribe código de producción, no hay migración ni contrato
+cross-repo — pero las strings que afirma describen bytes que SÍ le llegan al visitante de Onix
+(el HTML de `/tienda`, `/suscripciones`, `/nosotros` tal como lo aprobó el owner en
+`ONIX-PAGINAS-FIDELIDAD-1`): `customer_bytes.changed=true` por la misma razón que la entrada
+anterior la marcó así — el contenido que el string afirma, no sólo el archivo que lo contiene.
+Commiteado en `slice/editor-secciones-1`, sin mergear.
