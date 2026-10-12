@@ -4,6 +4,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import FeaturedProductsCuadricula from "@/components/storefront/home/FeaturedProductsCuadricula";
 import FeaturedProductsGrilla from "@/components/storefront/home/FeaturedProductsGrilla";
 import Spotlight from "@/components/storefront/home/Spotlight";
+import FeaturedProductsCompra from "@/components/storefront/home/FeaturedProductsCompra";
 
 // La banda de Destacados — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ TEMAS-FEATURED-GRILLA-1),
 // gemelo de HeroSection/GrindChooser en la FORMA (mapa de claves → componente, `?? canónica` como
@@ -31,11 +32,18 @@ import Spotlight from "@/components/storefront/home/Spotlight";
 // que nunca devuelve `null`): `Spotlight` SÍ puede —hide-on-empty y el gate de `visible`, los dos ya
 // construidos en SPOTLIGHT-BANDA-1, no se tocan acá—, así que forzar el tipo viejo habría exigido
 // reescribir su `return null` para calzar, justo lo que este slice no hace.
+//
+// `'compra'` SE SUMÓ EN NAYOLI-HOME-COMPRA-1 (`FeaturedProductsCompra.tsx`): presentación y tamaño
+// en un mismo bloque, con la matriz de la Taquilla (`derivarMatrizTaquilla`, sin modificarla) —
+// comparte el gate de `spotlight.visible` con la variante 'spotlight' (§ el docstring de
+// `FeaturedProductsCompra.tsx`), y NUNCA devuelve `null`: sin matriz válida cae SOLA a
+// `FeaturedProductsCuadricula`, así que no hace falta que ESTE dispatcher distinga ese caso.
 type BandaFeatured = (props?: { style?: React.CSSProperties }) => React.ReactElement | null;
 const VARIANTES: Record<string, BandaFeatured> = {
   cuadricula: FeaturedProductsCuadricula,
   grilla: FeaturedProductsGrilla,
   spotlight: Spotlight,
+  compra: FeaturedProductsCompra,
 };
 
 export default function FeaturedProducts({ style }: { style?: React.CSSProperties } = {}) {

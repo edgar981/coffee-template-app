@@ -90,13 +90,15 @@ test('spotlight TODAVÍA no es miembro de BANDA_IDS — el bloqueo medido de SPO
 });
 
 // DEVIACIÓN MECÁNICA (§ DESTACADO-PANEL-COMPLETO-Y-BOTONES-PDP-1, fuera de `touches:` de ese
-// slice; actualizada de nuevo por § DESTACADO-PRESENTACION-POR-TAMANO-1 y ahora por
-// § DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1, también fuera de `touches:` de ÉSTAS — mismo patrón,
-// misma razón): `presentacionSlug`/`cuartoSlug`/`nombreCafe` se sumaron a `SpotlightContent`/
+// slice; actualizada de nuevo por § DESTACADO-PRESENTACION-POR-TAMANO-1, § DESTACADO-NOMBRE-GRUPO-
+// Y-TRANSICION-1, y ahora por § NAYOLI-HOME-COMPRA-1, también fuera de `touches:` de ÉSTA — mismo
+// patrón, misma razón): los campos de la composición «Compra» se sumaron a `SpotlightContent`/
 // `DEFAULTS.spotlight` (§ su docstring en site-content-defaults.ts) y esta aserción, literal
 // objeto por objeto, quedó desactualizada por cada campo nuevo — se actualiza acá para que el gate
-// siga verde; no cambia el CRITERIO que el test afirma (nace OFF, todo campo de texto vacío), sólo
-// su conteo de campos.
+// siga verde; no cambia el CRITERIO que el test afirma (nace OFF, todo campo de texto vacío — los
+// DOS booleanos nuevos nacen ENCENDIDOS, no vacíos, porque "Compra" los quiere así de arranque; el
+// título del test sigue hablando de "los nueve campos vacíos" porque ESOS nueve siguen siéndolo),
+// sólo su conteo de campos.
 test('DEFAULTS.spotlight nace OFF (visible:false) con los nueve campos vacíos — la ÚNICA sección ocultable con este default, y a propósito', () => {
   assert.deepEqual(DEFAULTS.spotlight, {
     visible: false,
@@ -109,6 +111,20 @@ test('DEFAULTS.spotlight nace OFF (visible:false) con los nueve campos vacíos �
     otroTamanoSlug: '',
     cuartoSlug: '',
     notaPrecio: '',
+    notas: '',
+    rotuloEje1: 'Presentación',
+    rotuloEje2: 'Tamaño',
+    ayuda1: '',
+    ayuda2: '',
+    ayuda3: '',
+    icono1: 'ninguno',
+    icono2: 'ninguno',
+    icono3: 'ninguno',
+    dato1Rotulo: '', dato1Valor: '',
+    dato2Rotulo: '', dato2Valor: '',
+    dato3Rotulo: '', dato3Valor: '',
+    mostrarPrecioPor100g: true,
+    barraFijaMovil: true,
   });
 });
 

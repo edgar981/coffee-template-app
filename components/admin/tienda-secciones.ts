@@ -1162,6 +1162,19 @@ const TESTIMONIOS: SeccionConfig = {
 // derivada de sus propios datos ("con la combinación de cada uno visible", el spec de ese slice).
 // Los NOMBRES de los tres punteros viejos no cambiaron (cero migración de datos necesaria);
 // `cuartoSlug` es el cuarto, nuevo en ese slice, para la celda que los tres viejos no alcanzaban.
+//
+// § NAYOLI-HOME-COMPRA-1 — LOS CAMPOS DE «COMPRA» VAN AL FINAL de `campos`, tagueados
+// `composiciones: ['compra']` (§ EDITOR-COMPOSICION-CAMPOS-1): documentan el alcance con el mismo
+// hint "Sólo con la composición «Compra»" que ya usan `fichaDeFinca`/Riel — el tag no PLIEGA nada
+// hoy porque esta sección no declara `composiciones: ComposicionOpcion[]` (no hay picker de panel
+// para la variante de `featured`, § `VARIANTES_ESTRUCTURALES` en site-content-defaults.ts), así
+// que `activaComposicion` queda `undefined` y `aplicaAComposicion` deja todo visible — el "patrón
+// de ayuda" que el spec de este slice ofrece como alternativa cuando el fold real no aplica.
+const OPCIONES_ICONO_COMPRA: { value: string; label: string }[] = [
+  { value: 'ninguno', label: 'Ninguno' },
+  { value: 'grano', label: 'Grano entero' },
+  { value: 'molido', label: 'Molido' },
+];
 const SPOTLIGHT: SeccionConfig = {
   seccion: 'spotlight',
   pagina: 'home',
@@ -1174,7 +1187,7 @@ const SPOTLIGHT: SeccionConfig = {
   // acá). Con otra variante activa, esta sección sigue editable pero el lugar que ocupaba en la
   // home muestra la grilla del catálogo en su lugar — los textos fijos de esa grilla ("Nuestro
   // Catálogo", "Selección del mes", "Ver todo") no son de este editor.
-  notaVisibilidad: 'Esta sección sólo se ve en la home si el slot de producto destacado usa la variante "Destacado" (spotlight) — algo que se fija al dar de alta la tienda, no desde este panel. Con otra variante (cuadrícula/grilla de catálogo), lo de abajo queda editado pero sin efecto, y la grilla no tiene sus propios campos acá.',
+  notaVisibilidad: 'Esta sección sólo se ve en la home si el slot de producto destacado usa la variante "Destacado" (spotlight) o "Compra" — algo que se fija al dar de alta la tienda, no desde este panel. Con otra variante (cuadrícula/grilla de catálogo), lo de abajo queda editado pero sin efecto, y la grilla no tiene sus propios campos acá. Los campos marcados "Sólo con la composición «Compra»" tampoco tienen efecto bajo "Destacado" (spotlight), y viceversa con el resto de la sección.',
   // 'featured', no 'spotlight': spotlight es la VARIANTE que ocupa el slot de esa banda estructural
   // (§ el docstring de `SeccionConfig.bandaId`, arriba), no tiene bandaId propio en `BANDA_IDS`.
   bandaId: 'featured',
@@ -1199,6 +1212,30 @@ const SPOTLIGHT: SeccionConfig = {
     { name: 'otroTamanoSlug', label: 'Otro producto del grupo (2)', opcional: true, producto: true, mostrarEjes: true, hint: 'El mismo café en otra presentación o tamaño — junto al destacado y a los otros productos del grupo, forma la matriz Presentación × Tamaño de la banda. Vacío: no se muestra.' },
     { name: 'cuartoSlug', label: 'Otro producto del grupo (3)', opcional: true, producto: true, mostrarEjes: true, hint: 'El cuarto producto del grupo, si el catálogo lo tiene — completa la matriz Presentación × Tamaño (hasta 2×2). Vacío: no se muestra.' },
     { name: 'notaPrecio', label: 'Nota junto al precio', opcional: true, placeholder: 'COP · impuestos incluidos', hint: 'Aclaración corta junto al precio, por ejemplo "COP · impuestos incluidos". Vacío: no se muestra.' },
+    // § NAYOLI-HOME-COMPRA-1 — de acá para abajo, SÓLO con la composición «Compra» (§ el
+    // comentario de cabecera de `SPOTLIGHT`, arriba).
+    { name: 'notas', label: 'Línea de notas', opcional: true, textarea: true, composiciones: ['compra'], hint: 'Sólo con la composición "Compra". La línea bajo el titular, fija — no cambia con la presentación o el tamaño elegidos. Vacío: no se muestra.' },
+    { name: 'rotuloEje1', label: 'Rótulo del primer eje (presentación)', composiciones: ['compra'], hint: 'Sólo con la composición "Compra". El nombre del grupo de botones, por ejemplo "Molienda". Vacío: se usa "Presentación".' },
+    { name: 'rotuloEje2', label: 'Rótulo del segundo eje (tamaño)', composiciones: ['compra'], hint: 'El nombre del grupo de filas, por ejemplo "Tamaño". Vacío: se usa "Tamaño".' },
+    { name: 'ayuda1', label: 'Ayuda de la opción 1 del primer eje', opcional: true, composiciones: ['compra'], hint: 'Sólo con la composición "Compra". Una línea corta bajo esa opción, en el orden en que el catálogo las muestra — ej. "Para moler en casa, justo antes de preparar." Vacío: no se muestra.' },
+    { name: 'ayuda2', label: 'Ayuda de la opción 2 del primer eje', opcional: true, composiciones: ['compra'], hint: 'Vacío: no se muestra.' },
+    { name: 'ayuda3', label: 'Ayuda de la opción 3 del primer eje', opcional: true, composiciones: ['compra'], hint: 'Sólo si el catálogo tiene una tercera opción en ese eje. Vacío: no se muestra.' },
+    { name: 'icono1', label: 'Ícono de la opción 1 del primer eje', opciones: OPCIONES_ICONO_COMPRA, composiciones: ['compra'], hint: 'Sólo con la composición "Compra". El ícono junto al nombre de esa opción, en el orden en que el catálogo las muestra.' },
+    { name: 'icono2', label: 'Ícono de la opción 2 del primer eje', opciones: OPCIONES_ICONO_COMPRA, composiciones: ['compra'], hint: 'Mismo criterio que el ícono de la opción 1.' },
+    { name: 'icono3', label: 'Ícono de la opción 3 del primer eje', opciones: OPCIONES_ICONO_COMPRA, composiciones: ['compra'], hint: 'Sólo si el catálogo tiene una tercera opción en ese eje.' },
+    { name: 'dato1Rotulo', label: 'Rótulo del dato 1', opcional: true, composiciones: ['compra'], hint: 'Sólo con la composición "Compra". Una fila corta bajo el botón de compra, por ejemplo "Envío". Rótulo sin valor (o al revés) no se muestra.' },
+    { name: 'dato1Valor', label: 'Valor del dato 1', opcional: true, composiciones: ['compra'], hint: 'Por ejemplo "A todo el país".' },
+    { name: 'dato2Rotulo', label: 'Rótulo del dato 2', opcional: true, composiciones: ['compra'], hint: 'Rótulo sin valor (o al revés) no se muestra.' },
+    { name: 'dato2Valor', label: 'Valor del dato 2', opcional: true, composiciones: ['compra'], hint: 'Vacío: no se muestra.' },
+    { name: 'dato3Rotulo', label: 'Rótulo del dato 3', opcional: true, composiciones: ['compra'], hint: 'Rótulo sin valor (o al revés) no se muestra.' },
+    { name: 'dato3Valor', label: 'Valor del dato 3', opcional: true, composiciones: ['compra'], hint: 'Vacío: no se muestra.' },
+  ],
+  // § NAYOLI-HOME-COMPRA-1 — los dos interruptores de «Compra», sin efecto bajo "Destacado"
+  // (spotlight) — mismo criterio que `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»: se editan
+  // siempre, no sólo cuando aplican.
+  booleanos: [
+    { name: 'mostrarPrecioPor100g', label: 'Mostrar precio por 100 g', hint: 'Sólo con la composición "Compra". Bajo el precio de cada tamaño, por ejemplo "$8.000 por 100 g".' },
+    { name: 'barraFijaMovil', label: 'Barra de compra fija en el celular', hint: 'Sólo con la composición "Compra". Aparece en el celular cuando el botón "Agregar al carrito" sale de pantalla.' },
   ],
 };
 

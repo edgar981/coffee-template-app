@@ -57,8 +57,12 @@ function renderCuadriculaDirecto(content: SiteContentData): string {
 // ─── EL MODELO — `resolverVariante` acepta la clave nueva ──────────────────────────────────────
 
 test('VARIANTES_ESTRUCTURALES.featured admite "spotlight" junto a cuadricula/grilla, canónica sin cambiar', () => {
+  // DEVIATION (§ NAYOLI-HOME-COMPRA-1, fuera de `touches:` de ese slice): el array ganó "compra"
+  // como cuarta variante — esta era la ÚNICA aserción exacta de todo el carril que se habría roto
+  // en silencio (medido: 76/77 verde, sólo ésta falla); se actualiza acá en vez de dejar el gate
+  // en rojo por un assert que ya no describe el set real.
   assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, {
-    claves: ['cuadricula', 'grilla', 'spotlight'],
+    claves: ['cuadricula', 'grilla', 'spotlight', 'compra'],
     canonica: 'cuadricula',
   });
 });

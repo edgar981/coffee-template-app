@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import React from 'react';
@@ -10,8 +10,16 @@ import TrustBadges from '@/components/storefront/home/TrustBadges';
 import SeccionInstancia from '@/components/storefront/secciones/SeccionInstancia';
 import { DEFAULTS_INSTANCIA as DEFAULTS_INSTANCIA_FIXTURE } from '@/lib/config/secciones-instancias';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { SiteSettingsProvider } from '@/components/storefront/SiteSettingsProvider';
+import type { SiteSettings } from '@/lib/config/site-settings';
 import { PreviewProvider } from '@/components/storefront/PreviewMode';
 import { CartProvider } from '@/lib/cartStore';
+// § NAYOLI-HOME-COMPRA-1 — la verificación por render en memoria de la composición «Compra».
+import FeaturedProducts from '@/components/storefront/home/FeaturedProducts';
+import FeaturedProductsCuadricula from '@/components/storefront/home/FeaturedProductsCuadricula';
+import FeaturedProductsCompra, { CompraContenido } from '@/components/storefront/home/FeaturedProductsCompra';
+import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
+import type { Product } from '@/types/product';
 import type { SiteContentData } from '@/lib/config/site-content-defaults';
 import {
   DEFAULTS,
@@ -1109,8 +1117,8 @@ test('variantesBandas: SeccionKey lo excluye — el REGISTRY no tiene entrada `v
   assert.equal('variantesBandas' in REGISTRY, false);
 });
 
-test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y las variantes `grilla`/`spotlight` (TEMAS-FEATURED-GRILLA-1, SPOTLIGHT-CABLEADO-HOME-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
-  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla', 'spotlight'], canonica: 'cuadricula' });
+test('VARIANTES_ESTRUCTURALES: declara `featured` con su canónica `cuadricula` y las variantes `grilla`/`spotlight`/`compra` (TEMAS-FEATURED-GRILLA-1, SPOTLIGHT-CABLEADO-HOME-1, NAYOLI-HOME-COMPRA-1), y NO declara `trustBadges` (capacidad muerta evitada)', () => {
+  assert.deepEqual(VARIANTES_ESTRUCTURALES.featured, { claves: ['cuadricula', 'grilla', 'spotlight', 'compra'], canonica: 'cuadricula' });
   assert.equal(VARIANTES_ESTRUCTURALES.trustBadges, undefined);
 });
 
@@ -2305,6 +2313,259 @@ test('productoSpotlight: slug vacío o sin match CAE al primer producto (spotlig
   assert.deepEqual(productoSpotlight(CATALOGO_PRUEBA, 'no-existe'), CATALOGO_PRUEBA[0]);
   assert.deepEqual(productoSpotlight(CATALOGO_PRUEBA, 'cafe-b'), CATALOGO_PRUEBA[1]);
   assert.equal(productoSpotlight([], 'cafe-a'), null, 'catálogo vacío: null, ni el fallback tiene sentido');
+});
+
+// ── § NAYOLI-HOME-COMPRA-1 — los campos nuevos de `spotlight`, sólo con la composición «Compra» ──
+
+test('REGISTRY.spotlight.campos: rotuloEje1/rotuloEje2 son requeridos; notas/ayuda1-3/dato1-3 son opcionales', () => {
+  const campos = REGISTRY.spotlight.campos;
+  assert.equal(campos.rotuloEje1, 'requerido');
+  assert.equal(campos.rotuloEje2, 'requerido');
+  for (const c of ['notas', 'ayuda1', 'ayuda2', 'ayuda3', 'dato1Rotulo', 'dato1Valor', 'dato2Rotulo', 'dato2Valor', 'dato3Rotulo', 'dato3Valor']) {
+    assert.equal(campos[c], 'opcional', `${c} debería ser opcional`);
+  }
+});
+
+test('REGISTRY.spotlight.escalares declara icono1/2/3 clampados a ninguno/grano/molido, canónica "ninguno"', () => {
+  const esc = REGISTRY.spotlight.escalares!;
+  for (const c of ['icono1', 'icono2', 'icono3']) {
+    assert.deepEqual(esc[c], { claves: ['ninguno', 'grano', 'molido'], canonica: 'ninguno' });
+  }
+});
+
+test('REGISTRY.spotlight.booleanos declara mostrarPrecioPor100g y barraFijaMovil', () => {
+  assert.deepEqual(REGISTRY.spotlight.booleanos, ['mostrarPrecioPor100g', 'barraFijaMovil']);
+});
+
+test('DEFAULTS.spotlight: rotuloEje1/rotuloEje2 son neutros (ni café ni Nayoli); mostrarPrecioPor100g/barraFijaMovil nacen encendidos', () => {
+  assert.equal(DEFAULTS.spotlight.rotuloEje1, 'Presentación');
+  assert.equal(DEFAULTS.spotlight.rotuloEje2, 'Tamaño');
+  assert.equal(DEFAULTS.spotlight.mostrarPrecioPor100g, true);
+  assert.equal(DEFAULTS.spotlight.barraFijaMovil, true);
+  assert.equal(DEFAULTS.spotlight.icono1, 'ninguno');
+});
+
+test('resolverSiteContent({}): sin fila, spotlight resuelve rotuloEje1/rotuloEje2 al default y los campos de Compra vacíos — byte-idéntico', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.spotlight.rotuloEje1, 'Presentación');
+  assert.equal(r.spotlight.rotuloEje2, 'Tamaño');
+  assert.equal(r.spotlight.notas, '');
+  assert.equal(r.spotlight.icono1, 'ninguno');
+  assert.equal(r.spotlight.mostrarPrecioPor100g, true);
+  assert.equal(r.spotlight.barraFijaMovil, true);
+});
+
+test('resolverSiteContent: rotuloEje1/rotuloEje2 vacíos guardados caen al default (requeridos, nunca en blanco)', () => {
+  const r = resolverSiteContent({ spotlight: { rotuloEje1: '', rotuloEje2: '' } });
+  assert.equal(r.spotlight.rotuloEje1, 'Presentación');
+  assert.equal(r.spotlight.rotuloEje2, 'Tamaño');
+});
+
+test('resolverSiteContent: un icono guardado fuera del set cae a la canónica "ninguno", SOFT', () => {
+  const r = resolverSiteContent({ spotlight: { icono1: 'basura' } });
+  assert.equal(r.spotlight.icono1, 'ninguno');
+  const r2 = resolverSiteContent({ spotlight: { icono1: 'grano' } });
+  assert.equal(r2.spotlight.icono1, 'grano');
+});
+
+test('resolverSiteContent: mostrarPrecioPor100g/barraFijaMovil sólo cambian con un booleano EXPLÍCITO guardado', () => {
+  const r = resolverSiteContent({ spotlight: { mostrarPrecioPor100g: false, barraFijaMovil: false } });
+  assert.equal(r.spotlight.mostrarPrecioPor100g, false);
+  assert.equal(r.spotlight.barraFijaMovil, false);
+  const sinNada = resolverSiteContent({ spotlight: { mostrarPrecioPor100g: 'no' as unknown as boolean } });
+  assert.equal(sinNada.spotlight.mostrarPrecioPor100g, true); // basura → el default, nunca lanza
+});
+
+// ─── § NAYOLI-HOME-COMPRA-1 — RENDER EN MEMORIA de la composición «Compra» ───────────────────────
+//
+// LÍMITE DE ESTE CARRIL (heredado de `spotlight-cableado.test.ts`): `FeaturedProductsCompra.tsx`
+// fetchea el catálogo en un `useEffect`, que `renderToStaticMarkup` nunca ejecuta — así que, vía el
+// default export, el catálogo interno queda SIEMPRE en su estado inicial (`null`) y la composición
+// cae a la canónica. Por eso la verificación del renderizado REAL de «Compra» usa el export
+// NOMBRADO `CompraContenido` (recibe la matriz por prop, sin red) — exactamente el mismo patrón que
+// el límite de ese archivo describe para `Spotlight.tsx`.
+
+const SETTINGS_SIN_WHATSAPP: SiteSettings = {
+  nombre: 'Nayoli', tagline: '', descripcionFooter: '', whatsapp: '', instagram: '',
+  emailRemitente: '', emailReplyTo: null, adminEmail: null, metodosPago: [], redes: [],
+  metodoPasarelaDesalineado: null,
+};
+
+// EL CATÁLOGO REAL DE NAYOLI (prisma/seed-products.ts, recortado a los campos que
+// `derivarMatrizTaquilla`/`decidirMolienda` leen) — 2 categorías × 2 pesos.
+function catalogoNayoli(): Product[] {
+  return [
+    { id: 'nayoli-250g-grano', nombre: 'Café Nayoli — En grano 250 g', slug: 'cafe-nayoli-grano-250g', categoria: 'Café en Grano', precio: 20000, costo: 14000, sku: null, stock: 42, activo: true, peso_gramos: 250, disponible: true, moliendasOpciones: [{ nombre: 'Grano entero', metodo: 'Muele en casa a tu gusto', disponible: true }], descripcion: '', imagen: '/images/cafe-nayoli-250g-grano.webp' },
+    { id: 'nayoli-250g-molido', nombre: 'Café Nayoli — Molido 250 g', slug: 'cafe-nayoli-molido-250g', categoria: 'Café Molido', precio: 20000, costo: 14000, sku: null, stock: 42, activo: true, peso_gramos: 250, disponible: true, moliendasOpciones: [], descripcion: '', imagen: '/images/cafe-nayoli-250g-molido.webp' },
+    { id: 'nayoli-500g-grano', nombre: 'Café Nayoli — En grano 500 g', slug: 'cafe-nayoli-grano-500g', categoria: 'Café en Grano', precio: 35000, costo: 24000, sku: null, stock: 28, activo: true, peso_gramos: 500, disponible: true, moliendasOpciones: [{ nombre: 'Grano entero', metodo: 'Muele en casa a tu gusto', disponible: true }], descripcion: '', imagen: '/images/cafe-nayoli-500g-grano.webp' },
+    { id: 'nayoli-500g-molido', nombre: 'Café Nayoli — Molido 500 g', slug: 'cafe-nayoli-molido-500g', categoria: 'Café Molido', precio: 35000, costo: 24000, sku: null, stock: 28, activo: true, peso_gramos: 500, disponible: true, moliendasOpciones: [], descripcion: '', imagen: '/images/cafe-nayoli-500g-molido.webp' },
+  ];
+}
+
+// Los textos de la maqueta aprobada (`.scratch/nayoli-home/nayoli-home.html`), SOLO para esta
+// prueba — no se siembra ni se publica nada: es dato en memoria, descartado al terminar el test.
+const SPOTLIGHT_COMPRA_MAQUETA = {
+  ...DEFAULTS.spotlight,
+  visible: true,
+  eyebrow: 'Café Nayoli',
+  titulo: 'Castillo lavado',
+  notas: 'Chocolate, aroma herbal y un balance entre acidez y cuerpo.',
+  rotuloEje1: 'Molienda',
+  rotuloEje2: 'Tamaño',
+  ayuda1: 'Para moler en casa, justo antes de preparar.',
+  ayuda2: 'Molienda media: para prensa francesa, filtro V60 o greca.',
+  icono1: 'grano',
+  icono2: 'molido',
+  dato1Rotulo: 'Envío', dato1Valor: 'A todo el país',
+  dato2Rotulo: 'Tostión', dato2Valor: 'Media, en tandas semanales',
+  mostrarPrecioPor100g: true,
+  barraFijaMovil: true,
+};
+
+function renderCompraContenido(spotlight = SPOTLIGHT_COMPRA_MAQUETA, settings: SiteSettings = SETTINGS_SIN_WHATSAPP): string {
+  const matriz = derivarMatrizTaquilla(catalogoNayoli())!;
+  const arbol = React.createElement(SiteSettingsProvider, {
+    value: settings,
+    children: React.createElement(CartProvider, {
+      children: React.createElement(CompraContenido, { matriz, spotlight }),
+    }),
+  });
+  return renderToStaticMarkup(arbol);
+}
+
+function renderFeaturedConVariante(variante: string, spotlightOverride: Partial<typeof DEFAULTS.spotlight> = {}): string {
+  const content = {
+    ...DEFAULTS,
+    variantesBandas: { featured: variante },
+    spotlight: { ...DEFAULTS.spotlight, ...spotlightOverride },
+  } as SiteContentData;
+  const arbol = React.createElement(SiteSettingsProvider, {
+    value: SETTINGS_SIN_WHATSAPP,
+    children: React.createElement(CartProvider, {
+      children: React.createElement(SiteContentProvider, { value: content, children: React.createElement(FeaturedProducts) }),
+    }),
+  });
+  return renderToStaticMarkup(arbol);
+}
+
+test('«Compra», matriz REAL de Nayoli + textos de la maqueta: eyebrow, título, notas, rótulos de eje, precios y "por 100 g" aparecen', () => {
+  const html = renderCompraContenido();
+  assert.ok(html.includes('Café Nayoli'));
+  assert.ok(html.includes('Castillo lavado'));
+  assert.ok(html.includes('Chocolate, aroma herbal y un balance entre acidez y cuerpo.'));
+  assert.ok(html.includes('Molienda'));
+  assert.ok(html.includes('Tamaño'));
+  assert.ok(html.includes('Café en Grano')); // etiqueta del primer eje = el LITERAL de categoria
+  assert.ok(html.includes('Café Molido'));
+  assert.ok(html.includes('250 g')); // etiqueta del segundo eje = "{peso} g"
+  assert.ok(html.includes('500 g'));
+  assert.ok(html.includes('20.000')); // formatCOP (Intl.NumberFormat) — el símbolo/espacio no se fija acá
+  assert.ok(html.includes('por 100 g'));
+  assert.ok(html.includes('8.000')); // 20.000/250*100, § precioPor100Gramos
+  assert.ok(html.includes('7.000')); // 35.000/500*100
+  assert.ok(html.includes('Agregar al carrito'));
+  assert.ok(html.includes('Envío'));
+  assert.ok(html.includes('A todo el país'));
+  assert.ok(html.includes('Tostión'));
+  assert.ok(html.includes('Media, en tandas semanales'));
+  // La ayuda de la opción ELEGIDA (la primera fila, "Café en Grano") es la de `ayuda1`.
+  assert.ok(html.includes('Para moler en casa, justo antes de preparar.'));
+});
+
+test('«Compra»: el pie de foto / caption compone "{peso} g · {categoria}", la MISMA leyenda que la barra fija usaría', () => {
+  const html = renderCompraContenido();
+  assert.ok(html.includes('250 g · Café en Grano'));
+});
+
+test('«Compra»: un dato SIN su par (rótulo sin valor) NO aparece — fila incompleta no se muestra, las otras sí', () => {
+  const html = renderCompraContenido({ ...SPOTLIGHT_COMPRA_MAQUETA, dato1Valor: '' });
+  assert.ok(!html.includes('A todo el país')); // dato1 incompleto (rótulo "Envío" sin valor)
+  assert.ok(!html.includes('>Envío<'));
+  assert.ok(html.includes('Tostión')); // dato2, completo, SÍ se muestra
+  assert.ok(html.includes('Media, en tandas semanales'));
+});
+
+test('«Compra»: las 3 filas de datos vacías → ninguna fila (<dt>) se muestra', () => {
+  const html = renderCompraContenido({
+    ...SPOTLIGHT_COMPRA_MAQUETA,
+    dato1Rotulo: '', dato1Valor: '', dato2Rotulo: '', dato2Valor: '', dato3Rotulo: '', dato3Valor: '',
+  });
+  assert.ok(!html.includes('<dt'));
+});
+
+test('«Compra»: sin `whatsapp` configurado y agotado, el botón de agregar no se muestra (mismo criterio que TiendaTaquilla)', () => {
+  const catalogoAgotado = catalogoNayoli();
+  catalogoAgotado[0].disponible = false; // "Café en Grano" 250 g — la celda default (fila[0]×columna[0])
+  const matriz = derivarMatrizTaquilla(catalogoAgotado)!;
+  const arbol = React.createElement(SiteSettingsProvider, {
+    value: SETTINGS_SIN_WHATSAPP,
+    children: React.createElement(CartProvider, {
+      children: React.createElement(CompraContenido, { matriz, spotlight: SPOTLIGHT_COMPRA_MAQUETA }),
+    }),
+  });
+  const html = renderToStaticMarkup(arbol);
+  assert.ok(!html.includes('Agregar al carrito'));
+  assert.ok(!html.includes('Avísame por WhatsApp')); // sin whatsapp, ni siquiera eso
+});
+
+test('«Compra»: interruptor "Mostrar precio por 100 g" apagado — el texto no aparece, el resto sigue igual', () => {
+  const html = renderCompraContenido({ ...SPOTLIGHT_COMPRA_MAQUETA, mostrarPrecioPor100g: false });
+  assert.ok(!html.includes('por 100 g'));
+  assert.ok(html.includes('Agregar al carrito'));
+});
+
+test('featured·compra: con `spotlight.visible=false` (el default), el slot queda VACÍO — mismo criterio que featured·spotlight, nunca cae a Cuadricula', () => {
+  const html = renderFeaturedConVariante('compra');
+  assert.ok(!html.includes('Selección del mes'));
+  assert.ok(!html.includes('Agregar al carrito'));
+});
+
+test('featured·compra con `spotlight.visible=true` (como lo dejaría un preset futuro) SIN catálogo cargado (el límite del carril, § arriba): cae a Cuadricula — "Selección del mes" aparece, nunca el markup de Compra', () => {
+  const html = renderFeaturedConVariante('compra', { visible: true });
+  assert.ok(html.includes('Selección del mes'));
+  assert.ok(!html.includes('Agregar al carrito'));
+});
+
+test('FeaturedProductsCompra (el export default, montado DIRECTO, sin pasar por el dispatcher) hace la MISMA caída a Cuadricula sin catálogo cargado', () => {
+  const content = { ...DEFAULTS, spotlight: { ...DEFAULTS.spotlight, visible: true } } as SiteContentData;
+  const html = renderToStaticMarkup(
+    React.createElement(SiteSettingsProvider, {
+      value: SETTINGS_SIN_WHATSAPP,
+      children: React.createElement(CartProvider, {
+        children: React.createElement(SiteContentProvider, { value: content, children: React.createElement(FeaturedProductsCompra) }),
+      }),
+    }),
+  );
+  assert.ok(html.includes('Selección del mes'));
+  assert.ok(!html.includes('Agregar al carrito'));
+});
+
+test('LA INVARIANTE de «Compra»: sin variante elegida (Nayoli), FeaturedProducts sigue montando Cuadricula — byte-idéntico a antes de este slice', () => {
+  const sinVariante = renderToStaticMarkup(
+    React.createElement(SiteSettingsProvider, {
+      value: SETTINGS_SIN_WHATSAPP,
+      children: React.createElement(CartProvider, {
+        children: React.createElement(SiteContentProvider, { value: DEFAULTS as SiteContentData, children: React.createElement(FeaturedProducts) }),
+      }),
+    }),
+  );
+  const directo = renderToStaticMarkup(
+    React.createElement(SiteSettingsProvider, {
+      value: SETTINGS_SIN_WHATSAPP,
+      children: React.createElement(CartProvider, {
+        children: React.createElement(SiteContentProvider, { value: DEFAULTS as SiteContentData, children: React.createElement(FeaturedProductsCuadricula) }),
+      }),
+    }),
+  );
+  assert.equal(sinVariante, directo);
+  assert.ok(sinVariante.includes('Selección del mes'));
+});
+
+test('la fuente de FeaturedProducts.tsx importa FeaturedProductsCompra y lo asigna a la clave "compra" del mapa de despacho', () => {
+  const srcPath = path.join(fileURLToPath(new URL('.', import.meta.url)), '../../components/storefront/home/FeaturedProducts.tsx');
+  const src = readFileSync(srcPath, 'utf8');
+  assert.match(src, /import FeaturedProductsCompra from ["']@\/components\/storefront\/home\/FeaturedProductsCompra["']/);
+  assert.match(src, /compra:\s*FeaturedProductsCompra\s*,/);
 });
 
 test('productoMarquesina: slug vacío o sin match devuelve null — NUNCA cae al primer producto (§ el defecto de la tarjeta arbitraria)', () => {

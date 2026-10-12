@@ -268,6 +268,14 @@ function contenidoSpotlightLleno(clave: string | null): SiteContentData {
       // para seguir compilando — no cambia lo que el test afirma.
       cuartoSlug: 'cafe-narino-500g-molido',
       notaPrecio: 'COP · impuestos incluidos',
+      // § NAYOLI-HOME-COMPRA-1 (fuera de `touches:`, misma deviación mecánica que las de arriba):
+      // los campos de la composición «Compra» se sumaron a `SpotlightContent` y este literal los
+      // necesita para seguir compilando — no cambia lo que el test afirma.
+      notas: '', rotuloEje1: 'Presentación', rotuloEje2: 'Tamaño',
+      ayuda1: '', ayuda2: '', ayuda3: '',
+      icono1: 'ninguno', icono2: 'ninguno', icono3: 'ninguno',
+      dato1Rotulo: '', dato1Valor: '', dato2Rotulo: '', dato2Valor: '', dato3Rotulo: '', dato3Valor: '',
+      mostrarPrecioPor100g: true, barraFijaMovil: true,
     },
   };
 }

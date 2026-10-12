@@ -781,6 +781,54 @@ export interface SpotlightContent {
    *  punteros viejos no podían alcanzar por sí solos. */
   cuartoSlug: string;
   notaPrecio: string;
+
+  // § NAYOLI-HOME-COMPRA-1 — LOS CAMPOS DE ABAJO SÓLO CUENTAN CON LA COMPOSICIÓN «COMPRA»
+  // (`VARIANTES_ESTRUCTURALES.featured`, más abajo): viven en ESTA sección —la que ya ocupa el
+  // slot `bandaId: 'featured'`— porque «Compra» es OTRA variante del mismo slot, no una banda
+  // nueva; crear una sección aparte habría sido un segundo lugar para el mismo hecho ("qué
+  // muestra el slot de producto destacado"). El editor los TAGUEA `composiciones: ['compra']`
+  // (§ EDITOR-COMPOSICION-CAMPOS-1, tienda-secciones.ts) por documentación — `spotlight` no
+  // declara un `composiciones: ComposicionOpcion[]` propio (no hay picker de panel para la
+  // variante de `featured`, § el docstring de `VARIANTES_ESTRUCTURALES` de abajo), así que el
+  // tag no PLIEGA nada hoy: queda como el hint "Sólo con la composición «Compra»" en cada campo,
+  // el mismo patrón de ayuda que ya usan `fichaDeFinca`/`fraseYBoton` cuando el fold real todavía
+  // no aplica.
+  /** Línea de notas bajo el titular (`.notas-c` de la maqueta: "Chocolate, aroma herbal…") —
+   *  COPY fijo, independiente de la selección (no cambia con la celda elegida, a diferencia del
+   *  pie de foto). Opcional: vacío no se muestra. */
+  notas: string;
+  /** Rótulo del primer eje (presentación) — REQUERIDO: vacío cae al default `'Presentación'`, una
+   *  fila de opciones sin rótulo se lee rota. */
+  rotuloEje1: string;
+  /** Rótulo del segundo eje (tamaño) — REQUERIDO: vacío cae al default `'Tamaño'`. */
+  rotuloEje2: string;
+  /** Ayuda OPCIONAL de cada opción del primer eje, POSICIONAL — `ayudaN` acompaña a
+   *  `matriz.filas[N-1]`, nunca a la opción que el dueño "quiso decir": vacía no se muestra, y no
+   *  se corre a la fila vecina (§ `ayudaParaFila`, lib/storefront/compra-home.ts). */
+  ayuda1: string;
+  ayuda2: string;
+  ayuda3: string;
+  /** Ícono de cada opción del primer eje — ESCALAR clampado (§ `VARIANTES_ESTRUCTURALES.featured`
+   *  más abajo para el porqué de esta forma), set `'ninguno'|'grano'|'molido'`, canónica
+   *  `'ninguno'` (sin ícono, el default neutro de la plantilla). */
+  icono1: string;
+  icono2: string;
+  icono3: string;
+  /** De 0 a 3 filas de datos (rótulo + valor) bajo el botón — una fila con sólo uno de los dos
+   *  no se muestra (§ `filaDatoVisible`, lib/storefront/compra-home.ts). */
+  dato1Rotulo: string;
+  dato1Valor: string;
+  dato2Rotulo: string;
+  dato2Valor: string;
+  dato3Rotulo: string;
+  dato3Valor: string;
+  /** Interruptor "Mostrar precio por 100 g" bajo el precio de cada tamaño — `true` por defecto
+   *  (encendido de arranque en la composición), sin efecto fuera de «Compra» (mismo criterio que
+   *  `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»: se edita siempre, no sólo cuando aplica). */
+  mostrarPrecioPor100g: boolean;
+  /** La barra de compra fija del celular — MISMA de la Taquilla (`lib/storefront/barra-fija.ts`),
+   *  `true` por defecto, sin efecto fuera de «Compra». */
+  barraFijaMovil: boolean;
 }
 
 // SubscriptionCTA ("Plan Suscripción"): eyebrow + h2 + un párrafo + HASTA CUATRO bullets + el label
@@ -2623,6 +2671,24 @@ export const DEFAULTS: SiteContentData = {
     otroTamanoSlug: '',
     cuartoSlug: '',
     notaPrecio: '',
+    // § NAYOLI-HOME-COMPRA-1 — defaults de la PLANTILLA, neutros: nada de café ni de Nayoli
+    // (la guarda de términos, TERMINOS_PROHIBIDOS, lo exige). 'Presentación'/'Tamaño' son los
+    // ÚNICOS dos no-vacíos: son REQUERIDOS (§ SpotlightContent, arriba) y un grupo de opciones
+    // sin rótulo se lee roto; el resto nace vacío/'ninguno', igual que el resto de esta sección.
+    notas: '',
+    rotuloEje1: 'Presentación',
+    rotuloEje2: 'Tamaño',
+    ayuda1: '',
+    ayuda2: '',
+    ayuda3: '',
+    icono1: 'ninguno',
+    icono2: 'ninguno',
+    icono3: 'ninguno',
+    dato1Rotulo: '', dato1Valor: '',
+    dato2Rotulo: '', dato2Valor: '',
+    dato3Rotulo: '', dato3Valor: '',
+    mostrarPrecioPor100g: true,
+    barraFijaMovil: true,
   },
   subscriptionCTA: {
     visible: true,
@@ -3532,7 +3598,36 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       cuartoSlug: 'opcional',
       // La nota del precio (§ SpotlightContent.notaPrecio, arriba): opcional, vacía = no se muestra.
       notaPrecio: 'opcional',
+      // § NAYOLI-HOME-COMPRA-1 — los campos de la composición «Compra» (§ SpotlightContent,
+      // arriba, para el porqué de vivir en ESTA sección). `rotuloEje1`/`rotuloEje2` REQUERIDOS
+      // (vacío cae al default 'Presentación'/'Tamaño'); el resto OPCIONAL, igual que el resto de
+      // la sección. `icono1/2/3` NO van acá: son ESCALARES (abajo), no `campos` — mismo mecanismo
+      // que `brandStory.escalares.medio`.
+      notas: 'opcional',
+      rotuloEje1: 'requerido',
+      rotuloEje2: 'requerido',
+      ayuda1: 'opcional',
+      ayuda2: 'opcional',
+      ayuda3: 'opcional',
+      dato1Rotulo: 'opcional',
+      dato1Valor: 'opcional',
+      dato2Rotulo: 'opcional',
+      dato2Valor: 'opcional',
+      dato3Rotulo: 'opcional',
+      dato3Valor: 'opcional',
     },
+    // § NAYOLI-HOME-COMPRA-1 — el ícono de cada opción del primer eje, ESCALAR clampado (mismo
+    // mecanismo que `brandStory.escalares.medio`): un valor fuera del set, o ausente, cae a la
+    // canónica `'ninguno'` (sin ícono), SOFT, nunca lanza. Sin efecto fuera de «Compra».
+    escalares: {
+      icono1: { claves: ['ninguno', 'grano', 'molido'], canonica: 'ninguno' },
+      icono2: { claves: ['ninguno', 'grano', 'molido'], canonica: 'ninguno' },
+      icono3: { claves: ['ninguno', 'grano', 'molido'], canonica: 'ninguno' },
+    },
+    // § NAYOLI-HOME-COMPRA-1 — los dos interruptores de «Compra», mismo criterio que
+    // `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»: sin efecto fuera de esa composición, pero
+    // se editan siempre.
+    booleanos: ['mostrarPrecioPor100g', 'barraFijaMovil'],
   },
   subscriptionCTA: {
     label: 'Suscripción',
@@ -4155,8 +4250,20 @@ export interface LogoContent {
 // existe). CORTE es hoy el único preset que la pide — su `.spotlight` es LITERALMENTE la sección
 // "Producto insignia" del prototipo (`docs/prototipos/cafeone/index.html:159-217`, un solo producto
 // con selector y carrito), no la malla de 6 que 'grilla' pintaba ahí antes de este slice.
+//
+// `'compra'` SE SUMÓ EN NAYOLI-HOME-COMPRA-1 (`FeaturedProductsCompra.tsx`): un solo café en sus
+// variantes, con selección de presentación y tamaño en un mismo bloque (la matriz de la Taquilla,
+// `derivarMatrizTaquilla`, sin modificarla) — reusa la sección `spotlight` para sus campos nuevos
+// (§ el docstring de `SpotlightContent`, arriba, para el porqué de no abrir una sección propia).
+// A DIFERENCIA de 'grilla'/'spotlight', NINGÚN preset del catálogo la pide todavía y EL PANEL NO
+// TIENE PICKER para elegirla (§ el docstring de abajo: `variantesBandas` es dominio ABIERTO, sin
+// control de panel, por decisión ya tomada ANTES de este slice — construir uno exigiría tocar
+// `app/api/`, fuera de la frontera de este slice, y el write-path real que lo soportaría). Hoy
+// 'compra' sólo se activa ESCRIBIENDO el dato directo (`content.variantesBandas.featured =
+// 'compra'` + `content.spotlight.visible = true`, el MISMO segundo paso que ya exige 'spotlight',
+// § SPOTLIGHT-CABLEADO-HOME-1 arriba) — nunca desde este panel, hasta que exista ese picker.
 export const VARIANTES_ESTRUCTURALES: Record<string, VariantesDef> = {
-  featured: { claves: ['cuadricula', 'grilla', 'spotlight'], canonica: 'cuadricula' },
+  featured: { claves: ['cuadricula', 'grilla', 'spotlight', 'compra'], canonica: 'cuadricula' },
 };
 
 const esVacio = (v: unknown): boolean => typeof v !== 'string' || v.trim() === '';

@@ -276,6 +276,29 @@ const spotlightEditableSchema = z.object({
   // La nota junto al precio (§ NUESTRO-CAFE-COMO-MUESTRARIO-1, `SpotlightContent.notaPrecio`):
   // COPY libre, opcional/SOFT como el resto — el resolver la omite vacía.
   notaPrecio: z.string().optional(),
+  // § NAYOLI-HOME-COMPRA-1 — los campos de la composición «Compra» (§ `SpotlightContent`,
+  // site-content-defaults.ts). TODOS `z.string()`/`z.boolean()` opcional/SOFT, como el resto de
+  // la sección — `rotuloEje1`/`rotuloEje2` son REQUERIDOS en el REGISTRY, pero esa distinción es
+  // del RESOLVER (default al vaciar), no del schema: sin declararlos acá, zod los STRIPPEARÍA en
+  // silencio al guardar (§ #65-B). `icono1/2/3` son ESCALARES clampados por `resolverVariante` al
+  // leer, igual que `brandStory.medio` — también `z.string()` sin `z.enum`.
+  notas: z.string().optional(),
+  rotuloEje1: z.string().optional(),
+  rotuloEje2: z.string().optional(),
+  ayuda1: z.string().optional(),
+  ayuda2: z.string().optional(),
+  ayuda3: z.string().optional(),
+  icono1: z.string().optional(),
+  icono2: z.string().optional(),
+  icono3: z.string().optional(),
+  dato1Rotulo: z.string().optional(),
+  dato1Valor: z.string().optional(),
+  dato2Rotulo: z.string().optional(),
+  dato2Valor: z.string().optional(),
+  dato3Rotulo: z.string().optional(),
+  dato3Valor: z.string().optional(),
+  mostrarPrecioPor100g: z.boolean().optional(),
+  barraFijaMovil: z.boolean().optional(),
 });
 
 // SubscriptionCTA: antes "solo texto"; gana UNA imagen OPCIONAL (§ MUESTRARIO-CTA-BANNER-FOTO-1,

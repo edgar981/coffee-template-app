@@ -61847,3 +61847,227 @@ cross-repo — pero las strings que afirma describen bytes que SÍ le llegan al 
 `ONIX-PAGINAS-FIDELIDAD-1`): `customer_bytes.changed=true` por la misma razón que la entrada
 anterior la marcó así — el contenido que el string afirma, no sólo el archivo que lo contiene.
 Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — «Selección del mes» gana la composición «Compra»: presentación y tamaño en un mismo bloque (`NAYOLI-HOME-COMPRA-1`)
+
+Spec validado CLEAR, continúa `slice/editor-secciones-1` tras `ONIX-PAGINAS-FIDELIDAD-ASSERTS-1`. Aprobado
+por el owner el 2026-10-12 sobre la maqueta «Reverso de la bolsa» (`https://claude.ai/artifact/
+LsuJuLL8kLKP7wcHa1ZMCK`, sin las pestañas Frente/Reverso que el owner no aprobó) — "LA APROBACIÓN AUTORIZA
+LA ESCRITURA, NUNCA EL MERGE".
+
+### El mecanismo (items 1-3)
+
+**`'compra'` se sumó a `VARIANTES_ESTRUCTURALES.featured.claves`** (`site-content-defaults.ts`), cuarta
+variante del slot estructural `featured` — el MISMO mecanismo que ya trajo `'grilla'`
+(TEMAS-FEATURED-GRILLA-1) y `'spotlight'` (SPOTLIGHT-CABLEADO-HOME-1). `FeaturedProducts.tsx` (el
+dispatcher) gana la entrada `compra: FeaturedProductsCompra` en su mapa — nunca `null`: sin matriz válida
+cae SOLA a `FeaturedProductsCuadricula`, mismo patrón que «Taquilla»/«Láminas» caen a «Actual» en
+`TiendaCatalogo.tsx`.
+
+**`FeaturedProductsCompra.tsx` (nuevo)**: un solo café en sus variantes — fila/columna de la MATRIZ de la
+Taquilla (`derivarMatrizTaquilla`, `lib/tienda/taquilla.ts`, **sin modificarla**: filas=presentación/
+categoria, columnas=tamaño/peso_gramos), dos selectores INDEPENDIENTES (nunca una grilla 2D clickeable),
+la foto siguiendo la celda elegida (fundido de 200ms, MISMO mecanismo `transition-opacity duration-200`
++ `key={producto.id}` que ya usa `TiendaTaquilla.tsx`), "Agregar al carrito" por el MISMO
+`useCartStore().addItem` que la tarjeta de producto de hoy, y la barra fija del celular MISMA de la
+Taquilla (`lib/storefront/barra-fija.ts`, sin tocar — `DURACION_BARRA_FIJA_S`=250ms reusada verbatim).
+Agotado = tachado y no elegible, cruzado contra el EJE YA elegido (`opcionesEje1`/`opcionesEje2`,
+lib/storefront/compra-home.ts) — mismo criterio que la Taquilla de SUSCRIPCIÓN
+(`SuscripcionTaquilla.tsx`), no la de /tienda (que sólo rotula "Agotado" sin bloquear el click).
+
+**`lib/storefront/compra-home.ts`** (nuevo, puro, capa 1): `precioPor100Gramos` (`Math.round(precio/
+peso*100)`), `etiquetaEje1`/`etiquetaEje2` (el literal de `categoria` / `"{peso} g"` — la MISMA regla que
+la Taquilla de /tienda, § el spec item 2), `captionSeleccion` ("{peso} g · {categoria}", el pie de foto Y
+la barra fija), `iconoDeOpcion`/`ayudaParaFila`/`filasDeDatosVisibles` (filas de datos: AND, no OR —
+rótulo sin valor, o al revés, no se muestra), `debeCaerAComposicionPorDefecto` (nombra la misma pregunta
+que `derivarMatrizTaquilla(catalogo)!==null`, mismo criterio que `taquillaActiva`), `opcionesEje1`/
+`opcionesEje2` (cruce de disponibilidad). 19 tests, todos verdes.
+
+### Los campos editoriales viven en `spotlight`, no en una sección nueva
+
+**Decisión deliberada**: «Compra» es OTRA variante del MISMO slot `bandaId:'featured'` que ya ocupa
+`spotlight` — no una banda nueva. Sus 19 campos nuevos (`notas`, `rotuloEje1`/`rotuloEje2` REQUERIDOS —
+default 'Presentación'/'Tamaño', NEUTROS, ni café ni Nayoli—, `ayuda1-3`/`icono1-3` OPCIONALES,
+`icono1-3` ESCALARES clampados `['ninguno','grano','molido']` canónica `'ninguno'` — mismo mecanismo que
+`brandStory.escalares.medio`—, `dato1-3Rotulo/Valor` OPCIONALES, `mostrarPrecioPor100g`/`barraFijaMovil`
+booleanos, default `true` ambos — mismo criterio que `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»:
+sin efecto fuera de «Compra», pero se editan siempre) se agregaron a `SpotlightContent`/`DEFAULTS.
+spotlight`/`REGISTRY.spotlight` y a `spotlightEditableSchema` (si no, zod los STRIPPEA al guardar, §
+#65-B), y se declararon en `SPOTLIGHT.campos`/`.booleanos` de `tienda-secciones.ts`, tagueados
+`composiciones: ['compra']` (§ EDITOR-COMPOSICION-CAMPOS-1).
+
+**`visible` es el MISMO interruptor que ya gatea «Destacado»** — `FeaturedProductsCompra.tsx` también
+llama a `seccionEsVisible(REGISTRY.spotlight, spotlight)`: con el default `visible:false`, el slot de
+«Compra» queda VACÍO (nunca cae a Cuadricula), exactamente el mismo comportamiento ya medido para
+«Destacado»/spotlight (`spotlight-cableado.test.ts`). Sólo cuando `visible:true` Y la matriz es inválida
+cae a Cuadricula — el "sin catálogo cargado" del límite del carril de abajo ejerce justo esa rama.
+
+### DEVIACIÓN 1 (del spec): no hay selector de composición en el panel para `featured`
+
+El spec dice "Se elige en el selector de composición del editor" (item 1). **Medido antes de escribir
+código**: `variantesBandas` es dominio ABIERTO sin control de panel — decisión YA TOMADA, escrita en
+`panel-controles.ts` ("SIN PICKER, decisión del owner: se compone en el onboarding") y en el propio
+`notaVisibilidad` de `SPOTLIGHT` ("ese eje se fija en el onboarding del tenant, no tiene picker en este
+panel"). El mecanismo genérico de selector (`debeMostrarSelectorComposicion`) escribe `content.<seccion>.
+variante`, NO `content.variantesBandas.<banda>` — conectarlo a esta meta exigiría tocar el write-path
+(`app/api/site-content/...`), **explícitamente prohibido por la frontera de este dispatch** ("NO edites…
+app/api/…"), y contradiría esa decisión ya tomada. `'grilla'`/`'spotlight'` entraron al catálogo de
+variantes por el MISMO camino —agregadas a `VARIANTES_ESTRUCTURALES`, sin picker propio— y sólo se
+activan hoy vía preset (`themes.ts`, fuera de `touches:` de este slice) o escritura directa. «Compra»
+sigue el mismo patrón: queda seleccionable por DATO (una escritura directa de
+`content.variantesBandas.featured='compra'` + `content.spotlight.visible=true`), no por UI de panel —
+coincide con la instrucción del propio Cierre del spec ("Nayoli la elige desde el panel cuando el owner
+lo apruebe, escritura de datos del owner"). Open follow-up abajo.
+
+### DEVIACIÓN 2 (del spec): la vista previa en vivo del editor no muestra «Compra»
+
+El spec dice "la vista previa del editor muestra la composición" (item 8). Medido:
+`VistaTiendaEnVivo.tsx` monta `COMPONENTES.spotlight = Spotlight`, FIJO, independiente de
+`variantesBandas.featured` (el `value` local del provider nunca sobreescribe esa meta: siempre resuelve
+a `DEFAULTS.variantesBandas={}`). Ya es así para la variante 'spotlight' existente — su propio
+`notaVisibilidad` lo documenta. No se tocó `VistaTiendaEnVivo.tsx`: cablear la vista previa a la
+variante real de `featured` es un cambio de alcance mayor (afecta también a 'spotlight'), no algo que
+este slice deba decidir de paso.
+
+### DEVIACIÓN 3 (de la cifra "200 ms" del spec): se reusa el valor REAL del módulo compartido
+
+El spec dice que la barra fija "sube en 200 ms" (item 6), pero también dice "la MISMA de la Taquilla"
+(`lib/storefront/barra-fija.ts`). Medido: `DURACION_BARRA_FIJA_S = 0.25` (250ms), compartida hoy por
+Tienda/Suscripción/BackToTop. Reusar el MÓDULO tal cual —la instrucción explícita— manda sobre el
+literal "200 ms" del mismo item; introducir una segunda constante (200ms, sólo para Compra) habría sido
+la MISMA clase de divergencia que `razonDelServidor`/`cruzoMinimo` ya enseñó a evitar. Ambos números (200
+y 250) están en `cifras-decision` del spec, así que ninguno de los dos exige una aprobación nueva.
+
+### DEVIACIÓN 4 (fuera de `touches:`): tres archivos de test, aserciones exactas sobre `SpotlightContent`
+
+Sumar campos a `SpotlightContent`/`DEFAULTS.spotlight` rompe, mecánicamente, toda aserción `deepEqual`
+EXACTA sobre ese objeto en OTROS archivos — la MISMA clase de deviación que `DESTACADO-PANEL-COMPLETO-
+Y-BOTONES-PDP-1`/`DESTACADO-PRESENTACION-POR-TAMANO-1`/`DESTACADO-NOMBRE-GRUPO-Y-TRANSICION-1` ya
+dejaron documentada, con el mismo patrón de comentario "DEVIACIÓN MECÁNICA", en:
+
+- **`lib/config/spotlight-banda.test.ts`** — el `assert.deepEqual(DEFAULTS.spotlight, {...})` de "nace OFF
+  con los nueve campos vacíos" (ya venía actualizándose por cada campo nuevo desde hace tres slices).
+- **`lib/config/spotlight-cableado.test.ts`** — el `assert.deepEqual(VARIANTES_ESTRUCTURALES.featured,
+  {...})` de "admite spotlight junto a cuadricula/grilla".
+- **`lib/config/admin-tienda-preset.test.ts`** — el objeto literal `contenidoSpotlightLleno` (tipado
+  como `SpotlightContent`), que TypeScript exige completo.
+
+Ninguno cambia el CRITERIO que afirma (nace OFF, el set sigue admitiendo spotlight, el contenido sigue
+"lleno") — sólo su conteo de campos. Medido con `npx tsc --noEmit` + `npm test`: sin estas tres
+correcciones, el gate queda en 1 error de tipo + 2 tests rojos, los TRES por la razón mecánica de
+arriba, cero por lógica rota. Se corrigieron, siguiendo el precedente ya escrito por el propio repo para
+esta clase exacta de deviación.
+
+### Verificación — render EN MEMORIA (prohibido tocar una base, § la frontera de este dispatch)
+
+**`lib/storefront/compra-home.test.ts`** (19 tests): precio por 100g (250g@$20.000→$8.000;
+500g@$35.000→$7.000, exactos del spec), etiquetas, ayuda posicional, filas de datos AND, caída sin
+matriz válida (vacío/1 producto/hueco), agotado cruzado por eje — ninguno de los dos ejes "contamina" al
+otro. Vistos en verde contra el catálogo real de Nayoli recortado a sus campos relevantes.
+
+**`lib/config/site-content-defaults.test.ts`** (+11 tests): `CompraContenido` (export nombrado de
+`FeaturedProductsCompra.tsx`, recibe la `matriz` por prop — el MISMO límite que ya documenta
+`spotlight-cableado.test.ts` para `Spotlight.tsx`: `renderToStaticMarkup` nunca corre el `useEffect` que
+fetchea el catálogo) renderizado con el catálogo REAL de Nayoli (4 productos, `prisma/seed-products.ts`)
+y los textos de la maqueta aprobada (eyebrow "Café Nayoli", título "Castillo lavado", notas, rótulos
+"Molienda"/"Tamaño", las dos ayudas literales del spec) — confirma en el HTML: eyebrow/título/notas,
+"Café en Grano"/"Café Molido" (categoria literal), "250 g"/"500 g", los dos precios, "$8.000"/"$7.000 por
+100 g", "Agregar al carrito", las dos filas de datos, la ayuda de la opción elegida, el caption "250 g ·
+Café en Grano". Más: una fila de datos incompleta no se muestra (las completas sí); sin whatsapp y
+agotado, ningún botón se muestra; el interruptor de precio-por-100g apagado oculta sólo esa línea; con
+`spotlight.visible=false` (el default) el slot queda VACÍO bajo `variantesBandas.featured='compra'`
+(nunca cae a Cuadricula); con `visible=true` y SIN catálogo cargado (el límite de render-en-memoria) SÍ
+cae a Cuadricula — tanto vía el dispatcher (`FeaturedProducts`) como vía el export default montado
+DIRECTO; "LA INVARIANTE" — sin variante elegida (Nayoli real, `resolverSiteContent({})`), el dispatcher
+sigue montando Cuadricula, byte a byte igual que montarla sola (test YA existente en
+`spotlight-cableado.test.ts`, confirmado sin tocar: pasa igual con 'compra' en el catálogo de variantes).
+
+### El gate
+
+- **`npx tsc --noEmit`**: limpio (0 errores) — tras corregir `FeaturedProducts.tsx` (un `type
+  BandaFeatured` que mi primer edit borró por accidente al insertar un comentario) y los 3 archivos de
+  la DEVIACIÓN 4.
+- **`npm test`**: **4552/4552**, cero fallos — el número completo del repo, no sólo los archivos
+  tocados (incluye los 19 tests nuevos de `compra-home.test.ts` + los 20 nuevos de
+  `site-content-defaults.test.ts`, y las 3 correcciones de la DEVIACIÓN 4).
+- **`npm run test:integracion`**: **NO CORRIDO** — el dispatch de este slice prohíbe explícitamente
+  cargar `.env`/consultar una base ("Verificación por render EN MEMORIA... cargar .env... está
+  PROHIBIDO"), y este diff no toca schema ni ninguna ruta de escritura (`app/api/`, `packages/core/`)
+  que ese carril ejercite — no hay razón estructural para esperar que difiera. No se afirma en verde
+  algo que no corrió.
+- **`npx eslint`** sobre los 10 archivos tocados/nuevos: limpio, salvo `react/no-children-prop` en las
+  líneas que YO agregué a `site-content-defaults.test.ts` (16 ocurrencias) siguiendo el MISMO patrón
+  `React.createElement(Componente, {value, children: ...})` que YA usan `footer-tema.test.ts`/
+  `spotlight-cableado.test.ts`/el resto de ese archivo (no es una regla que el repo haga cumplir en
+  estos helpers — `npm run lint` tampoco es parte de `npm run gate`, § `package.json`). Las demás
+  ocurrencias de esa regla en los 3 archivos de la DEVIACIÓN 4 son PRE-EXISTENTES, verificadas por
+  número de línea contra mi diff real (`git diff --stat`: 8 y 6 líneas respectivamente).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios, el único script que el
+  dispatch autoriza a crear un worktree): compara `main` contra la rama ENTERA. Resultado,
+  **dígito a dígito IDÉNTICO al piso heredado ya documentado tres entradas atrás**
+  (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`, medido en `ONIX-PAGINAS-FIDELIDAD-1`): home
+  165052/4608000 px (AA) · 174711 crudo, caja [105,862]–[1183,3581]; tienda 209/2433280 · 407 crudo;
+  producto 209/2535680 · 407; checkout 163/1152000 · 361; nosotros 224/1152000 · 422; suscripciones
+  258/2144000 · 456; los 2 hovers **0 px, idénticos**. Que la caja de "home" (la única ruta que este
+  slice podría tocar, vía `FeaturedProducts.tsx`) sea EXACTAMENTE la misma caja de píxeles que la
+  entrada anterior —sin un píxel de más ni de menos— es la prueba visual, no sólo por código, de que
+  este diff no agregó NINGÚN byte visible a la home de Nayoli: `variantesBandas.featured` sigue
+  resolviendo a `'cuadricula'` para Nayoli (nadie escribió `'compra'`), así que `FeaturedProducts.tsx`
+  sigue montando exactamente lo que montaba antes de este slice. exit 1 esperado (mismo piso heredado).
+- **Capturas a 1440/390 (§ "Cómo lo probás") — NO PRODUCIDAS, con su razón.** No existe hoy una vía para
+  previsualizar «Compra» en un navegador real sin escribir el dato (`variantesBandas.featured='compra'`
+  + `spotlight.visible=true`) en una base — y eso es exactamente lo que la DEVIACIÓN 1 explica que no se
+  puede hacer sin picker de panel ni preset (`themes.ts`, fuera de `touches:`). `capturar-seccion.ts`
+  exige un `--preset` del catálogo de `themes.ts`; «Compra» no tiene uno. La verificación visual de la
+  pieza queda en el render-en-memoria (arriba, con el HTML real y los textos reales) y en el futuro gate
+  de capa 3 del owner, una vez que exista una vía (preset o picker) para activarla de verdad.
+
+### Open follow-ups
+
+- **`NAYOLI-HOME-COMPRA-PRESET-1`** — construir el picker o el preset (`themes.ts`) que permita elegir
+  «Compra» desde el panel o desde un tema del catálogo, escribiendo `content.variantesBandas.featured` y
+  forzando `spotlight.visible=true` (mismo mecanismo que `mergePresetEnContent` ya hace para 'spotlight'
+  bajo CORTE). Hasta entonces, «Compra» sólo se activa por escritura directa de datos.
+- **`NAYOLI-HOME-COMPRA-PREVIEW-1`** — dar a `VistaTiendaEnVivo.tsx` consciencia de
+  `variantesBandas.featured`, para que la vista previa de "Destacado" muestre el componente REAL activo
+  (cuadricula/grilla/spotlight/compra) en vez de `Spotlight` fijo. Afecta también a la variante
+  'spotlight' existente, no sólo a 'compra' — por eso no se decidió de paso en este slice.
+- **`NAYOLI-HOME-COMPRA-CAPTURAS-1`** — una vez que exista `NAYOLI-HOME-COMPRA-PRESET-1`, producir las
+  capturas a 1440/390 que "Cómo lo probás" pedía, al lado de `v2-d-compra.jpg`/`v2-m-compra.jpg`.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Grep de los símbolos que cambió este diff (`VARIANTES_ESTRUCTURALES`, `SpotlightContent`, `spotlight`,
+`FeaturedProducts`, `featured`) contra `CLAUDE.md`: las menciones existentes (§ "SIN PICKER, decisión
+del owner: se compone en el onboarding", en el ÁREA de `lib/config/panel-controles.ts`/`PENDIENTE_
+PANEL`, y § "Backlog #46" sobre el editor visual) siguen siendo VERDAD tras este diff — este slice NO
+construyó un picker (DEVIACIÓN 1, arriba), así que la frase "variantesBandas es dominio abierto, SIN
+picker" sigue siendo exacta, no una afirmación que mi cambio volvió falsa. No hay sección de CLAUDE.md
+que describa `VARIANTES_ESTRUCTURALES.featured.claves` por su CONTENIDO exacto (el doctrina-vive-en-
+CLAUDE.md evita precisamente guardar inventarios ahí, § "LA DOCTRINA GUARDA LA REGLA Y SU PORQUÉ, NUNCA
+UNA MEDICIÓN", Backlog técnico) — nada que cerrar ahí tampoco.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-10-12, sobre la maqueta «Reverso de la bolsa», sin las pestañas
+Frente/Reverso — "LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL MERGE"). `components/storefront/home/`
+entra por el subárbol ya ganado en CLAUDE.md (bytes del visitante). El diff agrega bytes NUEVOS y REALES
+—markup y copy fija ("Agregar al carrito", "Avísame por WhatsApp", "Elegir molienda", "por 100 g",
+"Agregado ✓") en `FeaturedProductsCompra.tsx`— alcanzables por cualquier visitante el día en que algún
+tenant escriba `variantesBandas.featured='compra'`; hoy, para Nayoli, esos bytes son inalcanzables
+(medido: `variantesBandas.featured` sigue resolviendo a la canónica, § el diff de píxeles arriba) pero
+EXISTEN en el árbol que se mergearía. `customer_bytes.changed=true` por la misma regla que ya aplicaron
+las entradas anteriores de esta rama (SPOTLIGHT-CABLEADO-HOME-1, ONIX-PAGINAS-FIDELIDAD-1): el eje es la
+RAMA contra su base, no sólo si Nayoli lo ve hoy.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). El gate corrido (`typecheck` + `npm test`) cerró en VERDE —
+4552/4552, 0 errores de tipo —; `test:integracion` no corrió por la frontera explícita de este dispatch
+(sin DB), sin razón estructural para esperar que difiera (sin cambio de schema ni de ninguna ruta de
+escritura). No es `GATE_RED`. El diff agrega código de producción nuevo en `components/storefront/
+home/` con copy fija nueva, alcanzable por cualquier visitante el día en que `variantesBandas.featured`
+se escriba `'compra'` para algún tenant — `customer_bytes.changed=true`, mismo criterio que las dos
+entradas anteriores de esta rama que tocaron `components/storefront/`. Sin cambio de schema/migración
+(los 19 campos nuevos viven en el `content: Json` de `SiteContent`, como el resto de la sección) ni
+contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`, sin mergear.
