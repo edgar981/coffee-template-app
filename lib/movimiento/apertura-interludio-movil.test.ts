@@ -28,7 +28,7 @@ function sinImagenes(html: string): string {
 // ─── APERTURA (T06) ──────────────────────────────────────────────────────────────────────────────
 
 test('Apertura: el título gigante sigue anclado por `.sf-movimiento-gigante` — el ancla que `t06()` busca con `querySelector`', () => {
-  const html = renderToStaticMarkup(React.createElement(Apertura, { titulo: 'FINCA SAN ADOLFO' }));
+  const html = renderToStaticMarkup(React.createElement(Apertura, { seccion: 'tiendaEncabezado', titulo: 'FINCA SAN ADOLFO' }));
   assert.ok(
     html.includes('class="sf-movimiento-gigante'),
     'sin este marcador, t06() (animaciones.ts) devuelve null y no hay nada que animar',
@@ -36,7 +36,7 @@ test('Apertura: el título gigante sigue anclado por `.sf-movimiento-gigante` �
 });
 
 test('Apertura: `Movimiento` monta SIEMPRE su wrapper alrededor del título — el nodo donde `force3D` necesita que el `ScrollTrigger` ate su `trigger`', () => {
-  const html = renderToStaticMarkup(React.createElement(Apertura, { titulo: 'FINCA SAN ADOLFO' }));
+  const html = renderToStaticMarkup(React.createElement(Apertura, { seccion: 'tiendaEncabezado', titulo: 'FINCA SAN ADOLFO' }));
   // El wrapper de `as="div"` sin className propio (Apertura no le pasa uno) — un <div> liso
   // envolviendo el <h1>, nunca el <h1> suelto como hijo directo de la sección.
   assert.match(
@@ -47,7 +47,7 @@ test('Apertura: `Movimiento` monta SIEMPRE su wrapper alrededor del título — 
 });
 
 test('Apertura: el wrapper de Movimiento es BYTE-IDÉNTICO en preview y fuera de preview — el motor sólo decide SI corre GSAP, nunca si el nodo existe', () => {
-  const props = { titulo: 'FINCA SAN ADOLFO' };
+  const props = { seccion: 'tiendaEncabezado', titulo: 'FINCA SAN ADOLFO' };
   const fueraDePreview = renderToStaticMarkup(React.createElement(Apertura, props));
   const enPreview = renderToStaticMarkup(
     React.createElement(PreviewProvider, { children: React.createElement(Apertura, props) }),
@@ -59,7 +59,7 @@ test('Apertura: el wrapper de Movimiento es BYTE-IDÉNTICO en preview y fuera de
 
 test('InterludioPlano: el parallax envuelve la foto en un marco (`Movimiento`, `absolute inset-0`) + una capa SOBREDIMENSIONADA (`-top-[12%] -bottom-[12%]`) que contiene la Image — el patrón exacto del prototipo aprobado (`.foto .capa{inset:-12% 0}`)', () => {
   const html = renderToStaticMarkup(
-    React.createElement(InterludioPlano, { imagen: '/images/el-cafetal.jpg', pie: 'EL CAFETAL', preview: false }),
+    React.createElement(InterludioPlano, { seccion: 'tiendaInterludio', imagen: '/images/el-cafetal.jpg', pie: 'EL CAFETAL', preview: false }),
   );
   const sinImg = sinImagenes(html);
   assert.ok(
@@ -70,14 +70,14 @@ test('InterludioPlano: el parallax envuelve la foto en un marco (`Movimiento`, `
 
 test('InterludioPlano: SIN pie, el marco de parallax sigue presente — el pie es independiente de la animación', () => {
   const html = renderToStaticMarkup(
-    React.createElement(InterludioPlano, { imagen: '/images/el-cafetal.jpg', preview: false }),
+    React.createElement(InterludioPlano, { seccion: 'tiendaInterludio', imagen: '/images/el-cafetal.jpg', preview: false }),
   );
   assert.ok(sinImagenes(html).includes('<div class="absolute inset-0"><div class="absolute inset-x-0 -top-[12%] -bottom-[12%]"><img/></div></div>'));
   assert.ok(!html.includes('bg-gradient-to-t'), 'sin pie, no se monta el degradado del pie');
 });
 
 test('InterludioPlano: el marco de Movimiento es BYTE-IDÉNTICO con y sin `PreviewProvider` — el `preview` PROP (framer-motion) y el contexto `useIsPreview` (el gate del motor GSAP) son DOS mecanismos distintos; éste afirma el del motor, manteniendo el prop fijo', () => {
-  const props = { imagen: '/images/el-cafetal.jpg', pie: 'EL CAFETAL', preview: false };
+  const props = { seccion: 'tiendaInterludio', imagen: '/images/el-cafetal.jpg', pie: 'EL CAFETAL', preview: false };
   const fueraDePreview = renderToStaticMarkup(React.createElement(InterludioPlano, props));
   const enPreviewDeEditor = renderToStaticMarkup(
     React.createElement(PreviewProvider, { children: React.createElement(InterludioPlano, props) }),

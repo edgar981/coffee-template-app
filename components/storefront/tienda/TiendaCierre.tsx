@@ -13,6 +13,7 @@ import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import { tiendaCierreVisible, botonCierre, type CierreCta } from '@/lib/tienda/tienda-cierre';
 import CierreFraseYBoton from '@/components/storefront/tienda/CierreFraseYBoton';
+import CampoEditable from '@/components/storefront/CampoEditable';
 
 const MENSAJE_WHATSAPP = 'Hola, quiero más información sobre el envío mensual.';
 
@@ -41,6 +42,8 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
         cta={cta}
         preview={preview}
         anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+        campoFrase="tiendaCierre.frase"
+        campoBoton="tiendaCierre.boton"
       />
     );
   }
@@ -69,20 +72,22 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
               general). Sin imagen, no se imita con CSS (§ la referencia): no se monta nada en su
               lugar. */}
           {tiendaCierre.franjaTejido && (
-            <div
-              className="h-10 w-full sm:h-14"
-              style={{
-                backgroundImage: `url(${tiendaCierre.franjaTejido})`,
-                backgroundRepeat: 'repeat-x',
-                backgroundSize: 'auto 100%',
-              }}
-              aria-hidden="true"
-            />
+            <CampoEditable campo="tiendaCierre.franjaTejido" tipo="imagen">
+              <div
+                className="h-10 w-full sm:h-14"
+                style={{
+                  backgroundImage: `url(${tiendaCierre.franjaTejido})`,
+                  backgroundRepeat: 'repeat-x',
+                  backgroundSize: 'auto 100%',
+                }}
+                aria-hidden="true"
+              />
+            </CampoEditable>
           )}
           {/* LA FRASE A LA IZQUIERDA, EL BOTÓN A LA DERECHA (§ el spec, item 3) — en el celular, uno
               debajo del otro. Antes: `text-center` con el botón apilado siempre debajo. */}
           <div className="flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-playfair text-xl text-[var(--sf-tinta)] sm:text-2xl">{tiendaCierre.frase}</p>
+            <p className="font-playfair text-xl text-[var(--sf-tinta)] sm:text-2xl"><CampoEditable campo="tiendaCierre.frase" multilinea>{tiendaCierre.frase}</CampoEditable></p>
             <BotonCierre cta={cta} preview={preview} />
           </div>
         </div>
@@ -103,8 +108,13 @@ export default function TiendaCierre({ whatsapp }: { whatsapp?: string } = {}) {
 function BotonCierre({ cta, preview }: { cta: CierreCta | null; preview: boolean }) {
   if (!cta) return null;
   const clase = 'sf-pildora shrink-0 cursor-pointer px-6 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] bg-[var(--sf-tinta)] text-[var(--sf-fondo)] hover:opacity-90';
+  // § EDITOR-ORDEN-Y-LIENZO-1, item 3 — `tiendaCierre.boton` es el campo que controla esta etiqueta
+  // CUANDO WhatsApp está configurado (§ T-CIE1, deuda conocida: sin número, `botonCierre()` la
+  // reemplaza por "Ver suscripciones" y el click-to-edit abriría un campo que no es el texto a la
+  // vista — el mismo caveat que ya documenta T-CIE1, no corregido por este slice).
+  const label = <CampoEditable campo="tiendaCierre.boton">{cta.label}</CampoEditable>;
   if (cta.href.startsWith('/')) {
-    return <Link href={cta.href} className={clase}>{cta.label}</Link>;
+    return <Link href={cta.href} className={clase}>{label}</Link>;
   }
   return (
     <a
@@ -113,7 +123,7 @@ function BotonCierre({ cta, preview }: { cta: CierreCta | null; preview: boolean
       rel="noreferrer"
       className={clase}
     >
-      {cta.label}
+      {label}
     </a>
   );
 }

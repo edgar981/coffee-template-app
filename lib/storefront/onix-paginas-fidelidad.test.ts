@@ -40,7 +40,7 @@ function conSeccion<K extends keyof SiteContentData>(key: K, over: Partial<SiteC
 // wrapper que `Apertura.tsx` ya NO pide (`Movimiento id={quieto ? undefined : 'T06'}`).
 
 test('Apertura: quieto=true quita el wrapper de Movimiento T06 — un <div> menos, mismo título', () => {
-  const props = { titulo: 'CADA MES', rotuloIzquierda: 'IZQ', rotuloDerecha: 'DER' };
+  const props = { seccion: 'tiendaEncabezado', titulo: 'CADA MES', rotuloIzquierda: 'IZQ', rotuloDerecha: 'DER' };
   const conMovimiento = renderToStaticMarkup(React.createElement(Apertura, props));
   const quieto = renderToStaticMarkup(React.createElement(Apertura, { ...props, quieto: true }));
 

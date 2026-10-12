@@ -43,6 +43,7 @@ export default function NosotrosApertura({ negocio }: { negocio?: string }) {
 
   return (
     <Apertura
+      seccion="nosotrosApertura"
       imagen={nosotrosApertura.imagen}
       rotuloIzquierda={nosotrosApertura.rotuloIzquierda}
       rotuloDerecha={nosotrosApertura.rotuloDerecha}

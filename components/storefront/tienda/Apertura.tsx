@@ -13,6 +13,7 @@
 // pieza) y qué `alto` usar.
 import Image from 'next/image';
 import Movimiento from '@/components/storefront/movimiento/Movimiento';
+import CampoEditable, { HuecoImagenOpcional } from '@/components/storefront/CampoEditable';
 
 /** El alto de /tienda (§ TIENDA-ONIX-CARTELERA-1, la forma C aprobada) — el DEFAULT de esta pieza,
  *  para que /tienda siga pidiendo exactamente lo de siempre sin declarar el literal en su propio
@@ -21,6 +22,11 @@ import Movimiento from '@/components/storefront/movimiento/Movimiento';
 const ALTO_POR_DEFECTO = 'h-[85vh] min-h-[480px]';
 
 export interface AperturaProps {
+  /** El prefijo de sección de los campos editables ("tiendaEncabezado", "suscripcionApertura",
+   *  "nosotrosApertura") — § EDITOR-ORDEN-Y-LIENZO-1, item 3: cada llamador monta esta pieza con SU
+   *  PROPIO contenido, nunca el de otra sección (ver el docstring de cabecera), así que el campo
+   *  editable tiene que apuntar a la sección correcta en cada caso. */
+  seccion: string;
   imagen?: string;
   rotuloIzquierda?: string;
   rotuloDerecha?: string;
@@ -42,25 +48,27 @@ export interface AperturaProps {
 }
 
 export default function Apertura({
-  imagen, rotuloIzquierda, rotuloDerecha, titulo, alto = ALTO_POR_DEFECTO, quieto = false,
+  seccion, imagen, rotuloIzquierda, rotuloDerecha, titulo, alto = ALTO_POR_DEFECTO, quieto = false,
 }: AperturaProps) {
   return (
     <section className={`relative flex ${alto} w-full flex-col overflow-hidden bg-[var(--sf-tinta)]`}>
-      {imagen && (
+      {imagen ? (
         <>
           {/* QUALITY 85 (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1, el pedido del owner del 2026-10-11:
               "The current ones don't look in HD quality") — antes sin `quality` propio (default 75
               de `next/image`), igual que el riel de Presentaciones antes de `quality={90}`
               (`GrindChooserRiel.tsx`). `85` ya está en `next.config.ts` → `images.qualities`. */}
-          <Image
-            src={imagen}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            quality={85}
-            className="object-cover"
-          />
+          <CampoEditable campo={`${seccion}.imagen`} tipo="imagen">
+            <Image
+              src={imagen}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              quality={85}
+              className="object-cover"
+            />
+          </CampoEditable>
           {/* EL VELO (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3 — "section colors") — la maqueta
               oscurece hasta 35% abajo (`rgba(16,36,7,.35)` = tinta al 35%), no 80%: antes el degradé
               llegaba a tinta/80 y se veía más oscuro y más verde de lo aprobado. `color-mix` en vez
@@ -70,14 +78,19 @@ export default function Apertura({
               exactos — `color-mix` deriva el 35% de LA TINTA DEL TENANT, nunca un hex fijo de Onix. */}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18),transparent_30%,color-mix(in_srgb,var(--sf-tinta)_35%,transparent)_100%)]" />
         </>
+      ) : (
+        // § EDITOR-ORDEN-Y-LIENZO-1, item 3 (mismo patrón que `HuecoImagenOpcional`) — sin foto no
+        // hay NINGÚN nodo donde clickear para agregar la primera; en modo editor se ofrece el hueco
+        // "+ Agregar foto" sobre el fondo tinta llana de siempre.
+        <HuecoImagenOpcional campo={`${seccion}.imagen`} className="absolute inset-0" />
       )}
 
       {(rotuloIzquierda || rotuloDerecha) && (
         // CREMA PLENA (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 3): la maqueta pinta los rótulos de
         // esquina al 100% de opacidad; antes iban a `/60`, que los dejaba apagados contra la foto.
         <div className="relative z-10 flex items-start justify-between px-6 pt-8 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--sf-fondo)] sm:px-10">
-          <span>{rotuloIzquierda}</span>
-          <span>{rotuloDerecha}</span>
+          <span>{rotuloIzquierda && <CampoEditable campo={`${seccion}.rotuloIzquierda`}>{rotuloIzquierda}</CampoEditable>}</span>
+          <span>{rotuloDerecha && <CampoEditable campo={`${seccion}.rotuloDerecha`}>{rotuloDerecha}</CampoEditable>}</span>
         </div>
       )}
 
@@ -101,7 +114,7 @@ export default function Apertura({
                 : 'sf-movimiento-gigante select-none whitespace-nowrap font-playfair text-[clamp(60px,14vw,220px)] uppercase leading-[0.82] text-[var(--sf-fondo)]'
             }
           >
-            {titulo}
+            <CampoEditable campo={`${seccion}.titulo`}>{titulo}</CampoEditable>
           </h1>
         </Movimiento>
       </div>

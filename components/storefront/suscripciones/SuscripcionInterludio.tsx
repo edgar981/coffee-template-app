@@ -22,6 +22,7 @@ export default function SuscripcionInterludio() {
   if (!suscripcionInterludio.imagen) return null;
   return (
     <InterludioPlano
+      seccion="suscripcionInterludio"
       imagen={suscripcionInterludio.imagen}
       pie={suscripcionInterludio.pie}
       preview={preview}

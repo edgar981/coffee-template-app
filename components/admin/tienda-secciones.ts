@@ -295,7 +295,13 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
 // ej. `tiendaEncabezado.sticker`, que `tiendaProducto` también lee bajo «Lámina abierta»): plegar
 // ahí escondería un campo que SÍ puede tener efecto por la otra sección — esos casos se corrigen con
 // el `hint`, no con esta etiqueta (§ CLAUDE.md, el criterio de la auditoría item 5).
-export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; deslizadorPasos?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean; composiciones?: string[] };
+// `condicion` (§ EDITOR-ORDEN-Y-LIENZO-1, item 4): un campo que hoy NO se ve en la tienda por el
+// ESTADO DE LOS DATOS (no por la composición activa, que ya cubre `composiciones` arriba) declara
+// la razón como una clave de un SET CERRADO — nunca una función (el config cruza server→client como
+// prop, serializable, mismo criterio que `opcionesDinamicas`/`seMuestraSiCampo`). El mecanismo vive
+// en `lib/admin/editor-orden-y-lienzo.ts` (`condicionCampoInactiva`), evaluado contra el catálogo
+// real que el panel ya carga.
+export type CampoTexto = { name: string; label: string; opcional?: boolean; textarea?: boolean; categoria?: boolean; producto?: boolean; mostrarEjes?: boolean; tituloDe?: string; opciones?: { value: string; label: string; hint?: string }[]; transicionMarquesina?: boolean; deslizadorPasos?: boolean; opcionesDinamicas?: 'destaquePlanes'; placeholder?: string; hint: string; seccionCruzada?: SeccionVista; numero?: boolean; composiciones?: string[]; condicion?: 'molienda-multiple' };
 // `opcional` (§ HISTORIA-COMO-MUESTRARIO-1): la foto puede QUITARSE (vaciar el campo), no sólo
 // "Cambiar" o volver a su valor "Por defecto". Ausente/`false` = REQUERIDA — sin botón de quitar,
 // como hoy (`imagen1` de brandStory, `imagen1/2` de presentaciones, el hero…): vaciar el ÚNICO
@@ -1292,12 +1298,18 @@ const NOSOTROS_HISTORIA: SeccionConfig = {
   composiciones: OPCIONES_COMPOSICION_NOSOTROS_HISTORIA,
   imagenes: [{ name: 'imagen', label: 'Imagen (opcional)' }],
   campos: [
+    // § EDITOR-ORDEN-Y-LIENZO-1 — `titulo`/`parrafo2`/`parrafo3` SÓLO los lee `NosotrosHistoriaRelato.
+    // tsx`; `retratoNombre` SÓLO `NosotrosHistoriaSinopsis.tsx` (medido contra los dos componentes).
+    // Sin `composiciones`, los cuatro se mostraban bajo LAS DOS composiciones — el mismo defecto de
+    // clase que disparó este slice (S1/SC1): un campo de la OTRA composición queda a la vista donde
+    // la tienda real nunca lo pinta. `eyebrow`/`parrafo1` SÍ aplican a las dos (los dos componentes
+    // los leen, con otro layout) y se quedan sin tag.
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título ("Relato") o el rótulo "Sinopsis" ("Sinopsis partida"). Vacío: no se muestra.' },
-    { name: 'titulo',   label: 'Título',         hint: 'Sólo tiene efecto con la composición "Relato". Vacío: se usa el texto por defecto.' },
+    { name: 'titulo',   label: 'Título',         composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: se usa el texto por defecto.' },
     { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Con "Sinopsis partida" es el ÚNICO párrafo que se muestra (hasta 3 frases). Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
-    { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
-    { name: 'retratoNombre', label: 'Nombre del caficultor', opcional: true, hint: 'Sólo con la composición "Sinopsis partida": el pie del retrato, "[NOMBRE] · CAFICULTOR". Vacío: el retrato no lleva pie.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
+    { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
+    { name: 'retratoNombre', label: 'Nombre del caficultor', opcional: true, composiciones: ['sinopsis'], hint: 'Sólo con la composición "Sinopsis partida": el pie del retrato, "[NOMBRE] · CAFICULTOR". Vacío: el retrato no lleva pie.' },
   ],
 };
 
@@ -1491,12 +1503,17 @@ const ZONAS_SUSCRIPCION_PLANES_TARJETAS: ZonaComposicion[] = [
   { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'], label: 'Encabezado' },
   { campos: ['planesTitulo', 'planesSubtitulo', 'ctaLabel', 'destacadoSlot'], label: 'Planes' },
 ];
+// § EDITOR-ORDEN-Y-LIENZO-1 — REORDENADAS igual que `campos` (arriba): el orden real de la página
+// (rótulo → bolsas → frecuencias → molienda → referencia → botón → aviso → créditos → barra fija).
+// "Botón de pedido" se partió en dos zonas (el botón propiamente, y el aviso con la barra fija) para
+// que "Créditos del trato" quede en SU posición real, entre medio — no al final.
 const ZONAS_SUSCRIPCION_PLANES_TAQUILLA: ZonaComposicion[] = [
   { campos: ['taquillaKicker'], label: 'Encabezado' },
-  { campos: ['maxBolsas', 'frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4', 'taquillaEtiquetaBolsas', 'taquillaEtiquetaFrecuencia', 'taquillaEtiquetaMolienda'], label: 'Bolsas y frecuencias' },
+  { campos: ['taquillaEtiquetaBolsas', 'maxBolsas', 'taquillaEtiquetaFrecuencia', 'frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4', 'taquillaEtiquetaMolienda'], label: 'Bolsas y frecuencias' },
   { campos: ['taquillaReferenciaTexto'], label: 'Referencia de precio' },
+  { campos: ['taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso'], label: 'Botón de pedido' },
   { campos: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'], label: 'Créditos del trato' },
-  { campos: ['taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso', 'taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'], label: 'Botón de pedido' },
+  { campos: ['taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'], label: 'Barra fija (celular)' },
 ];
 const OPCIONES_COMPOSICION_SUSCRIPCION_PLANES: ComposicionOpcion[] = REGISTRY.suscripcionPlanes.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_SUSCRIPCION_PLANES[v] ?? v,
@@ -1548,15 +1565,37 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { name: 'nombre4',      label: 'Nombre',      opcional: true, composiciones: ['tarjetas'], hint: 'Vacío: este plan no se muestra.' },
     { name: 'descripcion4', label: 'Descripción', opcional: true, textarea: true, composiciones: ['tarjetas'], hint: 'Cantidad y frecuencia. Vacío: no se muestra.' },
     { name: 'precio4',      label: 'Precio',      opcional: true, placeholder: '$ 45.000/mes', composiciones: ['tarjetas'], hint: 'Opcional, como TEXTO, p. ej. «$ 45.000/mes». Vacío: no se muestra.' },
-    // § ONIX-SUSCRIPCION-TAQUILLA-1 — SÓLO tienen efecto bajo la composición "Taquilla".
+    // § EDITOR-ORDEN-Y-LIENZO-1 (item 1 del spec) — REORDENADOS para que el orden del editor siga el
+    // orden REAL de `SuscripcionTaquilla.tsx` (rótulo superior → tabla → «Bolsas» y su máximo → «Cada»
+    // y las frecuencias → molienda → referencia de precio → botón y su texto de agotado → aviso →
+    // créditos → barra fija). Antes `credito1-4` vivían ANTES de `taquillaCtaLabel`/`taquillaAviso`/
+    // la barra fija, cuando en la página los créditos se ven DESPUÉS del botón y su aviso — el defecto
+    // que disparó este slice (el owner: "los créditos ocupan todo el espacio" era además un síntoma
+    // del desorden, no sólo del pliegue). § ONIX-SUSCRIPCION-TAQUILLA-1 — SÓLO tienen efecto bajo la
+    // composición "Taquilla". Los nueve textos con DEFAULT (§ EDITOR-COMPOSICION-CAMPOS-1, item 3 de
+    // ese spec) no cambiaron de REQUERIDO ni de valor — sólo de POSICIÓN en este array.
+    { name: 'taquillaKicker', label: 'Encabezado', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". La línea sobre el nombre del producto. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaEtiquetaBolsas', label: 'Etiqueta de la fila "Bolsas"', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
     { name: 'maxBolsas', label: 'Máximo de bolsas', opciones: OPCIONES_MAX_BOLSAS, composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Cuántas bolsas puede pedir el cliente, de 1 a este número.' },
+    { name: 'taquillaEtiquetaFrecuencia', label: 'Etiqueta de la fila de frecuencia', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Ej. "Cada". Vacío: se usa el texto por defecto.' },
     { name: 'frecuencia1', label: 'Frecuencia', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Ej. "15 días". Vacío: se usa el texto por defecto.' },
     { name: 'frecuencia2', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
     { name: 'frecuencia3', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
     { name: 'frecuencia4', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'taquillaEtiquetaMolienda', label: 'Etiqueta de la fila de molienda', composiciones: ['taquilla'], condicion: 'molienda-multiple',
+      hint: 'Sólo con la composición "Taquilla", y sólo si el producto ofrece elegir molienda. Vacío: se usa el texto por defecto.' },
     { name: 'taquillaReferenciaTexto', label: 'Referencia de precio', opcional: true, textarea: true, composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Reemplaza el cálculo automático ("Referencia: 2 × $20.000, precio de tienda por bolsa"). Vacío: se usa el cálculo automático.' },
+    { name: 'taquillaCtaLabel', label: 'Botón de pedido', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". El botón que abre WhatsApp con el pedido armado. Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaCtaAgotadoLabel', label: 'Botón cuando está agotado', composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
+    { name: 'taquillaAviso', label: 'Aviso bajo el botón', textarea: true, composiciones: ['taquilla'],
+      hint: 'Sólo con la composición "Taquilla". La aclaración de que no se cobra nada en la tienda. Vacío: se usa el texto por defecto.' },
     { name: 'credito1Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Ej. "Pedido". Vacío: se usa el texto por defecto.' },
     { name: 'credito1Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Ej. "Por WhatsApp". Vacío: se usa el texto por defecto.' },
     { name: 'credito2Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
@@ -1565,25 +1604,6 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { name: 'credito3Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'credito4Etiqueta', label: 'Rótulo', composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'credito4Valor',    label: 'Valor',  composiciones: ['taquilla'], hint: 'Vacío: se usa el texto por defecto.' },
-    // § EDITOR-COMPOSICION-CAMPOS-1 (item 3 del spec) — los textos que `SuscripcionTaquilla.tsx`
-    // tenía FIJOS en código, ahora campos de `suscripcionPlanes` con esos mismos textos como
-    // DEFAULT (§ site-content-defaults.ts), así que /suscripciones de Onix sirve byte-idéntica.
-    // Todos REQUERIDOS (vacío → default): son micro-copy que siempre debe decir algo, nunca
-    // desaparecer a medias (un botón sin texto es peor que uno con el texto de siempre).
-    { name: 'taquillaKicker', label: 'Encabezado', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". La línea sobre el nombre del producto. Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaEtiquetaBolsas', label: 'Etiqueta de la fila "Bolsas"', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaEtiquetaFrecuencia', label: 'Etiqueta de la fila de frecuencia', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". Ej. "Cada". Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaEtiquetaMolienda', label: 'Etiqueta de la fila de molienda', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla", y sólo si el producto ofrece elegir molienda. Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaCtaLabel', label: 'Botón de pedido', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". El botón que abre WhatsApp con el pedido armado. Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaCtaAgotadoLabel', label: 'Botón cuando está agotado', composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". Vacío: se usa el texto por defecto.' },
-    { name: 'taquillaAviso', label: 'Aviso bajo el botón', textarea: true, composiciones: ['taquilla'],
-      hint: 'Sólo con la composición "Taquilla". La aclaración de que no se cobra nada en la tienda. Vacío: se usa el texto por defecto.' },
     { name: 'taquillaBarraCtaLabel', label: 'Botón de la barra fija (celular)', composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla", en celular. Vacío: se usa el texto por defecto.' },
     { name: 'taquillaBarraAgotadoLabel', label: 'Etiqueta "agotado" (barra fija, celular)', composiciones: ['taquilla'],
@@ -1604,15 +1624,21 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { tipo: 'lista', slots: ['ben3_1', 'ben3_2', 'ben3_3', 'ben3_4'], itemLabel: 'beneficio', composiciones: ['tarjetas'] },
     { tipo: 'tarjeta', slot: 4, titulo: 'Plan 4 (opcional)', campos: ['nombre4', 'descripcion4', 'precio4'] },
     { tipo: 'lista', slots: ['ben4_1', 'ben4_2', 'ben4_3', 'ben4_4'], itemLabel: 'beneficio', composiciones: ['tarjetas'] },
-    // § ONIX-SUSCRIPCION-TAQUILLA-1 — sólo con la composición "Taquilla".
-    { tipo: 'seccion', campos: ['taquillaKicker', 'maxBolsas'] },
+    // § EDITOR-ORDEN-Y-LIENZO-1 (item 1 del spec) — REORDENADOS para que el orden del editor siga el
+    // orden REAL de `SuscripcionTaquilla.tsx`: rótulo → tabla (dato vivo, sin bloque) → «Bolsas» y su
+    // máximo → «Cada» y las frecuencias → molienda → referencia de precio → botón y su texto de
+    // agotado → aviso → créditos → barra fija. Antes "Crédito 1-4" vivían ANTES del botón/aviso/la
+    // barra fija —el defecto medido que disparó este slice—, cuando en la página se ven DESPUÉS.
+    { tipo: 'seccion', campos: ['taquillaKicker', 'taquillaEtiquetaBolsas', 'maxBolsas'] },
+    { tipo: 'seccion', campos: ['taquillaEtiquetaFrecuencia'] },
     { tipo: 'lista', slots: ['frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], itemLabel: 'frecuencia', hint: 'De 1 a 4. La lista se cierra sin huecos.' },
-    { tipo: 'seccion', campos: ['taquillaReferenciaTexto'] },
+    { tipo: 'seccion', campos: ['taquillaEtiquetaMolienda', 'taquillaReferenciaTexto'] },
+    { tipo: 'seccion', campos: ['taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso'] },
     { tipo: 'tarjeta', slot: 1, titulo: 'Crédito 1', campos: ['credito1Etiqueta', 'credito1Valor'] },
     { tipo: 'tarjeta', slot: 2, titulo: 'Crédito 2', campos: ['credito2Etiqueta', 'credito2Valor'] },
     { tipo: 'tarjeta', slot: 3, titulo: 'Crédito 3', campos: ['credito3Etiqueta', 'credito3Valor'] },
     { tipo: 'tarjeta', slot: 4, titulo: 'Crédito 4', campos: ['credito4Etiqueta', 'credito4Valor'] },
-    { tipo: 'seccion', campos: ['taquillaEtiquetaBolsas', 'taquillaEtiquetaFrecuencia', 'taquillaEtiquetaMolienda', 'taquillaCtaLabel', 'taquillaCtaAgotadoLabel', 'taquillaAviso', 'taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'] },
+    { tipo: 'seccion', campos: ['taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'] },
   ],
 };
 

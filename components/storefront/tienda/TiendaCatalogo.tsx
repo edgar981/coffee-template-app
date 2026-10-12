@@ -10,6 +10,7 @@ import { getCatalog } from '@/lib/api/products';
 import { categoriasDelCatalogo, catalogoTieneTostado } from '@/lib/productos/categorias';
 import type { Product, RoastLevel } from '@/types/product';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import CampoEditable from '@/components/storefront/CampoEditable';
 import FiltrarOrdenar from '@/components/storefront/tienda/FiltrarOrdenar';
 import TiendaLaminas from '@/components/storefront/tienda/TiendaLaminas';
 import TiendaTaquilla from '@/components/storefront/tienda/TiendaTaquilla';
@@ -225,8 +226,8 @@ function CatalogoLegacy() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20">
           <Search aria-hidden="true" className="w-10 h-10 text-[var(--sf-tostado-2)] mx-auto mb-3" />
-          <p className="font-medium text-[var(--sf-tinta)] mb-1">{tiendaCatalogo.vacioTitulo}</p>
-          <p className="text-sm text-[var(--sf-texto-suave)]">{tiendaCatalogo.vacioTexto}</p>
+          <p className="font-medium text-[var(--sf-tinta)] mb-1"><CampoEditable campo="tiendaCatalogo.vacioTitulo">{tiendaCatalogo.vacioTitulo}</CampoEditable></p>
+          <p className="text-sm text-[var(--sf-texto-suave)]"><CampoEditable campo="tiendaCatalogo.vacioTexto">{tiendaCatalogo.vacioTexto}</CampoEditable></p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -348,8 +349,8 @@ function CatalogoCorte() {
       ) : filtered.length === 0 ? (
         <div className="py-20 text-center">
           <Search aria-hidden="true" className="mx-auto mb-3 h-10 w-10 text-[var(--sf-texto-suave)]" />
-          <p className="mb-1 font-medium text-[var(--sf-tinta)]">{tiendaCatalogo.vacioTitulo}</p>
-          <p className="text-sm text-[var(--sf-texto-suave)]">{tiendaCatalogo.vacioTexto}</p>
+          <p className="mb-1 font-medium text-[var(--sf-tinta)]"><CampoEditable campo="tiendaCatalogo.vacioTitulo">{tiendaCatalogo.vacioTitulo}</CampoEditable></p>
+          <p className="text-sm text-[var(--sf-texto-suave)]"><CampoEditable campo="tiendaCatalogo.vacioTexto">{tiendaCatalogo.vacioTexto}</CampoEditable></p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">

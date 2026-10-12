@@ -66,6 +66,8 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
         cta={cta}
         preview={preview}
         anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+        campoFrase="nosotrosCierre.titulo"
+        campoBoton="nosotrosCierre.ctaLabel"
       />
     );
   }

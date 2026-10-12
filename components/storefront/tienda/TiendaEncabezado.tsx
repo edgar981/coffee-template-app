@@ -9,6 +9,7 @@ import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { mostrarSelectorAntojo, pildorasAntojo } from '@/lib/tienda/antojo';
 import { lavadoLamina } from '@/lib/tienda/laminas';
 import Apertura from '@/components/storefront/tienda/Apertura';
+import CampoEditable from '@/components/storefront/CampoEditable';
 import type { TiendaEncabezadoContent } from '@/lib/config/site-content-defaults';
 
 // EL FALLBACK DEL TÍTULO (§ TIENDA-ONIX-CARTELERA-1): `titulo` es OPCIONAL desde este slice (ver el
@@ -69,19 +70,23 @@ export default function TiendaEncabezado({ negocio }: { negocio?: string } = {})
   // inserta un comentario `<!-- -->` de frontera de hidratación ENTRE hijos de texto adyacentes.
   // Un solo template-literal (`${conteo} · ${leyenda}`, UN hijo) lo habría hecho desaparecer —
   // byte distinto, visto fallar en el diff real antes de este fix.
+  // EL SEPARADOR " · " VA PEGADO A `conteo`, NO A `leyenda` (§ EDITOR-ORDEN-Y-LIENZO-1, item 3) —
+  // mantiene EXACTAMENTE dos hijos adyacentes (como ya exigía el comentario de arriba sobre React
+  // 19 y la frontera de hidratación), con `leyenda` ahora como su PROPIO segundo hijo —
+  // `CampoEditable` lo marca sin agregar un tercer hijo de texto que no existía antes.
   if (navTratamiento.posicion) {
     return (
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)] mb-2">{titulo}</h1>
-        <p className="text-sm text-[var(--sf-texto)]">{conteo}{` · ${tiendaEncabezado.leyenda}`}</p>
+        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)] mb-2"><CampoEditable campo="tiendaEncabezado.titulo">{titulo}</CampoEditable></h1>
+        <p className="text-sm text-[var(--sf-texto)]">{`${conteo} · `}<CampoEditable campo="tiendaEncabezado.leyenda">{tiendaEncabezado.leyenda}</CampoEditable></p>
       </motion.div>
     );
   }
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-      <h1 className="text-4xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-2">{titulo}</h1>
-      <p className="text-[var(--sf-sobre-superficie,var(--sf-texto))] text-sm">{conteo}{` · ${tiendaEncabezado.leyenda}`}</p>
+      <h1 className="text-4xl font-playfair text-[var(--sf-sobre-superficie,var(--sf-tinta))] mb-2"><CampoEditable campo="tiendaEncabezado.titulo">{titulo}</CampoEditable></h1>
+      <p className="text-[var(--sf-sobre-superficie,var(--sf-texto))] text-sm">{`${conteo} · `}<CampoEditable campo="tiendaEncabezado.leyenda">{tiendaEncabezado.leyenda}</CampoEditable></p>
     </motion.div>
   );
 }
@@ -108,23 +113,23 @@ function TiendaCarta({
             DISEÑO para el texto por defecto («nuestros tres cafés»), no una regla que pise lo que el
             dueño escribe — con la clase puesta, un título guardado en mayúscula ("Nuestros tres
             cafés") se seguía viendo en minúscula, contra lo que el dueño tecleó y publicó. */}
-        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)]">{tiendaEncabezado.titulo}</h1>
+        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)]"><CampoEditable campo="tiendaEncabezado.titulo">{tiendaEncabezado.titulo}</CampoEditable></h1>
         {tiendaEncabezado.sticker && (
           <span
             className="sf-pildora bg-[var(--sf-tostado)] text-[var(--sf-tinta)] text-xs font-semibold px-3 py-1 rotate-[-8deg] mt-1"
             aria-hidden="true"
           >
-            {tiendaEncabezado.sticker}
+            <CampoEditable campo="tiendaEncabezado.sticker">{tiendaEncabezado.sticker}</CampoEditable>
           </span>
         )}
       </div>
       {tiendaEncabezado.intro && (
-        <p className="mt-3 max-w-xl text-[var(--sf-texto)]">{tiendaEncabezado.intro}</p>
+        <p className="mt-3 max-w-xl text-[var(--sf-texto)]"><CampoEditable campo="tiendaEncabezado.intro" multilinea>{tiendaEncabezado.intro}</CampoEditable></p>
       )}
 
       {mostrarSelector && pildoras.length > 0 && (
         <div className="mt-6">
-          <p className="text-sm font-medium text-[var(--sf-texto)] mb-3">{tiendaEncabezado.antojoTitulo}</p>
+          <p className="text-sm font-medium text-[var(--sf-texto)] mb-3"><CampoEditable campo="tiendaEncabezado.antojoTitulo">{tiendaEncabezado.antojoTitulo}</CampoEditable></p>
           <div className="flex flex-wrap gap-2">
             {pildoras.map((p) => (
               // `sf-pildora-real` (§ TIENDA-CHAMISAS-AJUSTES-1, item 5), NO `sf-pildora`: éstas son
@@ -184,6 +189,7 @@ function TiendaApertura({
 
   return (
     <Apertura
+      seccion="tiendaEncabezado"
       imagen={tiendaEncabezado.imagen}
       rotuloIzquierda={tiendaEncabezado.rotuloIzquierda}
       rotuloDerecha={tiendaEncabezado.rotuloDerecha}

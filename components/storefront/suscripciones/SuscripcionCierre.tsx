@@ -30,6 +30,8 @@ export default function SuscripcionCierre() {
       cta={cta}
       preview={preview}
       anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+      campoFrase="suscripcionCierre.frase"
+      campoBoton="suscripcionCierre.ctaLabel"
     />
   );
 }

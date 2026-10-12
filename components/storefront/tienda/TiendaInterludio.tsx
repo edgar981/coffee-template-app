@@ -10,6 +10,7 @@ import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import InterludioPlano from '@/components/storefront/tienda/InterludioPlano';
+import CampoEditable from '@/components/storefront/CampoEditable';
 
 export default function TiendaInterludio() {
   const { tiendaInterludio, navTratamiento } = useSiteContent();
@@ -24,7 +25,7 @@ export default function TiendaInterludio() {
   // micro-mayúsculas; SIN el arco ni la cita atribuida de «Retrato y cita». PIEZA COMPARTIDA
   // (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1): vive en `InterludioPlano.tsx`, presentacional.
   if (tiendaInterludio.variante === 'plano') {
-    return <InterludioPlano imagen={tiendaInterludio.imagen} pie={tiendaInterludio.pie} preview={preview} />;
+    return <InterludioPlano seccion="tiendaInterludio" imagen={tiendaInterludio.imagen} pie={tiendaInterludio.pie} preview={preview} />;
   }
 
   return (
@@ -43,13 +44,15 @@ export default function TiendaInterludio() {
               antes sin `quality` propio (default 75). `85` ya está en `next.config.ts` →
               `images.qualities`. */}
           <div className="relative w-[70%] overflow-hidden rounded-t-full rounded-b-[20px]" style={{ aspectRatio: '4 / 5' }}>
-            <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" quality={85} className="object-cover" />
+            <CampoEditable campo="tiendaInterludio.imagen" tipo="imagen">
+              <Image src={tiendaInterludio.imagen} alt={tiendaInterludio.firma || ''} fill sizes="(max-width: 768px) 70vw, 30vw" quality={85} className="object-cover" />
+            </CampoEditable>
           </div>
           {tiendaInterludio.cita && (
-            <p className="mt-6 font-playfair text-2xl italic text-[var(--sf-tinta)]">&ldquo;{tiendaInterludio.cita}&rdquo;</p>
+            <p className="mt-6 font-playfair text-2xl italic text-[var(--sf-tinta)]">&ldquo;<CampoEditable campo="tiendaInterludio.cita" multilinea>{tiendaInterludio.cita}</CampoEditable>&rdquo;</p>
           )}
           {tiendaInterludio.firma && (
-            <p className="mt-3 text-sm text-[var(--sf-texto)]">— {tiendaInterludio.firma}</p>
+            <p className="mt-3 text-sm text-[var(--sf-texto)]">— <CampoEditable campo="tiendaInterludio.firma">{tiendaInterludio.firma}</CampoEditable></p>
           )}
         </div>
       </div>

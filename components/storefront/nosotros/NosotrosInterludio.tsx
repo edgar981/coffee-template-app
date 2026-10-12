@@ -23,6 +23,7 @@ export default function NosotrosInterludio() {
   if (!nosotrosInterludio.imagen) return null;
   return (
     <InterludioPlano
+      seccion="nosotrosInterludio"
       imagen={nosotrosInterludio.imagen}
       pie={nosotrosInterludio.pie}
       preview={preview}

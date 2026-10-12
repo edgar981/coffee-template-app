@@ -29,6 +29,7 @@ export default function SuscripcionApertura() {
 
   return (
     <Apertura
+      seccion="suscripcionApertura"
       imagen={suscripcionApertura.imagen}
       rotuloIzquierda={suscripcionApertura.rotuloIzquierda}
       rotuloDerecha={suscripcionApertura.rotuloDerecha}

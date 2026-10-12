@@ -26,14 +26,19 @@
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import Movimiento from '@/components/storefront/movimiento/Movimiento';
+import CampoEditable from '@/components/storefront/CampoEditable';
 
 export interface InterludioPlanoProps {
   imagen: string;
   pie?: string;
   preview: boolean;
+  /** El prefijo de sección de los campos editables ("tiendaInterludio", "suscripcionInterludio",
+   *  "nosotrosInterludio") — § EDITOR-ORDEN-Y-LIENZO-1, item 3: cada llamador monta esta pieza con
+   *  SU PROPIO contenido (ver el docstring de cabecera). */
+  seccion: string;
 }
 
-export default function InterludioPlano({ imagen, pie, preview }: InterludioPlanoProps) {
+export default function InterludioPlano({ imagen, pie, preview, seccion }: InterludioPlanoProps) {
   return (
     <motion.section
       initial={preview ? false : { opacity: 0, y: 16 }}
@@ -49,14 +54,16 @@ export default function InterludioPlano({ imagen, pie, preview }: InterludioPlan
           {/* QUALITY 85 (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1, el pedido del owner del 2026-10-11) —
               antes sin `quality` propio (default 75). `85` ya está en `next.config.ts` →
               `images.qualities`. */}
-          <Image
-            src={imagen}
-            alt={pie || ''}
-            fill
-            sizes="100vw"
-            quality={85}
-            className="object-cover"
-          />
+          <CampoEditable campo={`${seccion}.imagen`} tipo="imagen">
+            <Image
+              src={imagen}
+              alt={pie || ''}
+              fill
+              sizes="100vw"
+              quality={85}
+              className="object-cover"
+            />
+          </CampoEditable>
         </div>
       </Movimiento>
       {/* SIN franja de degradé (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 5/punto 7: "text-shadow
@@ -66,7 +73,7 @@ export default function InterludioPlano({ imagen, pie, preview }: InterludioPlan
         <p
           className="absolute bottom-7 left-6 z-10 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-fondo)] [text-shadow:0_1px_8px_rgba(0,0,0,0.4)] sm:left-10"
         >
-          {pie}
+          <CampoEditable campo={`${seccion}.pie`}>{pie}</CampoEditable>
         </p>
       )}
     </motion.section>

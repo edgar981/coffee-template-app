@@ -20,12 +20,13 @@
 // regresión del patrón de /tienda.
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { formatCOP } from '@duna/core/utils';
 import { normalizarOpciones } from '@duna/core/moliendas-opciones';
 import { whatsappUrl } from '@/lib/config/site';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
+import CampoEditable from '@/components/storefront/CampoEditable';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto } from '@/lib/tienda/taquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
 import {
@@ -177,7 +178,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
               cálido (tinta al 65%) — no `--sf-texto-suave` (oliva para Onix). h2: `mt-[10px]`, no
               `mt-1`(4px) — la maqueta separa el título del rótulo 10px. */}
           <p className="text-[11.5px] font-bold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/65">
-            {c.taquillaKicker}
+            <CampoEditable campo="suscripcionPlanes.taquillaKicker">{c.taquillaKicker}</CampoEditable>
           </p>
           <h2 className="mt-[10px] font-playfair text-3xl text-[var(--sf-tinta)] sm:text-4xl">{nombreProducto}</h2>
 
@@ -204,7 +205,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           ))}
 
           <FilaTaquilla
-            etiqueta={c.taquillaEtiquetaBolsas}
+            etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaBolsas">{c.taquillaEtiquetaBolsas}</CampoEditable>}
             celdas={bolsasOpciones.map((n) => ({ valor: n, label: String(n) }))}
             columnas={matriz.columnas.length}
             tipo="opcion"
@@ -212,7 +213,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
             onElegir={(n) => setBolsas(n as number)}
           />
           <FilaTaquilla
-            etiqueta={c.taquillaEtiquetaFrecuencia}
+            etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaFrecuencia">{c.taquillaEtiquetaFrecuencia}</CampoEditable>}
             celdas={frecuencias.map((f) => ({ valor: f, label: f }))}
             columnas={matriz.columnas.length}
             tipo="opcion"
@@ -221,7 +222,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           />
           {decision.modo === 'eleccion' && (
             <FilaTaquilla
-              etiqueta={c.taquillaEtiquetaMolienda}
+              etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaMolienda">{c.taquillaEtiquetaMolienda}</CampoEditable>}
               celdas={opcionesMolienda.map((o) => ({ valor: o.nombre, label: o.nombre, agotada: !o.disponible }))}
               columnas={matriz.columnas.length}
               tipo="opcion"
@@ -234,11 +235,16 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
               MEDIA · CADA MES»). El texto YA llega en mayúscula de `resumenTaquilla` — la clase sólo
               aporta la tipografía, no el case. `tracking`/`leading` (§ el spec, punto 6). */}
           <p className="mt-6 font-playfair text-2xl tracking-[0.02em] leading-[37px] tabular-nums text-[var(--sf-tinta)] sm:text-[24px]">{resumen}</p>
-          <p className="mt-1 text-[15px] text-[var(--sf-tinta)]/65">{referencia}</p>
+          <p className="mt-1 text-[15px] text-[var(--sf-tinta)]/65">
+            <CampoEditable campo="suscripcionPlanes.taquillaReferenciaTexto">{referencia}</CampoEditable>
+          </p>
 
           <div ref={botonRef} className="mt-6">
-            <BotonPedir agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} nombreProducto={nombreProducto}
-              ctaLabel={c.taquillaCtaLabel} ctaAgotadoLabel={c.taquillaCtaAgotadoLabel} />
+            <BotonPedir
+              agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} nombreProducto={nombreProducto}
+              ctaLabel={<CampoEditable campo="suscripcionPlanes.taquillaCtaLabel">{c.taquillaCtaLabel}</CampoEditable>}
+              ctaAgotadoLabel={<CampoEditable campo="suscripcionPlanes.taquillaCtaAgotadoLabel">{c.taquillaCtaAgotadoLabel}</CampoEditable>}
+            />
           </div>
           {/* «SE ENVÍA: "…"» (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4) — el mensaje EXACTO que el
               botón promete, citado tal cual con `<q>` (el navegador le pone las comillas). Antes
@@ -246,7 +252,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           <p className="mt-2 text-[13px] leading-normal text-[var(--sf-tinta)]/65">
             Se envía: <q className="text-[var(--sf-tinta)]">{mensaje}</q>
             <br />
-            {c.taquillaAviso}
+            <CampoEditable campo="suscripcionPlanes.taquillaAviso" multilinea>{c.taquillaAviso}</CampoEditable>
           </p>
 
           {creditos.length > 0 && (
@@ -270,13 +276,19 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
         // y se pasa como prop, para que `BarraFijaMovil` pueda deslizarse en vez de aparecer de
         // golpe por un remontaje.
         preview ? (
-          <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
-            ctaLabel={c.taquillaBarraCtaLabel} agotadoLabel={c.taquillaBarraAgotadoLabel} />
+          <BarraFijaMovil
+            resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
+            ctaLabel={<CampoEditable campo="suscripcionPlanes.taquillaBarraCtaLabel">{c.taquillaBarraCtaLabel}</CampoEditable>}
+            agotadoLabel={<CampoEditable campo="suscripcionPlanes.taquillaBarraAgotadoLabel">{c.taquillaBarraAgotadoLabel}</CampoEditable>}
+          />
         ) : (
           montado &&
           createPortal(
-            <BarraFijaMovil resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
-              ctaLabel={c.taquillaBarraCtaLabel} agotadoLabel={c.taquillaBarraAgotadoLabel} />,
+            <BarraFijaMovil
+              resumen={resumen} agotado={agotado} whatsapp={whatsapp} mensaje={mensaje} visible={mostrarBarra}
+              ctaLabel={<CampoEditable campo="suscripcionPlanes.taquillaBarraCtaLabel">{c.taquillaBarraCtaLabel}</CampoEditable>}
+              agotadoLabel={<CampoEditable campo="suscripcionPlanes.taquillaBarraAgotadoLabel">{c.taquillaBarraAgotadoLabel}</CampoEditable>}
+            />,
             document.body,
           )
         )
@@ -313,7 +325,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 function FilaTaquilla({
   etiqueta, celdas, columnas, activa, elegidaCategoria, onElegir, encabezado = false, tipo = 'opcion',
 }: {
-  etiqueta: string | null;
+  etiqueta: ReactNode;
   celdas: { valor: string | number; label: string; agotada?: boolean }[];
   /** El Nº de columnas de peso de la tabla de precio — la razón `1:columnas` que mantiene esta fila
    *  alineada con todas las demás (ver el docstring de arriba). */
@@ -382,8 +394,8 @@ function BotonPedir({
   whatsapp?: string;
   mensaje: string;
   nombreProducto: string;
-  ctaLabel: string;
-  ctaAgotadoLabel: string;
+  ctaLabel: ReactNode;
+  ctaAgotadoLabel: ReactNode;
 }) {
   if (!whatsapp) return null; // § el spec, item 2: "Si no hay número de WhatsApp, el botón no aparece"
   // 52PX / 700 / .10em / RADIO 2px (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — `rounded-[2px]`
@@ -428,8 +440,8 @@ function BarraFijaMovil({
   whatsapp?: string;
   mensaje: string;
   visible: boolean;
-  ctaLabel: string;
-  agotadoLabel: string;
+  ctaLabel: ReactNode;
+  agotadoLabel: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
 

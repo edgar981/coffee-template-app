@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef, Fragment } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Upload, Plus, ImageIcon, X, Film, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { useAutoguardado } from '@/hooks/useAutoguardado';
@@ -39,6 +40,7 @@ import { aplicaAComposicion, particionarBloques, tituloPlegado } from '@/lib/adm
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
+import { condicionCampoInactiva, resumenBloqueTarjeta } from '@/lib/admin/editor-orden-y-lienzo';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
@@ -578,6 +580,17 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     setExpandidos(prev => { const n = new Set(prev); n.delete(slot); return n; });
   };
 
+  // ── EL ACORDEÓN GENÉRICO de tarjetas repetidas, FUERA de Presentaciones (§ EDITOR-ORDEN-Y-
+  // LIENZO-1, item 2) — «Crédito N»/«Plan N» y cualquier tarjeta repetida de otra sección. Nacen
+  // PLEGADAS mostrando un resumen (como `RepeaterEditor`), se abren de a una («Preguntas
+  // frecuentes»): clickear una CIERRA la que estaba abierta. NO es `colapsado`/`expandidos` (arriba):
+  // ésos son la pieza OPCIONAL de Presentaciones (vacía → "+ Agregar"), un mecanismo distinto que no
+  // se toca. La clave es el TÍTULO del bloque ("Plan 1", "Crédito 1") — NUNCA el `slot`: dos bloques
+  // de secciones distintas dentro de la MISMA sección pueden compartir número de slot
+  // (`EDITOR-SLOT-COLISION-PLANES-CREDITOS-1`, Plan 1/Crédito 1 ambos `slot:1`), pero sus títulos son
+  // siempre distintos — la clave por título hace la colisión imposible, sin renumerar nada.
+  const [tarjetaGenericaAbierta, setTarjetaGenericaAbierta] = useState<string | null>(null);
+
   // Muestra un error de SUBIDA: lo guarda, lo ata al CONTROL que lo disparó (si se conoce), y lo
   // anuncia con un toast (aviso flotante) — así se ve SIN hacer scroll, además de quedar junto al
   // control (§ PANEL-ERROR-SUBIDA-VISIBLE-1). El rechazo por sesión (§ esSesionVencida) suma un
@@ -997,8 +1010,8 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // debe dejarlo apuntando a un control de una sesión de edición anterior.
   // `onAbrir` (§ EDITOR-TIENDA-IFRAME-VISTA-1): abrir NO muta nada —ni autoguardado ni borrador—,
   // así que notificar al padre acá es seguro incluso si el iframe todavía no cargó.
-  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
-  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
+  const abrirEdicion = () => { setEditando(true); setExpandidos(new Set()); setTarjetaActiva(null); setTarjetaGenericaAbierta(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onAbrir?.(seccion); };
+  const cerrarEdicion = () => { auto.flush(); setEditando(false); setExpandidos(new Set()); setTarjetaActiva(null); setTarjetaGenericaAbierta(null); setMostradosLista(new Map()); setElementoActivo(null); setHeroVideoPendiente(null); setHeroSubiendoPaso(null); setHeroVideoMovilPendiente(null); setHeroMovilSubiendoPaso(null); campoActivoRef.current = null; onCerrar?.(seccion); };
 
   // EL VALOR REMOTO (iframe→lista) es SIEMPRE un string en el mensaje (§ `MensajeCampoCambio.valor`,
   // editor-puente.ts) — nunca cambia de forma para no tocar `VistaTiendaIframe.tsx`/`TiendaPaginas.
@@ -1230,7 +1243,7 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     if (!esObjetivo || cargando || deepLinkHecho.current) return;
     if (!editando) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link: abrir edición desde el enlace del aviso (sin mutar); el bloque se monta en el próximo render y el re-run scrollea. `objetivoSlot` puede ser null (sección sin tarjetas) → sin resaltar, sólo abre.
-      setEditando(true); setExpandidos(new Set()); setMostradosLista(new Map()); setTarjetaActiva(objetivoSlot);
+      setEditando(true); setExpandidos(new Set()); setMostradosLista(new Map()); setTarjetaActiva(objetivoSlot); setTarjetaGenericaAbierta(null);
       onAbrir?.(seccion); // el deep-link también desplaza el iframe compartido, como un "Editar" manual
       return;
     }
@@ -1449,6 +1462,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
     // texto propio de este editor que pudiera divergir de lo que el visitante ve.
     const productoConEjes = campo.mostrarEjes ? catalogoReal.find((p) => p.slug === value) : undefined;
     const ejesProducto = productoConEjes ? ejesSpotlight(productoConEjes) : null;
+    // § EDITOR-ORDEN-Y-LIENZO-1 (item 4) — `null` mientras el catálogo no cargó: preferir callar a
+    // afirmar sobre un dato que no se tiene, mismo criterio que `destinoInexistente`/
+    // `productoInexistente` arriba.
+    const condicionInactiva = condicionCampoInactiva(campo.condicion, catalogoReal, productosListos);
     // Rótulo POR TÍTULO: «En grano» lleva a: usando el título en vivo de la misma tarjeta.
     const tituloTarjeta = campo.tituloDe ? String(form[campo.tituloDe] ?? '').trim() : '';
     const etiqueta = campo.tituloDe && tituloTarjeta ? `«${tituloTarjeta}» lleva a:` : campo.label;
@@ -1534,6 +1551,14 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
         {ejesProducto && (
           <p className="duna-field__hint" style={{ marginBottom: 0 }}>
             → {etiquetaEjesSpotlight(ejesProducto)}
+          </p>
+        )}
+        {condicionInactiva && (
+          <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+            {condicionInactiva.mensaje}
+            {condicionInactiva.enlace && (
+              <> <Link href={condicionInactiva.enlace.href} className="duna-link">{condicionInactiva.enlace.etiqueta}</Link></>
+            )}
           </p>
         )}
         <AyudaCampo texto={campo.hint} id={`${id}-hint`} />
@@ -2207,22 +2232,82 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // contenida — el "esto está puesto" del DS aplica limpio, § doctrina) es el destino del scroll del
   // puente + el resalte. Una pieza OPCIONAL vacía NO se monta (colapsado) → se ofrece con "+ Agregar
   // tarjeta" (abajo); "Quitar" la vacía y la devuelve a esa oferta.
+  //
+  // SÓLO PRESENTACIONES usa esta forma —el puente (`bloquesRef`/`tarjetaActiva`) y el pliegue de la
+  // pieza OPCIONAL (`colapsado`) son SU mecanismo, ya tendido y probado; no se toca (§ EDITOR-ORDEN-
+  // Y-LIENZO-1, para no arriesgar lo que ya funciona). `bloquesRef` SÓLO se escribe bajo
+  // `puenteTarjetas` —antes escribía para TODA sección— que es lo que CIERRA
+  // `EDITOR-SLOT-COLISION-PLANES-CREDITOS-1`: con Plan/Crédito (u otra sección futura) nunca
+  // escribiendo ahí, dos bloques con el mismo `slot` ya no pueden pisarse en ese mapa — el único
+  // lector (el deep-link del aviso de config, arriba) ya estaba gateado igual.
   const renderBloqueTarjeta = (bloque: Extract<BloqueResuelto, { tipo: 'tarjeta' }>) => {
-    if (colapsado(bloque.slot)) return null;
-    return (
-      <div
-        ref={el => { const m = bloquesRef.current; if (el) m.set(bloque.slot, el); else m.delete(bloque.slot); }}
-        className={`bloque-tarjeta${tarjetaActiva === bloque.slot ? ' is-activo' : ''}`}
-      >
-        <div className="bloque-tarjeta__head">
-          <span className="duna-field__label">{bloque.titulo}</span>
-          {bloque.opcional && (
-            <button type="button" onClick={() => quitarTarjeta(bloque.slot)} className="duna-btn duna-btn--ghost duna-btn--sm">Quitar</button>
+    if (puenteTarjetas) {
+      if (colapsado(bloque.slot)) return null;
+      return (
+        <div
+          ref={el => { const m = bloquesRef.current; if (el) m.set(bloque.slot, el); else m.delete(bloque.slot); }}
+          className={`bloque-tarjeta${tarjetaActiva === bloque.slot ? ' is-activo' : ''}`}
+        >
+          <div className="bloque-tarjeta__head">
+            <span className="duna-field__label">{bloque.titulo}</span>
+            {bloque.opcional && (
+              <button type="button" onClick={() => quitarTarjeta(bloque.slot)} className="duna-btn duna-btn--ghost duna-btn--sm">Quitar</button>
+            )}
+          </div>
+          {bloque.imagen && renderMiniatura(bloque.imagen)}
+          {bloque.campos.length > 0 && (
+            <div className="duna-form">{bloque.campos.map(renderCampo)}</div>
           )}
         </div>
-        {bloque.imagen && renderMiniatura(bloque.imagen)}
-        {bloque.campos.length > 0 && (
-          <div className="duna-form">{bloque.campos.map(renderCampo)}</div>
+      );
+    }
+    // EL ACORDEÓN GENÉRICO (§ arriba, `tarjetaGenericaAbierta`) — «Crédito N»/«Plan N» y cualquier
+    // tarjeta repetida de otra sección: colapsada por defecto, mostrando su resumen, como
+    // `RepeaterEditor`. Clave = TÍTULO del bloque, nunca el slot (evita la colisión).
+    const abierta = tarjetaGenericaAbierta === bloque.titulo;
+    const alternar = () => setTarjetaGenericaAbierta(abierta ? null : bloque.titulo);
+    const resumen = resumenBloqueTarjeta(bloque.campos, form as Record<string, unknown>);
+    return (
+      <div className="duna-card" style={{ padding: 'var(--duna-space-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--duna-space-2)' }}>
+          <button
+            type="button"
+            onClick={alternar}
+            className="duna-btn duna-btn--ghost duna-btn--sm"
+            aria-expanded={abierta}
+            style={{ flex: 1, justifyContent: 'flex-start', minWidth: 0, textAlign: 'left' }}
+          >
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <strong>{bloque.titulo}</strong>{resumen && <span className="duna-sub"> · {resumen}</span>}
+            </span>
+          </button>
+          {bloque.opcional && (
+            <button
+              type="button"
+              onClick={() => {
+                // § EDITOR-ORDEN-Y-LIENZO-1 — a diferencia de `quitarTarjeta` (arriba, hardcodeada a
+                // los NOMBRES de Presentaciones: `label${slot}`/`copy${slot}`/…), acá se vacían los
+                // campos REALES de ESTE bloque (`bloque.campos`/`.imagen`) — cada sección tiene los
+                // suyos (`nombreN`/`descripcionN`/`precioN` en Plan N, `filaNRotulo`/… en brandStory).
+                const vacios: Record<string, string> = {};
+                for (const c of bloque.campos) vacios[c.name] = '';
+                if (bloque.imagen) vacios[bloque.imagen.name] = '';
+                cambiar(vacios);
+                if (abierta) setTarjetaGenericaAbierta(null);
+              }}
+              className="duna-btn duna-btn--ghost duna-btn--sm"
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+        {abierta && (
+          <div style={{ marginTop: 'var(--duna-space-3)' }}>
+            {bloque.imagen && renderMiniatura(bloque.imagen)}
+            {bloque.campos.length > 0 && (
+              <div className="duna-form">{bloque.campos.map(renderCampo)}</div>
+            )}
+          </div>
         )}
       </div>
     );
