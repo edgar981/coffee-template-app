@@ -61562,3 +61562,194 @@ de Nayoli). El diff SÍ cambia bytes que el OWNER lee: el panel entero — qué 
 composición, los pliegues nuevos, los hints corregidos, el aviso de fallback de la Taquilla, el aviso
 de Destacado. Sin cambio de schema/migración (los 9 campos nuevos viven en el `content: Json` de
 `SiteContent`) ni contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`.
+
+## 2026-10-12 — Fidelidad de /suscripciones y /nosotros a la maqueta aprobada: título quieto, filetes de tinta, colores, Taquilla con presentación (`ONIX-PAGINAS-FIDELIDAD-1`)
+
+Cierra la distancia que el owner reportó el 2026-10-12 contra la maqueta aprobada el 2026-10-11
+(«Taquilla mensual» / «Tres escenas»): *"I feel some elements don't match the latest design
+proposal — specifically the moving text in the /suscripciones opening section, the section
+colors, and the table line colors."* El informe de comparación (`.scratch/onix-revision/
+revision.md`, Playwright contra la maqueta y contra `cafe-onix.vercel.app`) ya traía los tres
+causales con `archivo:línea` exactos (R1 filete, R2 texto, R3 estructura, + motion + Taquilla) y
+un plan agrupado; este slice ejecuta ese plan.
+
+### Lo que cambió, por pieza compartida
+
+- **`Apertura.tsx`** gana `quieto?: boolean` (default `false`). Con `quieto`, el título NO se
+  envuelve en `<Movimiento id="T06">` (se pasa `id={undefined}`, que ya hace que esa pieza no
+  monte NINGÚN nodo propio — no se tocó `lib/movimiento/`) y queda flush-left/sangrando/sin
+  letter-spacing normal (mockup: `left:clamp(12px,1.4vw,24px); bottom:-.1em; letter-spacing:
+  -.01em`, `22vw` en móvil). `SuscripcionApertura`/`NosotrosApertura` pasan `quieto` SIEMPRE (la
+  maqueta las pide quietas); `/tienda` (vía `TiendaEncabezado`, variante `'apertura'`) NO lo pasa
+  — conserva T06 tal cual, "nadie lo pidió cambiar". El `overflow-hidden` que recortaba la tilde
+  de los acentos («CAFÉ» → «CAFE») se retiró del wrapper interno EN LAS TRES — es un defecto, no
+  parte de la decisión de movimiento. El velo pasó de `tinta/40→transparente→tinta/80` a
+  `rgba(0,0,0,.18)→transparente(30%)→tinta al 35%` (`color-mix`, deriva de la tinta del tenant,
+  nunca un hex de Onix); los rótulos de esquina de `/60` a 100% de opacidad (ámbar/crema plena,
+  como la maqueta).
+- **`NosotrosApertura`** gana el MISMO `alto` que `SuscripcionApertura` (antes caía al default de
+  /tienda, 85vh — la maqueta mide las dos aperturas iguales).
+- **`TiendaCreditos.tsx` (`CreditosFilas`)** — compartida por Taquilla/standalone/Escenas/Ficha:
+  filete de tinta al 15% (no `--sf-linea`/15, invisible para Onix) con filete ARRIBA de la
+  primera fila Y ABAJO de cada una (N+1, no N−1); dt/dd colapsan al rol único «texto principal en
+  la tinta» (no `--sf-texto-suave`, oliva para Onix); en modo `invertido` (Ficha, sobre tinta) el
+  rótulo sube de `/70` a `/80` de opacidad — crema compuesta sobre tinta sólida a ese nivel da el
+  tono salvia de la maqueta (`#C9D1C3`), sin inventar un token nuevo ni tocar la paleta.
+- **`InterludioPlano.tsx`** — alto FIJO 400px en móvil (antes `aspect-[4/5]`≈488px; escritorio sin
+  cambio, no estaba en el plan); el pie pasa de una franja de degradé a texto crema con
+  `text-shadow`, como la maqueta.
+- **`CierreFraseYBoton.tsx`** — layout centrado (`justify-center`, gap grande) en vez de
+  `justify-between`; frase a 44px (antes 36); botón uppercase 13px/600/ls.06em con `rounded-[2px]`
+  (antes `sf-pildora`, píldora — la maqueta es de esquina recta en todo su chrome de botón).
+- **`PreguntasFrecuentes.tsx` (`LetraPequena`)** — gana el rótulo fijo «Letra pequeña» (chrome de
+  la composición, no hay campo de SiteContent para un eyebrow acá); h2 a 40px (era 30, fijo);
+  padding de sección a 86px (era 64); mismos arreglos de filete que `CreditosFilas`; respuesta en
+  el rol de texto secundario.
+- **`NosotrosHistoriaSinopsis.tsx`** — filete vertical y filete inferior de la banda a tinta/15
+  (antes sin filete inferior, y el vertical en `--sf-linea`); padding de columna a 86px;
+  `object-[50%_30%]` en el retrato (antes centrado); el pie del retrato, mismo tratamiento de
+  sombra que `InterludioPlano`.
+- **`NosotrosEscenas.tsx`** — número «01» a 18px/700/ls.12em en el rol de texto secundario (era
+  14px/500); gap imagen→título a 24px (era 32); párrafo en «texto principal» (era oliva);
+  créditos a ancho completo (880px, era 576px).
+- **`NosotrosFicha.tsx`** — cifras en peso 300 (eran 400); filete de cada cifra abajo de las tres
+  (antes arriba de 2 de 3); eyebrow/rótulo de cifra al mismo `/80` salvia que `CreditosFilas`.
+
+### `SuscripcionTaquilla.tsx` + `lib/storefront/suscripcion-taquilla.ts`
+
+- **La presentación elegida ENTRA al resumen y al mensaje** (`presentacion` nuevo en
+  `ResumenTaquillaInput`/`MensajeTaquillaInput`, vía el helper `segmentoPresentacion`): antes el
+  resumen y el mensaje de WhatsApp NUNCA nombraban grano/molido — sólo bolsas/peso/molienda/
+  frecuencia. `presentacion` es `activa.categoria` tal cual (p. ej. «Café en Grano»/«Café
+  Molido»), nunca una palabra hardcodeada — la taxonomía la deriva el catálogo.
+- **Selección inicial: ÚLTIMA fila × PRIMERA columna × ÚLTIMA frecuencia configurada** (antes
+  primera fila / primera frecuencia). "Última fila" por POSICIÓN, no por el nombre "molido" — para
+  el catálogo real de Onix (2 categorías, alfabético es-CO) la última es «Café Molido», que es
+  justo lo que la maqueta preselecciona; un tenant con otra taxonomía arranca en SU última fila.
+- **La línea «Se envía: "…"»** debajo del botón, citando el mensaje EXACTO con `<q>` (antes sólo
+  se veía el aviso de "no se cobra…", el mensaje en sí era invisible).
+- **Alineación de columnas**: `FilaTaquilla` pasa de un grid plano por fila (`minmax(0,1fr)
+  repeat(N,…)`, con N = las opciones de ESA fila — por eso el ancho de la columna de etiqueta
+  cambiaba fila a fila, 153px en precio vs 115px en bolsas) a un grid de DOS niveles — exterior
+  `minmax(110px,1fr) minmax(0,columnas·fr)` (columnas = el Nº de pesos de la tabla, SIEMPRE el
+  mismo) + interior `repeat(N,minmax(0,1fr))` por fila — igual que `.taquilla`/`.fila`/`.opciones`
+  de la maqueta: la razón `1:columnas` es la misma en TODAS las filas, así que la columna de
+  etiqueta mide igual sin importar cuántas opciones tenga cada fila.
+- **Tipografía por `tipo`**: celdas de precio en serif 20px (antes sans 14px); celdas de opción
+  (bolsas/frecuencia/molienda) en sans mayúscula 13px/700/ls.12em (antes compartían la misma clase
+  sans de las celdas de precio).
+- **5fr/7fr, gap 72px, contenedor 1344px, padding de sección 72px** (antes 1:1, gap 40px,
+  960px, padding 80px) — en `SuscripcionTaquilla.tsx` y en el wrapper de `SuscripcionPlanes.tsx`.
+- **Botón "Pedir" a 52px/700/ls.10em/`rounded-[2px]`** (antes ~44px/600/ls.08em/píldora).
+
+### Lo que NO se tocó (punto 8 del plan, y el nav)
+
+Contenido pendiente del owner, sin tocar defaults ni código: `suscripcionInterludio.pie`,
+`nosotrosInterludio.pie`, `nosotrosApertura.titulo`/`rotuloDerecha`, `nosotrosHistoria.eyebrow`/
+`parrafo1`/`retratoNombre`, las filas FINCA/MUNICIPIO/TOSTIÓN de `tiendaCreditos`, y la molienda
+del producto (si «Molienda media» debe aparecer, es dato del catálogo, no código). El color del
+nav (crema vs. blanco, `StoreNav.tsx`) es global y queda fuera, como pedía el spec.
+
+### Verificación — render EN MEMORIA, contenido de Onix a mano
+
+- **`lib/storefront/suscripcion-taquilla.test.ts`**: resumen/mensaje reescritos con `presentacion`
+  en los 4 modos de molienda (ninguna/automática/elección/agotada) × grano/molido; un test NUEVO
+  renderiza `SuscripcionTaquilla` con un catálogo fixture de Onix (2×2, `lib/tienda/
+  taquilla.test.ts` como referencia) y confirma la selección inicial «Café Molido · … · Mes».
+- **`lib/storefront/letra-pequena.test.ts`**: el test que afirmaba el filete VIEJO
+  (`border-[var(--sf-linea)]/15 first:border-t-0`) se actualizó a la forma nueva; +1 test para el
+  rótulo fijo.
+- **`lib/storefront/onix-paginas-fidelidad.test.ts`** (nuevo, 233 líneas): (1) `Apertura` con/sin
+  `quieto` difieren en EXACTAMENTE un `<div>` (el wrapper de `Movimiento`) — la forma concreta de
+  "el título no lleva el marcador de movimiento"; `/tienda` vía `TiendaEncabezado` NO lleva el
+  tracking de la maqueta quieta; (2) los filetes de Taquilla/LetraPequena/Sinopsis/`CreditosFilas`
+  son tinta, cero `--sf-linea`, y el conteo N+1 de `CreditosFilas` con 3 filas da 1 `border-t` + 3
+  `border-b`; (3) byte-identidad de las OTRAS composiciones que comparten archivo —Relato, Línea,
+  Línea del Cierre (nosotrosCierre), Costura (tiendaCierre), Retrato (tiendaInterludio), Tarjetas
+  (suscripcionPlanes y suscripcionFaq)— renderizadas con `DEFAULTS` (sus canónicas) y sin ninguna
+  de las marcas nuevas de esta tanda. **Actual/Láminas** (`TiendaCatalogo.tsx`/`TiendaLaminas.tsx`)
+  se verificaron por LECTURA DE FUENTE, no por render: exigen el catálogo real por red, fuera de
+  lo que esta verificación en memoria puede ejercitar sin tocar una base — se confirmó que
+  ninguno de los dos importa `tienda/Apertura`, `tienda/InterludioPlano` ni
+  `tienda/CierreFraseYBoton`.
+- **Por qué Nayoli queda intacto, medido por CÓDIGO** (no sólo por el test runner): cada camino
+  que monta una de las 4 piezas editadas con contenido de Onix está detrás de un gate que es
+  `false`/vacío en `DEFAULTS` — `suscripcionApertura.visible`/`nosotrosApertura.visible`/
+  `suscripcionInterludio.imagen`/`nosotrosInterludio.imagen` (vacíos → hide-on-off),
+  `suscripcionCierre.frase` (vacío → hide-on-empty), `suscripcionPlanes.variante`/
+  `suscripcionFaq.variante`/`nosotrosHistoria.variante` (canónica, nunca `'taquilla'`/
+  `'letraPequena'`/`'sinopsis'`), y `tiendaCreditos`/`nosotrosFicha`/`nosotrosEscenas` (vacíos →
+  bajo el piso de `creditosVisibles`). Ningún camino de Nayoli alcanza el código tocado.
+- **`npm run verificar:nayoli:visual`**: corrido sobre el árbol final (worktree + Postgres
+  efímeros propios). Las 6 rutas DIFIEREN contra `main` — pero **MISMA CIFRA, DÍGITO A DÍGITO**,
+  que el piso heredado ya documentado por una docena de slices anteriores
+  (`NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`): `ruta:home` 165052/4608000 px (AA) · 174711 crudo,
+  caja `[105,862]–[1183,3581]`; `tienda` 209/2433280; `producto` 209/2535680; `checkout`
+  163/1152000; `nosotros` 224/1152000; `suscripciones` 258/2144000; los 2 hovers IDÉNTICOS (0 px).
+  `main` está ~400 commits de ONIX por detrás de esta rama (drift heredado, no de este commit); y
+  por código, ningún camino de Nayoli alcanza las piezas tocadas (arriba). exit 1 esperado.
+
+### El gate
+
+- **`npx tsc --noEmit`**: limpio.
+- **`npm test`**: **4509/4514** — **5 fallos, los 5 en `lib/tienda/piezas-compartidas.test.ts`**
+  (archivo FUERA de `touches:`), ver § Deviación abajo. Todo lo demás —incluidos los 157 tests de
+  `campo-editable.test.ts`/`planes-suscripcion-componente.test.ts`/`nosotros-escenas.test.ts`/
+  `nosotros-bandas.test.ts` y los 7 de `apertura-interludio-movil.test.ts` (`lib/movimiento/`, no
+  tocado)— en verde.
+- **`npm run test:integracion`**: **NO CORRIÓ** — `npm run gate` encadena con `&&`, y `npm test`
+  salió en rojo; el script no llega al carril de Postgres. Sin cambio de schema/migración en este
+  slice, así que no hay razón estructural para que ese carril fuera a fallar, pero NO se afirma en
+  verde algo que no se ejecutó.
+- **`npx next build`**: no se corrió (prohibido correr `db:deploy`, y el build de producción no es
+  parte de "Cómo lo probás" de este spec); la fase SWC ya se ejercitó indirectamente en
+  `verificar:nayoli:visual` (dos `next build` completos, main y rama, los dos "Compiled
+  successfully").
+- **`npm run verificar:nayoli:visual`**: ver arriba — RED esperado, piso heredado idéntico.
+
+### Deviación: `lib/tienda/piezas-compartidas.test.ts` (fuera de `touches:`)
+
+Ese archivo es un regression-guard de la tanda ANTERIOR (`ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1`):
+afirma que `/tienda`, montando las piezas compartidas, se ve BYTE A BYTE igual que antes de la
+extracción. Este slice cambia esas piezas A PROPÓSITO (es el encargo), así que 5 de sus
+aserciones (`apertura`, `interludioPlano`, `cierreFraseYBotonSinWhatsapp`,
+`cierreFraseYBotonConWhatsapp`, `taquilla`) ahora comparan contra el árbol VIEJO. No se tocó —el
+archivo no está en `touches:` y el protocolo pide parar, no ampliar uno mismo el alcance. Mismo
+patrón ya resuelto por el repo para `SPOTLIGHT-CABLEADO-HOME-1`/`CORTE-BADGE-COSECHA-EN-MENU-1`
+(§ DECISIONS.md): GATE_RED por un archivo de test desactualizado, no por un defecto del mecanismo
+pedido.
+
+### Open follow-ups
+
+- **`ONIX-PAGINAS-FIDELIDAD-STALE-ASSERTS-1`** — actualizar los 5 árboles "ANTES" hardcodeados de
+  `lib/tienda/piezas-compartidas.test.ts` (casos `apertura`, `interludioPlano`,
+  `cierreFraseYBotonSinWhatsapp`, `cierreFraseYBotonConWhatsapp`, `taquilla`) al HTML que las
+  piezas tocadas producen HOY (el nuevo `quieto`/filete de tinta/tipografía/grid de la Taquilla
+  son el comportamiento APROBADO, no un defecto). Cambio mecánico — reemplazar los strings
+  esperados, sin nueva lógica — necesita `touches:` propio o ampliado porque esta sesión no puede
+  tocar ese archivo. Cierra el GATE_RED de esta entrada.
+- **El punto 8 del plan** (contenido pendiente del owner: `suscripcionInterludio.pie`,
+  `nosotrosInterludio.pie`, `nosotrosApertura.titulo`/`rotuloDerecha`, el eyebrow/párrafo/nombre
+  de `nosotrosHistoria`, las filas FINCA/MUNICIPIO/TOSTIÓN de `tiendaCreditos`, y si corresponde
+  configurar la molienda del producto para que «Molienda media» aparezca en la Taquilla) — dato
+  del owner en el panel, no código.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-10-12, sobre el reporte observado
+`ONIX-SUSCRIPCION-TAQUILLA-1` y la maqueta aprobada el 2026-10-11 — "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"). `components/storefront/` entra por el subárbol ya ganado (bytes del
+visitante); `lib/storefront/suscripcion-taquilla.ts` no está en la frase canónica de Tier 1 por
+nombre, pero alimenta directo a `SuscripcionTaquilla.tsx` (bytes del visitante) y se trató con el
+mismo cuidado.
+
+### Verdict
+
+**GATE_RED.** El gate completo (`npm run gate` — `typecheck` limpio, `npm test` con 5/4514
+fallos) no cerró en verde. No es un defecto del mecanismo pedido por el spec —los cinco puntos de
+"Lo que construís" se implementaron tal cual, y las 5 fallas son la consecuencia DIRECTA y
+esperada de cambiar visualmente las piezas compartidas, medida en un archivo que vive FUERA de
+`touches:`—, pero `GATE_RED` es el verdicto que corresponde cuando el gate no cierra en verde,
+independientemente de que el diff en sí sea de bytes de cliente (que sí lo es:
+`customer_bytes.changed=true` — el storefront de ONIX, nunca el de Nayoli, § arriba). Commiteado
+en `slice/editor-secciones-1`, sin mergear.
