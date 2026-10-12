@@ -18,6 +18,8 @@ import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { navOffsetClase } from '@/lib/config/themes';
 import { whatsappUrl } from '@/lib/config/site';
 import { TENANT_ORDER_PREFIX } from '@duna/core/metrics/order-stat-filters';
+import { composicionSeguimiento } from '@/lib/checkout/composiciones-compra';
+import { formatFecha } from '@duna/core/format-fecha';
 
 interface TimelineStep {
   estado: string;
@@ -68,10 +70,16 @@ function OrderTrackingInner() {
   const searchParams = useSearchParams();
   // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
   // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
-  const { navTratamiento } = useSiteContent();
+  const { navTratamiento, compra } = useSiteContent();
   const offsetClase = navOffsetClase(navTratamiento.posicion);
   const settings = useSiteSettings();
   const tieneWhatsapp = settings.whatsapp.trim() !== '';
+
+  // COMPRA-LINEAS-ONIX-CHAMISAS-1 — el seguimiento gana una composición ELEGIBLE por tienda.
+  // `'comun'` (AUSENTE, el default) rinde EXACTAMENTE la línea de tiempo de siempre, byte-idéntico.
+  const seguimiento = composicionSeguimiento(compra.seguimiento);
+  const esEscaleta = seguimiento === 'escaleta';
+  const esAlbumSeguimiento = seguimiento === 'album';
 
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -291,6 +299,74 @@ function OrderTrackingInner() {
                       <p className="text-sm font-semibold text-[var(--sf-tinta)]">Entrega fallida</p>
                       <p className="text-xs mt-0.5 text-[var(--sf-texto-suave)]">No pudimos completar la entrega. Nuestro equipo se pondrá en contacto contigo por WhatsApp para reprogramarla.</p>
                     </div>
+                  </div>
+                </div>
+              ) : esEscaleta ? (
+                // COMPRA-LINEAS-ONIX-CHAMISAS-1 — «Escaleta» (Onix, § refero-compra.md §4): filete
+                // vertical FINO (en vez del círculo grueso + barra), estado en MAYÚSCULAS, y la
+                // fecha (la única que el seguimiento conoce — `order.createdAt` — nunca una fecha
+                // inventada por paso) con cifras TABULARES a la derecha, sólo en el paso ACTIVO.
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
+                  <div className="space-y-0">
+                    {TIMELINE.map((step, i) => {
+                      const done = i <= currentStep;
+                      const active = i === currentStep;
+                      return (
+                        <div key={step.estado} className="flex gap-4">
+                          <div className="flex flex-col items-center">
+                            <div className={`h-2 w-2 rounded-full shrink-0 ${done ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                            {i < TIMELINE.length - 1 && (
+                              <div className={`w-px flex-1 min-h-10 mt-1 ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                            )}
+                          </div>
+                          <div className={`flex items-baseline justify-between gap-3 pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
+                            <div>
+                              <p className={`text-sm font-semibold uppercase tracking-wide ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                              <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
+                            </div>
+                            {active && (
+                              <span className="shrink-0 text-xs text-[var(--sf-texto-suave)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                {formatFecha(order.createdAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : esAlbumSeguimiento ? (
+                // «Álbum» (Las Chamisas, § refero-compra.md §4): los estados CUMPLIDOS como
+                // sticker pegado (relleno, inclinado); los PENDIENTES como casilla punteada vacía.
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
+                  <div className="space-y-0">
+                    {TIMELINE.map((step, i) => {
+                      const done = i <= currentStep;
+                      const active = i === currentStep;
+                      const Icon = step.icon;
+                      return (
+                        <div key={step.estado} className="flex gap-4">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={done
+                                ? `w-9 h-9 rounded-full flex items-center justify-center shrink-0 -rotate-6 shadow-sm ${active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]'}`
+                                : 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-dashed border-[var(--sf-linea)]'}
+                            >
+                              <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
+                            </div>
+                            {i < TIMELINE.length - 1 && (
+                              <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                            )}
+                          </div>
+                          <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
+                            <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                            <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (

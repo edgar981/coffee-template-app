@@ -13,6 +13,7 @@ import MenuSeccion from '@/components/admin/MenuSeccion';
 import FooterSeccion from '@/components/admin/FooterSeccion';
 import DetallesSitioSeccion from '@/components/admin/DetallesSitioSeccion';
 import VendedorSeccion from '@/components/admin/VendedorSeccion';
+import CompraSeccion from '@/components/admin/CompraSeccion';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista, type SeccionConfig } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
@@ -1930,6 +1931,13 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                       ocultar cuando CUALQUIER OTRO nivel está activo. */}
                   <div style={nivelActivo ? { display: 'none' } : undefined}>
                     <VendedorSeccion />
+                  </div>
+                  {/* § COMPRA-LINEAS-ONIX-CHAMISAS-1 — CAMINO DE COMPRA, junto a Identidad del
+                      vendedor: mismo motivo (AUTÓNOMO, su propio borrador/publish vía el GENÉRICO
+                      `/api/site-content` con `seccion:'compra'`, no el lote de `listaPendientes()`)
+                      y la misma condición de ocultamiento. */}
+                  <div style={nivelActivo ? { display: 'none' } : undefined}>
+                    <CompraSeccion />
                   </div>
                   {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
                       la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}

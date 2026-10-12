@@ -26,6 +26,8 @@ import {
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from "@duna/core/colombia-departments";
 import { composicionCarrito } from "@/lib/storefront/carrito-drawer";
 import { vendedorEstaCompleto, lineaVendedor } from "@/lib/legal/plantillas";
+import { composicionCajon } from "@/lib/checkout/composiciones-compra";
+import { HEX6 } from "@/lib/tienda/laminas";
 
 // CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
 // prop) a propósito: § CROMO-CARRITO-TEMATIZADO-1 -- useCartStore es un CONTEXT que revienta sin
@@ -117,7 +119,12 @@ export function FraseEnvioGratis({ belowFreeShipping, threshold }: { belowFreeSh
 // fallback a `--sf-tostado`, byte-idéntico para Nayoli) -- el MISMO token que ya pinta el botón
 // "volver arriba" (`BackToTop.tsx`) y el CTA de este mismo carrito (arriba, `CartCTA`) -- NUNCA un
 // literal (§ la lección de `CORTE-MARQUESINA-VELO-1`: un color que duplica un token diverge solo).
-export function BarraEnvioGratis({ subtotal, threshold }: { subtotal: number; threshold: number | null }) {
+// `tejido` (§ COMPRA-LINEAS-ONIX-CHAMISAS-1, OPCIONAL, default `false` -- byte-idéntico sin él):
+// bajo la composición «Álbum» del cajón, la barra se lee como tejido que se completa en vez de un
+// relleno liso -- un patrón de rayas diagonales en el MISMO token de acento, sin color nuevo. La
+// transición de ancho de hoy (`transition-all duration-500`) ya ES el "tejido avanza al subir el
+// subtotal" del spec; esto sólo cambia el PATRÓN, nunca el mecanismo de movimiento.
+export function BarraEnvioGratis({ subtotal, threshold, tejido = false }: { subtotal: number; threshold: number | null; tejido?: boolean }) {
   const progreso = progresoEnvioGratis(subtotal, threshold);
   if (!progreso) return null;
   return (
@@ -125,8 +132,10 @@ export function BarraEnvioGratis({ subtotal, threshold }: { subtotal: number; th
       <p className="text-xs text-[var(--sf-texto-suave)]">{progreso.mensaje}</p>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--sf-superficie)]">
         <div
-          className="h-full rounded-full bg-[var(--sf-accion,var(--sf-tostado))] transition-all duration-500"
-          style={{ width: `${progreso.pct}%` }}
+          className={tejido ? 'h-full rounded-full transition-all duration-500' : 'h-full rounded-full bg-[var(--sf-accion,var(--sf-tostado))] transition-all duration-500'}
+          style={tejido
+            ? { width: `${progreso.pct}%`, backgroundImage: 'repeating-linear-gradient(45deg, var(--sf-accion,var(--sf-tostado)) 0, var(--sf-accion,var(--sf-tostado)) 4px, var(--sf-tostado-4,var(--sf-acento-4)) 4px, var(--sf-tostado-4,var(--sf-acento-4)) 8px)' }
+            : { width: `${progreso.pct}%` }}
         />
       </div>
     </div>
@@ -198,7 +207,16 @@ export default function CartDrawer() {
     departamento,
     setDepartamento,
   } = useCartStore();
-  const { carritoEnvio, carrito, vendedor } = useSiteContent();
+  const { carritoEnvio, carrito, vendedor, compra, tiendaCatalogo } = useSiteContent();
+
+  // COMPRA-LINEAS-ONIX-CHAMISAS-1 — el cajón gana una composición ELEGIBLE por tienda, ORTOGONAL a
+  // `carrito.variante` (anclado/flotante, § MUESTRARIO-CARRITO-COMPOSICION-1): esa es la POSICIÓN
+  // del panel; ésta es el TRATAMIENTO de sus filas y su pie. `composicionCajon` resuelve al set
+  // cerrado — `'comun'` (AUSENTE, el default de toda tienda que no elige) rinde EXACTAMENTE lo
+  // que este archivo ya rendía.
+  const cajon = composicionCajon(compra.cajon);
+  const esCreditos = cajon === 'creditos';
+  const esAlbum = cajon === 'album';
 
   // CHECKOUT-LISTO-PARA-VENDER-1 — el envío YA NO dice "Se calcula en el checkout" (§ el
   // reporte del slice, § `paginas-pendientes.md` §2.1): el costo depende SOLO del
@@ -261,6 +279,19 @@ export default function CartDrawer() {
                 : "fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
             }
           >
+            {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 — composición «Álbum» (Las Chamisas): franja de tejido
+                en la cabecera, un patrón de rayas diagonales alternadas con los tokens del tema —
+                nunca un color literal — que distingue el cajón de un vistazo, antes de leer nada. */}
+            {esAlbum && (
+              <div
+                aria-hidden="true"
+                className="h-2 w-full shrink-0"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(45deg, var(--sf-acento) 0, var(--sf-acento) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 12px)',
+                }}
+              />
+            )}
             {/* Header */}
             <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
               <div className="flex items-center gap-2">
@@ -292,7 +323,7 @@ export default function CartDrawer() {
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {carritoEnvio.visible && (
                 <div className="mb-4">
-                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} />
+                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} tejido={esAlbum} />
                 </div>
               )}
 
@@ -337,13 +368,26 @@ export default function CartDrawer() {
                       {/* Image -- § CARRITO-Y-MENU-MOVIL-CAFEONE-1: `sf-radio-lg` bajo 'flotante'
                           (2px en 'recta', "tile suavizado") en vez de `rounded-xl` (`--radius-xl`,
                           0 bajo 'recta' -- fully square, no "suavizado"). AUSENTE/'anclado' queda
-                          `rounded-xl`, byte-idéntico. */}
-                      <div className={`relative h-16 w-16 shrink-0 overflow-hidden bg-[var(--sf-superficie)] ${flotante ? 'sf-radio-lg' : 'rounded-xl'}`}>
+                          `rounded-xl`, byte-idéntico.
+                          COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Álbum»: la miniatura se
+                          pinta SOBRE el color de ESE café (`tiendaCatalogo.coloresPorProducto`, el
+                          MISMO mapa que ya alimenta la lámina de /tienda, § TIENDA-CHAMISAS-ALBUM-1
+                          -- nunca un color nuevo), con la foto en `object-contain` para que el
+                          color se vea alrededor. Sin color elegido para ESTE producto, el fondo
+                          cae a la superficie de siempre -- no se inventa un color de reserva acá
+                          (ese cálculo exige el índice del producto en el catálogo completo, que
+                          el cajón no tiene). */}
+                      <div
+                        className={`relative h-16 w-16 shrink-0 overflow-hidden bg-[var(--sf-superficie)] ${flotante ? 'sf-radio-lg' : 'rounded-xl'}`}
+                        style={esAlbum && HEX6.test(tiendaCatalogo.coloresPorProducto[item.id] ?? '')
+                          ? { backgroundColor: tiendaCatalogo.coloresPorProducto[item.id] }
+                          : undefined}
+                      >
                         <Image
                           src={imagenPortada(item.imagen)}
                           alt={item.nombre}
                           fill
-                          className="object-cover"
+                          className={esAlbum ? 'object-contain p-1.5' : 'object-cover'}
                           sizes="64px"
                         />
                       </div>
@@ -355,9 +399,17 @@ export default function CartDrawer() {
                         </p>
 
                         {typeof item.options?.molienda === "string" && (
-                          <p className="mt-0.5 text-xs text-[var(--sf-tostado-3)]">
-                            Molienda: {item.options.molienda}
-                          </p>
+                          esCreditos ? (
+                            // «Créditos» (Onix): la fila al estilo Taquilla (§ el spec: "EN GRANO ·
+                            // 500 G") -- mayúscula espaciada, sin el prefijo "Molienda:".
+                            <p className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-[var(--sf-tostado-3)]">
+                              {item.options.molienda}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-[var(--sf-tostado-3)]">
+                              Molienda: {item.options.molienda}
+                            </p>
+                          )
                         )}
 
                         <p className="mt-0.5 text-xs text-[var(--sf-texto-suave)]">
@@ -449,7 +501,10 @@ export default function CartDrawer() {
                       ))}
                     </select>
                   </div>
-                  {shippingMethodCajon && (
+                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- bajo «Créditos» el envío ya se repite como
+                      fila del pie (abajo), con filete; mostrarlo también acá sería la misma línea
+                      dos veces. */}
+                  {shippingMethodCajon && !esCreditos && (
                     <div className="flex justify-between text-[var(--sf-texto-suave)]">
                       <span>{shippingMethodCajon.label}</span>
                       <span className={shippingCostCajon === 0 ? 'text-emerald-600' : undefined}>
@@ -462,11 +517,30 @@ export default function CartDrawer() {
                     <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
                   )}
 
-                  {/* § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- "Total estimado" con la cifra en la
-                      fuente de TÍTULO, medido contra `.totals`/`.totals b` del prototipo
-                      (`docs/prototipos/cafeone/css/app.css:794-800`). AUSENTE/'anclado' queda
-                      "Subtotal" en negrita de cuerpo, byte-idéntico. */}
-                  {flotante ? (
+                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Créditos» (Onix): el pie como
+                      Créditos -- SUBTOTAL / ENVÍO / TOTAL en filas con filete, mayúscula espaciada,
+                      el TOTAL en el acento de la tienda (§ el spec, § refero-compra.md §4: "verde
+                      de la tienda... en el boleto y el pie"). Prioridad sobre 'flotante': es el
+                      tratamiento del PIE que esta tienda eligió, independiente de la posición del
+                      cajón. */}
+                  {esCreditos ? (
+                    <div className="space-y-1 pt-1 text-xs font-medium uppercase tracking-wider">
+                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
+                        <span>Subtotal</span>
+                        <span>{formatCOP(subtotal)}</span>
+                      </div>
+                      {shippingMethodCajon && (
+                        <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
+                          <span>Envío</span>
+                          <span>{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-sm text-[var(--sf-acento-texto)]">
+                        <span>Total</span>
+                        <span>{formatCOP(subtotal + (shippingCostCajon ?? 0))}</span>
+                      </div>
+                    </div>
+                  ) : flotante ? (
                     <div className="flex items-baseline justify-between pt-1">
                       <span className="text-[var(--sf-texto)]">Total estimado</span>
 

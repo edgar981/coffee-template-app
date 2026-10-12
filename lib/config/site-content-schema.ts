@@ -1200,6 +1200,16 @@ const vendedorEditableSchema = z.object({
   ventanaCambiosDias: z.string().optional(),
 });
 
+// COMPRA-LINEAS-ONIX-CHAMISAS-1 — los TRES escalares del camino de compra. SOFT como el resto de
+// los escalares/variantes de este archivo (z.string(), no un z.enum): la validación DURA del set
+// cerrado vive en el RESOLVER (`resolverVariante`, site-content-defaults.ts), no acá — mismo
+// criterio que `tiendaCatalogo.variante`/`hero.imagenTipo`.
+const compraEditableSchema = z.object({
+  cajon: z.string().optional(),
+  confirmacion: z.string().optional(),
+  seguimiento: z.string().optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   marquesina: marquesinaEditableSchema.optional(),
@@ -1233,6 +1243,7 @@ export const siteContentEditableSchema = z.object({
   footer: footerEditableSchema.optional(),
   logo: logoEditableSchema.optional(),
   vendedor: vendedorEditableSchema.optional(),
+  compra: compraEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),

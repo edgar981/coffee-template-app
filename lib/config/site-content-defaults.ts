@@ -2251,6 +2251,7 @@ export interface SiteContentData {
   footer: FooterContent;
   logo: LogoContent;
   vendedor: VendedorContent;
+  compra: CompraContent;
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
@@ -3082,6 +3083,15 @@ export const DEFAULTS: SiteContentData = {
     transportadoras: '',
     diasPreparacionHabiles: '',
     ventanaCambiosDias: '',
+  },
+  // CAMINO DE COMPRA por defecto (§ COMPRA-LINEAS-ONIX-CHAMISAS-1): los tres ejes en 'comun' → la
+  // estructura de HOY en el cajón, la confirmación y el seguimiento, byte-idéntico sin depender de
+  // una fila. Ningún preset los escribe hoy — Onix y Las Chamisas los eligen por DATO, desde el
+  // panel, no desde `mergePresetEnContent`.
+  compra: {
+    cajon: 'comun',
+    confirmacion: 'comun',
+    seguimiento: 'comun',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -4254,6 +4264,19 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ventanaCambiosDias: 'opcional',
     },
   },
+  // CAMINO DE COMPRA (§ COMPRA-LINEAS-ONIX-CHAMISAS-1): TRES escalares, ningún campo de texto ni
+  // imagen — pura composición. `label` es el que ve el dueño en la lista de secciones del editor
+  // (acá no hay una, va directo en `CompraSeccion.tsx`, así que es sólo documentación interna).
+  compra: {
+    label: 'Camino de compra',
+    ocultable: false,
+    campos: {},
+    escalares: {
+      cajon: { claves: ['comun', 'creditos', 'album'], canonica: 'comun' },
+      confirmacion: { claves: ['comun', 'boleto', 'lamina'], canonica: 'comun' },
+      seguimiento: { claves: ['comun', 'escaleta', 'album'], canonica: 'comun' },
+    },
+  },
 };
 
 /** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-
@@ -4333,6 +4356,45 @@ export interface VendedorContent {
   diasPreparacionHabiles: string;
   /** Texto libre: la ventana para pedir un cambio por gusto, en días (p. ej. "5"). */
   ventanaCambiosDias: string;
+}
+
+// COMPRA-LINEAS-ONIX-CHAMISAS-1 — el set CERRADO de cada uno de los TRES ejes del camino de compra.
+// `'comun'` es la canónica en los tres: la estructura de HOY (CHECKOUT-LISTO-PARA-VENDER-1),
+// byte-idéntica sin fila. Las demás claves son tratamientos elegibles por CUALQUIER tienda desde el
+// panel —no literales de Onix/Las Chamisas en el código; esos dos tenants eligen la misma clave que
+// cualquier otro, por DATO, no por preset (§ el spec: "Onix y Las Chamisas las eligen desde el
+// panel, dato del owner, no de este slice")—.
+export type ClaveCompraCajon = 'comun' | 'creditos' | 'album';
+export type ClaveCompraConfirmacion = 'comun' | 'boleto' | 'lamina';
+export type ClaveCompraSeguimiento = 'comun' | 'escaleta' | 'album';
+
+// META «CAMINO DE COMPRA» (§ COMPRA-LINEAS-ONIX-CHAMISAS-1) — TRES escalares clampados, uno por
+// tramo del camino de compra (cajón del carrito, confirmación/página de estado, seguimiento), SOBRE
+// una sección PROPIA del REGISTRY (`compra`, abajo) sin `campos`/`imagenes`: es pura composición, sin
+// un solo texto o imagen que editar. Vive en el REGISTRY (no como meta `paginas`/`tema`/`cromo`…)
+// justamente PARA aprovechar el PUT/POST GENÉRICO y key-agnóstico de `/api/site-content`
+// (`guardarBorrador`/`publicarSeccion`/`descartarSeccion`, § site-content-write.ts) sin tocar ese
+// archivo ni la ruta — el mismo argumento que ya vale para `vendedor`. Editor BESPOKE
+// (`CompraSeccion.tsx`, patrón `VendedorSeccion`/`MenuSeccion`/`FooterSeccion`): no hay una página
+// real del storefront a la que esta elección "pertenezca" para armar una vista previa en vivo —
+// el cajón necesita estado de carrito, la confirmación un pedido creado, el seguimiento una
+// búsqueda— así que forzarla a `SECCIONES_TIENDA`/`VistaTiendaEnVivo.tsx` exigiría inventar algo que
+// previsualizar donde no hay nada que previsualizar.
+export interface CompraContent {
+  /** El cajón del carrito (`CartDrawer.tsx`). `'comun'` = HOY, byte-idéntico. `'creditos'`: filas al
+   *  estilo Taquilla + pie estilo Créditos (Onix). `'album'`: franja de tejido en la cabecera, barra
+   *  de envío gratis como tejido, miniatura sobre el color del café (Las Chamisas). */
+  cajon: ClaveCompraCajon;
+  /** La confirmación del checkout y la página de estado única (`EstadoPedido.tsx`, § `/checkout/
+   *  retorno`). `'comun'` ("Sobria" en el editor — § refero-compra.md §4: "Sobria: la común") = HOY,
+   *  byte-idéntico. `'boleto'`: bloque en el acento de la tienda con muescas y línea troquelada
+   *  (Onix). `'lamina'`: tarjeta de álbum con borde punteado y sticker de estado inclinado (Las
+   *  Chamisas). */
+  confirmacion: ClaveCompraConfirmacion;
+  /** El seguimiento (`/rastrear-pedido`). `'comun'` = HOY, byte-idéntico. `'escaleta'`: filete
+   *  vertical fino, estado en mayúsculas (Onix). `'album'`: estados cumplidos como sticker pegado,
+   *  pendientes como casilla punteada vacía (Las Chamisas). */
+  seguimiento: ClaveCompraSeguimiento;
 }
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.

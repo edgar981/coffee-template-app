@@ -319,12 +319,23 @@ const CONTROLADOS_ESTILO_ELEMENTO: string[] = Object.keys(ELEMENTOS_ESTILO).flat
   (seccion) => elementosEstiloDeSeccion(seccion).map((el) => `${seccion}.estilos.${el}`),
 );
 
+/** DECLARACIÓN EXPLÍCITA de lo que `CompraSeccion.tsx` controla (§ COMPRA-LINEAS-ONIX-CHAMISAS-1 —
+ *  `compra` SÍ es sección del REGISTRY, pero su editor es BESPOKE, patrón `VendedorSeccion`: no hay
+ *  una página real del storefront a la que estos tres ejes "pertenezcan" como contenido de página —
+ *  son la composición del cajón/confirmación/seguimiento, cada uno fuera de la grilla home/nosotros/
+ *  tienda/suscripciones) — leído de su código: los tres `<select>`. `compra.visible` no aplica —
+ *  `REGISTRY.compra.ocultable` es `false` (§ arriba, mismo criterio que `vendedor`). Nacen
+ *  CONTROLADOS desde este commit, nunca pasan por `PENDIENTE_PANEL` — mismo criterio que
+ *  `vendedor.*`. */
+const CONTROLADOS_COMPRA_SECCION = ['compra.cajon', 'compra.confirmacion', 'compra.seguimiento'];
+
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {
   return [
     ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
     ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
     ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO, ...CONTROLADOS_VENDEDOR_SECCION,
+    ...CONTROLADOS_COMPRA_SECCION,
   ].sort();
 }
 

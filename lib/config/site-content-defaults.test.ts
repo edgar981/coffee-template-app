@@ -2653,6 +2653,55 @@ test('REGISTRY.vendedor: ocultable:false, sin imágenes — son 14 campos de tex
   assert.equal(Object.keys(REGISTRY.vendedor.campos).length, 14);
 });
 
+// ─── `compra` (§ COMPRA-LINEAS-ONIX-CHAMISAS-1) — los TRES escalares del camino de compra, sin
+// campos ni imágenes: pura composición ────────────────────────────────────────────────────────────
+
+test('REGISTRY.compra: ocultable:false, sin campos ni imágenes — son TRES escalares', () => {
+  assert.equal(REGISTRY.compra.ocultable, false);
+  assert.equal(REGISTRY.compra.imagenes, undefined);
+  assert.deepEqual(REGISTRY.compra.campos, {});
+  assert.deepEqual(Object.keys(REGISTRY.compra.escalares!).sort(), ['cajon', 'confirmacion', 'seguimiento']);
+});
+
+test('REGISTRY.compra.escalares: cada uno declara su set cerrado con "comun" como canónica', () => {
+  assert.deepEqual(REGISTRY.compra.escalares!.cajon, { claves: ['comun', 'creditos', 'album'], canonica: 'comun' });
+  assert.deepEqual(REGISTRY.compra.escalares!.confirmacion, { claves: ['comun', 'boleto', 'lamina'], canonica: 'comun' });
+  assert.deepEqual(REGISTRY.compra.escalares!.seguimiento, { claves: ['comun', 'escaleta', 'album'], canonica: 'comun' });
+});
+
+test('DEFAULTS.compra: los tres ejes nacen en "comun" — byte-idéntico sin fila', () => {
+  assert.deepEqual(DEFAULTS.compra, { cajon: 'comun', confirmacion: 'comun', seguimiento: 'comun' });
+});
+
+test('compra: sin fila guardada, resuelve "comun" en los tres ejes — byte-idéntico a DEFAULTS.compra', () => {
+  assert.deepEqual(resolverSiteContent({}).compra, DEFAULTS.compra);
+});
+
+test('compra: un valor guardado para cada eje SOBREVIVE al resolver', () => {
+  const r = resolverSiteContent({ compra: { cajon: 'creditos', confirmacion: 'boleto', seguimiento: 'escaleta' } });
+  assert.equal(r.compra.cajon, 'creditos');
+  assert.equal(r.compra.confirmacion, 'boleto');
+  assert.equal(r.compra.seguimiento, 'escaleta');
+});
+
+test('compra: el OTRO tratamiento (Las Chamisas) también sobrevive al resolver', () => {
+  const r = resolverSiteContent({ compra: { cajon: 'album', confirmacion: 'lamina', seguimiento: 'album' } });
+  assert.equal(r.compra.cajon, 'album');
+  assert.equal(r.compra.confirmacion, 'lamina');
+  assert.equal(r.compra.seguimiento, 'album');
+});
+
+test('compra: basura, ausente, null o un valor de OTRO eje cae a "comun" en cada uno, nunca lanza', () => {
+  const r = resolverSiteContent({ compra: { cajon: 'lamina', confirmacion: 42, seguimiento: null } });
+  assert.equal(r.compra.cajon, 'comun');
+  assert.equal(r.compra.confirmacion, 'comun');
+  assert.equal(r.compra.seguimiento, 'comun');
+});
+
+test('compra está en REGISTRY — el PUT/POST genérico de /api/site-content la acepta sin tocar esa ruta', () => {
+  assert.ok('compra' in REGISTRY);
+});
+
 // ─── `tiendaProducto.badge1/2/3` (§ TIENDA-LEGAL-1) — las tres garantías de la ficha de producto,
 // antes un array literal fijo. Default vacío → la fila de garantías no promete nada que el dueño
 // no haya confirmado.
