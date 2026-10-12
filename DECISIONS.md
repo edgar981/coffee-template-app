@@ -62812,3 +62812,284 @@ core/prisma/`) ni contrato cruzado de repositorio.
 `npm test` 4658/4658, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
 solo píxel nuevo para Nayoli (las seis cifras idénticas a `TIENDA-LEGAL-1`). No es `GATE_RED`.
 Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — EDITOR-ORDEN-Y-LIENZO-1: el editor sigue el orden de la página, las tarjetas
+repetidas nacen plegadas, el click-to-edit llega a /tienda y /suscripciones, y un campo que no se ve
+lo dice
+
+Spec validado CLEAR, continúa `slice/editor-secciones-1` tras `EDITOR-ESTADO-PAGINAS-1` y
+`EDITOR-COMPOSICION-CAMPOS-1`. Dispara el mismo reporte del owner del 2026-10-12 (§ el spec de
+`EDITOR-COMPOSICION-CAMPOS-1`): bajo «Taquilla» las tarjetas de «Crédito» quedaban abiertas y
+pegadas, el editor de Suscripciones no respondía al click en el lienzo como en el inicio, y «Etiqueta
+de la fila de molienda» desaparecía sin que nadie supiera por qué.
+
+### Item 1 — el orden del editor sigue el orden de la página
+
+**El defecto medido:** `SUSCRIPCION_PLANES.campos`/`.bloques` ponían `credito1-4` ANTES del botón de
+pedido/su aviso/la barra fija, cuando en `SuscripcionTaquilla.tsx` los créditos se ven DESPUÉS
+(líneas 180-274: rótulo → tabla → Bolsas → Cada/frecuencias → molienda → referencia → botón+agotado
+→ aviso → créditos → barra fija). Se reordenaron `campos`, `bloques` y `ZONAS_SUSCRIPCION_PLANES_
+TAQUILLA` (tienda-secciones.ts) para que coincidan — los NUEVE textos con default de
+`EDITOR-COMPOSICION-CAMPOS-1` no cambiaron de valor, sólo de posición en el array.
+
+**Segundo hallazgo, misma clase (S1/SC1):** `NOSOTROS_HISTORIA.campos` no tagueaba `titulo`/
+`parrafo2`/`parrafo3`/`retratoNombre` con `composiciones` — los cuatro se mostraban bajo LAS DOS
+composiciones (`relato`/`sinopsis`), aunque `NosotrosHistoriaRelato.tsx` nunca lee `retratoNombre` y
+`NosotrosHistoriaSinopsis.tsx` nunca lee `titulo`/`parrafo2`/`parrafo3` (medido contra los dos
+componentes). Se agregaron los cuatro tags; `eyebrow`/`parrafo1`/`imagen` se quedan sin tag porque
+los DOS componentes los leen de verdad.
+
+**La prueba** (`lib/admin/editor-orden-y-lienzo.test.ts`) deriva el orden del editor igual que
+`TiendaSeccionEditor.tsx` (`bloquesResueltos` → `particionarBloques(...).visibles` → nombres de
+CAMPOS DE TEXTO en orden, sin imágenes — ver abajo) y lo compara contra el orden citado del
+componente real, para `suscripcionPlanes` (taquilla/tarjetas) y `nosotrosHistoria` (relato/sinopsis).
+
+**Alcance declarado, no exhaustivo:** se auditaron las 13 secciones con
+`composiciones` (HERO, BRAND_STORY, PRESENTACIONES, SUBSCRIPTION, NOSOTROS_HISTORIA, NOSOTROS_CIERRE,
+SUSCRIPCION_PLANES, SUSCRIPCION_FAQ, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_INTERLUDIO,
+TIENDA_CIERRE, TIENDA_PRODUCTO). Se confirmó correcto sin cambios: NOSOTROS_CIERRE, TIENDA_ENCABEZADO
+(los 3), TIENDA_CATALOGO, SUSCRIPCION_FAQ. HERO/BRAND_STORY/PRESENTACIONES/SUBSCRIPTION ya habían
+recibido tratamiento dedicado en `EDITOR-TIENDA-COMPOSICION-1`/`EDITOR-COMPOSICION-CAMPOS-1` (zonas
+medidas contra el código fuente, con su propio mecanismo bespoke para el hero) y no se tocaron.
+
+**Las imágenes quedan FUERA de la comparación de orden, a propósito**: dentro de un bloque
+`tipo:'seccion'` la miniatura SIEMPRE se dibuja antes de los campos (`renderBloqueSeccion`,
+"imágenes (miniatura) + campos" — convención de TODO el editor, no algo de esta sección). Comparar
+imágenes contra la posición visual de la foto en la página mezclaría dos preguntas distintas; el
+pedido del owner y el ejemplo del spec son sobre TEXTO.
+
+**Hallazgo NO corregido, reportado como open follow-up:** `BRAND_STORY` tiene el MISMO defecto de
+orden (y uno de visibilidad): bajo «Ficha de finca» el bloque de `ctaLabel`/`ctaDestino` vive 2° (tras
+el titular), cuando `BrandStoryFichaDeFinca.tsx` lo pinta ÚLTIMO (después de las filas); y bajo
+«Columnas» el CTA aparece en el editor pero `BrandStoryColumnas.tsx` **nunca lo renderiza** —el
+comentario de `tienda-secciones.ts` que dice "las TRES composiciones lo reusan" es FALSO, medido
+contra el componente. No se corrigió: restructurar los `bloques` de `BRAND_STORY` (una sección con
+collage + 6 tarjetas + un bloque de ilustración ya intercalado con `entrada`) es un cambio mayor, de
+más riesgo que lo que el spec de esta slice midió como el disparador (Taquilla), y arriesgaba
+regresionar una sección ya cuidadosamente construida. Queda como
+`EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1` (abajo).
+
+### Item 2 — las tarjetas repetidas nacen plegadas, y la colisión de slots se cierra
+
+**El acordeón genérico** (`TiendaSeccionEditor.tsx`, `renderBloqueTarjeta`): todo bloque `tipo:
+'tarjeta'` de una sección que NO sea `presentaciones` ahora nace COLAPSADO, mostrando un resumen (sus
+dos primeros campos de texto con valor, unidos por " · " — `resumenBloqueTarjeta`, `lib/admin/
+editor-orden-y-lienzo.ts`), y se abre de a una (clic en la que estaba abierta la cierra), con el
+mismo `.duna-card`/`gap: var(--duna-space-3)` que usa `RepeaterEditor` para las preguntas frecuentes.
+**Presentaciones NO se tocó**: su mecanismo (`colapsado`/`bloquesRef`/`tarjetaActiva`/`.bloque-
+tarjeta`, el puente ya tendido y probado con su propio test) sigue exactamente igual —se separó en
+una rama `if (puenteTarjetas) {...} else {...}` para no arriesgarlo.
+
+**La colisión de slots** (`EDITOR-SLOT-COLISION-PLANES-CREDITOS-1`, abierto por
+`EDITOR-COMPOSICION-CAMPOS-1`): «Plan N»/«Crédito N» comparten `slot` 1-4 — confirmado con test
+(`suscripcionPlanes: "Plan N" y "Crédito N" comparten slot... pero NUNCA título`). Se cierra en DOS
+mitades:
+- el acordeón genérico usa el TÍTULO del bloque como clave (`tarjetaGenericaAbierta`), nunca el
+  slot — dos bloques de la MISMA sección nunca comparten título, así que la colisión es imposible
+  por construcción, sin renumerar nada.
+- `bloquesRef`/`tarjetaActiva` (el puente de Presentaciones, `Map<slot, HTMLElement>`) AHORA se
+  escriben SÓLO bajo `puenteTarjetas` (antes escribían para TODA sección, aunque su único lector —el
+  deep-link del aviso de config— ya estaba gateado igual). Con Plan/Crédito (o cualquier sección
+  futura) sin escribir ahí, dos bloques del mismo slot no pueden pisarse en ese mapa.
+
+**Bug propio, encontrado y corregido antes de cerrar:** el botón "Quitar" de una tarjeta opcional
+genérica (Plan 2-4, Fila 3-6 de brandStory) estaba llamando a `quitarTarjeta(slot)` — la función de
+Presentaciones, que escribe `label${slot}`/`copy${slot}`/`categoria${slot}`/`imagen${slot}`, campos
+que NO EXISTEN en esas secciones (sus campos reales son `nombreN`/`descripcionN`/`precioN`,
+`filaNRotulo`/… ). Se reemplazó por un vaciado genérico sobre `bloque.campos`/`.imagen` (los
+descriptores REALES del bloque). Atrapado por inspección antes de correr el gate, no por un test —
+anotado como hueco de cobertura (no hay test de render para el botón "Quitar" genérico; el mecanismo
+puro — `resumenBloqueTarjeta`, la unicidad de títulos — sí está testeado).
+
+### Item 3 — tocar en la vista previa abre el campo
+
+**Se instrumentó con `CampoEditable`** (texto) y `HuecoImagenOpcional`/`tipo="imagen"` (fotos) en las
+piezas que no lo tenían (S3, el hallazgo de `EDITOR-COMPOSICION-CAMPOS-1`): `SuscripcionTaquilla.tsx`
+(kicker, etiquetas de Bolsas/Cada/Molienda, referencia, botón de pedido + agotado, aviso, barra fija
+del celular), la pieza compartida `Apertura.tsx` (titulo/rotuloIzquierda/rotuloDerecha/imagen, con un
+nuevo prop `seccion` para que cada llamador —`TiendaEncabezado`/`SuscripcionApertura`/
+`NosotrosApertura`— apunte a SU sección), `InterludioPlano.tsx` (imagen/pie, mismo patrón de prop
+`seccion`, consumido por `TiendaInterludio`/`SuscripcionInterludio`/`NosotrosInterludio`),
+`CierreFraseYBoton.tsx` (frase/botón, con nuevos props `campoFrase`/`campoBoton` porque cada llamador
+usa NOMBRES distintos: `tiendaCierre.frase`/`.boton`, `suscripcionCierre.frase`/`.ctaLabel`,
+`nosotrosCierre.titulo`/`.ctaLabel`), y las dos ramas de `TiendaEncabezado.tsx`
+(«Actual»/«Carta»: titulo/leyenda/sticker/intro/antojoTitulo), `TiendaCierre.tsx` (frase/boton de
+«Costura», más el botón de «Frase y botón»), `TiendaInterludio.tsx` (cita/firma/imagen de «Retrato y
+cita»), `TiendaCatalogo.tsx` (vacioTitulo/vacioTexto, las dos ramas Legacy/Corte).
+
+**El "DOS hijos" de `TiendaEncabezado.tsx` se preservó a propósito.** La rama «Actual» tenía
+`{conteo}{` · ${leyenda}`}` — DOS children (uno expresión, uno string combinado) porque React 19
+inserta un comentario de frontera de hidratación entre children de texto ADYACENTES, y un tercer
+child habría sumado un comentario que no existía (§ CLAUDE.md, el incidente ya documentado sobre esta
+misma línea). Envolver `leyenda` en `CampoEditable` sin cuidado habría creado un TERCER child
+(conteo, " · ", leyenda) en el árbol reconciliado fuera de modo editor (`CampoEditable` inactivo
+devuelve `<>{children}</>`, transparente para React). Se resolvió pegando el separador al PRIMER
+child (`` `${conteo} · ` ``) en vez de al segundo, conservando EXACTAMENTE dos children adyacentes.
+Verificado por EJECUCIÓN: `npm run verificar:nayoli:visual` da las SEIS cifras IDÉNTICAS, dígito a
+dígito, a las de `COMPRA-LINEAS-ONIX-CHAMISAS-1` contra el mismo `main` (ver el gate, abajo) — incluida
+la ruta `/tienda`, que monta esta rama para Nayoli.
+
+**Límite medido y NO resuelto, declarado — T-0a de la auditoría:** `/tienda` (`app/(storefront)/
+tienda/page.tsx`) no emite NINGÚN marcador `data-editor-seccion`, a diferencia de `/`, `/nosotros` y
+`/suscripciones`. El click-to-edit de TEXTO que esta tanda agregó SÍ funciona en /tienda (el overlay
+de campo se abre por su propio marcador `data-editor-campo`, independiente de la sección) — lo que NO
+funciona ahí es "tocar cualquier punto de una sección la abre en el panel" (ese aviso depende del
+ancestro `data-editor-seccion`, § `EditorPuenteVivo.tsx`). Cerrarlo exige editar `app/(storefront)/
+tienda/page.tsx`, fuera de `touches:` de este slice — no se tocó. Queda como
+`EDITOR-TIENDA-SIN-MARCADOR-SECCION-1` (abajo).
+
+**No se instrumentó (declarado, no un descuido):** los renglones de `CreditosFilas` (compartida por
+`TiendaCreditos.tsx`/`SuscripcionTaquilla.tsx`/`NosotrosFicha.tsx`) — `filasCompletas` (lib/tienda/
+creditos.ts, FUERA de `touches:`) FILTRA las filas incompletas, así que el índice `i` de
+`filas.map()` no es el índice ORIGINAL en `tiendaCreditos.items`; wirear `campo="tiendaCreditos.
+items.{i}.etiqueta"` con ese índice apuntaría al ítem EQUIVOCADO en cuanto hubiera una fila a medias.
+Arreglarlo bien exige que `filasCompletas` devuelva el índice original junto a cada fila, un cambio en
+un archivo fuera de `touches:`. Queda como `EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1` (abajo).
+
+### Item 4 — un campo que no se ve lo dice, con su salida
+
+**El mecanismo** (`lib/admin/editor-orden-y-lienzo.ts`, `condicionCampoInactiva`): `CampoTexto` gana
+`condicion?: 'molienda-multiple'` (set cerrado, serializable — el config cruza server→client,
+NUNCA una función, mismo criterio que `opcionesDinamicas`). Evaluado contra `catalogoReal`/
+`productosListos` (ya cargados por el editor), devuelve `null` (aplica hoy, o el catálogo no cargó —
+preferir callar, mismo criterio que `destinoInexistente`/`productoInexistente`) o un mensaje +
+enlace. Renderizado dentro del campo (`renderCampo`, el mismo lugar que esos dos avisos), en ámbar
+(`--duna-sol-ink`).
+
+**El primer caso, el que reportó el owner:** `taquillaEtiquetaMolienda` ganó `condicion:
+'molienda-multiple'`. Sin NINGÚN producto con `decidirMolienda(...).modo === 'eleccion'` (2+
+moliendas DISPONIBLES — la MISMA función que `SuscripcionTaquilla.tsx` consulta para decidir si pinta
+la fila, nunca una segunda cuenta), el campo avisa: "Se muestra sólo cuando un producto tiene más de
+una molienda disponible. Hoy ninguno la tiene." + enlace a `/admin/productos`.
+
+**Otros casos de la misma clase, encontrados y DEFERIDOS (no mecanizados en esta tanda):**
+- **`taquillaCtaAgotadoLabel`** ("texto de agotado"): depende de qué producto está SELECCIONADO en
+  la Taquilla (estado de UI del visitante, no del catálogo como conjunto) — no es una condición
+  declarable contra "catálogo + contenido", es dinámica por sesión del comprador. No tiene una
+  condición estática que avisar.
+- **`CampoBooleano` (`barraFijaMovil` de `tiendaCatalogo`, y los 6 del hero) no soporta
+  `composiciones`** — su hint dice "Sólo con la composición 'Taquilla'"/"Marquesina" pero el
+  interruptor se muestra bajo CUALQUIER composición (el mismo defecto SC1, del lado de los
+  booleanos). Extender `CampoBooleano` con `composiciones` y filtrar su render es un cambio paralelo
+  al de `CampoTexto`/`CampoImagen`, que toca el hero (6 toggles ya con tratamiento cuidadoso) — mayor
+  riesgo del que el disparador de esta tanda (molienda) justificaba. Queda como
+  `EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1` (abajo).
+- **"pasos ocultos"** (nombrado en el spec, sin un caso concreto encontrado): `SUSCRIPCION_PASOS` es
+  cardinalidad fija de 4, sin condición de ocultamiento por datos — no se encontró un caso real que
+  mecanizar. Si el owner señala uno concreto, es la base de un próximo slice.
+
+### El gate
+
+- **`npx tsc --noEmit`**: 0 errores, en el árbol final.
+- **`npm test`**: **4671/4671** (antes de este slice: 4658/4658, § `COMPRA-LINEAS-ONIX-CHAMISAS-1`).
+  +13 tests nuevos, todos en `lib/admin/editor-orden-y-lienzo.test.ts`.
+- **`npm run test:integracion`**: **409/409** — sin cambio (este slice no toca schema ni ninguna
+  cadena del motor; todo el trabajo es de presentación del editor + markup del storefront).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios), diff contra `main`:
+
+  | ruta | resultado | comparación contra el piso de `COMPRA-LINEAS-ONIX-CHAMISAS-1` |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo | **IDÉNTICO** |
+  | `/tienda` | 209/2433280 · 407 | **IDÉNTICO** |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px) | **IDÉNTICO** (heredado) |
+  | `/checkout` | 163/1152000 · 361 | **IDÉNTICO** |
+  | `/nosotros` | 224/1152000 · 422 | **IDÉNTICO** |
+  | `/suscripciones` | 258/2144000 · 456 | **IDÉNTICO** |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **Las SEIS cifras son idénticas, dígito a dígito, al piso heredado de `COMPRA-LINEAS-ONIX-
+  CHAMISAS-1` contra el mismo `main`** — la prueba por EJECUCIÓN de que este slice (que SÍ toca
+  `TiendaEncabezado.tsx`/`TiendaCatalogo.tsx`/`TiendaCierre.tsx`/`TiendaInterludio.tsx`, montados
+  para Nayoli bajo sus composiciones canónicas) no movió un solo píxel: `CampoEditable`/
+  `HuecoImagenOpcional` son transparentes fuera de modo editor, y el cuidado de "DOS hijos" (arriba)
+  preservó la estructura exacta de `TiendaEncabezado`. `exit 1` esperado — el mismo piso heredado de
+  la rama, no un hallazgo nuevo.
+- **`npx next build`** (sin `db:deploy`, prohibido por el dispatch): "Compiled successfully" + "Finished
+  TypeScript" — la fase SWC pasa limpia sobre los 20 archivos tocados/creados. La fase de prerender
+  falla en `/aceptar-invitacion` por P2021 (sin base de datos en este sandbox) — el MISMO fallo que
+  `EDITOR-COMPOSICION-CAMPOS-1` ya documentó como ausencia de DB, no un defecto de diff.
+
+### Deviations (fuera de `touches:`, medidas y necesarias)
+
+- **`lib/movimiento/apertura-interludio-movil.test.ts`** y **`lib/storefront/onix-paginas-
+  fidelidad.test.ts`**: el nuevo prop REQUERIDO `seccion` en `Apertura`/`InterludioPlano` rompió la
+  firma de tipos de 6 llamadas de test preexistentes (`tsc --noEmit` las marcó). Se agregó el prop
+  con un valor cualquiera (no afecta la salida: `CampoEditable` es transparente fuera de modo editor,
+  así que `seccion` nunca se renderiza sin él) — mismo criterio que la deviación de
+  `lib/tienda/puente-tarjetas.test.ts` en `EDITOR-COMPOSICION-CAMPOS-1`: un test ROJO por un cambio
+  de ESTE diff se corrige, no se deja así.
+- **`lib/admin/editor-orden-y-lienzo.ts`** (implementación, no sólo el `.test.ts` nombrado en
+  `touches:`): un test sin su implementación no es ejecutable; el archivo vive en `lib/admin/`, ya
+  cubierto por ese directorio en `touches:`.
+
+### Open follow-ups
+
+- **`EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1`** — `brandStory.ctaLabel`/`.ctaDestino` viven 2° en el
+  editor bajo «Ficha de finca» (debería ser último) y se muestran bajo «Columnas» aunque
+  `BrandStoryColumnas.tsx` nunca los renderiza (comentario del código, "las TRES composiciones lo
+  reusan", es falso). *Por qué no ahora:* restructurar `BRAND_STORY.bloques` (collage + 6 tarjetas +
+  bloque de ilustración ya intercalado con `entrada`) es un cambio mayor que el disparador de esta
+  tanda (Taquilla) no pedía, con más riesgo de regresionar una sección ya construida con cuidado.
+- **`EDITOR-TIENDA-SIN-MARCADOR-SECCION-1`** — `/tienda` no emite `data-editor-seccion`; "tocar
+  cualquier punto abre la sección en el panel" no funciona ahí (el click-to-edit de TEXTO sí). *Por
+  qué no ahora:* exige editar `app/(storefront)/tienda/page.tsx`, fuera de `touches:`.
+- **`EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1`** — las filas de `CreditosFilas` no son clickeables
+  individualmente: `filasCompletas` filtra incompletas y pierde el índice original. *Por qué no
+  ahora:* exige tocar `lib/tienda/creditos.ts`, fuera de `touches:`.
+- **`EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1`** — `CampoBooleano` no soporta `composiciones`:
+  `barraFijaMovil` (tiendaCatalogo) y los 6 booleanos del hero se muestran bajo CUALQUIER
+  composición aunque su hint diga "Sólo con…". *Por qué no ahora:* toca el hero (6 toggles con
+  tratamiento ya cuidadoso en slices previos), mayor riesgo del que el disparador (molienda)
+  justificaba.
+- **`EDITOR-TARJETA-GENERICA-QUITAR-SIN-TEST-1`** — el botón "Quitar" del acordeón genérico (vacía
+  `bloque.campos`/`.imagen` reales) no tiene test de render; el bug que corrigió (reusar
+  `quitarTarjeta` de Presentaciones, que escribe campos inexistentes en otras secciones) se encontró
+  por inspección, no por un test que lo hubiera atrapado solo. *Por qué no ahora:* este repo no usa
+  React Testing Library para render con interacción; cubrirlo bien es una decisión de tooling aparte.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos nuevos o cambiados: `TiendaSeccionEditor.tsx`, `tienda-secciones.ts`,
+`CampoTexto.condicion`, `resumenBloqueTarjeta`, `condicionCampoInactiva`, `tarjetaGenericaAbierta`,
+`Apertura.tsx`/`InterludioPlano.tsx`/`CierreFraseYBoton.tsx` (prop `seccion`/`campoFrase`/
+`campoBoton`), `TiendaEncabezado.tsx`, `TiendaCatalogo.tsx`, `TiendaCierre.tsx`,
+`TiendaInterludio.tsx`, `NosotrosCierre.tsx`, `SuscripcionTaquilla.tsx`, `bloquesRef`,
+`tarjetaActiva`, `quitarTarjeta`, `puente-tarjetas.ts`, `bloqueDeTarjeta`.
+
+- **CLAUDE.md:2775-2785** ("EL PUENTE MAPEA slot→BLOQUE… `bloquesRef` = `Map<slot, HTMLElement>`"):
+  sigue siendo VERDAD — describe el mecanismo de Presentaciones, que esta tanda no tocó (la rama
+  `if (puenteTarjetas)` preserva el código exacto). El GATEO nuevo de `bloquesRef` a `puenteTarjetas`
+  (antes escribía para toda sección) no contradice la frase: nunca decía "para toda sección", y el
+  único lector de ese mapa (el deep-link) ya estaba igual de gateado.
+- **CLAUDE.md:2787-2793** ("INVARIANTE puente↔pieza-opcional… nunca detrás de 'Agregar tarjeta'"):
+  sigue siendo VERDAD, describe Presentaciones exclusivamente, sin tocar.
+- **CLAUDE.md:2548** ("…nosotrosHistoria/nosotrosGaleria+item coinciden campo por campo con su
+  modelo"): sigue siendo VERDAD — esa frase es sobre el schema zod vs. `DEFAULTS` (cobertura de
+  CAMPOS), no sobre `composiciones` por campo; agregar tags de composición no quita ni agrega un
+  campo del modelo.
+- **CLAUDE.md:2868** ("…`content` JSON (`nosotrosHistoria`), no un `content.pages.nosotros`
+  anidado"): sigue siendo VERDAD, sin relación con el orden/composiciones de sus campos.
+- **Sin otras coincidencias** de los símbolos/archivos nuevos contra `CLAUDE.md` —en particular,
+  `CampoEditable.tsx`, `HuecoImagenOpcional`, `Apertura.tsx`, `InterludioPlano.tsx`,
+  `CierreFraseYBoton.tsx` y el mecanismo entero de `data-editor-campo`/`data-editor-seccion` no
+  tienen entrada en `CLAUDE.md` (viven en `docs/editor-tienda/` y en este ledger, no promovidos a la
+  doctrina curada) — nada que falsear ahí.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (el mismo `approval-reason` del spec de `EDITOR-COMPOSICION-CAMPOS-1`
+—la revisión del owner del 2026-10-12— cubre este slice, que continúa esa auditoría). Entra por los
+mismos subárboles ya ganados en CLAUDE.md: `components/storefront/` (bytes del visitante —todas las
+piezas de `tienda/`/`suscripciones/`/`nosotros/` tocadas) y `components/admin/` (el editor). El diff
+cambia bytes que el OWNER lee (el orden/plegado/resúmenes del panel, el aviso de la molienda) Y bytes
+que un VISITANTE podría leer si el owner elige una composición no-canónica (Taquilla, Ficha de finca,
+Carta, etc.) — medido que para Nayoli (todas sus composiciones canónicas) el storefront queda
+PÍXEL-IDÉNTICO (ver el gate). Sin cambio de schema/migración (cero `packages/core/prisma/`) ni
+contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4671/4671, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
+solo píxel nuevo para Nayoli (las seis cifras idénticas al piso de `COMPRA-LINEAS-ONIX-CHAMISAS-1`).
+No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
