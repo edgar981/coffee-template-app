@@ -61483,6 +61483,38 @@ dejar un test ROJO por un cambio de ESTE diff —en vez de un cambio de scope aj
 corrección de una línea: se actualizó el string esperado a `Tarjeta ${slot}` con el porqué en el propio
 test. Ningún otro archivo de `lib/tienda/` se tocó.
 
+### Follow-ups abiertos, con id
+
+Hallazgos de la auditoría (`.scratch/auditoria-editor/`) que este slice midió pero NO cerró, con el id
+que el próximo slice debe citar:
+
+- **`EDITOR-COLLAGE-FICHA-PLIEGUE-1`** — el bloque `collage` de brandStory (imagen1-4) no pliega
+  `imagen2-4` bajo «Ficha de finca» aunque sólo `imagen1` aplique ahí (como foto); `BloqueConfig.
+  collage` no separa imágenes individuales del resto sin reescribir `renderBloqueCollage`.
+- **`EDITOR-VARIANTESBANDAS-DESTACADO-1`** — el aviso de Destacado (item 6) es una nota ESTÁTICA, no
+  una detección del valor real de `content.variantesBandas.featured`; cablear esa meta (dominio
+  abierto, § panel-controles.ts) a `TiendaPaginas`/`TiendaSeccionEditor` lo volvería dinámico.
+- **`EDITOR-FILA-MOTIVO-TEXTO-1`** — la fila COLAPSADA (`FilaSeccion`) no muestra el motivo preciso de
+  `seMuestraSiCampo` en texto (sólo se atenúa, `dim`); una tanda previa (EDITOR-VISUAL-PANEL-1) decidió
+  a propósito "se dicen con el ojo, no con frases" para esa fila — este slice no revirtió esa decisión
+  sin que el spec lo pidiera explícito. El motivo preciso sigue en la vista expandida.
+- **`EDITOR-CARTA-ANCLA-LAMINAS-1`** — T-ENC4 de la auditoría: las píldoras de «Carta» enlazan a
+  `#cafe-<slug>`, anclas que sólo existen bajo Catálogo «Láminas» — no medido a fondo ni corregido en
+  este slice (no estaba en los seis items explícitos de "Lo que construís").
+- **`EDITOR-CIERRE-BOTON-FALLBACK-1`** — T-CIE1: sin WhatsApp configurado, el texto del botón que el
+  dueño escribe en `tiendaCierre.boton` se ignora y se reemplaza por "Ver suscripciones" fijo; el
+  `notaVisibilidad` de esa sección no lo menciona. No corregido.
+- **`EDITOR-CAMPOEDITABLE-PIEZAS-COMPARTIDAS-1`** — S3: `CampoEditable` (click-en-el-lienzo→abre el
+  campo) no existe en `SuscripcionTaquilla.tsx`/`tienda/Apertura.tsx`/`InterludioPlano.tsx`/
+  `CierreFraseYBoton.tsx` — las piezas compartidas más nuevas. No corregido (no era de los seis items).
+- **`EDITOR-SLOT-COLISION-PLANES-CREDITOS-1`** — observado, no corregido ni introducido por este
+  slice: `SUSCRIPCION_PLANES.bloques` tiene DOS tarjetas por cada `slot` 1-4 (Plan N y Crédito N, de
+  composiciones distintas) — `bloqueDeTarjeta`/`bloquesRef` (el puente lienzo↔formulario, `Map<slot,
+  HTMLElement>`) resuelven por slot a secas, así que sólo una de las dos es alcanzable por esa vía.
+  Pre-existente desde que "Taquilla" sumó sus 4 tarjetas de Crédito reusando los slots de Plan; el
+  fold de este slice REDUCE la ventana (normalmente sólo un set está montado) pero no la cierra (al
+  expandir el pliegue, las dos pueden coexistir montadas).
+
 ### El gate
 
 - **`npx tsc --noEmit`**: 0 errores.
