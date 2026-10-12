@@ -1959,10 +1959,14 @@ const TIENDA_CIERRE: SeccionConfig = {
 };
 
 // LA PÁGINA DE PRODUCTO (§ PRODUCTO-CHAMISAS-LAMINA-1) — `ocultable: false`, como el resto de
-// /tienda: la página de un producto no se apaga entera. El ÚNICO campo editable es el título de
-// "Te puede interesar"; el resto de la composición «Lámina abierta» (el color del café, el sticker,
-// el retrato) reusa el dato de las otras cuatro secciones de /tienda, así que no hay nada más que
-// ofrecer acá.
+// /tienda: la página de un producto no se apaga entera. El título de "Te puede interesar"; el
+// resto de la composición «Lámina abierta» (el color del café, el sticker, el retrato) reusa el
+// dato de las otras cuatro secciones de /tienda, así que no hay nada más que ofrecer acá.
+//
+// `badge1/2/3` (§ TIENDA-LEGAL-1) — las TRES garantías bajo el botón de compra, que antes eran un
+// array literal fijo ("Envío a todo Colombia · Gratis +$150.000", "Garantía de frescura de 30
+// días", "Tostado dentro de los 7 días previos al envío"). Vacío NO muestra esa línea — el dueño
+// escribe sólo las que ofrece de verdad.
 const TIENDA_PRODUCTO: SeccionConfig = {
   seccion: 'tiendaProducto',
   pagina: 'tienda',
@@ -1972,6 +1976,9 @@ const TIENDA_PRODUCTO: SeccionConfig = {
   imagenes: [],
   campos: [
     { name: 'teInteresaTitulo', label: 'Título · "Te puede interesar"', hint: 'Sólo con la composición "Lámina abierta". Encabeza los otros cafés al final de la página de producto. Vacío: se usa el texto por defecto.' },
+    { name: 'badge1', label: 'Garantía 1', hint: 'Por ejemplo: "Envío a todo el país". Vacío: no se muestra.' },
+    { name: 'badge2', label: 'Garantía 2', hint: 'Por ejemplo: "Garantía de cambios y devoluciones". Vacío: no se muestra.' },
+    { name: 'badge3', label: 'Garantía 3', hint: 'Por ejemplo: "Revisión de calidad antes de cada envío". Vacío: no se muestra.' },
   ],
 };
 

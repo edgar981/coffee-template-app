@@ -1442,9 +1442,21 @@ export interface TiendaCierreContent {
 // vacío cae al default del owner (2026-10-10, sobre la maqueta aprobada): «Te puede interesar» —
 // no "Los otros dos" (el texto de la maqueta de referencia, que el owner pidió reemplazar
 // explícitamente por ser demasiado literal al conteo de productos).
+//
+// `badge1`/`badge2`/`badge3` (§ TIENDA-LEGAL-1) — las TRES promesas comerciales que vivían
+// HORNEADAS debajo del botón de compra ("Envío a todo Colombia · Gratis +$150.000", "Garantía de
+// frescura de 30 días", "Tostado dentro de los 7 días previos al envío"): ninguna tienda nueva
+// ofrece esas condiciones por defecto, así que un literal fijo era una promesa que el dueño nunca
+// hizo. Los TRES son OPCIONALES con default `''` — a propósito, NO `requerido`: la doctrina de
+// "defaults-como-fallback" es para COPY, nunca para una promesa comercial que el código no puede
+// garantizar (misma excepción que ya cierra el rating fabricado, § #44) — vacío se OMITE, la fila
+// de garantías se achica sola en vez de mostrar un hueco o un texto inventado.
 export interface TiendaProductoContent {
   teInteresaTitulo: string;
   variante: string;
+  badge1: string;
+  badge2: string;
+  badge3: string;
 }
 
 // LA FICHA DE ORIGEN · «CRÉDITOS» (§ TIENDA-ONIX-CARTELERA-1, sección NUEVA, opcional). REPEATER
@@ -2238,6 +2250,7 @@ export interface SiteContentData {
   menu: MenuContent;
   footer: FooterContent;
   logo: LogoContent;
+  vendedor: VendedorContent;
   paginas: PaginasContent;
   tema: TemaContent;
   cromo: CromoContent;
@@ -2967,9 +2980,14 @@ export const DEFAULTS: SiteContentData = {
   // § PRODUCTO-CHAMISAS-LAMINA-1 — «Actual» es la canónica (byte-idéntica sin fila); «Lámina abierta»
   // reusa casi todo de otras secciones (§ TiendaProductoContent), así que el ÚNICO default propio es
   // el título de "Te puede interesar" — el texto que el owner pidió (2026-10-10).
+  // `badge1/2/3` nacen VACÍOS (§ TIENDA-LEGAL-1): ninguna promesa de envío/garantía se hornea; el
+  // dueño las escribe si las ofrece de verdad.
   tiendaProducto: {
     teInteresaTitulo: 'Te puede interesar',
     variante: 'actual',
+    badge1: '',
+    badge2: '',
+    badge3: '',
   },
   // El MENÚ por defecto: los TRES labels y el orden de HOY (`StoreNav.tsx`, antes de este slice) —
   // tienda → suscripciones → nosotros—, el CTA APAGADO (los dos campos vacíos), el BADGE APAGADO
@@ -3043,6 +3061,27 @@ export const DEFAULTS: SiteContentData = {
     alt: '',
     icono: '',
     modo: '',
+  },
+  // VENDEDOR por defecto (§ TIENDA-LEGAL-1): TODO vacío — no hay identidad legal genérica que
+  // inventar. Sin estos datos, `vendedorEstaCompleto` (lib/legal/plantillas.ts) da `false` y ni las
+  // páginas legales se enlazan, ni el bloque «Vendedor» del checkout, ni la línea del pie se
+  // muestran — el hueco se queda en el panel ("qué falta"), nunca a la vista del comprador.
+  vendedor: {
+    visible: true,
+    nombreCompleto: '',
+    tipoPersona: '',
+    documentoTipo: '',
+    documentoNumero: '',
+    nombreComercial: '',
+    direccion: '',
+    ciudad: '',
+    correo: '',
+    telefono: '',
+    horarioAtencion: '',
+    municipioDespacho: '',
+    transportadoras: '',
+    diasPreparacionHabiles: '',
+    ventanaCambiosDias: '',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -4045,9 +4084,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     },
   },
   // La página de producto (§ PRODUCTO-CHAMISAS-LAMINA-1, ver el docstring de `TiendaProductoContent`
-  // arriba). `ocultable:false` como el resto de /tienda. UN campo propio —el resto de la composición
-  // «Lámina abierta» reusa `tiendaCatalogo.coloresPorProducto`/`tiendaEncabezado.sticker`/
-  // `tiendaInterludio`, ninguno declarado acá de nuevo.
+  // arriba). `ocultable:false` como el resto de /tienda. `badge1/2/3` (§ TIENDA-LEGAL-1) son
+  // 'opcional' — el resto de la composición «Lámina abierta» reusa
+  // `tiendaCatalogo.coloresPorProducto`/`tiendaEncabezado.sticker`/`tiendaInterludio`, ninguno
+  // declarado acá de nuevo.
   tiendaProducto: {
     label: 'Página de producto',
     ocultable: false,
@@ -4055,6 +4095,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     imagenes: [],
     campos: {
       teInteresaTitulo: 'requerido',
+      badge1: 'opcional',
+      badge2: 'opcional',
+      badge3: 'opcional',
     },
   },
   // El MENÚ del nav (§ CROMO-MENU-COMO-DATO-1). `ocultable:false` — como el hero, el menú no se
@@ -4185,6 +4228,32 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       modo: 'opcional',
     },
   },
+  // LA IDENTIDAD LEGAL DEL VENDEDOR (§ TIENDA-LEGAL-1, ver el docstring de `VendedorContent` arriba
+  // para el porqué completo). `ocultable:false`, sin `imagenes` (son 14 campos de TEXTO, ninguno un
+  // blob) — todos 'opcional': el default de cada uno es `''`, y vacío se OMITE (nunca cae a un dato
+  // inventado). La completitud la decide `vendedorEstaCompleto` (lib/legal/plantillas.ts), no este
+  // REGISTRY — el mismo split "requerido/opcional decide el STORAGE, una función aparte decide la
+  // PRESENTACIÓN" que ya usa `tarjetasDePresentaciones` para las tarjetas opcionales 3-4.
+  vendedor: {
+    label: 'Identidad del vendedor',
+    ocultable: false,
+    campos: {
+      nombreCompleto: 'opcional',
+      tipoPersona: 'opcional',
+      documentoTipo: 'opcional',
+      documentoNumero: 'opcional',
+      nombreComercial: 'opcional',
+      direccion: 'opcional',
+      ciudad: 'opcional',
+      correo: 'opcional',
+      telefono: 'opcional',
+      horarioAtencion: 'opcional',
+      municipioDespacho: 'opcional',
+      transportadoras: 'opcional',
+      diasPreparacionHabiles: 'opcional',
+      ventanaCambiosDias: 'opcional',
+    },
+  },
 };
 
 /** El contrato de dato del LOGO subido (§ MARCA-LOGO-IMAGEN-1, + `icono` de § METADATA-ICONOS-Y-
@@ -4205,6 +4274,65 @@ export interface LogoContent {
   alt: string;
   icono: string;
   modo: string;
+}
+
+// LA IDENTIDAD LEGAL DEL VENDEDOR (§ TIENDA-LEGAL-1). `LEGALES-CENSO-TAMANO-1` (DECISIONS.md, rama
+// `slice/api-directa-panel-metodos-1`) ya había medido que razón social/NIT/domicilio no existen en
+// ningún campo del sistema, y decidió que el TEXTO legal es plantilla fija — lo que faltaba era
+// DÓNDE vive el dato que sustituye esa plantilla. Va en `SiteContent` (JSON, SIN migración) y no en
+// `SiteSetting` (que exigiría una columna nueva): mismo criterio que the resto de este archivo,
+// "SIN CAMBIO DE ESQUEMA" es la restricción de este slice, no una preferencia de estilo.
+//
+// MISMO precedente que `menu`/`footer`: `SeccionKey` NO lo excluye (es una sección real del
+// REGISTRY, § abajo) y su escritura va por el camino GENÉRICO (`PUT`/`POST /api/site-content`) —
+// pero su EDITOR es BESPOKE (`VendedorSeccion.tsx`, patrón `MenuSeccion`/`FooterSeccion`), no
+// `TiendaSeccionEditor`: no hay una página real del storefront a la que esta identidad "pertenezca"
+// (no es contenido de /tienda, /nosotros ni /suscripciones), así que forzarla a un `pagina: PaginaKey`
+// y a una entrada en el `Record<SeccionVista, ComponentType>` EXHAUSTIVO de `VistaTiendaEnVivo.tsx`
+// sería acoplar una identidad transversal a un pipeline de preview por página que no tiene nada que
+// previsualizar — el mismo argumento que ya descartó `TiendaSeccionEditor` para `menu`/`footer`.
+//
+// `ocultable:false` — la identidad del vendedor no se "apaga"; lo que decide si algo se MUESTRA con
+// ella (el bloque «Vendedor» del checkout, la línea del pie, las páginas legales enlazadas) es
+// `vendedorEstaCompleto` (`lib/legal/plantillas.ts`), no un toggle. `visible` queda igual por el
+// mismo motivo que en `menu`/`footer`/`logo`: el campo BASELINE que toda sección lleva, inerte acá.
+//
+// TODOS los campos son 'opcional' (§ REGISTRY.vendedor, abajo) y el default de CADA UNO es `''` — la
+// doctrina de "defaults-como-fallback" (§ CLAUDE.md) no aplica: no hay un texto genérico razonable
+// para sustituir un NIT o una dirección que nadie escribió, así que vacío se OMITE, nunca se
+// inventa (§ `vendedorEstaCompleto`, que decide cuándo hay bastante dato para publicar algo).
+//
+// `tipoPersona`/`documentoTipo` son STRINGS LIBRES, no un enum en el modelo: el resolver SOFT no
+// valida pertenencia a un set cerrado (mismo criterio que `logo.modo`); `etiquetaDocumento`
+// (`lib/legal/plantillas.ts`) es quien interpreta `'natural'|'juridica'`/`'cc'|'nit'` al leer, con un
+// fallback neutro ("documento") para cualquier otro valor — incluido vacío.
+export interface VendedorContent {
+  visible: boolean;
+  /** Nombre completo (persona natural) o razón social (sociedad). */
+  nombreCompleto: string;
+  /** `'natural'` | `'juridica'` | `''` — decide la etiqueta del documento al leer (§ arriba). */
+  tipoPersona: string;
+  /** `'cc'` | `'nit'` | `''`. */
+  documentoTipo: string;
+  documentoNumero: string;
+  /** El nombre bajo el que vende (marca/tienda), si es distinto del nombre legal. Vacío → las
+   *  plantillas y los bloques de identidad usan `nombreCompleto`. */
+  nombreComercial: string;
+  direccion: string;
+  ciudad: string;
+  correo: string;
+  /** Teléfono/WhatsApp de atención al comprador — no necesariamente el mismo número que
+   *  `SiteSetting.whatsapp` (el canal de checkout), aunque puedan coincidir. */
+  telefono: string;
+  horarioAtencion: string;
+  /** Municipio/ciudad desde donde despacha — las plantillas de envío lo usan como origen. */
+  municipioDespacho: string;
+  /** Texto libre: transportadora(s) o "mensajero propio". */
+  transportadoras: string;
+  /** Texto libre: cuánto tarda en preparar un pedido antes de despacharlo (p. ej. "2 a 3"). */
+  diasPreparacionHabiles: string;
+  /** Texto libre: la ventana para pedir un cambio por gusto, en días (p. ej. "5"). */
+  ventanaCambiosDias: string;
 }
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.

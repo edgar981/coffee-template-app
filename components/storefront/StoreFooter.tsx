@@ -19,8 +19,9 @@ import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useModoEditorActivo } from "@/components/storefront/ModoEditor";
 import CampoEditable from "@/components/storefront/CampoEditable";
-import { columnasDeFooter, type FooterContent, type LogoContent } from "@/lib/config/site-content-defaults";
+import { columnasDeFooter, type FooterContent, type LogoContent, type VendedorContent } from "@/lib/config/site-content-defaults";
 import { contenedorAnchoClase } from "@/lib/config/themes";
+import { vendedorEstaCompleto, lineaVendedor } from "@/lib/legal/plantillas";
 
 // EL PIE DE PÁGINA como SECCIÓN del REGISTRY (§ MUESTRARIO-FOOTER-TEMA-1). Antes `footerNav`/
 // `legalNav` vivían en `siteConfig` (código fijo, cero fidelidad de preset posible); hoy los
@@ -99,13 +100,43 @@ function CreditoDuna() {
   );
 }
 
+// EL BLOQUE LEGAL DEL PIE (§ TIENDA-LEGAL-1) — la identidad del vendedor + los enlaces a las
+// cuatro páginas legales, COMPARTIDO por las dos variantes (igual que `CreditoDuna`, arriba) para
+// que no puedan divergir. Gateado ENTERO por `vendedorEstaCompleto`: sin los cinco datos
+// requeridos, ni la línea ni los enlaces se muestran — el mismo criterio que gatea las cuatro
+// páginas (§ `app/(storefront)/legal/*/page.tsx`), nunca un enlace a una página que redirige.
+const ENLACES_LEGALES = [
+  { label: "Términos y condiciones", href: "/legal/terminos-y-condiciones" },
+  { label: "Tratamiento de datos", href: "/legal/tratamiento-de-datos" },
+  { label: "Envíos y devoluciones", href: "/legal/envios-y-devoluciones" },
+  { label: "Cookies", href: "/legal/cookies" },
+];
+
+function BloqueLegalFooter({ vendedor, contenedorClase }: { vendedor: VendedorContent; contenedorClase: string }) {
+  if (!vendedorEstaCompleto(vendedor)) return null;
+  const linea = lineaVendedor(vendedor);
+  if (!linea) return null;
+  return (
+    <div className={`mx-auto ${contenedorClase} flex flex-col items-center justify-between gap-3 py-4 text-xs text-[var(--sf-sobre)]/30 sm:flex-row sf-divisor-t border-white/10`}>
+      <p>{linea}</p>
+      <nav aria-label="Legal" className="flex gap-4">
+        {ENLACES_LEGALES.map((l) => (
+          <Link key={l.href} href={l.href} className="transition-colors hover:text-[var(--sf-sobre)]/60">
+            {l.label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 export default function StoreFooter() {
   // § EDITOR-TIENDA-CROMO-1 — el PIE entra al editor como el resto de las secciones: marcado con
   // `data-editor-seccion` SÓLO en modo editor, mismo contrato que `StoreNav.tsx`.
   const enModoEditor = useModoEditorActivo();
   const settings = useSiteSettings();
   const content = useSiteContent();
-  const { footer, navTratamiento, logo } = content;
+  const { footer, navTratamiento, logo, vendedor } = content;
   const { tienda, ayuda, empresa } = columnasDeFooter(content);
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
@@ -114,8 +145,8 @@ export default function StoreFooter() {
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return footer.variante === "apilado"
-    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} enModoEditor={enModoEditor} />
-    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} enModoEditor={enModoEditor} />;
+    ? <FooterApilado settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} vendedor={vendedor} enModoEditor={enModoEditor} />
+    : <FooterColumnas settings={settings} footer={footer} tienda={tienda} ayuda={ayuda} empresa={empresa} contenedorClase={contenedorClase} logo={logo} vendedor={vendedor} enModoEditor={enModoEditor} />;
 }
 
 type SettingsFooter = ReturnType<typeof useSiteSettings>;
@@ -130,6 +161,9 @@ interface VariantProps {
   /** El logo SUBIDO del dueño (§ MARCA-LOGO-IMAGEN-1). Sin ninguna versión subida, `Logo` ignora
    *  la prop y renderiza el wordmark apilado de siempre — byte a byte, las dos variantes. */
   logo: LogoContent;
+  /** La identidad legal del vendedor (§ TIENDA-LEGAL-1). Sin los cinco datos requeridos,
+   *  `BloqueLegalFooter` no rinde nada — byte a byte lo de antes de este slice. */
+  vendedor: VendedorContent;
   /** § EDITOR-TIENDA-CROMO-1 — `data-editor-seccion="footer"` va DIRECTO en el `<footer>` de cada
    *  variante (sin wrapper nuevo); `undefined` fuera de modo editor, byte-idéntico. */
   enModoEditor: boolean;
@@ -137,7 +171,7 @@ interface VariantProps {
 
 // VARIANTE 'franjas' — LA CANÓNICA: el pie de HOY, VERBATIM (byte-idéntico a antes de este slice;
 // sólo cambió DE DÓNDE salen los textos — de `siteConfig.footerNav`/`legalNav` a `content.footer`).
-function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, enModoEditor }: VariantProps) {
+function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, vendedor, enModoEditor }: VariantProps) {
   return (
     <footer className="bg-[var(--sf-tinta)] text-[var(--sf-sobre)]" data-editor-seccion={enModoEditor ? 'footer' : undefined}>
       <div className={`mx-auto ${contenedorClase} py-16`}>
@@ -294,6 +328,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
           )}
         </div>
       </div>
+      <BloqueLegalFooter vendedor={vendedor} contenedorClase={contenedorClase} />
     </footer>
   );
 }
@@ -313,7 +348,7 @@ function FooterColumnas({ settings, footer, tienda, ayuda, empresa, contenedorCl
 // SIN wrapper de grid extra (byte-idéntico); con imagen, la marca pasa a la columna izquierda de un
 // grid `1.1fr 1fr` (§ `.footer-top` del prototipo) y la tarjeta ocupa la derecha. `tarjetaTexto`
 // SOLO, sin `tarjetaImagen`, NO rinde nada — sería un pie de foto flotando sobre nada.
-function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, enModoEditor }: VariantProps) {
+function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorClase, logo, vendedor, enModoEditor }: VariantProps) {
   // `campo` nombra el campo de `FooterContent` que `titulo` muestra (§ EDITOR-TIENDA-CROMO-1) —
   // la posición en este array es FIJA (Tienda · Ayuda · Empresa condicional), así que no hace
   // falta un cuarto campo "nombre de la clave" aparte: se declara acá, una vez, en el mismo literal
@@ -452,6 +487,7 @@ function FooterApilado({ settings, footer, tienda, ayuda, empresa, contenedorCla
           )}
         </div>
       </div>
+      <BloqueLegalFooter vendedor={vendedor} contenedorClase={contenedorClase} />
     </footer>
   );
 }

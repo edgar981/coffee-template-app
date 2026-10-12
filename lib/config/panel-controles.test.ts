@@ -234,6 +234,34 @@ test('carrito.variante: CONTROLADO por DetallesSitioSeccion.tsx desde su propio 
   assert.ok(!huecosDelPanel({ conExenciones: false }).includes('carrito.variante'));
 });
 
+// § TIENDA-LEGAL-1 — `vendedor` nace CONTROLADO por `VendedorSeccion.tsx` en su propio commit (las
+// 14 claves son sección nueva de REGISTRY, así que sin control estarían en el lado "leído" desde
+// cero). Mismo patrón que `carrito.variante`: confirma las DOS mitades y que el techo-trinquete de
+// PENDIENTE_PANEL no se movió por este slice.
+test('vendedor.*: las 14 claves nacen CONTROLADAS por VendedorSeccion.tsx — nunca un hueco, ni siquiera SIN exenciones', () => {
+  const controlados = camposControladosPorPanel();
+  const leidos = camposLeidosPorTienda().filter((c) => c.startsWith('vendedor.'));
+  assert.ok(leidos.length > 0, 'vendedor debería tener campos leídos (si no, este test no prueba nada)');
+  for (const campo of leidos) {
+    assert.ok(controlados.includes(campo), `${campo} debería estar controlado`);
+  }
+  const huecosSinExenciones = huecosDelPanel({ conExenciones: false });
+  for (const campo of leidos) {
+    assert.ok(!huecosSinExenciones.includes(campo), `${campo} no debería ser un hueco`);
+  }
+});
+
+// § TIENDA-LEGAL-1 — `tiendaProducto.badge1/2/3` nacen CONTROLADOS por el editor GENÉRICO
+// (`TIENDA_PRODUCTO.campos` en tienda-secciones.ts) — mismo mecanismo que `teInteresaTitulo`, sin
+// ninguna declaración manual nueva en este archivo.
+test('tiendaProducto.badge1/2/3: CONTROLADOS por el editor genérico — nunca un hueco', () => {
+  const controlados = camposControladosPorPanel();
+  for (const campo of ['tiendaProducto.badge1', 'tiendaProducto.badge2', 'tiendaProducto.badge3']) {
+    assert.ok(controlados.includes(campo), `${campo} debería estar controlado`);
+    assert.ok(!huecosDelPanel({ conExenciones: false }).includes(campo), `${campo} no debería ser un hueco`);
+  }
+});
+
 // CERRADO por PANEL-EDITOR-TRUSTBADGES-VISIBLE-1: este test afirmaba que SIN exenciones el chequeo
 // marcaba `trustBadges.visible` como hueco — la calibración original que motivó su entrada en
 // `PENDIENTE_PANEL`. Ese slice le dio control (`TRUSTBADGES` en `SECCIONES_TIENDA`, § tienda-

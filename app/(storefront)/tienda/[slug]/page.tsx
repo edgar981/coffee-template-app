@@ -14,6 +14,7 @@ import {
   Truck,
   RotateCcw,
   CheckCircle,
+  MessageCircle,
 } from "lucide-react";
 
 import { motion } from "framer-motion";
@@ -38,6 +39,7 @@ import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { useSiteSettings } from "@/components/storefront/SiteSettingsProvider";
 import { contenedorAnchoClase, navOffsetClase } from "@/lib/config/themes";
 import ProductoLamina from "@/components/storefront/producto/ProductoLamina";
+import { whatsappUrl } from "@/lib/config/site";
 
 interface ProductPageProps {
   params: Promise<{
@@ -424,18 +426,37 @@ export default function ProductPage({
                 ) : (
                   <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center">
                     <p className="font-semibold text-gray-600">Producto Agotado</p>
-                    <p className="text-sm text-gray-400 mt-1">Déjanos tu correo para notificarte cuando regrese.</p>
-                    <div className="flex gap-2 mt-3">
-                      <input type="email" placeholder="tu@correo.com" className="flex-1 px-3 py-2 border border-gray-200 sf-radio-lg text-sm" />
-                      <button className="bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] px-4 py-2 sf-radio-lg text-sm font-medium">Avisar</button>
-                    </div>
+                    {/* TIENDA-LEGAL-1 — el formulario «Avisar» se QUITA: no tenía manejador (el
+                        botón no hacía nada con el correo tecleado). En su lugar, el único canal
+                        real que ya existe para este caso — WhatsApp, si la tienda lo configuró —
+                        o, sin él, un texto honesto sin prometer un aviso que nadie va a mandar. */}
+                    {whatsapp.trim() !== '' ? (
+                      <a
+                        href={whatsappUrl(whatsapp, `Hola, quiero saber cuándo vuelve a estar disponible "${product.nombre}".`)}
+                        target="_blank" rel="noopener"
+                        className="mt-3 inline-flex items-center justify-center gap-1.5 bg-[var(--sf-acento)] text-[var(--sf-acento-txt)] px-4 py-2 sf-radio-lg text-sm font-medium"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Avísame por WhatsApp
+                      </a>
+                    ) : (
+                      <p className="text-sm text-gray-400 mt-1">Vuelve a visitarnos pronto.</p>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Shipping Perks */}
+              {/* TIENDA-LEGAL-1 — las TRES garantías dejaron de ser un array literal fijo
+                  ("Envío a todo Colombia · Gratis +$150.000", "Garantía de frescura de 30 días",
+                  "Tostado dentro de los 7 días previos al envío"): ahora son DATO
+                  (`tiendaProducto.badge1/2/3`, default vacío), y cada una se muestra SÓLO si el
+                  dueño la escribió — la fila se achica sola en vez de mostrar una promesa que
+                  nadie confirmó. */}
               <div className="flex flex-col gap-2 pt-2">
-                {[{ icon: Truck, text: 'Envío a todo Colombia · Gratis +$150.000' }, { icon: RotateCcw, text: 'Garantía de frescura de 30 días' }, { icon: CheckCircle, text: 'Tostado dentro de los 7 días previos al envío' }].map(({ icon: Icon, text }) => (
+                {[
+                  { icon: Truck, text: tiendaProducto.badge1 },
+                  { icon: RotateCcw, text: tiendaProducto.badge2 },
+                  { icon: CheckCircle, text: tiendaProducto.badge3 },
+                ].filter(({ text }) => text.trim() !== '').map(({ icon: Icon, text }) => (
                   <div key={text} className="flex items-center gap-2 text-xs text-[var(--sf-texto)]">
                     <Icon className="w-3.5 h-3.5 text-[var(--sf-acento-texto)] shrink-0" /> {text}
                   </div>

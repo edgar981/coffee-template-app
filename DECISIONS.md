@@ -62310,3 +62310,281 @@ Nayoli hoy), ÉSTOS SÍ son la ruta que Nayoli usa en este momento. Sin cambio d
 4581/4581, `npm run test:integracion` 409/409 — los TRES, no sólo los dos de la entrada anterior,
 porque este slice sí tiene permiso de tocar una base (ephemeral, propia del carril). No es `GATE_RED`.
 Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — La tienda gana sus páginas legales, la identidad del vendedor como dato, y la casilla obligatoria en todo camino de pago (`TIENDA-LEGAL-1`)
+
+**Alcance:** las cuatro páginas legales (términos, tratamiento de datos, envíos y devoluciones con
+retracto, cookies) como plantilla fija sustituida por `content.vendedor`; el bloque «Vendedor» en
+checkout/cajón/página de estado/pie; la casilla obligatoria de aceptación en los tres caminos de
+confirmación (manual, pasarela widget, pasarela API directa) y en el escape de WhatsApp; las tres
+promesas comerciales fijas de la ficha de producto pasan a dato vacío, y el formulario «Avisar» sin
+manejador se retira. Spec validado CLEAR, `tier:1`, `writes: yes`, aprobado por el owner
+(`approval-reason`: La Granja Jofamugo, primer cliente pagante, 2026-10-12 — "We gotta solve then
+what would block the first go live from code and legal docs").
+
+### Las fuentes
+
+- **La decisión de FORMA** viene de `LEGALES-CENSO-TAMANO-1` (`DECISIONS.md`, rama
+  `slice/api-directa-panel-metodos-1`, NO mergeada a esta rama — leída con `git show`, nunca
+  mergeada): plantilla fija con los datos del vendedor sustituidos, nunca dato editable por tienda.
+  Ese asiento también midió que razón social/NIT/domicilio no existían en NINGÚN campo del sistema,
+  y que el camino manual del checkout no ofrecía ninguna aceptación legal
+  (`CHECKOUT-MANUAL-SIN-ACEPTACION-LEGAL-1`, el mismo hueco que este slice cierra).
+- **Los textos** salen de `.scratch/lanzamiento/tienda-terminos-y-condiciones.md`,
+  `tienda-politica-datos-personales.md`, `tienda-envios-cambios-devoluciones.md`, `tienda-cookies.md`
+  — borradores escritos para La Granja Jofamugo (Neider, persona natural), generalizados acá: cero
+  mención de café, Jofamugo, Nayoli o Neider en la plantilla base (afirmado por test, § abajo).
+
+### 1 · La identidad del vendedor — `SiteContent.vendedor`, SIN cambio de esquema
+
+Catorce campos de TEXTO (`VendedorContent`, `lib/config/site-content-defaults.ts`): `nombreCompleto`,
+`tipoPersona`, `documentoTipo`, `documentoNumero`, `nombreComercial`, `direccion`, `ciudad`, `correo`,
+`telefono`, `horarioAtencion`, `municipioDespacho`, `transportadoras`, `diasPreparacionHabiles`,
+`ventanaCambiosDias` — todos `'opcional'` en el REGISTRY, default `''`. Vive en `SiteContent.content`
+(JSON), nunca en `SiteSetting`: una columna nueva ahí habría exigido migración, y el dispatch de este
+slice la prohíbe (`SIN CAMBIO DE ESQUEMA`).
+
+- **`vendedor` ES una sección real del REGISTRY** (como `menu`/`footer`/`logo`), así que el PUT/POST
+  GENÉRICO de `/api/site-content` ya la acepta sin tocar ese archivo (`seccion in REGISTRY`) — y
+  `resolverSiteContent` la resuelve por el loop genérico, sin un `if` especial. Esto es lo que hizo
+  posible construir la identidad del vendedor SIN tocar `app/api/` ni `lib/config/*-read.ts` —
+  ninguno de los dos está en `touches:` y los dos están prohibidos por la frontera con el trabajo de
+  Carlos.
+- **El EDITOR es BESPOKE** (`components/admin/VendedorSeccion.tsx`), patrón `MenuSeccion`/
+  `FooterSeccion`: no hay una página real del storefront a la que la identidad "pertenezca", así que
+  forzarla a `TiendaSeccionEditor`/`SECCIONES_TIENDA` habría exigido un `pagina: PaginaKey` arbitrario
+  y una entrada nueva en el `Record<SeccionVista, ComponentType>` EXHAUSTIVO de
+  `VistaTiendaEnVivo.tsx` para algo sin nada que previsualizar — mismo argumento que ya usa el repo
+  para `menu`/`footer`. Vive junto a «Detalles del sitio» en el editor de pantalla completa
+  (`TiendaPaginas.tsx`, grupo «Abajo»), como su propia fila, con su propio borrador/publicar (vía el
+  endpoint GENÉRICO, `seccion:'vendedor'` — no un endpoint propio como «Detalles del sitio»).
+- **`panel-controles.ts`** gana `CONTROLADOS_VENDEDOR_SECCION` (las 14 claves) — sin esto, el gate de
+  "el panel refleja la tienda" (`huecosDelPanel()`) habría quedado en rojo: 14 campos nuevos, LEÍDOS
+  por la tienda (vía REGISTRY), SIN ningún control declarado.
+- **DEVIACIÓN MEDIDA del spec, documentada**: el spec pide "Se edita en el panel, en «Detalles del
+  sitio»" literal. Medido: «Detalles del sitio» (`DetallesSitioSeccion.tsx`) escribe por su PROPIO
+  endpoint bespoke (`/api/site-content/detalles`, `app/api/`, fuera de `touches:` y de la frontera) —
+  meterle `vendedor` ahí habría exigido editar ese archivo. Se construyó como fila HERMANA en el mismo
+  lugar del editor (visualmente adyacente, mismo patrón), no DENTRO del mismo componente — medición
+  que prevaleció sobre la letra del spec (§ CLAUDE.md, "cuando la medición contradice la instrucción,
+  la medición gana").
+
+### 2 · Completitud — un solo gate, cinco campos
+
+`vendedorEstaCompleto` (`lib/legal/plantillas.ts`) exige CINCO de los catorce: `nombreCompleto`,
+`documentoNumero`, `ciudad`, `correo`, `telefono` — los que toda plantilla y todo bloque de identidad
+necesitan sin excepción. Los otros nueve tienen FALLBACK GENÉRICO explícito (nunca un dato inventado):
+sin `nombreComercial` se usa `nombreCompleto`; sin `municipioDespacho` se despacha desde `ciudad`; sin
+`transportadoras`, "la transportadora que mejor cubra tu zona"; sin `diasPreparacionHabiles`, "en pocos
+días hábiles"; sin `horarioAtencion`, la línea se omite entera; sin `direccion`, "la dirección que te
+indicamos al contactarnos"; sin `ventanaCambiosDias`, la sección de Envíos dice que hoy no se ofrecen
+cambios por gusto. `tipoPersona`/`documentoTipo` vacíos caen a etiquetas neutras ("persona o sociedad",
+"documento").
+
+Es el ÚNICO gate — lo consultan las cuatro páginas legales, el bloque del checkout, la línea del pie
+y la del cajón del carrito. Ninguno duplica el criterio.
+
+- **«[dato pendiente]» sólo en el panel, nunca en público** — `lineaVendedor(v, modo)`: `'publico'`
+  (todas las superficies de cliente) devuelve `null` si falta algo requerido, nunca un hueco visible;
+  `'editor'` (sólo la mini-vista "Así se ve:" de `VendedorSeccion.tsx`) lo marca explícito.
+  **DEVIACIÓN MEDIDA**: el spec dice "muestra el hueco... sólo en la vista del editor" sin precisar
+  cuál — no existe un pipeline de vista previa en vivo para `vendedor` (§1, por diseño). Se interpretó
+  como la mini-vista del propio editor, no una previsualización de la página legal completa — construir
+  esa segunda cosa habría exigido el mismo acoplamiento a `VistaTiendaEnVivo` que §1 evitó a propósito.
+- **Público: la página NO se enlaza — y tampoco responde con un hueco si se visita a mano.** Las
+  cuatro páginas (`app/(storefront)/legal/*/page.tsx`) hacen `redirect('/')` (307) si
+  `!vendedorEstaCompleto`, el MISMO patrón que `/nosotros`/`/preguntas-frecuentes` (una capacidad
+  apagada redirige, no da 404 ni muestra a medias). Es más estricto que "no enlazar" a secas, y es la
+  lectura más segura: nadie necesita escribir la URL a mano para ver un documento legal con huecos.
+
+### 3 · Las cuatro páginas — plantilla fija en `lib/legal/plantillas.ts`
+
+`terminosYCondiciones`, `politicaDeDatosPersonales` + `avisoDePrivacidadCorto`, `enviosYDevoluciones`,
+`cookies` — cada una devuelve `SeccionLegal[]` (título + párrafos), sustituidos con `VendedorContent`.
+Renderizadas por `PaginaLegal.tsx` (presentacional, server, sin hooks) en
+`/legal/terminos-y-condiciones`, `/legal/tratamiento-de-datos`, `/legal/envios-y-devoluciones`,
+`/legal/cookies`.
+
+- **Cláusulas condicionales por CAPACIDAD, no por rubro**: `suscripciones` (`content.paginas.
+  suscripciones.visible`, § CLAUDE.md "La SUSCRIPCIÓN es una capacidad APAGABLE") gatea la cláusula
+  12 de Términos — sin ella, la numeración de las secciones siguientes se corre (afirmado por test);
+  `contraentrega` (`'efectivo' in SiteSetting.metodosPago`) gatea la mención de pago contra entrega en
+  Medios de Pago y la advertencia de que no aplica reversión de pago en Envíos. La cláusula de compras
+  al por mayor (art. 5 núm. 3, Ley 1480) va SIEMPRE: es un carve-out estándar de cualquier comercio,
+  no una capacidad de rubro — no se gatea.
+- **`ADVERTENCIA_BORRADOR`** ("Este texto es un borrador general, pendiente de revisión por un
+  abogado. No reemplaza asesoría legal.") encabeza las cuatro páginas vía `PaginaLegal.tsx` — el mismo
+  aviso que ya traían los cuatro documentos de origen, y que `VendedorSeccion.tsx` repite en el panel
+  (§ el spec, "los textos son borradores sin revisión de abogado — lo dice también el panel").
+- **Ningún término de rubro sobrevive**: `lib/legal/plantillas.test.ts` corre un `TERMINOS_PROHIBIDOS`
+  (café/Nayoli/Jofamugo/Neider/finca/grano/molienda/tueste/tostión/cafetal/Chamisas) contra el texto
+  completo de las cuatro plantillas, con las dos capacidades ON y OFF — cero coincidencias.
+
+### 4 · Dónde se ve el vendedor — cuatro superficies, un solo texto compartido
+
+`lineaVendedor`/`etiquetaDocumento`/`nombreParaMostrar` (`lib/legal/plantillas.ts`) alimentan las
+cuatro, sin que ninguna repita la lógica de sustitución:
+
+- **Checkout, paso de Pago**: bloque «Vendedor» (nombre, documento, ciudad, tres enlaces) justo antes
+  de la casilla — reemplaza el marcador que dejó `CHECKOUT-LISTO-PARA-VENDER-1`. Fuera del
+  `{!confirmation}`, a propósito: se queda visible mientras un pago de pasarela-widget está en curso.
+- **Cajón del carrito** (`CartDrawer.tsx`): la línea «Vende… · documento · ciudad», bajo el total y
+  antes del CTA.
+- **Página de estado del pedido** (`EstadoPedido.tsx`): el mismo bloque que el checkout, bajo el
+  resumen. `EstadoPedido` gana `useSiteContent()` — seguro: sus dos consumidores (`checkout/page.tsx`,
+  `RetornoCliente.tsx`) viven siempre dentro de `app/(storefront)/`.
+- **Pie de página** (`StoreFooter.tsx`, las DOS variantes): un `BloqueLegalFooter` COMPARTIDO (como ya
+  hace `CreditoDuna`) con la línea del vendedor + un `<nav aria-label="Legal">` con los cuatro enlaces.
+  **DEVIACIÓN MEDIDA del spec**: el spec dice "`legalNav` deja de estar vacío" — medido:
+  `siteConfig.legalNav` YA NO EXISTE (retirado por `MUESTRARIO-FOOTER-TEMA-1`, § CLAUDE.md,
+  "HIGIENE-SEED-Y-DOCTRINA-1"); su sucesor, `content.footer.items`, es un repeater de ENLACES LIBRES
+  que el dueño llena a mano, no el lugar correcto para cuatro enlaces FIJOS que la plataforma controla.
+  Se construyó un bloque CODE-DRIVEN aparte, gateado por `vendedorEstaCompleto` — el equivalente en
+  espíritu ("el pie deja de omitir las páginas legales cuando hay con qué publicarlas"), no en la letra
+  de un campo que ya no existe.
+
+Para Nayoli (identidad vacía) las CUATRO superficies no renderizan nada nuevo — confirmado por el
+harness visual, § 6.
+
+### 5 · La casilla obligatoria — los tres caminos de confirmación, y el de WhatsApp
+
+Una sola casilla (no dos, a diferencia del borrador de origen que tenía "términos" y "datos" por
+separado): *"Acepto los [términos y condiciones] y autorizo el [tratamiento de mis datos
+personales]."*, con los dos enlaces — el texto exacto del spec y de la maqueta aprobada.
+
+- **Gate en TRES puntos de creación de orden + uno de escape**: `handleOrder` (métodos manuales y
+  pasarela en modo WIDGET), `crearOrdenPasarela` (pasarela API DIRECTA — la ÚNICA función que crea esa
+  orden, así que gatearla ahí cubre el botón "Pagar" de `FormularioTarjeta.tsx`/
+  `FormularioOtroMetodoPasarela.tsx` SIN tocar esos dos archivos de alto riesgo), y las DOS salidas a
+  WhatsApp cuando no hay método disponible (el botón de la barra fija y el enlace inline). Sin marcar,
+  cada uno resalta la casilla (`ring-2 ring-red-400` + mensaje) y hace scroll hasta ella — nunca un
+  botón deshabilitado mudo, mismo principio que el resto del checkout
+  (`CHECKOUT-LISTO-PARA-VENDER-1`).
+- **`crearOrdenPasarela` devolviendo `null` YA ERA un camino conocido**: el código existente documenta
+  `null` como "la creación falló y la página YA mostró el motivo (stock, error del servidor); este
+  formulario no repite el error, sólo deja de avanzar" — la guarda de este slice encaja en ese
+  contrato sin tocar `FormularioTarjeta.tsx` ni `FormularioOtroMetodoPasarela.tsx` ni una línea.
+- **PENDIENTE, reportado explícitamente (§ el spec lo anticipa)**: la versión aceptada NO viaja con
+  el pedido. Persistirla exige (a) que `/api/checkout` la reciba y guarde con fecha/hora y versión del
+  texto, y (b) una columna en `Order` o una tabla nueva — las dos cosas caen en `app/api/` y en
+  cambio de esquema, los DOS vetados por la frontera con el trabajo de Carlos Y por "SIN CAMBIO DE
+  ESQUEMA". La casilla SÍ bloquea el envío en el cliente (§ arriba); lo que falta es la PRUEBA server-
+  side. Abre `CHECKOUT-ACEPTACION-PERSISTIDA-1` (§ Open follow-ups).
+
+### 6 · La ficha de producto — las tres garantías pasan a dato, el formulario «Avisar» se retira
+
+- **`tiendaProducto.badge1/2/3`** (tres campos de texto nuevos en la sección YA existente
+  `tiendaProducto`, no una sección aparte): reemplazan el array literal fijo ("Envío a todo Colombia ·
+  Gratis +$150.000", "Garantía de frescura de 30 días", "Tostado dentro de los 7 días previos al
+  envío"). Default VACÍO — a propósito, no el "default NEUTRO" (texto genérico no-vacío) que había
+  construido la rama no-mergeada `slice/contenido-cafe-a-dato-b-1` para un caso parecido
+  (`productoBadges`, OTRA sección): el spec de ESTE slice pide explícitamente "default vacío (no se
+  muestran)", porque son PROMESAS COMERCIALES (envío gratis, plazos) que ninguna tienda nueva puede
+  garantizar por defecto — no copy decorativo. Se leyó esa rama, se reusó el PATRÓN (campos
+  opcionales, filtrado por vacío) y se descartó el valor NEUTRO por default, según lo que el spec de
+  ESTE slice pide.
+  - Como `tiendaProducto` YA es sección del REGISTRY con editor GENÉRICO
+    (`TIENDA_PRODUCTO` en `tienda-secciones.ts`), los tres campos entran al editor sin tocar
+    `VistaTiendaEnVivo.tsx` ni `SeccionVista` — simplemente tres `campos` más en un `SeccionConfig` que
+    ya existía.
+  - **`ProductoLamina.tsx`** (la composición "Lámina abierta" del mismo `tiendaProducto.variante`)
+    tenía un LITERAL propio que repetía el texto viejo a mano, con un comentario que anticipaba
+    exactamente este problema ("si algún día ese texto cambia en «Actual», esta línea puede quedar
+    desactualizada"). Se corrigió para leer la MISMA fuente (`badge1/2/3`), uniendo las no vacías — sin
+    esto, esa composición habría seguido prometiendo "Envío a todo Colombia" sin que nadie lo
+    configurara.
+- **El formulario «Avisar»** (un `<input type="email">` + un `<button>` sin `onClick`, que no hacía
+  nada con el correo tecleado) se RETIRA — no pasa a dato, porque no hay NINGÚN dato que lo arregle:
+  es andamiaje sin manejador, la misma familia que el "andamiaje no construido se BORRA, no se deja
+  redirigiendo" de `/cuenta` (§ CLAUDE.md, "El RATING fabricado se BORRÓ"). En su lugar: un enlace real
+  a WhatsApp (si `SiteSetting.whatsapp` está configurado) o un texto honesto sin prometer un aviso que
+  nadie va a mandar.
+
+### 7 · Gate y verificación
+
+- **`npx tsc --noEmit`**: limpio, en el árbol final.
+- **`npm test`**: **4620/4620** (antes de este slice: 4610, que ya incluía las +29 de
+  `lib/legal/plantillas.test.ts` escritas en este mismo slice — el run intermedio de 4610 se tomó
+  DESPUÉS de crear ese archivo y ANTES de las +10 que se agregaron después a
+  `lib/config/site-content-defaults.test.ts` (+8) y `lib/config/panel-controles.test.ts` (+2); el
+  BASELINE real pre-slice era 4581, el mismo de la entrada anterior de esta rama). 4581 + 29 (plantillas)
+  + 8 (defaults) + 2 (panel-controles) = 4620.
+- **`npm run test:integracion`**: **409/409** — sin cambio (este slice no agregó tests de integración;
+  el eje de identidad/legal se afirma por render en memoria y por las funciones puras de
+  `lib/legal/plantillas.ts`, sin necesidad de Postgres).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios), diff contra `main`:
+
+  | ruta | resultado | causa |
+  | --- | --- | --- |
+  | `/` (home) | idéntico al piso heredado: 165052/4608000 px AA · 174711 crudo | sin relación — `BloqueLegalFooter` es NO-OP para Nayoli (`vendedorEstaCompleto`=false, identidad vacía) |
+  | `/tienda` | idéntico al piso heredado: 209/2433280 · 407 | sin relación — no se tocó esa página |
+  | `/tienda/[slug]` (producto) | **TAMAÑOS DISTINTOS**: main 1280×1981 vs. rama 1280×1917 (Δ64px) — no comparable píxel a píxel | **CAUSADO por este slice**: las tres garantías nacen vacías (§6) y Nayoli no tiene fila que las llene, así que la franja de garantías queda vacía y la página se achica — el cambio EXACTO que el spec pidió |
+  | `/checkout` | idéntico al piso heredado: 163/1152000 · 361 | el harness visita con el carrito VACÍO (límite ya documentado por `CHECKOUT-LISTO-PARA-VENDER-1`); el bloque «Vendedor» y la casilla viven DENTRO del formulario de pago, que no renderiza con carrito vacío — esta cifra no ejercita nada de este slice |
+  | `/nosotros` | 224/1152000 AA · 422 crudo | sin relación — nada de este slice toca lo que esa página renderiza; `BloqueLegalFooter` es NO-OP para Nayoli |
+  | `/suscripciones` | 258/2144000 AA · 456 crudo | mismo caso que `/nosotros` |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **UNKNOWN declarado**: para `/nosotros` y `/suscripciones` el asiento anterior de esta rama
+  (`CHECKOUT-LISTO-PARA-VENDER-1`) afirmó paridad con el piso heredado SIN citar la cifra exacta
+  ("también idénticos al piso heredado, sin relación con este slice"), así que esta medición no pudo
+  reconciliarse dígito a dígito contra un número previamente citado — sólo contra el razonamiento de
+  que nada en este diff afecta esas dos rutas (confirmado: `StoreFooter` es la única superficie
+  compartida, y es NO-OP para Nayoli).
+  `exit 1` esperado (el mismo piso heredado, más el cambio reconocido de `/tienda/[slug]`).
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+- **`legalNav`** (CLAUDE.md, seis apariciones, todas sobre su retiro a `content.footer.items` por
+  `MUESTRARIO-FOOTER-TEMA-1`/`HIGIENE-SEED-Y-DOCTRINA-1`): ninguna queda falsa — este slice no revive
+  `legalNav` ni toca `footer.items`; agrega una superficie DISTINTA (`BloqueLegalFooter`, los cuatro
+  enlaces fijos de `/legal/*`). Sigue siendo cierto que "el repeater equivalente hoy es
+  `content.footer.items`" para los enlaces LIBRES del pie.
+- **`CLAUDE.md:7699-7702`** ("`reactivacion_cliente`... Conecta con las páginas legales pendientes
+  (Ley 1581)... el repeater equivalente hoy es `content.footer.items`, vacío por defecto"): la
+  premisa "páginas legales pendientes" queda PARCIALMENTE desactualizada por este slice — las cuatro
+  páginas ya EXISTEN en código (gateadas por `vendedorEstaCompleto`), aunque el consentimiento de
+  marketing en `Customer` (la otra mitad del prerequisito) sigue sin construirse. `CLAUDE.md` no está
+  en `touches:` de este slice — se reporta, no se edita.
+- Sin otras coincidencias de los símbolos/archivos nuevos (`VendedorContent`, `vendedorEstaCompleto`,
+  `lineaVendedor`, `lib/legal/`, `app/(storefront)/legal/`, `VendedorSeccion`, `tiendaProducto.badge1/
+  2/3`) contra `CLAUDE.md`.
+
+### Deviations
+
+Tres, todas documentadas en línea arriba (§1, §2, §4): el editor de `vendedor` vive HERMANO de
+«Detalles del sitio», no DENTRO (el endpoint bespoke de esa sección está en `app/api/`, fuera de
+`touches:`); «[dato pendiente]» sólo en la mini-vista de `VendedorSeccion.tsx`, no en una
+previsualización de la página legal completa (no existe ese pipeline para `vendedor`, por diseño);
+el pie usa un bloque CODE-DRIVEN propio en vez de `legalNav`, que ya no existe. Las tres son
+medidas, no supuestas, y ninguna reduce lo que el spec pidió en espíritu.
+
+### Open follow-ups
+
+- **`CHECKOUT-ACEPTACION-PERSISTIDA-1`** — persistir la versión aceptada (fecha/hora, texto) con el
+  pedido. *Por qué no ahora:* exige `app/api/checkout/route.ts` (fuera de `touches:` y vetado por la
+  frontera con Carlos) y una columna/tabla nueva (vetado por "SIN CAMBIO DE ESQUEMA"). La casilla
+  bloquea el envío en el cliente; falta la prueba server-side.
+- **`TIENDA-LEGAL-DASHBOARD-AVISO-1`** — un aviso en el Dashboard del dueño cuando la identidad del
+  vendedor está incompleta (mismo patrón que el aviso #8, WhatsApp vacío, § CLAUDE.md "El AVISO DE
+  CONFIGURACIÓN del Dashboard"). *Por qué no ahora:* no está en `touches:` (`lib/config/avisos-
+  configuracion.ts`, `app/(admin)/admin/dashboard/`) y el spec no lo pide explícitamente — el aviso
+  "qué falta" que el spec SÍ pide vive en `VendedorSeccion.tsx`, dentro del panel.
+- **`CLAUDE-MD-LEGALES-PENDIENTES-VENCIDO-1`** — `CLAUDE.md:7699-7702` sigue describiendo las páginas
+  legales como "pendientes" sin matizar que ya existen en código (§ Grep de doctrina, arriba). *Por
+  qué no ahora:* `CLAUDE.md` no está en `touches:` de este slice.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes`. Entra por los mismos subárboles ya ganados en CLAUDE.md:
+`app/(storefront)/`, `components/storefront/` (bytes del visitante) y, nuevo en esta entrada, el
+propio directorio `app/(storefront)/legal/` que la lista de rutas protegidas nombra explícitamente.
+El diff cambia markup, copy y comportamiento alcanzables por cualquier comprador real hoy mismo
+(cuatro páginas nuevas, el checkout, el pie, la ficha de producto) — `customer_bytes.changed=true`,
+sin ambigüedad. Sin cambio de schema/migración (cero `packages/core/prisma/`) ni contrato cruzado de
+repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4620/4620, `npm run test:integracion` 409/409. No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1`, sin mergear.

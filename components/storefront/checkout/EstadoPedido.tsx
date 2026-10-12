@@ -6,6 +6,8 @@ import { CheckCircle, Clock, XCircle, MessageCircle, Copy, Check } from "lucide-
 import { toast } from "sonner";
 import { formatCOP } from "@duna/core/utils";
 import { contenidoEstadoPedido, type EstadoPedidoPagina, type MetodoPedido } from "@/lib/checkout/estado-pedido";
+import { useSiteContent } from "@/components/storefront/SiteContentProvider";
+import { vendedorEstaCompleto, lineaVendedor } from "@/lib/legal/plantillas";
 
 // CHECKOUT-LISTO-PARA-VENDER-1 — LA PÁGINA DE ESTADO ÚNICA (§ refero-compra.md §3): una sola
 // plantilla para los cinco estados que el spec nombra (aprobado, pendiente, rechazado,
@@ -82,6 +84,12 @@ export default function EstadoPedido({ estado, metodo, numeroOrden, correo, nomb
   const contenido = contenidoEstadoPedido(estado, metodo, nombre);
   const { Icono, claseFondo, claseIcono, pulso } = ICONO_POR_ESTADO[estado];
   const [copiado, setCopiado] = useState(false);
+  // TIENDA-LEGAL-1 — el bloque «Vendedor», gateado por `vendedorEstaCompleto` (nunca un dato
+  // inventado). `EstadoPedido` vive siempre dentro de `SiteContentProvider` (sus dos consumidores,
+  // `checkout/page.tsx` y `RetornoCliente.tsx`, están bajo `app/(storefront)/`).
+  const { vendedor } = useSiteContent();
+  const vendedorCompleto = vendedorEstaCompleto(vendedor);
+  const lineaVendedorTexto = vendedorCompleto ? lineaVendedor(vendedor) : null;
 
   const copiarNumero = async () => {
     if (!numeroOrden) return;
@@ -175,9 +183,20 @@ export default function EstadoPedido({ estado, metodo, numeroOrden, correo, nomb
 
       {children}
 
-      {/* TIENDA-LEGAL-1 — el bloque «Vendedor» (razón social, documento, ciudad, enlaces) va
-          ACÁ, bajo el resumen y antes de las acciones. No se inventan datos: sin la info del
-          vendedor configurada, este slice no renderiza nada en su lugar. */}
+      {/* TIENDA-LEGAL-1 — el bloque «Vendedor» (razón social, documento, ciudad, enlaces), bajo
+          el resumen y antes de las acciones. Gateado por `vendedorEstaCompleto`: sin la info del
+          vendedor configurada, no renderiza nada en su lugar (nunca un dato inventado). */}
+      {vendedorCompleto && lineaVendedorTexto && (
+        <div className="bg-[var(--sf-superficie)] rounded-xl p-4 mb-4 text-left text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+          <p className="font-semibold mb-0.5">Vendedor</p>
+          <p>{lineaVendedorTexto}</p>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            <Link href="/legal/terminos-y-condiciones" className="underline hover:no-underline">Términos y condiciones</Link>
+            <Link href="/legal/tratamiento-de-datos" className="underline hover:no-underline">Tratamiento de datos</Link>
+            <Link href="/legal/envios-y-devoluciones" className="underline hover:no-underline">Cambios y devoluciones</Link>
+          </div>
+        </div>
+      )}
 
       {acciones.length > 0 && (
         <div className="flex flex-col gap-3">

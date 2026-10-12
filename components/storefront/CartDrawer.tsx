@@ -25,6 +25,7 @@ import {
 } from "@duna/core/shipping-config";
 import { COLOMBIA_DEPARTMENTS, isBogotaDC } from "@duna/core/colombia-departments";
 import { composicionCarrito } from "@/lib/storefront/carrito-drawer";
+import { vendedorEstaCompleto, lineaVendedor } from "@/lib/legal/plantillas";
 
 // CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
 // prop) a propósito: § CROMO-CARRITO-TEMATIZADO-1 -- useCartStore es un CONTEXT que revienta sin
@@ -197,7 +198,7 @@ export default function CartDrawer() {
     departamento,
     setDepartamento,
   } = useCartStore();
-  const { carritoEnvio, carrito } = useSiteContent();
+  const { carritoEnvio, carrito, vendedor } = useSiteContent();
 
   // CHECKOUT-LISTO-PARA-VENDER-1 — el envío YA NO dice "Se calcula en el checkout" (§ el
   // reporte del slice, § `paginas-pendientes.md` §2.1): el costo depende SOLO del
@@ -482,10 +483,12 @@ export default function CartDrawer() {
                   )}
                 </div>
 
-                {/* TIENDA-LEGAL-1 — el pie del cajón gana ACÁ, debajo del total y antes del
-                    CTA, una línea «Vende [nombre] · [documento] · [ciudad]» (§ el spec del
-                    slice). No se inventan datos: sin esa configuración, este slice no
-                    renderiza nada en su lugar. */}
+                {/* TIENDA-LEGAL-1 — la línea «Vende [nombre] · [documento] · [ciudad]», debajo
+                    del total y antes del CTA. Gateada por `vendedorEstaCompleto`: sin esa
+                    configuración, no se renderiza nada en su lugar (nunca un dato inventado). */}
+                {vendedorEstaCompleto(vendedor) && (
+                  <p className="text-xs text-[var(--sf-texto-suave)]">{lineaVendedor(vendedor)}</p>
+                )}
 
                 <CartCTA onClick={closeCart} label={composicion.ctaLabel} />
 

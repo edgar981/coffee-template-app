@@ -617,9 +617,14 @@ const tiendaCierreEditableSchema = z.object({
 // La página de producto (§ PRODUCTO-CHAMISAS-LAMINA-1): sin `visible` —`REGISTRY.tiendaProducto` es
 // `ocultable: false`, como el resto de /tienda. `variante` SOBREVIVE al parse como el resto de las
 // secciones con composición (`z.string()`, clampada SOFT por `resolverVariante` al leer, no acá).
+// `badge1/2/3` (§ TIENDA-LEGAL-1): las tres garantías bajo el botón de compra, dejaron de ser un
+// literal fijo. Todos opcionales — vacío se OMITE, nunca se inventa un texto de garantía.
 const tiendaProductoEditableSchema = z.object({
   teInteresaTitulo: z.string().optional(),
   variante: z.string().optional(),
+  badge1: z.string().optional(),
+  badge2: z.string().optional(),
+  badge3: z.string().optional(),
 });
 
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
@@ -1170,6 +1175,31 @@ const logoEditableSchema = z.object({
   modo: z.string().optional(),
 });
 
+// LA IDENTIDAD LEGAL DEL VENDEDOR (§ TIENDA-LEGAL-1, ver el docstring de `VendedorContent` en
+// site-content-defaults.ts). Editor BESPOKE (`VendedorSeccion.tsx`), vía el PUT/POST GENÉRICO de
+// `/api/site-content` — `vendedor` SÍ está en `REGISTRY`, así que ese endpoint ya la acepta sin
+// cambio (mismo patrón que `menu`/`footer`, § sus docstrings). Las 14 claves son `z.string()`
+// SOFT, igual que el resto de este archivo: el resolver decide requerido/opcional (acá, las 14
+// 'opcional', § REGISTRY.vendedor) — el schema sólo tiene que sobrevivir el parse sin strippear
+// nada (§ #65-B).
+const vendedorEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  nombreCompleto: z.string().optional(),
+  tipoPersona: z.string().optional(),
+  documentoTipo: z.string().optional(),
+  documentoNumero: z.string().optional(),
+  nombreComercial: z.string().optional(),
+  direccion: z.string().optional(),
+  ciudad: z.string().optional(),
+  correo: z.string().optional(),
+  telefono: z.string().optional(),
+  horarioAtencion: z.string().optional(),
+  municipioDespacho: z.string().optional(),
+  transportadoras: z.string().optional(),
+  diasPreparacionHabiles: z.string().optional(),
+  ventanaCambiosDias: z.string().optional(),
+});
+
 export const siteContentEditableSchema = z.object({
   hero: heroEditableSchema.optional(),
   marquesina: marquesinaEditableSchema.optional(),
@@ -1202,6 +1232,7 @@ export const siteContentEditableSchema = z.object({
   menu: menuEditableSchema.optional(),
   footer: footerEditableSchema.optional(),
   logo: logoEditableSchema.optional(),
+  vendedor: vendedorEditableSchema.optional(),
   paginas: paginasEditableSchema.optional(),
   cromo: cromoEditableSchema.optional(),
   volverArriba: volverArribaEditableSchema.optional(),

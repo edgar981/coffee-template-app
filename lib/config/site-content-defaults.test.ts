@@ -2611,6 +2611,72 @@ test('logo.modo: basura SOBREVIVE tal cual — el resolver no clampa, SOFT (el c
   assert.equal(resolverSiteContent({ logo: { modo: 'lo-que-sea' } }).logo.modo, 'lo-que-sea');
 });
 
+// ─── `vendedor` (§ TIENDA-LEGAL-1) — 14 campos de identidad legal, TODOS 'opcional', TODOS con
+// default `''`. Mismo patrón de verificación que `logo`: sin fila → vacío; guardado → sobrevive;
+// vacío guardado → se OMITE (nunca cae a un dato inventado, porque no hay default más que
+// `''` para omitir hacia).
+
+test('DEFAULTS.vendedor: las 14 claves nacen vacías — ninguna identidad legal se hornea', () => {
+  for (const campo of Object.keys(REGISTRY.vendedor.campos)) {
+    assert.equal((DEFAULTS.vendedor as unknown as Record<string, string>)[campo], '', `vendedor.${campo} debería nacer ''`);
+  }
+});
+
+test('vendedor: sin fila guardada, resuelve TODO vacío — byte-idéntico a DEFAULTS.vendedor', () => {
+  assert.deepEqual(resolverSiteContent({}).vendedor, DEFAULTS.vendedor);
+});
+
+test('vendedor: un valor guardado para cada campo SOBREVIVE al resolver', () => {
+  const r = resolverSiteContent({
+    vendedor: {
+      nombreCompleto: 'Ana Pérez', tipoPersona: 'natural', documentoTipo: 'cc', documentoNumero: '123',
+      nombreComercial: 'La Tienda', direccion: 'Calle 1', ciudad: 'Cali', correo: 'a@a.com',
+      telefono: '300', horarioAtencion: 'L-V', municipioDespacho: 'Cali', transportadoras: 'Servientrega',
+      diasPreparacionHabiles: '2', ventanaCambiosDias: '5',
+    },
+  });
+  assert.equal(r.vendedor.nombreCompleto, 'Ana Pérez');
+  assert.equal(r.vendedor.documentoNumero, '123');
+  assert.equal(r.vendedor.ciudad, 'Cali');
+  assert.equal(r.vendedor.ventanaCambiosDias, '5');
+});
+
+test('vendedor: un campo vacío EXPLÍCITO en el guardado se OMITE — opcional, nunca inventa (cae a "")', () => {
+  const r = resolverSiteContent({ vendedor: { nombreCompleto: '', ciudad: 'Cali' } });
+  assert.equal(r.vendedor.nombreCompleto, '');
+  assert.equal(r.vendedor.ciudad, 'Cali');
+});
+
+test('REGISTRY.vendedor: ocultable:false, sin imágenes — son 14 campos de texto', () => {
+  assert.equal(REGISTRY.vendedor.ocultable, false);
+  assert.equal(REGISTRY.vendedor.imagenes, undefined);
+  assert.equal(Object.keys(REGISTRY.vendedor.campos).length, 14);
+});
+
+// ─── `tiendaProducto.badge1/2/3` (§ TIENDA-LEGAL-1) — las tres garantías de la ficha de producto,
+// antes un array literal fijo. Default vacío → la fila de garantías no promete nada que el dueño
+// no haya confirmado.
+
+test('DEFAULTS.tiendaProducto.badge1/2/3 nacen vacíos', () => {
+  assert.equal(DEFAULTS.tiendaProducto.badge1, '');
+  assert.equal(DEFAULTS.tiendaProducto.badge2, '');
+  assert.equal(DEFAULTS.tiendaProducto.badge3, '');
+});
+
+test('tiendaProducto.badge1/2/3: sin fila guardada, resuelven vacíos — byte-idéntico', () => {
+  const r = resolverSiteContent({});
+  assert.equal(r.tiendaProducto.badge1, '');
+  assert.equal(r.tiendaProducto.badge2, '');
+  assert.equal(r.tiendaProducto.badge3, '');
+});
+
+test('tiendaProducto.badge1/2/3: un valor guardado SOBREVIVE; el resto sigue vacío', () => {
+  const r = resolverSiteContent({ tiendaProducto: { badge2: 'Envío a todo el país' } });
+  assert.equal(r.tiendaProducto.badge1, '');
+  assert.equal(r.tiendaProducto.badge2, 'Envío a todo el país');
+  assert.equal(r.tiendaProducto.badge3, '');
+});
+
 // ─── `navWordmark.taglineColor` (§ NAV-LOGO-MOVIL-CON-AIRE-1) — dominio CERRADO de 2, mismo patrón
 // de validación que `navDrawerMovil.variante`/`carrito.variante` (§ sus propios tests): sólo un
 // miembro del set sobrevive, cualquier otra cosa cae al default ('atenuado'). A diferencia de

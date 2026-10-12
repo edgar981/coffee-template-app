@@ -424,15 +424,22 @@ export default function ProductoLamina({ product, catalog, whatsapp }: ProductoL
 
             {/* LA LÍNEA DE CONFIANZA (§ PRODUCTO-CHAMISAS-FIDELIDAD-1, diferencia 5) — el MISMO dato
                 que la composición «Actual» ya muestra bajo su botón (`app/(storefront)/tienda/[slug]/
-                page.tsx`, el array "Shipping Perks": "Envío a todo Colombia…" + "Tostado dentro de los
-                7 días previos al envío"), no un texto nuevo inventado para esta composición — sólo se
-                recombinan sus dos hechos de envío/tostión en una sola línea, como pide la maqueta.
-                Ese archivo queda FUERA de `touches:`, así que esta línea es un literal propio; si
-                algún día ese texto cambia en «Actual», esta línea puede quedar desactualizada — anotado
-                como seguimiento, no una refactorización de este slice. */}
-            <p className="text-[13px] text-[var(--sf-texto-suave)]">
-              Envío a todo Colombia · tostado dentro de los 7 días previos al envío
-            </p>
+                page.tsx`, las garantías de la ficha). CORREGIDO por § TIENDA-LEGAL-1: ese archivo
+                dejó de tener un array literal fijo ("Envío a todo Colombia…", "Tostado dentro de
+                los 7 días…") — las garantías pasaron a dato (`tiendaProducto.badge1/2/3`, default
+                vacío) porque eran una PROMESA COMERCIAL que ninguna tienda nueva ofrece por
+                defecto. Esta línea lee la MISMA fuente, uniendo las que el dueño llenó — nunca el
+                literal viejo, que habría quedado mintiendo para cualquier tienda sin esas tres
+                condiciones reales. Vacías las tres → la línea se omite entera. */}
+            {(() => {
+              const garantias = [tiendaProducto.badge1, tiendaProducto.badge2, tiendaProducto.badge3].filter((b) => b.trim() !== '');
+              if (garantias.length === 0) return null;
+              return (
+                <p className="text-[13px] text-[var(--sf-texto-suave)]">
+                  {garantias.join(' · ')}
+                </p>
+              );
+            })()}
           </div>
         </div>
       </div>

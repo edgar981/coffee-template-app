@@ -238,6 +238,20 @@ const CONTROLADOS_PALETA_SECCION = ['tema.fondo', 'tema.tinta', 'tema.acento', '
  *  encendido/apagado de cada página apagable. */
 const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible'];
 
+/** DECLARACIÓN EXPLÍCITA de lo que `VendedorSeccion.tsx` controla (§ TIENDA-LEGAL-1 — `vendedor` SÍ
+ *  es sección del REGISTRY, pero su editor es BESPOKE, patrón `MenuSeccion`/`FooterSeccion`: no hay
+ *  una página real del storefront a la que esta identidad "pertenezca", así que forzarla a
+ *  `TiendaSeccionEditor`/`VistaTiendaEnVivo` acoplaría una identidad transversal a un pipeline de
+ *  preview por página sin nada que previsualizar — ver el docstring de `VendedorContent`,
+ *  site-content-defaults.ts, para el porqué completo) — leído de su código: las 14 claves de texto.
+ *  `vendedor.visible` no aplica — `REGISTRY.vendedor.ocultable` es `false` (§ arriba). */
+const CONTROLADOS_VENDEDOR_SECCION = [
+  'vendedor.nombreCompleto', 'vendedor.tipoPersona', 'vendedor.documentoTipo', 'vendedor.documentoNumero',
+  'vendedor.nombreComercial', 'vendedor.direccion', 'vendedor.ciudad', 'vendedor.correo', 'vendedor.telefono',
+  'vendedor.horarioAtencion', 'vendedor.municipioDespacho', 'vendedor.transportadoras',
+  'vendedor.diasPreparacionHabiles', 'vendedor.ventanaCambiosDias',
+];
+
 /** DECLARACIÓN EXPLÍCITA de lo que `EncabezadoSeccion.tsx` controla (§ PANEL-EDITOR-ENCABEZADO-1,
  *  ampliado por § MUESTRARIO-DRAWER-MOVIL-TEMA-1, § CROMO-NAV-DIRECCION-SCROLL-1, §
  *  CROMO-NAV-FILETE-1, § CROMO-NAV-CTA-Y-BADGE-1, § CROMO-NAV-POSICION-TEMA-REAL-1, §
@@ -310,7 +324,7 @@ export function camposControladosPorPanel(): string[] {
   return [
     ...CONTROLADOS_GENERICOS, ...CONTROLADOS_MENU_SECCION, ...CONTROLADOS_FOOTER_SECCION,
     ...CONTROLADOS_PALETA_SECCION, ...CONTROLADOS_TIENDA_PAGINAS, ...CONTROLADOS_ENCABEZADO_SECCION,
-    ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO,
+    ...CONTROLADOS_DETALLES_SECCION, ...CONTROLADOS_ESTILO_ELEMENTO, ...CONTROLADOS_VENDEDOR_SECCION,
   ].sort();
 }
 

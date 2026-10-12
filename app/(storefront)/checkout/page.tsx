@@ -33,6 +33,7 @@ import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 import { whatsappUrl } from '@/lib/config/site';
 import { contenidoEstadoPedido, verboBotonPago, type MetodoPedido } from '@/lib/checkout/estado-pedido';
 import EstadoPedido from '@/components/storefront/checkout/EstadoPedido';
+import { vendedorEstaCompleto, lineaVendedor } from '@/lib/legal/plantillas';
 
 const STEPS = ['Información', 'Pago'];
 
@@ -80,7 +81,7 @@ export default function Checkout() {
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
-  const { navTratamiento } = useSiteContent();
+  const { navTratamiento, vendedor } = useSiteContent();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
   // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
@@ -248,6 +249,22 @@ export default function Checkout() {
   // que el formulario arranque LIMPIO (campos vacíos, sin el error de rechazo colgado) — el
   // mismo mecanismo que ya usa `key={descriptorElegido.tipo}` al cambiar de pestaña.
   const [reintentoKey, setReintentoKey] = useState(0);
+
+  // TIENDA-LEGAL-1 — la casilla de términos es OBLIGATORIA en TODO camino de confirmación:
+  // métodos manuales y pasarela-widget (`handleOrder`), pasarela API DIRECTA (`crearOrdenPasarela`,
+  // la ÚNICA función que crea esa orden — cubre el botón "Pagar" de `FormularioTarjeta`/
+  // `FormularioOtroMetodoPasarela` sin tocar esos dos archivos) y el escape de WhatsApp cuando no
+  // hay método disponible. Sin marcarla, la acción real NO corre — el control resalta la casilla y
+  // hace scroll hasta ella (§ el spec, "si no está marcada, el botón lleva a ella y la resalta,
+  // como la maqueta"), nunca un botón deshabilitado mudo.
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [terminosResaltado, setTerminosResaltado] = useState(false);
+  const resaltarCasillaTerminos = () => {
+    setTerminosResaltado(true);
+    const el = document.getElementById('casilla-terminos');
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+  };
 
   // § CHECKOUT-UNA-SOLA-PANTALLA-1: el bloque de aceptación de pasarela —las DOS aceptaciones,
   // la llave pública, los métodos QUE NO SON TARJETA— SIN CREAR NINGUNA ORDEN. Se pide una vez,
@@ -438,6 +455,9 @@ export default function Checkout() {
     // el comprador.
     if (!pasarelaSeleccionada && !metodoActivo) return;
 
+    // TIENDA-LEGAL-1 — sin aceptar, la orden no se crea: resalta la casilla y vuelve.
+    if (!aceptaTerminos) { resaltarCasillaTerminos(); return; }
+
     // La rama de pago se decide ACÁ, antes de tocar `loading`, para que TypeScript narrowee
     // `metodoActivo` a no-nulo dentro de la rama que lo usa (§ WOMPI-WIDGET-EN-EL-CANONICO-1): el
     // guard de arriba sólo prueba la DISYUNCIÓN, no cada rama por separado.
@@ -505,6 +525,8 @@ export default function Checkout() {
   // formulario tiene su guarda de doble-submit — `tokenizando`/`enVuelo`).
   const crearOrdenPasarela = async (): Promise<string | null> => {
     if (confirmation?.wompi) return confirmation.wompi.reference;
+    // TIENDA-LEGAL-1 — sin aceptar, ni la pasarela API DIRECTA crea su orden.
+    if (!aceptaTerminos) { resaltarCasillaTerminos(); return null; }
     setSinStockIds([]);
     try {
       const result = await createOrder(payloadDesdeFormulario({ pasarela: true }));
@@ -738,7 +760,12 @@ export default function Checkout() {
       : (pasarelaSeleccionada && modoApiDirecta) // `SelectorMetodoPasarela` ya tiene su "Pagar"
         ? null
       : sinMetodoYsinPasarela
-        ? (tieneWhatsapp ? () => window.open(whatsappUrl(settings.whatsapp, `Hola, quiero coordinar el pago de mi pedido por ${formatCOP(montoAPagar)}.`), '_blank') : null)
+        // TIENDA-LEGAL-1 — también antes de abrir WhatsApp: sin aceptar, resalta la casilla en vez
+        // de abrir la conversación.
+        ? (tieneWhatsapp ? () => {
+            if (!aceptaTerminos) { resaltarCasillaTerminos(); return; }
+            window.open(whatsappUrl(settings.whatsapp, `Hola, quiero coordinar el pago de mi pedido por ${formatCOP(montoAPagar)}.`), '_blank');
+          } : null)
       : handleOrder;
 
   // El resumen plegable de arriba (§ el spec, sólo celular — ver el JSX): mismo total que la
@@ -1037,9 +1064,12 @@ export default function Checkout() {
                             : 'No podemos completar tu pedido en este momento. Vuelve a intentarlo más tarde.'}
                         </p>
                         {tieneWhatsapp && (
+                          // TIENDA-LEGAL-1 — también antes de abrir WhatsApp acá: sin aceptar, el
+                          // click resalta la casilla en vez de navegar.
                           <a
                             href={whatsappUrl(settings.whatsapp, `Hola, quiero coordinar el pago de mi pedido por ${formatCOP(montoAPagar)}.`)}
                             target="_blank" rel="noopener"
+                            onClick={(e) => { if (!aceptaTerminos) { e.preventDefault(); resaltarCasillaTerminos(); } }}
                             className="inline-flex items-center gap-1.5 font-semibold text-[var(--sf-tinta)] underline hover:no-underline"
                           >
                             <MessageCircle className="w-4 h-4" /> Escríbenos por WhatsApp
@@ -1214,11 +1244,44 @@ export default function Checkout() {
                         </span>
                       </div>
                     )}
-                    {/* TIENDA-LEGAL-1 — van ACÁ, antes del botón de confirmar: la CASILLA
-                        obligatoria de aceptación de términos/tratamiento de datos, y el
-                        bloque «Vendedor» (razón social, documento, ciudad, enlaces). No se
-                        inventan datos: sin esa configuración, este slice no renderiza nada
-                        en su lugar. */}
+                    {/* TIENDA-LEGAL-1 — el bloque «Vendedor» (razón social, documento, ciudad,
+                        enlaces) y la casilla obligatoria de aceptación, justo antes del botón de
+                        confirmar (§ el spec, § la maqueta aprobada). Gateado por
+                        `vendedorEstaCompleto`: sin esa configuración, no se renderiza nada acá —
+                        nunca un dato inventado. Fuera de `{!confirmation}`, a propósito: se queda
+                        visible mientras un pago de pasarela está en curso. */}
+                    {vendedorEstaCompleto(vendedor) && (
+                      <div className="bg-[var(--sf-superficie)] rounded-xl p-4 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                        <p className="font-semibold mb-0.5">Vendedor</p>
+                        <p>{lineaVendedor(vendedor)}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                          <Link href="/legal/terminos-y-condiciones" className="underline hover:no-underline">Términos y condiciones</Link>
+                          <Link href="/legal/tratamiento-de-datos" className="underline hover:no-underline">Tratamiento de datos</Link>
+                          <Link href="/legal/envios-y-devoluciones" className="underline hover:no-underline">Cambios y devoluciones</Link>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      id="casilla-terminos"
+                      className={`rounded-xl p-3 transition-colors ${terminosResaltado ? 'ring-2 ring-red-400' : ''}`}
+                    >
+                      <label className="flex items-start gap-2.5 text-xs text-[var(--sf-texto)] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={aceptaTerminos}
+                          disabled={bloqueoMetodoDePago}
+                          onChange={(e) => { setAceptaTerminos(e.target.checked); if (e.target.checked) setTerminosResaltado(false); }}
+                          className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none"
+                        />
+                        <span>
+                          Acepto los <Link href="/legal/terminos-y-condiciones" className="underline hover:no-underline">términos y condiciones</Link> y autorizo el{' '}
+                          <Link href="/legal/tratamiento-de-datos" className="underline hover:no-underline">tratamiento de mis datos personales</Link>.
+                        </span>
+                      </label>
+                      {terminosResaltado && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">Marca esta casilla para continuar.</p>
+                      )}
+                    </div>
                     {!confirmation && (
                       pasarelaSeleccionada && modoApiDirecta ? (
                         // El botón "Pagar · $X" del formulario de arriba es el ÚNICO que

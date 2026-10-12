@@ -12,6 +12,7 @@ import EncabezadoSeccion from '@/components/admin/EncabezadoSeccion';
 import MenuSeccion from '@/components/admin/MenuSeccion';
 import FooterSeccion from '@/components/admin/FooterSeccion';
 import DetallesSitioSeccion from '@/components/admin/DetallesSitioSeccion';
+import VendedorSeccion from '@/components/admin/VendedorSeccion';
 import { SECCIONES_TIENDA, PAGINAS, type PaginaKey, type SeccionVista, type SeccionConfig } from '@/components/admin/tienda-secciones';
 import { getProducts } from '@/lib/api/products';
 import { categoriasDelCatalogo } from '@/lib/productos/categorias';
@@ -1921,6 +1922,14 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
                       slice necesita para mudar la fila (§ el reporte de este slice, deviations). */}
                   <div style={nivelActivo ? { display: 'none' } : undefined}>
                     <DetallesSitioSeccion />
+                  </div>
+                  {/* § TIENDA-LEGAL-1 — IDENTIDAD DEL VENDEDOR, junto a Detalles del sitio: mismo
+                      motivo (AUTÓNOMO, su propio borrador/publish — vía el GENÉRICO `/api/
+                      site-content` con `seccion:'vendedor'`, no el lote de `listaPendientes()` — y
+                      su propio estado de lectura↔edición), así que la misma condición aplica:
+                      ocultar cuando CUALQUIER OTRO nivel está activo. */}
+                  <div style={nivelActivo ? { display: 'none' } : undefined}>
+                    <VendedorSeccion />
                   </div>
                   {/* § EDITOR-TIENDA-CROMO-1 — PIE, AL FINAL (§ el spec: "al final de las secciones de
                       la página"). Mismo criterio store-wide que Encabezado/Menú, arriba. */}
