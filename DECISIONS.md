@@ -61965,7 +61965,7 @@ esta clase exacta de deviación.
 matriz válida (vacío/1 producto/hueco), agotado cruzado por eje — ninguno de los dos ejes "contamina" al
 otro. Vistos en verde contra el catálogo real de Nayoli recortado a sus campos relevantes.
 
-**`lib/config/site-content-defaults.test.ts`** (+11 tests): `CompraContenido` (export nombrado de
+**`lib/config/site-content-defaults.test.ts`** (+20 tests): `CompraContenido` (export nombrado de
 `FeaturedProductsCompra.tsx`, recibe la `matriz` por prop — el MISMO límite que ya documenta
 `spotlight-cableado.test.ts` para `Spotlight.tsx`: `renderToStaticMarkup` nunca corre el `useEffect` que
 fetchea el catálogo) renderizado con el catálogo REAL de Nayoli (4 productos, `prisma/seed-products.ts`)
