@@ -62071,3 +62071,242 @@ se escriba `'compra'` para algún tenant — `customer_bytes.changed=true`, mism
 entradas anteriores de esta rama que tocaron `components/storefront/`. Sin cambio de schema/migración
 (los 17 campos nuevos viven en el `content: Json` de `SiteContent`, como el resto de la sección) ni
 contrato cruzado de repositorio. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — El camino de compra gana la estructura COMÚN de la maqueta aprobada: carrito persistente, checkout validado, página de estado única, retorno de Wompi resuelto, seguimiento inline (`CHECKOUT-LISTO-PARA-VENDER-1`)
+
+**Alcance: la ESTRUCTURA común de `compra.html` (§ `refero-compra.md` §3) — NO el tratamiento por línea
+(Onix/Las Chamisas), que es `COMPRA-LINEAS-ONIX-CHAMISAS-1`.** Spec validado CLEAR, `tier:1`, `writes:
+yes`, aprobado por el owner sobre la maqueta del camino de compra (2026-10-12, mismo día de la decisión
+de ir con el widget de Wompi y de confirmar Vercel Pro para Jofamugo).
+
+### Lo construido, ítem por ítem del spec
+
+1. **Reglas de formulario (campos de 16px/48px, `autoComplete`/`inputMode`, error al salir del campo +
+   resumen arriba, botón SIEMPRE activo, foco/selección en tinta).** Aplicado en `checkout/page.tsx`
+   (paso 1 completo: `Field` ganó `id`/`onBlur`/`autoComplete`/`inputMode`/`error`; `intentarContinuar`
+   reemplaza al `disabled` de antes — salta y enfoca el primer campo que falta, con un resumen de
+   errores arriba del formulario cuando ya se intentó avanzar), en `RetornoCliente.tsx` (el formulario
+   de correo), en `rastrear-pedido/page.tsx` (los dos campos de búsqueda, con mensajes de "qué falta" en
+   vez del `return;` mudo de antes), y en los dos formularios de la pasarela API-directa
+   (`FormularioTarjeta.tsx` — los 4 campos de tarjeta vía el helper compartido `CampoTarjeta`, con
+   `autoComplete="cc-number"/"cc-exp"/"cc-csc"/"cc-name"` — y `FormularioOtroMetodoPasarela.tsx`, el
+   campo de Nequi). El color de selección/foco pasó de `--sf-acento` (el color del botón, rojo en Onix)
+   a `--sf-tinta` en los radios de método de pago, de envío y de franja horaria del checkout, y en los 4
+   campos de tarjeta — cierra el defecto medido en `paginas-pendientes.md` §2.1 ("el rojo del botón
+   también marca el campo activo… parecen errores").
+2. **Cajón del carrito.** El "agregado al carrito" dejó de tapar "Pagar" (§ `paginas-pendientes.md`
+   §2.2): los 6 `toast.success(...)` de este tipo dentro de `touches:` (`ProductCard.tsx`,
+   `VistaRapidaProducto.tsx`, `GrindChooserRiel.tsx`, `Spotlight.tsx`, `ProductoLamina.tsx`,
+   `TiendaLaminas.tsx`) ganaron `{ position: 'top-right' }` — junto al ícono del carrito del nav, nunca
+   sobre el pie fijo del cajón. El stepper subió de 28px (`h-7 w-7`) a 44px (`h-11 w-11`, § el spec).
+   "Envío a [departamento]" dejó de decir "Se calcula en el checkout": el cajón gana un `<select>` real
+   de departamento (persistido en el `CartContext`, ver #3) que muestra el método y el costo reales en
+   cuanto se elige. Se dejó marcado el lugar del pie («Vende [negocio]…») para `TIENDA-LEGAL-1`.
+3. **El carrito sobrevive a una recarga.** `lib/checkout/carrito-persistente.ts` (puro: `guardarCarrito`/
+   `restaurarCarrito`/`limpiarCarritoPersistido`, versión + caducidad de 7 días, storage inyectable,
+   nunca lanza) + `lib/cartStore.tsx` (restauración POST-MONTAJE, nunca en el `useState` inicial — así
+   el primer render sigue siendo `[]`/`null` y no hay mismatch de hidratación; el efecto de persistencia
+   espera a que la restauración ya haya re-renderizado, para no sobrescribir el storage con un carrito
+   vacío a mitad de camino). `departamento`/`setDepartamento` se suman al `CartContext` y viajan junto a
+   `items`. `clearCart()` llama a `limpiarCarritoPersistido()` al confirmar el pedido.
+4. **Checkout en 2 pasos — lo estructural.** Reordenado a correo → celular → nombre/apellido →
+   **Departamento** (ancho completo) → ciudad → dirección → detalles (§ el spec, "Departamento
+   primero"). Barra «Tu pedido · n productos · $total ▾» plegable arriba, SÓLO en celular (en
+   escritorio el resumen ya es visible en la columna fija). **Barra de total fija** en los dos pasos
+   («Total $X [· envío a … incluido]» + el VERBO del método vía `verboBotonPago`), que ABSORBIÓ el
+   botón primario de cada paso ("Continuar al pago"/"Confirmar pedido" inline se retiraron: dos botones
+   para la misma acción en la misma pantalla era la duplicación que el spec no pide). El botón de la
+   barra se OCULTA (nunca queda mudo) cuando la acción real vive en un control ajeno ya visible — el
+   widget de Wompi inyectado por el proveedor, o `SelectorMetodoPasarela` con su propio "Pagar" que
+   valida sus propios campos (§ CHECKOUT-UNA-SOLA-PANTALLA-1, invariante NO tocado: "el único botón que
+   confirma dice cuánto se paga"). El sello "Compra 100% segura y verificada" se retiró (§ el spec, lista
+   de arreglos comunes). WhatsApp pasó de texto plano a `<a href="wa.me/…">` real en el único lugar
+   donde el checkout se quedaba mudo (todos los métodos apagados). Se dejó marcado el lugar de la
+   casilla obligatoria + el bloque «Vendedor» para `TIENDA-LEGAL-1`, justo antes del botón de confirmar.
+5. **La página de estado única.** `components/storefront/checkout/EstadoPedido.tsx` (presentación) +
+   `lib/checkout/estado-pedido.ts` (`contenidoEstadoPedido`/`verboBotonPago`, puros, 7 tests) son la
+   FUENTE ÚNICA para los cinco estados (aprobado/pendiente/rechazado/manual/sin_referencia), consumida
+   por LAS DOS pantallas que antes tenían su propio texto cosido a mano: la confirmación de
+   `checkout/page.tsx` (métodos manuales, pasarela-aprobada, los dos desvíos de pasarela fallida) y las
+   vistas terminales de `RetornoCliente.tsx` (aprobado/en_vuelo/techo/fallido/sin_referencia — las tres
+   fases de FORMULARIO, pidiendo_email/buscando/no_encontrado, no son uno de los cinco estados y
+   quedaron intactas salvo el fix de #1). Gana «Copiar» (con `navigator.clipboard`, tolerante a que la
+   API no exista) y «Te enviamos copia a [correo]» — los dos ausentes antes en TODAS las pantallas.
+6. **El regreso del widget de Wompi (`?id=` → `?reference=`).** `lib/checkout/retorno-wompi.ts`
+   (`referenciaDesdeQuery` + `extraerReferenciaDeTransaccion`, puras; `resolverReferenciaPorId`, con
+   `fetch` inyectado, 10 tests) resuelve la `reference` a partir del `id` que Wompi SÍ manda en el
+   redirect del widget, consultando `GET /v1/transactions/{id}` PÚBLICO (sin llave) en LOS DOS hosts de
+   Wompi EN PARALELO — nunca uno solo: `RetornoCliente.tsx` (y por tanto el checkout) no tiene forma
+   segura de leer `esDespliegueDemo()` del lado del cliente (`VERCEL_ENV`/`NOINDEX` no son
+   `NEXT_PUBLIC_`), así que probar los dos es más seguro que adivinar uno — cierra el defecto medido en
+   `pagos-estado.md` §3.4 ("Widget return is broken by construction… the buyer lands on 'No
+   encontramos la información de tu pago'"). `?reference=` directo sigue igual, sin tocar Wompi.
+7. **`/rastrear-pedido`.** Se retiró la banda oscura + tarjeta flotante con sombra (§ el spec, "sin
+   tarjeta flotante"; cierra de paso el margen del subtítulo pegado a los bordes en celular, § el
+   defecto medido): ahora es un encabezado simple + el formulario dentro de la página. «Buscar» con
+   campos vacíos dice qué falta (antes `if (!query.trim() || !email.trim()) return;`, mudo). "Orden no
+   encontrada" explica dónde está el número y ofrece WhatsApp — conserva lo escrito, nunca lo limpia. El
+   placeholder del número de orden usa `TENANT_ORDER_PREFIX` (`@duna/core/metrics/order-stat-filters`,
+   puro, sin server-only — ya se importa en cliente en `StatCard`) en vez de `CN-000041` hardcodeado. La
+   línea de tiempo (ya construida con los estados REALES del pedido, no mock) y WhatsApp sobre el
+   resultado encontrado se conservan/ganan WhatsApp. Las etiquetas/íconos de marca (Package/Coffee/…)
+   NO se tocaron — tratamiento por línea, `COMPRA-LINEAS-ONIX-CHAMISAS-1`.
+
+### Lo medido, no construido — deviaciones del spec con su medición
+
+- **#6, el cron por proyecto en `vercel.json`: REVERTIDO tras medir que rompería el disparo, no
+  construido.** El spec decía que `/api/cron/automations` "ya acepta Authorization: Bearer CRON_SECRET,
+  lo que Vercel manda" — cierto para el HEADER, falso para el MÉTODO. **Medido contra la documentación
+  pública de Vercel** (`node`+`fetch` a `https://vercel.com/docs/cron-jobs`, hoy): *"To trigger a cron
+  job, Vercel makes an HTTP GET request…"*. **Medido contra el código:** `app/api/cron/automations/
+  route.ts` declara únicamente `export async function POST(...)` — grep de `export async function
+  (GET|POST)` da una sola coincidencia. Agregar `"crons": [{ "path": "/api/cron/automations", …}]` a
+  `vercel.json` habría dejado un cron que Vercel SÍ dispara (apareciendo "verde" en su dashboard) pero
+  que el propio Next.js responde con 405 en cada corrida — nunca llega a `runScheduledAutomations` ni al
+  reconciliador: PEOR que no tener el cron, porque simula cobertura sin darla. Se revirtió el cambio
+  (`git diff` de `vercel.json` da vacío). **Pendiente, fuera de `touches:`**: `app/api/cron/
+  automations/route.ts` necesita un handler `GET` (p.ej. reexportando la misma lógica del `POST`) antes
+  de poder activar el cron de Vercel — recién ahí vale descomentar el bloque. La doctrina de CLAUDE.md
+  ("El cron NO vive en vercel.json") tiene además su premisa vencida: dice "El plan de Vercel es Hobby",
+  y el owner confirmó Vercel Pro para esta decisión (§ `approval-reason` de este slice) — **ledger_claim**
+  del dispatch, no remedido por este slice contra la consola de Vercel.
+  - **La tolerancia a un disparo doble SÍ se midió, y es la respuesta a la otra mitad de #6**: el propio
+    comentario del workflow de GitHub ("un disparo de más es inofensivo y uno de menos se recupera en
+    el siguiente") está respaldado por el carril — `wompi-reconciliador.test.ts` incluye
+    "CONCURRENCIA: webhook y reconciliador procesando el MISMO evento A LA VEZ — un solo Payment,
+    ninguno revienta" (medido en este gate, verde) y el motor de automatizaciones usa `AutomationRun`
+    idempotente (§ CLAUDE.md, "La supresión deja rastro"). Si el GET se construye y el cron de Vercel se
+    activa SIN retirar el workflow de GitHub, los dos disparos horarios son seguros — no hace falta
+    apagar el workflow por seguridad, sólo por prolijidad.
+- **"Pie reducido del checkout" (§ el spec): BLOQUEADO, necesita `app/(storefront)/layout.tsx`.** Ese
+  layout monta `<StoreFooter/>` incondicionalmente para TODAS las rutas de `(storefront)`, sin forma de
+  que una página hija pida un pie distinto — y `app/(storefront)/layout.tsx` no está en `touches:`.
+  Parado, reportado.
+- **"Intentar de nuevo (reabre el widget)"/"Elegir otro método" en el estado `rechazado` de
+  `/checkout/retorno`: PARADO, necesita el flujo de reintento fuera del checkout.** El mecanismo existe
+  (`POST /api/checkout/reintento`, el mismo que usa `reintentarConOtroMetodo` en `checkout/page.tsx`)
+  pero monta `SelectorMetodoPasarela`/`PagoPasarela` — repetirlo en `RetornoCliente.tsx` (una pantalla
+  sin carrito ni el resto del estado de un checkout en curso) es una pieza nueva, no una llamada suelta.
+  Ofrecer un "Intentar de nuevo" que apuntara a `/checkout` habría sido deshonesto: el carrito ya está
+  vacío (se vació al crear la orden), así que no reintenta nada. Se dejó "Volver a la tienda" como
+  reintento real desde cero + WhatsApp.
+- **Motivo de rechazo visible, y guía/transportadora en `/rastrear-pedido`: BLOQUEADOS, necesitan
+  `app/api/`.** El motivo exige que `/api/checkout/retorno` devuelva algo de `PaymentIntent` más allá de
+  `estado`/`numero_orden` (hoy no lo hace). La guía/transportadora existen en el modelo
+  (`Shipping.transportadora`/`numero_guia`, confirmado en `schema.prisma`) pero `/api/orders/track`
+  los excluye del `select` — ninguno de los dos archivos está en `touches:`.
+- **La variante de línea repetida en el cajón ("En grano 500g" + "Molienda: Grano entero", § el spec,
+  "sin «Molienda» repetida"): NO tocada.** Medido: `CartDrawer.tsx` hoy sólo pinta UNA línea de
+  molienda, nunca dos — la duplicación que `paginas-pendientes.md` §2.2 describe nace de que el NOMBRE
+  del producto ya nombra la presentación ("en grano") y la línea de molienda repite la idea con otra
+  palabra ("grano entero"). Arreglarlo de verdad exige tocar `lib/moliendas-opciones.ts`/el modelo de
+  presentación, fuera de `touches:` — no se intentó un parche cosmético que pudiera estar adivinando mal
+  la causa real.
+- **`FormularioTarjeta.tsx`/`FormularioOtroMetodoPasarela.tsx`: sólo los 5 campos de texto (16px/48px/
+  `autoComplete`/tinta).** El resto del flujo de pasarela API-directa (3DS, detección de red, el
+  `disabled` del botón "Pagar" atado a la aceptación de términos) NO se auditó contra el spec completo
+  — es la pieza de mayor riesgo de todo el checkout (Wompi, tokenización) y se limitó el alcance a lo
+  medible sin tocar su lógica de validación/estado.
+
+### Gate y verificación
+
+- **`npm run typecheck`**: limpio, en cada edición grande (verificado iterativamente, no sólo al final).
+- **`npm test`**: **4581/4581** (antes de este slice: 4552 — `+29` por los tres archivos nuevos:
+  `retorno-wompi.test.ts` 10, `carrito-persistente.test.ts` 12, `estado-pedido.test.ts` 7).
+- **`npm run test:integracion`**: **409/409**, exit 0 — corrido completo porque este slice SÍ puede
+  tocar una base (`writes: yes`, y el carril usa su Postgres efímero propio, nunca uno real).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios): home/tienda/producto
+  **idénticos, dígito a dígito, al piso heredado ya documentado** (165052/4608000 px AA · 174711 crudo;
+  209/2433280 · 407; 209/2535680 · 407) — ninguno de los tres se tocó en este slice. `/checkout`
+  **también idéntico al piso heredado** (163/1152000 · 361) — y esa cifra NO prueba nada de este slice:
+  el harness visita `/checkout` con el carrito VACÍO (nunca agrega nada), así que sólo ejercita la rama
+  "Tu carrito está vacío", que este slice no tocó. `/nosotros`/`/suscripciones` también idénticos al
+  piso heredado, sin relación con este slice. Los 2 hovers de `ProductCard`, idénticos. `exit 1`
+  esperado (mismo piso heredado que ya documentan los dos asientos anteriores de esta rama).
+  - **Límite medido del harness para ESTE slice: no visita `/rastrear-pedido` ni `/checkout/retorno`, y
+    su captura de `/checkout` nunca ve un carrito con ítems** — ninguna de las pantallas NUEVAS de este
+    diff (el carrito con la barra de envío, los dos pasos con la barra fija, la página de estado, el
+    seguimiento) quedó cubierta por esta herramienta. No es un hueco de este slice: es el alcance que
+    `verificar-nayoli-visual.ts` ya tenía (6 rutas fijas, sin seedear un carrito).
+- **"Render en memoria" (§ "Cómo lo probás" del spec) — parcial, con su límite medido, no supuesto.**
+  `EstadoPedido` (el componente nuevo, sin dependencia de contexto más allá de lucide/next-link) se
+  renderizó con `react-dom/server`'s `renderToStaticMarkup` en sus 5 estados — los 5 renderizan sin
+  lanzar, con el `<h1>`, el número de orden y "Qué sigue" esperados, y sin la palabra "carrito" en
+  ninguno (script en `.scratch/render-estado-pedido.ts`, no commiteado — scratch). **`CartDrawer`,
+  `checkout/page.tsx` (con ítems) y `RetornoCliente`/`rastrear-pedido` (los `useSearchParams()`) NO se
+  pudieron renderizar de esta forma — medido, no sólo citado**: `CartProvider` nace con `items=[]`/
+  `isOpen=false` SIN prop de siembra (mismo límite ya documentado por el slice anterior en
+  `cromo-carrito.test.ts`: "montar `<CartDrawer/>` completo… es por tanto inalcanzable de forma
+  honesta"); y `renderToStaticMarkup` sobre `RetornoCliente` con los dos providers montados **no lanza,
+  pero resuelve al FALLBACK de `Suspense`** (`<div class="pt-16 min-h-screen"></div>`, 38 bytes) — el
+  CSR bailout de `useSearchParams()` que el propio código ya documenta ("exige un límite Suspense para
+  prerenderizar") se comporta así también en este harness sin servidor real. La verificación de esas
+  pantallas queda para el gate de capa 3 del owner — dicho, no omitido.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+- **`useCartStore`** (CLAUDE.md, "Montar un componente en OTRO árbol de providers…"): el throw-si-falta-
+  provider NO cambió; sigue siendo verdad.
+- **`TENANT_ORDER_PREFIX`** (CLAUDE.md, "convive con `soloOrdenesReales`, y NO son lo mismo"): este
+  slice sólo lo usa como STRING de ejemplo en un placeholder, nunca para filtrar — la distinción que esa
+  entrada protege no se toca.
+- **"El cron NO vive en vercel.json"** (CLAUDE.md): su premisa ("El plan de Vercel es Hobby") está
+  VENCIDA tras la decisión de Pro del mismo día de este slice — no se edita CLAUDE.md (fuera de
+  `touches:`); abajo, en "Grep de doctrina", se deja el puntero para quien construya el handler `GET`.
+- Sin otras coincidencias de los símbolos/archivos nuevos (`EstadoPedido`, `estado-pedido.ts`,
+  `retorno-wompi.ts`, `carrito-persistente.ts`, `CartDrawer`) contra CLAUDE.md.
+
+### Open follow-ups
+
+- **`CHECKOUT-CRON-VERCEL-GET-1`** — agregar un handler `GET` a `app/api/cron/automations/route.ts`
+  (reusando la lógica del `POST` existente, misma guarda `Authorization: Bearer CRON_SECRET`) y recién
+  entonces sumar `"crons": [{ "path": "/api/cron/automations", "schedule": "0 * * * *" }]` a
+  `vercel.json`. Sin el `GET`, ese bloque dispara un 405 en cada corrida. *Por qué no ahora:* los dos
+  archivos caen fuera de `touches:` de este slice (`app/api/`).
+- **`CHECKOUT-PIE-REDUCIDO-1`** — el checkout necesita un pie propio (vendedor, legales, WhatsApp) en
+  vez del `<StoreFooter/>` completo que `app/(storefront)/layout.tsx` monta para toda ruta. *Por qué no
+  ahora:* ese layout no está en `touches:`.
+- **`CHECKOUT-RETORNO-REINTENTO-1`** — el estado `rechazado` de `/checkout/retorno` necesita "Intentar
+  de nuevo"/"Elegir otro método" sobre la MISMA orden, vía `POST /api/checkout/reintento` +
+  `SelectorMetodoPasarela` montado fuera del flujo normal del checkout. *Por qué no ahora:* es una pieza
+  de UI nueva, no una llamada suelta — se detuvo en vez de ofrecer un enlace que no reintenta nada.
+- **`CHECKOUT-RETORNO-MOTIVO-1`** — `/api/checkout/retorno` necesita devolver el motivo de rechazo de
+  Wompi (cuando exista) para que la pantalla `rechazado` lo muestre. *Por qué no ahora:* `app/api/` no
+  está en `touches:`.
+- **`RASTREAR-GUIA-TRANSPORTADORA-1`** — `/api/orders/track` necesita sumar `transportadora`/
+  `numero_guia` (YA existen en `Shipping`) a su `select`, y `/rastrear-pedido` mostrarlos con "Copiar" o
+  "Aún sin guía; te avisamos". *Por qué no ahora:* `app/api/orders/track/route.ts` no está en
+  `touches:`.
+- **`CARRITO-VARIANTE-REPETIDA-1`** — la línea de molienda del cajón repite lo que el nombre del
+  producto ya dice para presentaciones "en grano". *Por qué no ahora:* toca `lib/moliendas-opciones.ts`/
+  el modelo de presentación, fuera de `touches:`; necesita decidirse junto con esa capa, no con un
+  parche de texto en el cajón.
+- **`CHECKOUT-PASARELA-FORMULARIOS-AUDIT-1`** — auditar `FormularioTarjeta.tsx`/
+  `FormularioOtroMetodoPasarela.tsx` contra el resto de "Reglas de formulario" (el `disabled` del botón
+  "Pagar" atado a la aceptación de términos, si debería seguir el patrón "nunca mudo" con un mensaje en
+  vez de un botón apagado). *Por qué no ahora:* es la pieza de mayor riesgo del checkout (tokenización,
+  3DS) y mereció su propio alcance, acotado a los 5 campos de texto.
+- **`CHECKOUT-VISUAL-GATE-1`** — el gate visual de capa 3 del owner es la ÚNICA verificación pendiente
+  para: el cajón con ítems + el selector de departamento, los dos pasos del checkout con la barra fija,
+  los 5 estados de `/checkout/retorno` en un navegador real (incluido un regreso real del widget con
+  `?id=`), y `/rastrear-pedido` con un pedido real. Ninguna herramienta de este repo puede sustituirlo
+  hoy (§ "Gate y verificación", arriba).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (owner, 2026-10-12, sobre la maqueta del camino de compra —
+"I like and approve the mockup for both stores" — "LA APROBACIÓN AUTORIZA LA ESCRITURA, NUNCA EL
+MERGE"). Entra por el subárbol ya ganado en CLAUDE.md: `app/(storefront)/checkout/`,
+`app/(storefront)/rastrear-pedido/` y `components/storefront/` son bytes del visitante. El diff cambia
+markup, copy y comportamiento alcanzables por cualquier comprador real hoy mismo (el cajón, los dos
+pasos del checkout, la página de estado, el seguimiento) — `customer_bytes.changed=true`, sin
+ambigüedad: a diferencia de la entrada anterior de esta rama (bytes de una variante inalcanzable para
+Nayoli hoy), ÉSTOS SÍ son la ruta que Nayoli usa en este momento. Sin cambio de schema/migración (cero
+`packages/core/prisma/`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `typecheck` limpio, `npm test`
+4581/4581, `npm run test:integracion` 409/409 — los TRES, no sólo los dos de la entrada anterior,
+porque este slice sí tiene permiso de tocar una base (ephemeral, propia del carril). No es `GATE_RED`.
+Commiteado en `slice/editor-secciones-1`, sin mergear.
