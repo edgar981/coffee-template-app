@@ -19,6 +19,14 @@ export default function SuscripcionPasos() {
   const c = suscripcionPasos;
   const pasos = pasosDeSuscripcion(c);
 
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — "Así funciona" como casillas de álbum (§ el spec, item
+  // 5): CERO campos nuevos, las mismas `pasos` tal cual, sólo otro tratamiento visual (vertical en
+  // celular, en fila en escritorio, con números rotados y filetes punteados — el lenguaje de álbum
+  // de Las Chamisas).
+  if (c.variante === 'casillas') {
+    return <SuscripcionPasosCasillas titulo={c.titulo} pasos={pasos} />;
+  }
+
   return (
     // PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1: texto directo sobre `--sf-superficie` migrado al
     // par `var(--sf-sobre-superficie,<token de hoy>)` (§ TEMAS-P6-FAMILIAS-1) — el token viejo
@@ -47,6 +55,47 @@ export default function SuscripcionPasos() {
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// «CASILLAS DE ÁLBUM» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4, item 4) — lista
+// numerada: vertical (una fila por paso) en celular, en FILA (`sm:flex-row`) en escritorio — nunca
+// una rejilla de íconos como «Tarjetas». Cada número lleva una rotación leve alternada, el
+// tratamiento de "casilla de álbum" que ya usan las Láminas de /tienda (§ TIENDA-CHAMISAS-ALBUM-1),
+// y un filete punteado separa los pasos en vez de un divisor sólido.
+const ROTACIONES = ['-1deg', '0.8deg', '-0.6deg', '0.6deg'];
+
+function SuscripcionPasosCasillas({ titulo, pasos }: { titulo: string; pasos: { label: string; descripcion: string }[] }) {
+  return (
+    <section className="bg-[var(--sf-superficie)] py-16">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <h2 className="mb-10 text-center font-playfair text-2xl text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
+          <CampoEditable campo="suscripcionPasos.titulo">{titulo}</CampoEditable>
+        </h2>
+        <ol className="flex flex-col divide-y divide-dashed divide-[var(--sf-linea)] sm:flex-row sm:divide-x sm:divide-y-0">
+          {pasos.map((paso, i) => {
+            const n = i + 1;
+            return (
+              <li key={i} className="flex-1 px-4 py-4 text-center first:pt-0 sm:py-0">
+                <span
+                  aria-hidden="true"
+                  style={{ transform: `rotate(${ROTACIONES[i % ROTACIONES.length]})` }}
+                  className="mb-2 inline-block font-playfair text-3xl text-[var(--sf-tostado)]"
+                >
+                  {String(n).padStart(2, '0')}
+                </span>
+                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
+                  <CampoEditable campo={`suscripcionPasos.paso${n}Label`}>{paso.label}</CampoEditable>
+                </p>
+                <p className="mt-1 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                  <CampoEditable campo={`suscripcionPasos.paso${n}Desc`} multilinea>{paso.descripcion}</CampoEditable>
+                </p>
+              </li>
+            );
+          })}
+        </ol>
       </div>
     </section>
   );

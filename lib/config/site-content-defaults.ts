@@ -1150,7 +1150,9 @@ export interface SuscripcionPlanesContent {
   // CENSO-1). 'tarjetas' (canónica, las tarjetas de arriba, byte-idéntica sin fila) | 'taquilla' (la
   // tabla 2×2 de /tienda + bolsas/frecuencia/molienda que arma un pedido de WhatsApp — § abajo, el
   // mismo producto real que `derivarMatrizTaquilla`, `lib/tienda/taquilla.ts`, nunca un segundo
-  // modelo). Escalar de SECCIÓN —como `destacadoSlot`—, no un `campos` del resolver.
+  // modelo) | 'casillas' (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1: un armador de VARIOS cafés con
+  // cantidad, bolsa y molienda para TODO el pedido, y «Casillas de frecuencia» — § abajo, el campo
+  // `casillas*`). Escalar de SECCIÓN —como `destacadoSlot`—, no un `campos` del resolver.
   variante: string;
   // EL MÁXIMO DE BOLSAS (§ el spec, item 3: "1–5, por defecto 3"). Escalar CLAMPADO (set cerrado de
   // 5 claves), no un número libre: el componente lo usa para generar las opciones 1..N, y un valor
@@ -1160,7 +1162,11 @@ export interface SuscripcionPlanesContent {
   // LAS FRECUENCIAS (§ el spec, item 3: "una lista corta... por defecto «15 días», «Mes», «2
   // meses»; 1 a 4"). LISTA PLANA COMPACTA (§ CLAUDE.md, el patrón de `subscriptionCTA.bulletN`): 4
   // slots, el primero REQUERIDO (siempre hay al menos una frecuencia que ofrecer), 2-4 OPCIONALES
-  // (vacío = esa frecuencia no se ofrece). SÓLO tiene efecto bajo 'taquilla'.
+  // (vacío = esa frecuencia no se ofrece). Tiene efecto bajo 'taquilla' Y bajo 'casillas'
+  // (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1): las dos composiciones comparten el mismo concepto "cada
+  // cuánto"; Casillas ADEMÁS deriva de la POSICIÓN del slot la cadencia de calendario de sus
+  // «Casillas de frecuencia» (§ `frecuenciaEstructuraPorSlot`, lib/storefront/suscripcion-taquilla.ts
+  // — la convención y su límite declarado viven ahí, no acá).
   frecuencia1: string; frecuencia2: string; frecuencia3: string; frecuencia4: string;
   // LA REFERENCIA DE PRECIO (§ el spec, item 2: "texto libre del plan si existe; si no,
   // «Referencia: 2 × $20.000, precio de tienda por bolsa»"). OPCIONAL: vacío cae al cálculo
@@ -1188,6 +1194,9 @@ export interface SuscripcionPlanesContent {
   taquillaKicker: string;
   taquillaEtiquetaBolsas: string;
   taquillaEtiquetaFrecuencia: string;
+  // Tiene efecto bajo 'taquilla' Y bajo 'casillas' (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1): las dos
+  // componen el MISMO rótulo ("Molienda") sobre el chooser de molienda — reusarlo evita un segundo
+  // campo que diría exactamente lo mismo (§ el test anti-duplicados de site-content-defaults.test.ts).
   taquillaEtiquetaMolienda: string;
   taquillaCtaLabel: string;
   taquillaCtaAgotadoLabel: string;
@@ -1210,6 +1219,27 @@ export interface SuscripcionPlanesContent {
   taquillaMostrarSeEnvia: boolean;
   taquillaMostrarAviso: boolean;
   taquillaMostrarCreditos: boolean;
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — los textos propios de la composición «Casillas»
+  // (`SuscripcionCasillas.tsx`). SÓLO tienen efecto bajo 'casillas'. El encabezado de la apertura
+  // («Tu café…», la bajada) REUSA `eyebrow`/`titulo`/`tituloEnfasis`/`subtitulo` —los MISMOS campos
+  // que ya usa «Tarjetas»— en vez de duplicarlos: las dos composiciones comparten el mismo concepto
+  // de apertura, sólo con tratamiento visual distinto.
+  //
+  // `casillasSticker` OPCIONAL (§ la frontera fina de defaults-como-fallback): el sticker inclinado
+  // ("sin cobro automático") es un ÉNFASIS, no algo que la sección necesite para existir — vacío, no
+  // se muestra. El resto es REQUERIDO: micro-copy que siempre debe decir algo (mismo criterio que
+  // `taquillaKicker`/`taquillaCtaLabel`).
+  casillasSticker: string;
+  casillasAyudaLabel: string;
+  casillasAyudaMensaje: string;
+  casillasCiudadLabel: string;
+  casillasCiudadPlaceholder: string;
+  casillasPreguntaCierre: string;
+  casillasCtaLabel: string;
+  casillasCtaVacioLabel: string;
+  casillasAviso: string;
+  casillasNotaTitulo: string;
+  casillasNotaIntro: string;
 }
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, sobre ONIX-PAGINAS-
@@ -1248,6 +1278,13 @@ export interface SuscripcionPasosContent {
   paso2Label: string; paso2Desc: string;
   paso3Label: string; paso3Desc: string;
   paso4Label: string; paso4Desc: string;
+  // `variante` (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4, item 4: "Así funciona.
+  // Reusa las casillas del seguimiento ya aprobado"): 'tarjetas' (canónica, la rejilla de 4 íconos
+  // de arriba, byte-idéntica sin fila) | 'casillas' (una lista numerada — vertical en celular, en
+  // fila en escritorio — con el tratamiento de álbum de Las Chamisas: números rotados, filetes
+  // punteados entre pasos). CERO campos nuevos de texto: las dos leen `paso{1-4}Label/Desc` tal
+  // cual — sólo cambia CÓMO se dibuja, mismo criterio que `suscripcionFaq.variante`.
+  variante: string;
 }
 
 // EL INTERLUDIO de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, sobre ONIX-PAGINAS-
@@ -1307,6 +1344,15 @@ export interface SuscripcionCierreContent {
   frase: string;
   ctaLabel: string;
   ctaDestino: string;
+  // `variante` (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4, item 6: "Cierre (la
+  // banda punteada): '¿Prefieres hablarlo primero?' y 'Escribir por WhatsApp'"): 'fraseYBoton'
+  // (canónica, la pieza compartida de siempre, byte-idéntica sin fila) | 'costura' (la pieza
+  // COMPARTIDA con /tienda — § CierreCostura.tsx, extraída de `TiendaCierre.tsx` en este mismo
+  // slice —, marco punteado + franja de tejido). `franjaTejido` SÓLO tiene efecto bajo 'costura'
+  // (mismo criterio que `tiendaCierre.franjaTejido`: sin imagen, la tarjeta se queda sin esa
+  // franja — no se imita con CSS).
+  variante: string;
+  franjaTejido: string;
 }
 
 // LA PÁGINA /tienda ENTRA AL EDITOR (§ TIENDA-PAGINA-REGISTRO-1, sobre TIENDA-COMPOSICIONES-CENSO-1).
@@ -2880,6 +2926,20 @@ export const DEFAULTS: SiteContentData = {
     taquillaMostrarSeEnvia: false,
     taquillaMostrarAviso: false,
     taquillaMostrarCreditos: false,
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — ninguno de estos tiene efecto bajo 'tarjetas'/'taquilla'
+    // (la variante por defecto), así que estos literales nunca se ven sin que un dueño elija
+    // 'casillas' — byte-idéntico para toda tienda que no la elija.
+    casillasSticker: 'Sin cobro automático',
+    casillasAyudaLabel: 'No sé cuál, ayúdenme',
+    casillasAyudaMensaje: 'Hola, quiero suscribirme pero no sé qué elegir. ¿Me ayudan a armar mi pedido?',
+    casillasCiudadLabel: 'Mi ciudad',
+    casillasCiudadPlaceholder: 'escríbela aquí',
+    casillasPreguntaCierre: '¿Me confirman fecha del primer envío y cómo pago?',
+    casillasCtaLabel: 'Enviar por WhatsApp',
+    casillasCtaVacioLabel: 'Elige al menos un producto',
+    casillasAviso: 'Se abre WhatsApp con este mensaje. No se cobra nada hasta que confirmes.',
+    casillasNotaTitulo: 'Nota de pedido',
+    casillasNotaIntro: 'Este es el mensaje exacto que vas a enviar por WhatsApp.',
   },
   // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
   // `SuscripcionAperturaContent` arriba). `visible: false` — "por defecto la página queda como
@@ -2899,6 +2959,9 @@ export const DEFAULTS: SiteContentData = {
     paso2Label: 'Personaliza tu pedido', paso2Desc: 'Escoge la opción que mejor se ajuste a lo que buscas.',
     paso3Label: 'Confirmamos tu pedido', paso3Desc: 'Te avisamos antes de que se procese, para que nunca haya sorpresas.',
     paso4Label: 'Recíbelo en casa', paso4Desc: 'Enviamos tu pedido a todo el país.',
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'tarjetas' es la canónica: byte-idéntica a lo de arriba
+    // sin fila.
+    variante: 'tarjetas',
   },
   // EL INTERLUDIO de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
   // `SuscripcionInterludioContent` arriba). `imagen`/`pie` VACÍOS a propósito —"SECADO AL SOL · SAN
@@ -2934,6 +2997,10 @@ export const DEFAULTS: SiteContentData = {
     frase: '',
     ctaLabel: '',
     ctaDestino: '',
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'fraseYBoton' es la canónica: byte-idéntica a lo de
+    // arriba sin fila.
+    variante: 'fraseYBoton',
+    franjaTejido: '',
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1): el texto EXACTO de hoy (`ShopLegacy`/`ShopCorte`, antes de
   // este slice) — byte-idéntico sin fila de SiteContent sembrada. El placeholder del buscador
@@ -3893,9 +3960,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   suscripcionPlanes: {
     label: 'Planes',
     ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.suscripciones.visible), no de esta sección
-    // § ONIX-SUSCRIPCION-TAQUILLA-1 — 'tarjetas' (canónica) | 'taquilla'. `maxBolsas` es el escalar
-    // GEMELO, mismo mecanismo que `variante` sin la ranura fija (§ `SeccionDef.escalares`).
-    variantes: { claves: ['tarjetas', 'taquilla'], canonica: 'tarjetas' },
+    // § ONIX-SUSCRIPCION-TAQUILLA-1 — 'tarjetas' (canónica) | 'taquilla' | 'casillas' (§ CHAMISAS-
+    // SUSCRIPCIONES-CASILLAS-1). `maxBolsas` es el escalar GEMELO, mismo mecanismo que `variante`
+    // sin la ranura fija (§ `SeccionDef.escalares`) — SÓLO tiene efecto bajo 'taquilla'.
+    variantes: { claves: ['tarjetas', 'taquilla', 'casillas'], canonica: 'tarjetas' },
     escalares: { maxBolsas: { claves: ['1', '2', '3', '4', '5'], canonica: '3' } },
     // § ONIX-TAQUILLA-SOLO-TABLA-1 — los CINCO interruptores de la Taquilla (§ el docstring de
     // `SuscripcionPlanesContent`, arriba). SÓLO tienen efecto bajo 'taquilla', como el resto de los
@@ -3939,6 +4007,20 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       taquillaAviso: 'requerido',
       taquillaBarraCtaLabel: 'requerido',
       taquillaBarraAgotadoLabel: 'requerido',
+      // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — SÓLO tienen efecto bajo 'casillas'. `casillasSticker`
+      // OPCIONAL (es un énfasis, no algo que la sección necesite — § el docstring de
+      // `SuscripcionPlanesContent`); el resto REQUERIDO, mismo criterio que los `taquilla*` de arriba.
+      casillasSticker: 'opcional',
+      casillasAyudaLabel: 'requerido',
+      casillasAyudaMensaje: 'requerido',
+      casillasCiudadLabel: 'requerido',
+      casillasCiudadPlaceholder: 'requerido',
+      casillasPreguntaCierre: 'requerido',
+      casillasCtaLabel: 'requerido',
+      casillasCtaVacioLabel: 'requerido',
+      casillasAviso: 'requerido',
+      casillasNotaTitulo: 'requerido',
+      casillasNotaIntro: 'requerido',
     },
   },
   // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
@@ -3959,6 +4041,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   suscripcionPasos: {
     label: 'Cómo funciona',
     ocultable: true,
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'tarjetas' (canónica) | 'casillas'.
+    variantes: { claves: ['tarjetas', 'casillas'], canonica: 'tarjetas' },
     campos: {
       titulo: 'requerido',
       paso1Label: 'requerido', paso1Desc: 'requerido',
@@ -4004,15 +4088,18 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // EL CIERRE de /suscripciones (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1, ver el docstring de
   // `SuscripcionCierreContent` arriba). `ocultable: true`, nace ENCENDIDO — el gate real es tener
   // `frase` (como `tiendaCierre`). `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, editable con
-  // `OPCIONES_CTA_DESTINO` (tienda-secciones.ts). SIN `variantes`: una sola composición.
+  // `OPCIONES_CTA_DESTINO` (tienda-secciones.ts). § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — gana
+  // `variantes` ('fraseYBoton' canónica | 'costura', la pieza compartida con `tiendaCierre`).
   suscripcionCierre: {
     label: 'Cierre',
     ocultable: true,
-    imagenes: [],
+    variantes: { claves: ['fraseYBoton', 'costura'], canonica: 'fraseYBoton' },
+    imagenes: ['franjaTejido'],
     campos: {
       frase: 'opcional',
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
+      franjaTejido: 'opcional',
     },
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `TiendaEncabezadoContent`/

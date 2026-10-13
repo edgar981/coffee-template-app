@@ -1490,7 +1490,7 @@ const NOSOTROS_CIERRE: SeccionConfig = {
 // frecuencia y molienda — reemplaza a las tarjetas de plan, con un pedido que se manda por
 // WhatsApp. MISMO patrón que `OPCIONES_COMPOSICION_TIENDA_CATALOGO`: el VALOR y el orden salen de
 // `REGISTRY.suscripcionPlanes.variantes.claves`, este archivo sólo agrega la etiqueta y las zonas.
-const LABEL_COMPOSICION_SUSCRIPCION_PLANES: Record<string, string> = { tarjetas: 'Tarjetas', taquilla: 'Taquilla' };
+const LABEL_COMPOSICION_SUSCRIPCION_PLANES: Record<string, string> = { tarjetas: 'Tarjetas', taquilla: 'Taquilla', casillas: 'Casillas' };
 // § EDITOR-COMPOSICION-CAMPOS-1 (S1/S2 de la auditoría) — la zona «Encabezado» (eyebrow/titulo/
 // tituloEnfasis/subtitulo) se RETIRA de Taquilla: medido en `SuscripcionPlanes.tsx`, con
 // `variante === 'taquilla'` y matriz válida se renderiza SÓLO `<SuscripcionTaquilla>` —
@@ -1515,9 +1515,25 @@ const ZONAS_SUSCRIPCION_PLANES_TAQUILLA: ZonaComposicion[] = [
   { campos: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'], label: 'Créditos del trato' },
   { campos: ['taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'], label: 'Barra fija (celular)' },
 ];
+// § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — «Casillas» REUSA el mismo encabezado que «Tarjetas»
+// (eyebrow/titulo/tituloEnfasis/subtitulo, § SuscripcionCasillas.tsx: "la apertura reusa… — ver el
+// docstring de cabecera") Y las frecuencias de «Taquilla» (`frecuencia1..4`): el orden del editor
+// sigue el orden REAL de `SuscripcionCasillas.tsx` (apertura → sticker → ayuda → molienda/ciudad →
+// frecuencias → botón/aviso → nota de pedido).
+const ZONAS_SUSCRIPCION_PLANES_CASILLAS: ZonaComposicion[] = [
+  { campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo', 'casillasSticker'], label: 'Apertura' },
+  { campos: ['casillasAyudaLabel', 'casillasAyudaMensaje'], label: 'Ayuda para elegir' },
+  { campos: ['taquillaEtiquetaMolienda'], label: 'Molienda' },
+  { campos: ['frecuencia1', 'frecuencia2', 'frecuencia3', 'frecuencia4'], label: 'Frecuencias' },
+  { campos: ['casillasCtaLabel', 'casillasCtaVacioLabel', 'casillasAviso'], label: 'Botón de pedido' },
+  { campos: ['casillasNotaTitulo', 'casillasNotaIntro', 'casillasCiudadLabel', 'casillasCiudadPlaceholder', 'casillasPreguntaCierre'], label: 'Nota de pedido' },
+];
 const OPCIONES_COMPOSICION_SUSCRIPCION_PLANES: ComposicionOpcion[] = REGISTRY.suscripcionPlanes.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_SUSCRIPCION_PLANES[v] ?? v,
-  zonas: v === 'taquilla' ? ZONAS_SUSCRIPCION_PLANES_TAQUILLA : ZONAS_SUSCRIPCION_PLANES_TARJETAS,
+  zonas:
+    v === 'taquilla' ? ZONAS_SUSCRIPCION_PLANES_TAQUILLA :
+    v === 'casillas' ? ZONAS_SUSCRIPCION_PLANES_CASILLAS :
+    ZONAS_SUSCRIPCION_PLANES_TARJETAS,
 }));
 // EL SELECT del máximo de bolsas (§ ONIX-SUSCRIPCION-TAQUILLA-1) — MISMO patrón que
 // `OPCIONES_VELO_INTENSIDAD`/`OPCIONES_PUNTO_FOCAL` arriba: las claves salen del set cerrado del
@@ -1597,11 +1613,14 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
       hint: 'Sólo con la composición "Taquilla". Cuántas bolsas puede pedir el cliente, de 1 a este número.' },
     { name: 'taquillaEtiquetaFrecuencia', label: 'Etiqueta de la fila de frecuencia', composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Ej. "Cada". Vacío: se usa el texto por defecto.' },
-    { name: 'frecuencia1', label: 'Frecuencia', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Ej. "15 días". Vacío: se usa el texto por defecto.' },
-    { name: 'frecuencia2', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'frecuencia3', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'frecuencia4', label: 'Frecuencia', opcional: true, composiciones: ['taquilla'], hint: 'Vacío: esta frecuencia no se ofrece.' },
-    { name: 'taquillaEtiquetaMolienda', label: 'Etiqueta de la fila de molienda', composiciones: ['taquilla'], condicion: 'molienda-multiple',
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — `frecuencia1..4`/`taquillaEtiquetaMolienda` ganan
+    // 'casillas' en su lista de composiciones: las dos secciones comparten el mismo concepto "cada
+    // cuánto"/"molienda" (§ el docstring de `SuscripcionPlanesContent`, site-content-defaults.ts).
+    { name: 'frecuencia1', label: 'Frecuencia', composiciones: ['taquilla', 'casillas'], hint: 'Sólo con "Taquilla"/"Casillas". Ej. "15 días". Vacío: se usa el texto por defecto.' },
+    { name: 'frecuencia2', label: 'Frecuencia', opcional: true, composiciones: ['taquilla', 'casillas'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia3', label: 'Frecuencia', opcional: true, composiciones: ['taquilla', 'casillas'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'frecuencia4', label: 'Frecuencia', opcional: true, composiciones: ['taquilla', 'casillas'], hint: 'Vacío: esta frecuencia no se ofrece.' },
+    { name: 'taquillaEtiquetaMolienda', label: 'Etiqueta de la fila de molienda', composiciones: ['taquilla', 'casillas'], condicion: 'molienda-multiple',
       hint: 'Sólo con la composición "Taquilla", y sólo si el producto ofrece elegir molienda. Vacío: se usa el texto por defecto.' },
     { name: 'taquillaReferenciaTexto', label: 'Referencia de precio', opcional: true, textarea: true, composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla". Reemplaza el cálculo automático ("Referencia: 2 × $20.000, precio de tienda por bolsa"). Vacío: se usa el cálculo automático.' },
@@ -1623,6 +1642,31 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
       hint: 'Sólo con la composición "Taquilla", en celular. Vacío: se usa el texto por defecto.' },
     { name: 'taquillaBarraAgotadoLabel', label: 'Etiqueta "agotado" (barra fija, celular)', composiciones: ['taquilla'],
       hint: 'Sólo con la composición "Taquilla", en celular. Vacío: se usa el texto por defecto.' },
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — los textos propios de «Casillas» (§ el docstring de
+    // `SuscripcionPlanesContent`, site-content-defaults.ts). El encabezado (eyebrow/titulo/
+    // tituloEnfasis/subtitulo) y las frecuencias ya están arriba, con 'casillas' en su lista.
+    { name: 'casillasSticker', label: 'Sticker de la apertura', opcional: true, composiciones: ['casillas'],
+      hint: 'Sólo con la composición "Casillas". El sticker inclinado junto al título (ej. "Sin cobro automático"). Vacío: no se muestra.' },
+    { name: 'casillasAyudaLabel', label: 'Enlace de ayuda', composiciones: ['casillas'],
+      hint: 'Sólo con la composición "Casillas". El enlace "No sé cuál, ayúdenme" que abre WhatsApp. Vacío: se usa el texto por defecto.' },
+    { name: 'casillasAyudaMensaje', label: 'Mensaje del enlace de ayuda', textarea: true, composiciones: ['casillas'],
+      hint: 'El mensaje que ese enlace manda por WhatsApp. Vacío: se usa el texto por defecto.' },
+    { name: 'casillasCtaLabel', label: 'Botón de pedido', composiciones: ['casillas'],
+      hint: 'Sólo con la composición "Casillas". El botón que abre WhatsApp con el pedido armado. Vacío: se usa el texto por defecto.' },
+    { name: 'casillasCtaVacioLabel', label: 'Botón sin nada elegido', composiciones: ['casillas'],
+      hint: 'Lo que dice el botón antes de elegir un café. Vacío: se usa el texto por defecto.' },
+    { name: 'casillasAviso', label: 'Aviso bajo el botón', textarea: true, composiciones: ['casillas'],
+      hint: 'Sólo con la composición "Casillas". La aclaración de que no se cobra nada en la tienda. Vacío: se usa el texto por defecto.' },
+    { name: 'casillasNotaTitulo', label: 'Título de la Nota de pedido', composiciones: ['casillas'],
+      hint: 'Sólo con la composición "Casillas". Vacío: se usa el texto por defecto.' },
+    { name: 'casillasNotaIntro', label: 'Bajada de la Nota de pedido', textarea: true, composiciones: ['casillas'],
+      hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'casillasCiudadLabel', label: 'Etiqueta del campo "Ciudad"', composiciones: ['casillas'],
+      hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'casillasCiudadPlaceholder', label: 'Texto de ejemplo del campo "Ciudad"', composiciones: ['casillas'],
+      hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'casillasPreguntaCierre', label: 'Pregunta de cierre de la nota', textarea: true, composiciones: ['casillas'],
+      hint: 'La última línea del mensaje, ej. "¿Me confirman fecha del primer envío y cómo pago?". Vacío: se usa el texto por defecto.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'tituloEnfasis', 'subtitulo'] },
@@ -1654,6 +1698,14 @@ const SUSCRIPCION_PLANES: SeccionConfig = {
     { tipo: 'tarjeta', slot: 3, titulo: 'Crédito 3', campos: ['credito3Etiqueta', 'credito3Valor'] },
     { tipo: 'tarjeta', slot: 4, titulo: 'Crédito 4', campos: ['credito4Etiqueta', 'credito4Valor'] },
     { tipo: 'seccion', campos: ['taquillaBarraCtaLabel', 'taquillaBarraAgotadoLabel'] },
+    // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — cada campo ya lleva `composiciones: ['casillas']` (o
+    // ['taquilla','casillas'] para los compartidos, ya listados arriba); este bloque `seccion` es
+    // sólo el VEHÍCULO que los hace aparecer en `nombresDelBloque` (§ el test "no pierde ningún
+    // campo", lib/admin/editor-composicion-campos.test.ts) — la visibilidad real la decide el tag
+    // por-campo dentro de `particionarBloques`, no este bloque.
+    { tipo: 'seccion', campos: ['casillasSticker', 'casillasAyudaLabel', 'casillasAyudaMensaje'] },
+    { tipo: 'seccion', campos: ['casillasCtaLabel', 'casillasCtaVacioLabel', 'casillasAviso'] },
+    { tipo: 'seccion', campos: ['casillasNotaTitulo', 'casillasNotaIntro', 'casillasCiudadLabel', 'casillasCiudadPlaceholder', 'casillasPreguntaCierre'] },
   ],
 };
 
@@ -1677,11 +1729,23 @@ const SUSCRIPCION_APERTURA: SeccionConfig = {
 // Los pasos "¿Cómo funciona?" de /suscripciones. Cardinalidad FIJA 4; cada paso un BLOQUE `tarjeta`
 // ("Paso N") con nombre + descripción. Los íconos y el número son estructura (por índice en el
 // componente), no se editan. Sección OCULTABLE.
+// § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'tarjetas' (canónica) | 'casillas' (la lista numerada de
+// álbum). CERO campos nuevos (§ el docstring de `SuscripcionPasosContent`): las dos leen titulo/
+// pasoN tal cual, mismo patrón que `OPCIONES_COMPOSICION_SUSCRIPCION_FAQ` arriba.
+const LABEL_COMPOSICION_SUSCRIPCION_PASOS: Record<string, string> = { tarjetas: 'Tarjetas', casillas: 'Casillas' };
+const ZONAS_SUSCRIPCION_PASOS: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Título' },
+];
+const OPCIONES_COMPOSICION_SUSCRIPCION_PASOS: ComposicionOpcion[] = REGISTRY.suscripcionPasos.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_SUSCRIPCION_PASOS[v] ?? v, zonas: ZONAS_SUSCRIPCION_PASOS,
+}));
+
 const SUSCRIPCION_PASOS: SeccionConfig = {
   seccion: 'suscripcionPasos',
   pagina: 'suscripciones',
   titulo: 'Cómo funciona',
   ocultable: true,
+  composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_PASOS,
   imagenes: [],
   campos: [
     { name: 'titulo',     label: 'Título',   hint: 'Ej. "¿Cómo funciona?". Vacío: se usa el texto por defecto.' },
@@ -1770,14 +1834,32 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
 // `SuscripcionCierreContent` en site-content-defaults.ts). `ocultable: true`, nace ENCENDIDO — el
 // gate real es tener `frase`, mismo criterio que `TIENDA_CIERRE`. SIN `composiciones`: una sola
 // pieza (`CierreFraseYBoton`), sin variantes propias.
+// § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'fraseYBoton' (canónica) | 'costura' (la pieza compartida
+// con /tienda, § CierreCostura.tsx). MISMO patrón que `OPCIONES_COMPOSICION_TIENDA_CIERRE` arriba.
+const LABEL_COMPOSICION_SUSCRIPCION_CIERRE: Record<string, string> = { fraseYBoton: 'Frase y botón', costura: 'Costura' };
+const ZONAS_SUSCRIPCION_CIERRE_FRASEYBOTON: ZonaComposicion[] = [
+  { campos: ['frase', 'ctaLabel', 'ctaDestino'], label: 'Frase y botón' },
+];
+const ZONAS_SUSCRIPCION_CIERRE_COSTURA: ZonaComposicion[] = [
+  { campos: ['frase', 'ctaLabel', 'ctaDestino'], label: 'Frase y botón' },
+  { campos: ['franjaTejido'], label: 'Franja de tejido' },
+];
+const OPCIONES_COMPOSICION_SUSCRIPCION_CIERRE: ComposicionOpcion[] = REGISTRY.suscripcionCierre.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_SUSCRIPCION_CIERRE[v] ?? v,
+  zonas: v === 'costura' ? ZONAS_SUSCRIPCION_CIERRE_COSTURA : ZONAS_SUSCRIPCION_CIERRE_FRASEYBOTON,
+}));
+
 const SUSCRIPCION_CIERRE: SeccionConfig = {
   seccion: 'suscripcionCierre',
   pagina: 'suscripciones',
   titulo: 'Cierre',
   ocultable: true,
+  composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_CIERRE,
   notaVisibilidad: 'Sin frase, la sección no se muestra aunque el interruptor esté encendido.',
   seMuestraSiCampo: 'frase',
-  imagenes: [],
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — `franjaTejido` sólo se lee bajo 'costura' (mismo criterio
+  // que `tiendaCierre.franjaTejido`, § TIENDA_CIERRE arriba).
+  imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true, composiciones: ['costura'] }],
   campos: [
     { name: 'frase', label: 'Frase', opcional: true, textarea: true, hint: 'Vacío: esta sección NO se muestra.' },
     { name: 'ctaLabel', label: 'Botón · texto', opcional: true, hint: 'Vacío: no se muestra ningún botón.' },

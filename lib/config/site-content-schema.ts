@@ -501,6 +501,20 @@ const suscripcionPlanesEditableSchema = z.object({
   taquillaMostrarSeEnvia: z.boolean().optional(),
   taquillaMostrarAviso: z.boolean().optional(),
   taquillaMostrarCreditos: z.boolean().optional(),
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — los textos de la composición «Casillas» (§
+  // SuscripcionPlanesContent, site-content-defaults.ts). Sin declararlos acá, zod los STRIPPEA al
+  // guardar (§ #65-B).
+  casillasSticker: z.string().optional(),
+  casillasAyudaLabel: z.string().optional(),
+  casillasAyudaMensaje: z.string().optional(),
+  casillasCiudadLabel: z.string().optional(),
+  casillasCiudadPlaceholder: z.string().optional(),
+  casillasPreguntaCierre: z.string().optional(),
+  casillasCtaLabel: z.string().optional(),
+  casillasCtaVacioLabel: z.string().optional(),
+  casillasAviso: z.string().optional(),
+  casillasNotaTitulo: z.string().optional(),
+  casillasNotaIntro: z.string().optional(),
 });
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
@@ -514,6 +528,8 @@ const suscripcionAperturaEditableSchema = z.object({
 });
 
 // /suscripciones — los pasos "¿Cómo funciona?". Cardinalidad fija 4, sólo texto (íconos estructurales).
+// `variante` (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) SOBREVIVE al parse como string (SOFT, clampada
+// por `resolverVariante` al leer, no acá — mismo criterio que `suscripcionFaq.variante`).
 const suscripcionPasosEditableSchema = z.object({
   visible: z.boolean().optional(),
   titulo: z.string().optional(),
@@ -521,6 +537,7 @@ const suscripcionPasosEditableSchema = z.object({
   paso2Label: z.string().optional(), paso2Desc: z.string().optional(),
   paso3Label: z.string().optional(), paso3Desc: z.string().optional(),
   paso4Label: z.string().optional(), paso4Desc: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // /suscripciones — EL INTERLUDIO (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1). SOFT como el resto: una sola
@@ -555,6 +572,10 @@ const suscripcionCierreEditableSchema = z.object({
   frase: z.string().optional(),
   ctaLabel: z.string().optional(),
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — 'variante'/'franjaTejido' SOBREVIVEN al parse como
+  // string (SOFT, clampada por `resolverVariante` al leer, no acá).
+  variante: z.string().optional(),
+  franjaTejido: z.string().optional(),
 });
 
 // /tienda (§ TIENDA-PAGINA-REGISTRO-1): sin `visible` — `REGISTRY.tiendaEncabezado`/`.tiendaCatalogo`

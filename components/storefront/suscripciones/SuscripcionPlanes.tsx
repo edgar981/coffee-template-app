@@ -11,6 +11,7 @@ import CampoEditable from '@/components/storefront/CampoEditable';
 import { getCatalog } from '@/lib/api/products';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
+import SuscripcionCasillas from '@/components/storefront/suscripciones/SuscripcionCasillas';
 import type { Product } from '@/types/product';
 import type { SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 
@@ -24,29 +25,35 @@ import type { SuscripcionPlanesContent } from '@/lib/config/site-content-default
 // número; en el preview va sin prop → el CTA se oculta (un `wa.me/` sin número es un botón muerto).
 //
 // LA COMPOSICIÓN «TAQUILLA» (§ ONIX-SUSCRIPCION-TAQUILLA-1) — 'tarjetas' (canónica, byte-idéntica,
-// abajo) | 'taquilla' (la tabla 2×2 de /tienda + bolsas/frecuencia/molienda, § SuscripcionTaquilla.tsx).
-// El catálogo SÓLO se fetchea bajo 'taquilla' —mismo criterio que `TiendaCatalogo.tsx` bajo 'laminas'/
-// 'taquilla'—: ningún tenant con la canónica paga una llamada de red de más. Sin matriz 2×2 válida
-// (`derivarMatrizTaquilla`), cae SOLA a «Tarjetas» — mismo patrón que «Taquilla»/«Láminas» caen a
-// «Actual» en `TiendaCatalogo.tsx`.
-export default function SuscripcionPlanes({ whatsapp }: { whatsapp?: string }) {
+// abajo) | 'taquilla' (la tabla 2×2 de /tienda + bolsas/frecuencia/molienda, § SuscripcionTaquilla.tsx)
+// | 'casillas' (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1: el armador de varios cafés con «Casillas de
+// frecuencia» y la Nota de pedido, § SuscripcionCasillas.tsx). El catálogo SÓLO se fetchea bajo
+// 'taquilla'/'casillas' —mismo criterio que `TiendaCatalogo.tsx` bajo 'laminas'/'taquilla'—: ningún
+// tenant con la canónica paga una llamada de red de más. Sin matriz válida (`derivarMatrizTaquilla`),
+// cae SOLA a «Tarjetas» — mismo patrón que «Taquilla»/«Láminas» caen a «Actual» en `TiendaCatalogo.tsx`.
+export default function SuscripcionPlanes({ whatsapp, negocio }: { whatsapp?: string; negocio?: string }) {
   const { suscripcionPlanes } = useSiteContent();
   const preview = useIsPreview();
   const c = suscripcionPlanes;
   const [catalog, setCatalog] = useState<Product[] | null>(null);
+  const necesitaCatalogo = c.variante === 'taquilla' || c.variante === 'casillas';
 
   useEffect(() => {
-    if (c.variante !== 'taquilla') return;
+    if (!necesitaCatalogo) return;
     getCatalog().then(setCatalog).catch(() => setCatalog([]));
-  }, [c.variante]);
+  }, [necesitaCatalogo]);
 
-  if (c.variante === 'taquilla') {
+  if (necesitaCatalogo) {
     // Mientras carga: esqueleto PROPIO, nunca «Tarjetas» (parpadearía al reemplazarse con la
-    // Taquilla). Con el catálogo ya resuelto, sin matriz 2×2 válida se CAE a «Tarjetas» — el
+    // Taquilla/Casillas). Con el catálogo ya resuelto, sin matriz válida se CAE a «Tarjetas» — el
     // CHEQUEO VIVE ACÁ (como `TiendaCatalogo.tsx` decide si monta `TiendaTaquilla`), no dentro de
-    // `SuscripcionTaquilla` (que vuelve a chequear, defensivo, por si el catálogo cambia tras montar).
+    // `SuscripcionTaquilla`/`SuscripcionCasillas` (que vuelven a chequear, defensivo, por si el
+    // catálogo cambia tras montar).
     if (catalog === null) return <SuscripcionTaquillaCargando />;
     if (derivarMatrizTaquilla(catalog)) {
+      if (c.variante === 'casillas') {
+        return <SuscripcionCasillas catalog={catalog} whatsapp={whatsapp} negocio={negocio} suscripcionPlanes={c} />;
+      }
       return (
         // 1344PX, PADDING 72PX (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — la maqueta corre
         // la Taquilla en un `.env` de 1344px con 48px de gutter y 72px de padding de sección; antes

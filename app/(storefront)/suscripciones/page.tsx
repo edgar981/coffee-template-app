@@ -56,7 +56,9 @@ export default async function SuscripcionesPage() {
 
   const BANDAS: Record<SuscripcionesBandaId, () => React.ReactNode> = {
     suscripcionApertura: () => <SuscripcionApertura />,
-    suscripcionPlanes: () => <SuscripcionPlanes whatsapp={settings.whatsapp} />,
+    // `negocio` (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) — el saludo de la Nota de pedido bajo la
+    // composición «Casillas» ("Hola, {negocio}…"); sin efecto bajo 'tarjetas'/'taquilla'.
+    suscripcionPlanes: () => <SuscripcionPlanes whatsapp={settings.whatsapp} negocio={settings.nombre} />,
     suscripcionPasos: () => <SuscripcionPasos />,
     suscripcionInterludio: () => <SuscripcionInterludio />,
     // EL `<main>` SOBREVIVE de `Contenido.tsx` (byte-idéntico): envolvía la FAQ, no una convención

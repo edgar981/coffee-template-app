@@ -11,7 +11,14 @@ import {
   referenciaPrecioTaquilla,
   mensajeTaquilla,
   creditosDeTaquilla,
+  itemsCasillas,
+  bolsasCasillas,
+  totalPorEnvioCasillas,
+  moliendasCasillas,
+  frecuenciaEstructuraPorSlot,
+  topeUnidadesCasilla,
 } from './suscripcion-taquilla';
+import { derivarMatrizTaquilla, celdaDe } from '@/lib/tienda/taquilla';
 import { DEFAULTS, type SiteContentData, type SuscripcionPlanesContent } from '../config/site-content-defaults';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { navOffsetClase } from '../config/themes';
@@ -19,6 +26,9 @@ import SuscripcionApertura from '@/components/storefront/suscripciones/Suscripci
 import SuscripcionPlanes from '@/components/storefront/suscripciones/SuscripcionPlanes';
 import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionPasos';
 import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
+import SuscripcionCasillas from '@/components/storefront/suscripciones/SuscripcionCasillas';
+import SuscripcionCierre from '@/components/storefront/suscripciones/SuscripcionCierre';
+import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import type { Product } from '@/types/product';
 
@@ -259,4 +269,203 @@ test('SuscripcionApertura: con `visible:true` SÍ renderiza — el título por d
     React.createElement(SiteContentProvider, { value: content, children: React.createElement(SuscripcionApertura) }),
   );
   assert.ok(html.includes('CADA MES'), 'el título por defecto de la apertura debe aparecer');
+});
+
+// ─── LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) — tres cafés × dos bolsas,
+// como el catálogo real de Las Chamisas. `nombre` lleva el separador " — " de siempre para que
+// `nombreBaseProducto` lo recorte, aunque Casillas muestra la CATEGORÍA (el nombre del café), no el
+// nombre base del producto — se mantiene por fidelidad al patrón de fixture del resto del archivo.
+
+function chamisas(): Product[] {
+  const base = { costo: 0, sku: null, stock: 10, activo: true, disponible: true, descripcion: '' };
+  const conMolienda = [
+    { nombre: 'En grano', metodo: 'Muele en casa', disponible: true },
+    { nombre: 'Molido', metodo: 'Filtro', disponible: true },
+  ];
+  return [
+    { ...base, id: 'bourbon-340', nombre: 'Bourbon Rosado 340 g', slug: 'bourbon-340', categoria: 'Bourbon Rosado', precio: 52000, peso_gramos: 340, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
+    { ...base, id: 'bourbon-500', nombre: 'Bourbon Rosado 500 g', slug: 'bourbon-500', categoria: 'Bourbon Rosado', precio: 74000, peso_gramos: 500, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
+    { ...base, id: 'pacamara-340', nombre: 'Pacamara 340 g', slug: 'pacamara-340', categoria: 'Pacamara', precio: 48000, peso_gramos: 340, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
+    { ...base, id: 'pacamara-500', nombre: 'Pacamara 500 g', slug: 'pacamara-500', categoria: 'Pacamara', precio: 68000, peso_gramos: 500, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
+    { ...base, id: 'papayo-340', nombre: 'Papayo 340 g', slug: 'papayo-340', categoria: 'Papayo', precio: 44000, peso_gramos: 340, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
+    { ...base, id: 'papayo-500', nombre: 'Papayo 500 g', slug: 'papayo-500', categoria: 'Papayo', precio: 62000, peso_gramos: 500, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
+  ] as Product[];
+}
+
+test('itemsCasillas: sólo los cafés con cantidad>0, en el orden de la matriz (alfabético es-CO)', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const items = itemsCasillas(matriz, { Papayo: 2, Pacamara: 0, 'Bourbon Rosado': 1 }, 340);
+  assert.deepEqual(items.map((i) => i.categoria), ['Bourbon Rosado', 'Papayo']);
+  assert.equal(items[0].cantidad, 1);
+  assert.equal(items[0].producto.id, 'bourbon-340');
+  assert.equal(items[1].cantidad, 2);
+  assert.equal(items[1].producto.id, 'papayo-340');
+});
+
+test('itemsCasillas: un mapa vacío da una lista vacía', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  assert.deepEqual(itemsCasillas(matriz, {}, 340), []);
+});
+
+test('bolsasCasillas: suma las cantidades de todos los ítems', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const items = itemsCasillas(matriz, { Papayo: 2, 'Bourbon Rosado': 3 }, 340);
+  assert.equal(bolsasCasillas(items), 5);
+});
+
+test('totalPorEnvioCasillas: null sin ítems elegidos', () => {
+  assert.equal(totalPorEnvioCasillas([]), null);
+});
+
+test('totalPorEnvioCasillas: suma precio×cantidad de cada ítem, a la bolsa activa', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const items340 = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
+  assert.equal(totalPorEnvioCasillas(items340), 52000 + 44000);
+  const items500 = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 500);
+  assert.equal(totalPorEnvioCasillas(items500), 74000 + 62000);
+});
+
+test('moliendasCasillas: intersección de nombres disponibles entre los productos recibidos', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const items = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
+  assert.deepEqual(moliendasCasillas(items.map((i) => i.producto)), ['En grano', 'Molido']);
+});
+
+test('moliendasCasillas: sin productos, [] — no hay chips que mostrar', () => {
+  assert.deepEqual(moliendasCasillas([]), []);
+});
+
+test('moliendasCasillas: un producto SIN esa opción disponible la saca de la intersección', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const items = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
+  const productos = items.map((i) => i.producto);
+  // Papayo deja de ofrecer "En grano" (p. ej. ya no queda en esa presentación).
+  const papayoSinGrano = {
+    ...productos[1],
+    moliendasOpciones: [{ nombre: 'En grano', metodo: 'x', disponible: false }, { nombre: 'Molido', metodo: 'x', disponible: true }],
+  };
+  assert.deepEqual(moliendasCasillas([productos[0], papayoSinGrano]), ['Molido']);
+});
+
+test('frecuenciaEstructuraPorSlot: 1=quincenal, 2=mensual, 3=bimestral, 4=trimestral', () => {
+  assert.deepEqual(frecuenciaEstructuraPorSlot(1), { enviosPorMes: 2, cadaNMeses: 1 });
+  assert.deepEqual(frecuenciaEstructuraPorSlot(2), { enviosPorMes: 1, cadaNMeses: 1 });
+  assert.deepEqual(frecuenciaEstructuraPorSlot(3), { enviosPorMes: 1, cadaNMeses: 2 });
+  assert.deepEqual(frecuenciaEstructuraPorSlot(4), { enviosPorMes: 1, cadaNMeses: 3 });
+});
+
+test('topeUnidadesCasilla: 9 por defecto, acotado por maxCompra si el catálogo lo declara', () => {
+  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const producto = matriz.celdas.get(celdaDe('Bourbon Rosado', 340))!;
+  assert.equal(topeUnidadesCasilla(producto), 9);
+  assert.equal(topeUnidadesCasilla({ ...producto, maxCompra: 4 }), 4);
+  assert.equal(topeUnidadesCasilla({ ...producto, maxCompra: 20 }), 9);
+});
+
+// ─── SuscripcionCasillas — render (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) ────────────────────────────
+//
+// `SuscripcionCasillas` recibe el catálogo por PROP (como `SuscripcionTaquilla`), así que se puede
+// renderizar DIRECTO con SSR sin depender del `useEffect`/`getCatalog` de `SuscripcionPlanes` (que
+// no corre bajo `renderToStaticMarkup`).
+
+const PLANES_CASILLAS: SuscripcionPlanesContent = { ...DEFAULTS.suscripcionPlanes, variante: 'casillas' };
+
+test('SuscripcionCasillas: con un catálogo válido, renderiza la apertura, el sticker y los TRES cafés', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: chamisas(), whatsapp: '573000000000', negocio: 'Café Las Chamisas', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.ok(html.includes('Sin cobro automático'), 'el sticker por defecto debe aparecer');
+  assert.ok(html.includes('Bourbon Rosado'), 'debe listar el primer café');
+  assert.ok(html.includes('Pacamara'), 'debe listar el segundo café');
+  assert.ok(html.includes('Papayo'), 'debe listar el tercer café');
+  assert.ok(html.includes('Nota de pedido'), 'la pieza de nota de pedido debe aparecer');
+  assert.ok(html.includes('elige al menos un café'), 'sin selección, el placeholder de la nota debe aparecer');
+});
+
+test('SuscripcionCasillas: sin catálogo válido (una matriz nula no debería montarse — guard de SuscripcionPlanes), este componente NO re-valida solo', () => {
+  // `SuscripcionCasillas` asume que YA recibió una matriz válida (el chequeo vive en
+  // `SuscripcionPlanes.tsx`, § el comentario de cabecera de ese archivo) — con un catálogo de UN
+  // solo producto, `derivarMatrizTaquilla` interno devuelve `null` y el componente no debe lanzar,
+  // simplemente no renderiza nada (mismo criterio que `SuscripcionTaquilla` con `!matriz`).
+  const unSoloProducto = chamisas().slice(0, 1);
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: unSoloProducto, whatsapp: '573000000000', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.equal(html, '');
+});
+
+test('SuscripcionCasillas: el mensaje de WhatsApp de la barra/nota usa el NEGOCIO recibido por prop', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: chamisas(), whatsapp: '573000000000', negocio: 'Café Las Chamisas', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.ok(html.includes('Hola, Café Las Chamisas'), 'el saludo de la nota debe nombrar al negocio recibido por prop');
+});
+
+test('byte-identidad: SuscripcionPlanes con variante "casillas" NUNCA se monta sin un catálogo válido pasado por prop — con los DEFAULTS (variante "tarjetas") la composición sigue intacta', () => {
+  // Esta es la MISMA aserción que ya corre arriba ("byte-identidad: /suscripciones con los
+  // DEFAULTS..."), repetida acá para que quede junto a las pruebas de Casillas: con
+  // `suscripcionPlanes.variante` en su default ('tarjetas'), `SuscripcionCasillas` nunca se importa
+  // en el árbol que renderiza /suscripciones — Nayoli y cualquier tenant sin fila quedan
+  // byte-idénticos a antes de este slice.
+  assert.equal(DEFAULTS.suscripcionPlanes.variante, 'tarjetas');
+});
+
+// ─── SuscripcionCierre «Costura» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) ─────────────────────────────
+
+function contentConCierre(overrides: Partial<SiteContentData['suscripcionCierre']>): SiteContentData {
+  return {
+    ...DEFAULTS,
+    suscripcionCierre: { ...DEFAULTS.suscripcionCierre, frase: '¿Prefieres hablarlo primero?', ctaLabel: 'Ver el catálogo', ctaDestino: '/tienda', ...overrides },
+  };
+}
+
+test('SuscripcionCierre: con los DEFAULTS (variante "fraseYBoton", sin frase) no renderiza nada', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: DEFAULTS, children: React.createElement(SuscripcionCierre) }),
+  );
+  assert.equal(html, '');
+});
+
+test('SuscripcionCierre: variante "costura" monta el marco punteado (CierreCostura), no CierreFraseYBoton', () => {
+  const content = contentConCierre({ variante: 'costura' });
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(SuscripcionCierre) }),
+  );
+  assert.ok(html.includes('border-dashed'), 'el marco punteado de Costura debe estar presente');
+  assert.ok(html.includes('¿Prefieres hablarlo primero?'));
+  assert.ok(html.includes('Ver el catálogo'));
+  assert.ok(!html.includes('--sf-papel'), 'Costura no lleva la banda --sf-papel de Frase y botón');
+});
+
+test('SuscripcionCierre: variante "fraseYBoton" (con frase) sigue montando la banda --sf-papel, byte-idéntica a antes de este slice', () => {
+  const content = contentConCierre({ variante: 'fraseYBoton' });
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(SuscripcionCierre) }),
+  );
+  assert.ok(html.includes('--sf-papel'), 'Frase y botón debe seguir pintando la banda --sf-papel');
+  assert.ok(!html.includes('border-dashed'), 'Frase y botón no lleva el marco punteado de Costura');
+});
+
+test('TiendaCierre: la extracción a CierreCostura no cambió su composición "costura" — sigue sin --sf-papel', () => {
+  const content: SiteContentData = { ...DEFAULTS, tiendaCierre: { ...DEFAULTS.tiendaCierre, frase: 'Tres cafés, una finca.', boton: 'Ver los tres cafés' } };
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(TiendaCierre) }),
+  );
+  assert.ok(html.includes('border-dashed'));
+  assert.ok(!html.includes('--sf-papel'));
 });

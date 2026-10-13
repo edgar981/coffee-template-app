@@ -234,6 +234,8 @@ interface Opciones {
   sembrarCompra: "onix" | "chamisas" | undefined;
   accionesPrevias: (string | undefined)[];
   sinPrototipo: boolean;
+  // CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — ver el docstring de `sembrarCasillas`, abajo.
+  sembrarCasillas: boolean;
 }
 
 function ayuda(): string {
@@ -305,7 +307,7 @@ no pide credenciales de pasarela) para que el checkout pueda completarse.
 SÓLO válido en modo base fresca (mismo motivo que --sembrar-spotlight).
 --accion-previa <nombre> (repetible, se empareja por ÍNDICE con --ruta, como
 --selector-app — "" es el placeholder de "sin acción para este índice")
-ejecuta una interacción de Playwright ANTES de capturar esa ruta. CINCO
+ejecuta una interacción de Playwright ANTES de capturar esa ruta. SIETE
 nombres fijos: 'abrir-carrito' (agrega el primer producto del catálogo y abre
 el cajón solo); 'checkout-pago' (completa el paso 1 de /checkout y avanza al
 paso 2, método efectivo); 'completar-pedido' (como checkout-pago, y además
@@ -313,7 +315,10 @@ acepta términos + confirma — crea una orden REAL y aterriza en la
 confirmación); 'rastrear-noencontrado' (busca en /rastrear-pedido con datos
 que no matchean nada); 'rastrear-resultado' (busca el pedido que la ÚLTIMA
 completar-pedido de esta misma corrida acaba de crear — requiere una
-completar-pedido en un índice ANTERIOR). Las que dependen del carrito/de una
+completar-pedido en un índice ANTERIOR); 'casillas-dos-cafes' (§ CHAMISAS-
+SUSCRIPCIONES-CASILLAS-1: suma una bolsa de Bourbon Rosado y una de Pacamara —
+requiere --sembrar-casillas); 'casillas-quincenal' (elige la frecuencia "15
+días" — requiere --sembrar-casillas). Las que dependen del carrito/de una
 orden ya creada necesitan su acción previa en un índice ANTERIOR, en la MISMA
 corrida (mismo browser context, § el docstring de ejecutarAccionPrevia).
 Ver ese docstring para el porqué de nombres fijos y no un DSL de clicks genérico.
@@ -324,6 +329,15 @@ slice es un SPA de un solo archivo con estado en JS, no páginas estáticas por
 sección — automatizar sus transiciones duplicaría las capturas que ya existen
 en .scratch/lanzamiento/maqueta-compra/capturas/); el par se arma a mano
 contra esas capturas YA EXISTENTES, no contra una captura nueva del prototipo.
+--sembrar-casillas (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) siembra, sobre la base
+efímera y DESPUÉS de --preset (si se pasó): la paleta/tipografía/forma MEDIDAS
+contra el muestrario real de Las Chamisas (fondo #FAF4EB, tinta #2A2522, acento
+#B8461A, par "prensa" = Roboto Serif/Figtree, forma "recta" — leídas del
+:root que ese despliegue ya inyecta server-side, § DECISIONS.md), TRES
+productos (Bourbon Rosado/Pacamara/Papayo, un café por fila, una sola bolsa de
+340 g — la matriz mínima que derivarMatrizTaquilla acepta), y publica
+suscripcionPlanes.variante:'casillas' + SiteSetting.nombre/whatsapp. SÓLO
+válido en modo base fresca (mismo motivo que --sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -355,6 +369,11 @@ cajón de Onix, abierto con un producto):
   node --import tsx scripts/capturar-seccion.ts --sembrar-compra onix --sin-prototipo \\
     --ruta /tienda --accion-previa abrir-carrito \\
     --nombre onix-cajon
+
+Ejemplo (--sembrar-casillas + --sin-prototipo, § CHAMISAS-SUSCRIPCIONES-CASILLAS-1):
+  node --import tsx scripts/capturar-seccion.ts --sembrar-casillas --sin-prototipo \\
+    --ruta /suscripciones \\
+    --nombre chamisas-casillas
 `.trim();
 }
 
@@ -380,6 +399,7 @@ function parseCli(argv: string[]): Opciones {
       "sembrar-compra": { type: "string" },
       "accion-previa": { type: "string", multiple: true },
       "sin-prototipo": { type: "boolean" },
+      "sembrar-casillas": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -425,6 +445,13 @@ function parseCli(argv: string[]): Opciones {
     );
   }
   const sinPrototipo = values["sin-prototipo"] === true;
+  const sembrarCasillas = values["sembrar-casillas"] === true;
+  if (sembrarCasillas && url) {
+    throw new Error(
+      `--sembrar-casillas y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
+        `una URL ya desplegada (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1).\n\n${ayuda()}`,
+    );
+  }
 
   // En modo --url, sin --ruta se asume una única ruta implícita ("/") — la URL ya trae el
   // destino (§ ARNES-CAPTURA-MUESTRARIO-REAL-1, el ejemplo canónico del modo no repite --ruta /).
@@ -458,7 +485,10 @@ function parseCli(argv: string[]): Opciones {
   // "" es el placeholder de "sin acción para este índice" — el mismo patrón que `--selector-app`/
   // `--selector-prototipo` ya usan (una cadena vacía es falsy, así que el índice cae al
   // comportamiento de siempre, § el `if (accionPrevia)` del loop principal).
-  const ACCIONES_VALIDAS = ["abrir-carrito", "checkout-pago", "completar-pedido", "rastrear-noencontrado", "rastrear-resultado"];
+  const ACCIONES_VALIDAS = [
+    "abrir-carrito", "checkout-pago", "completar-pedido", "rastrear-noencontrado", "rastrear-resultado",
+    "casillas-dos-cafes", "casillas-quincenal",
+  ];
   for (const a of accionesPreviasIn) {
     if (a !== "" && !ACCIONES_VALIDAS.includes(a)) {
       throw new Error(`--accion-previa sólo acepta "" (sin acción) o una de: ${ACCIONES_VALIDAS.join(", ")} (recibido: «${a}»).\n\n${ayuda()}`);
@@ -486,6 +516,7 @@ function parseCli(argv: string[]): Opciones {
     sinPrototipo,
     sembrarSpotlight,
     sembrarOrigen,
+    sembrarCasillas,
   };
 }
 
@@ -992,6 +1023,102 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
   console.log(`✔ Compra sembrada (${tienda}): paleta + content.compra + vendedor + producto + efectivo.`);
 }
 
+// ─── SEMBRAR CASILLAS (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) ──────────────────────────────────────
+//
+// La paleta/tipografía/forma vienen MEDIDAS contra el muestrario REAL de Las Chamisas —no contra
+// la paleta aproximada `.ln-ch` de `sembrarCompra` (arriba), que usa `acento: tinta` por ser una
+// referencia de MOCKUP, no del despliegue—. Medido con un `fetch()` plano (sin Playwright: el
+// storefront es `force-dynamic` e inyecta `cssPaleta`/`cssFuentes`/`cssFormas` como `<style>`
+// LITERAL en el HTML servido, así que el HTML crudo YA contiene el mismo valor final que
+// `getComputedStyle(document.documentElement)` leería en un navegador — no hay cascada adicional
+// que un render real pudiera cambiar) contra `https://coffee-template-app-las-chamisas.vercel.app/`
+// el 2026-10-12: `:root{--sf-fondo:#FAF4EB;--sf-tinta:#2A2522;--sf-acento:#B8461A;…}` y
+// `:root{--sf-fuente-titulo:'Roboto Serif', serif;--sf-fuente-cuerpo:'Figtree', sans-serif;…}` +
+// `--radius-3xl:4px` (el radio de 'recta', § lib/config/formas.ts). `fuentePar:'prensa'` es la
+// ÚNICA clave de `CLAVES_FUENTES` (lib/config/fuentes.ts) cuyo par es exactamente Roboto Serif/
+// Figtree.
+//
+// TRES PRODUCTOS DE MUESTRA (§ el spec de este slice): un café por FILA de la matriz
+// (`derivarMatrizTaquilla` exige mínimo 2 productos, y Casillas necesita varios cafés para
+// "mezclar" — § refero-chamisas.md §4), con una ÚNICA columna de peso (340 g): 3 filas × 1
+// columna = una matriz válida (3 ≤ `MAX_VALORES_POR_EJE`) sin necesitar un segundo peso que esta
+// captura no pide. Cada producto declara `moliendasOpciones` (En grano/Molido, ambas disponibles)
+// y `notas` (las notas de cata de la maqueta aprobada) para que la tarjeta de cada café y el
+// chooser de molienda del paso 2 tengan algo real que mostrar.
+async function sembrarCasillas(): Promise<void> {
+  console.log("▸ --sembrar-casillas: paleta/tipografía/forma de Las Chamisas + 3 cafés + content.suscripcionPlanes…");
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+
+  // Medido en vivo contra el despliegue real (§ el docstring de cabecera) — NO la paleta `.ln-ch`
+  // de mockup que `sembrarCompra` usa para otro propósito.
+  await guardarTemaBorrador({ fondo: "#FAF4EB", tinta: "#2A2522", acento: "#B8461A", fuentePar: "prensa", forma: "recta" });
+  await publicarSeccion("tema");
+
+  const CONMOLIENDA = [
+    { nombre: "En grano", metodo: "Muele en casa a tu gusto", disponible: true },
+    { nombre: "Molido", metodo: "Filtro / Greca tradicional", disponible: true },
+  ] as unknown as Prisma.InputJsonValue;
+  // Notas de cata + precios MEDIDOS contra refero-chamisas.md §4 ("tres cafés… con la bolsa
+  // recortada, notas, precio de /tienda"), tomados del asiento ya citado en este archivo
+  // (DECISIONS.md, § CHAMISAS-SUSCRIPCIONES-CASILLAS-1) — no inventados para esta captura.
+  const CAFES = [
+    { slug: "arnes-casillas-bourbon", nombre: "Bourbon Rosado", notas: ["Floral", "Frutos rojos", "Dulce"], precio: 52000 },
+    { slug: "arnes-casillas-pacamara", nombre: "Pacamara", notas: ["Chocolate", "Tropical", "Cremoso"], precio: 48000 },
+    { slug: "arnes-casillas-papayo", nombre: "Papayo", notas: ["Caramelo", "Cítrico", "Balanceado"], precio: 44000 },
+  ];
+  for (const cafe of CAFES) {
+    await prisma.product.upsert({
+      where: { slug: cafe.slug },
+      update: {
+        activo: true, stock: 42, categoria: cafe.nombre, precio: cafe.precio, peso_gramos: 340,
+        notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
+      },
+      create: {
+        slug: cafe.slug, nombre: `${cafe.nombre} 340 g`, descripcion: `${cafe.nombre}, bolsa de 340 g.`,
+        categoria: cafe.nombre, activo: true, stock: 42, precio: cafe.precio, costo: Math.round(cafe.precio * 0.55),
+        peso_gramos: 340, notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
+        imagen: "/images/cafe-nayoli-250g-molido.webp",
+      },
+    });
+  }
+
+  // `suscripcionPasos.variante:'casillas'` — el tratamiento "Así funciona" de álbum (§ el spec,
+  // item 5 de refero-chamisas.md §4) — y `suscripcionCierre.variante:'costura'` — la "banda
+  // punteada" (§ el spec, item 6) — se verifican JUNTO con Planes, nunca solos: las tres son la
+  // composición completa que el content guide (.scratch/chamisas-paginas/
+  // contenido-suscripciones-para-el-panel.md) recomienda activar a la vez. `franjaTejido` queda
+  // vacío (sin asset de tejido para esta captura) — la sección sigue mostrando el marco punteado y
+  // el botón relleno, sólo sin la franja arriba (mismo criterio que `tiendaCierre` sin imagen).
+  await guardarBorrador({
+    suscripcionPlanes: { variante: "casillas" },
+    suscripcionPasos: { variante: "casillas" },
+    // `ctaDestino` sólo acepta el set cerrado de rutas internas (`MENU_CTA_DESTINOS` —
+    // site-content-defaults.ts: '/tienda'|'/suscripciones'|'/nosotros', NUNCA "whatsapp"; a
+    // diferencia de `tiendaCierre.boton`, que resuelve WhatsApp con su propio `botonCierre()`,
+    // § CLAUDE.md "el día del multitenant"/`CONTROLADOS_*`). Para esta captura, '/tienda' — la
+    // maqueta pide "Escribir por WhatsApp" como destino, que esta sección no puede representar
+    // hoy; queda nombrado como límite conocido en el content guide (§ CHAMISAS-SUSCRIPCIONES-
+    // CASILLAS-1, DECISIONS.md).
+    suscripcionCierre: {
+      variante: "costura",
+      frase: "¿Prefieres hablarlo primero?",
+      ctaLabel: "Ver el catálogo",
+      ctaDestino: "/tienda",
+    },
+  });
+  await publicarSeccion("suscripcionPlanes");
+  await publicarSeccion("suscripcionPasos");
+  await publicarSeccion("suscripcionCierre");
+
+  await prisma.siteSetting.update({
+    where: { id: "default" },
+    data: { nombre: "Café Las Chamisas", tagline: "San Adolfo · Huila", whatsapp: "+573000000000" },
+  });
+
+  console.log("✔ Casillas sembrado: paleta/tipografía/forma de Las Chamisas + 3 cafés + variante publicada.");
+}
+
 // ─── ACCIONES PREVIAS A LA CAPTURA (§ COMPRA-LINEAS-FIDELIDAD-1) ─────────────────────────────────
 //
 // NOMBRES FIJOS, no un DSL de clicks genérico: un DSL (una secuencia arbitraria de selectores +
@@ -1113,8 +1240,37 @@ async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promi
     return;
   }
 
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — dos cafés elegidos (Bourbon Rosado + Pacamara, las dos
+  // primeras filas alfabéticas de `sembrarCasillas`, § arriba) y la frecuencia quincenal (slot 1 —
+  // "15 días" es `DEFAULTS.suscripcionPlanes.frecuencia1`, § site-content-defaults.ts). Los
+  // botones +/− no llevan id propio: `aria-label="Sumar una bolsa de {categoria}"`
+  // (§ SuscripcionCasillas.tsx) es el selector estable, igual que el resto de este archivo
+  // localiza por atributo semántico en vez de por clase CSS.
+  if (accion === "casillas-dos-cafes") {
+    console.log("  ▸ accion-previa casillas-dos-cafes: sumando una bolsa de Bourbon Rosado y una de Pacamara…");
+    for (const categoria of ["Bourbon Rosado", "Pacamara"]) {
+      const sumar = page.locator(`button[aria-label="Sumar una bolsa de ${categoria}"]`);
+      await sumar.waitFor({ timeout: 10_000 });
+      await sumar.click();
+    }
+    await page.waitForTimeout(300); // el sticker que se pega en la nota (180ms, § SuscripcionCasillas.tsx)
+    return;
+  }
+
+  if (accion === "casillas-quincenal") {
+    console.log('  ▸ accion-previa casillas-quincenal: eligiendo la frecuencia "15 días" (quincenal)…');
+    await page.evaluate<void, undefined>(() => {
+      const grupo = document.querySelector('[role="group"][aria-label="Frecuencia"]');
+      const boton = Array.from(grupo?.querySelectorAll("button") ?? []).find((b) => b.textContent?.trim() === "15 días");
+      (boton as HTMLButtonElement | undefined)?.click();
+    }, undefined);
+    await page.waitForTimeout(300); // la cascada de 30ms/casilla (§ SuscripcionCasillas.tsx) asienta rápido, margen generoso
+    return;
+  }
+
   throw new Error(
-    `Acción previa desconocida: «${accion}» (sólo "abrir-carrito"/"checkout-pago"/"completar-pedido"/"rastrear-noencontrado"/"rastrear-resultado").`,
+    `Acción previa desconocida: «${accion}» (sólo "abrir-carrito"/"checkout-pago"/"completar-pedido"/` +
+      `"rastrear-noencontrado"/"rastrear-resultado"/"casillas-dos-cafes"/"casillas-quincenal").`,
   );
 }
 
@@ -1229,6 +1385,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarCompra) {
       await sembrarCompra(opciones.sembrarCompra);
+    }
+
+    if (opciones.sembrarCasillas) {
+      await sembrarCasillas();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {
