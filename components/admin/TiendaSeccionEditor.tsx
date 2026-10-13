@@ -40,8 +40,9 @@ import { aplicaAComposicion, particionarBloques, tituloPlegado } from '@/lib/adm
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
-import { condicionCampoInactiva, resumenBloqueTarjeta } from '@/lib/admin/editor-orden-y-lienzo';
+import { condicionCampoInactiva, resumenBloqueTarjeta, vaciosDeBloqueTarjeta, tiendaCreditosPisoIncompleto } from '@/lib/admin/editor-orden-y-lienzo';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
+import type { CreditoItem } from '@/lib/tienda/creditos';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
 import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
 import {
@@ -1340,12 +1341,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // —se reusa para el motivo en la fila colapsada, abajo— y `noSeMuestra` lo suma a las dos causas
   // que ya cubría.
   const campoGateVacio = !!config.seMuestraSiCampo && String(form[config.seMuestraSiCampo] ?? '').trim() === '';
-  const noSeMuestra = oculta || repeaterVacio || campoGateVacio;
+  // § EDITOR-ORDEN-Y-LIENZO-2, item 5 — el PISO de `tiendaCreditos` («menos de 3 filas completas»,
+  // § `creditosVisibles`/`MIN_FILAS_CREDITOS`, lib/tienda/creditos.ts) es un CUARTO motivo de
+  // `noSeMuestra` que `repeaterVacio` no cubre: una lista con 4 ítems y sólo 2 completos NO está
+  // vacía (`items.length > 0`), así que la tarjeta se veía "visible" aunque la tienda real
+  // (`TiendaCreditos.tsx`/`NosotrosFicha.tsx`) la oculte — el defecto que esta sección existe para
+  // avisar en las OTRAS secciones (`seMuestraSiCampo`/repeater vacío), pero no en la suya propia.
+  // Específico de `tiendaCreditos` a propósito: es la ÚNICA sección con este piso de COMPLETITUD (no
+  // sólo de cardinalidad) — generalizarlo a un campo de `SeccionConfig` sería infraestructura para
+  // un solo consumidor. EXTRAÍDO a `tiendaCreditosPisoIncompleto` (§ lib/admin/editor-orden-y-
+  // lienzo.ts) para poder afirmarlo en un test — este componente no se puede montar (el repo no usa
+  // React Testing Library para render con interacción).
+  const creditosPisoIncompleto = tiendaCreditosPisoIncompleto(config.seccion, repeaterVacio, (items as CreditoItem[] | undefined) ?? []);
+  const noSeMuestra = oculta || repeaterVacio || campoGateVacio || creditosPisoIncompleto;
   const avisoNoSeMuestra = oculta
     ? 'Actívala con el interruptor para verla aquí.'
     : repeaterVacio
       ? 'La lista está vacía — agrega el primero para verla aquí.'
-      : `Falta «${config.campos.find((c) => c.name === config.seMuestraSiCampo)?.label ?? config.imagenes.find((i) => i.name === config.seMuestraSiCampo)?.label ?? config.seMuestraSiCampo}» — complétalo para verla aquí.`;
+      : creditosPisoIncompleto
+        ? 'Tiene menos de 3 filas completas (rótulo y valor) — agrega al menos una más para verla aquí. Tampoco se muestra «Ficha de la finca» en /nosotros, que mira estas mismas filas.'
+        : `Falta «${config.campos.find((c) => c.name === config.seMuestraSiCampo)?.label ?? config.imagenes.find((i) => i.name === config.seMuestraSiCampo)?.label ?? config.seMuestraSiCampo}» — complétalo para verla aquí.`;
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
   const mostrarEstado = editando || auto.estado !== 'guardado';
@@ -2289,10 +2304,10 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                 // los NOMBRES de Presentaciones: `label${slot}`/`copy${slot}`/…), acá se vacían los
                 // campos REALES de ESTE bloque (`bloque.campos`/`.imagen`) — cada sección tiene los
                 // suyos (`nombreN`/`descripcionN`/`precioN` en Plan N, `filaNRotulo`/… en brandStory).
-                const vacios: Record<string, string> = {};
-                for (const c of bloque.campos) vacios[c.name] = '';
-                if (bloque.imagen) vacios[bloque.imagen.name] = '';
-                cambiar(vacios);
+                // EXTRAÍDO a `vaciosDeBloqueTarjeta` (§ EDITOR-TARJETA-GENERICA-QUITAR-SIN-TEST-1,
+                // EDITOR-ORDEN-Y-LIENZO-2) para poder afirmarlo en un test — el bug que corrigió
+                // (reusar `quitarTarjeta`) se encontró por inspección, no por un test propio.
+                cambiar(vaciosDeBloqueTarjeta(bloque));
                 if (abierta) setTarjetaGenericaAbierta(null);
               }}
               className="duna-btn duna-btn--ghost duna-btn--sm"
@@ -2713,13 +2728,26 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                 // `alturaLlena`/`veloVisible` tampoco — exclusivos de "media"/"sticky"), así que no
                 // se ofrece NI la lista de zonas NI los switches genéricos: no hay nada que mostrar
                 // que no sea ruido.
-                seccion === 'hero' ? (zonasHeroAplican && renderZonasHero()) : (
-                  <div className="admin-bloque">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
-                      {config.booleanos.map(renderBooleano)}
+                seccion === 'hero' ? (zonasHeroAplican && renderZonasHero()) : (() => {
+                  // § EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1 — MISMO filtro que ya aplica a
+                  // `CampoTexto`/`CampoImagen` (`aplicaAComposicion`): un booleano SIN `composiciones`
+                  // sigue aplicando a TODAS (el default, el caso de `mostrarPrecioPor100g`/
+                  // `barraFijaMovil`/`esquineros` — universales a propósito); uno CON `composiciones`
+                  // se oculta del todo bajo las demás, en vez de mostrarse con un hint que nadie hace
+                  // cumplir. Sin pliegue/"Sólo con…" — los booleanos nunca pasaron por
+                  // `particionarBloques` (viven en su propia lista, aparte de `bloques`), así que
+                  // ocultar es la salida mínima, simétrica a como el hero ya vacía su lista de zonas
+                  // fuera de "media"/"sticky" (arriba).
+                  const visibles = config.booleanos!.filter((b) => aplicaAComposicion(b, activaComposicion));
+                  if (visibles.length === 0) return null;
+                  return (
+                    <div className="admin-bloque">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-4)' }}>
+                        {visibles.map(renderBooleano)}
+                      </div>
                     </div>
-                  </div>
-                )
+                  );
+                })()
               )}
 
               {/* § EDITOR-VISUAL-NIVELES-1 — "Alto" (segmentado) y "Fondo" (miniatura + Cambiar +

@@ -29,6 +29,8 @@ import { useIsPreview } from '@/components/storefront/PreviewMode';
 import CampoEditable from '@/components/storefront/CampoEditable';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto } from '@/lib/tienda/taquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
+import { filasCompletas } from '@/lib/tienda/creditos';
+import { camposPorFilaCreditos } from '@/lib/admin/editor-orden-y-lienzo';
 import {
   visibilidadBarraFija,
   altoPublicadoBarraFija,
@@ -42,7 +44,6 @@ import {
   resumenTaquilla,
   referenciaPrecioTaquilla,
   mensajeTaquilla,
-  creditosDeTaquilla,
   decidirMolienda,
 } from '@/lib/storefront/suscripcion-taquilla';
 import type { Product } from '@/types/product';
@@ -143,7 +144,24 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
   const mensaje = mensajeTaquilla({
     nombreProducto, bolsas: bolsasActivas, peso: activa.peso, presentacion: activa.categoria, segmentoMolienda: seg, frecuenciaEtiqueta: frecuenciaActiva,
   });
-  const creditos = creditosDeTaquilla(c);
+  // EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1 — se construye el array de los 4 slots fijos ACÁ (no en
+  // `creditosDeTaquilla`, § lib/storefront/suscripcion-taquilla.ts, fuera de `touches:` de este
+  // slice) y se filtra con `filasCompletas` — la MISMA regla ("fila completa = etiqueta y valor no
+  // vacíos") que ya usa `lib/tienda/creditos.ts` para `tiendaCreditos.items`, en vez de la copia
+  // ad-hoc de esa regla que traía `creditosDeTaquilla`. Tenerlo ACÁ, sin filtrar, es lo que permite
+  // recuperar el SLOT original de cada fila visible (`camposPorFilaCreditos`, por referencia —
+  // `.filter()` nunca clona), para que el clic abra `suscripcionPlanes.creditoNEtiqueta/Valor`.
+  const creditosOriginal = [
+    { etiqueta: c.credito1Etiqueta, valor: c.credito1Valor },
+    { etiqueta: c.credito2Etiqueta, valor: c.credito2Valor },
+    { etiqueta: c.credito3Etiqueta, valor: c.credito3Valor },
+    { etiqueta: c.credito4Etiqueta, valor: c.credito4Valor },
+  ];
+  const creditos = filasCompletas(creditosOriginal);
+  const camposPorFilaCreditosTaquilla = camposPorFilaCreditos(creditosOriginal, creditos, (i) => ({
+    etiqueta: `suscripcionPlanes.credito${i + 1}Etiqueta`,
+    valor: `suscripcionPlanes.credito${i + 1}Valor`,
+  }));
   const agotado = !producto.disponible;
   // § ONIX-BARRA-FLOTANTE-MOVIL-1 — la barra se oculta mientras el botón principal se ve O al
   // llegar a las preguntas (`finVisible`, § el sentinel de abajo); las dos razones de ocultarse
@@ -282,7 +300,7 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 
           {c.taquillaMostrarCreditos && creditos.length > 0 && (
             <div className="mt-8">
-              <CreditosFilas filas={creditos} />
+              <CreditosFilas filas={creditos} camposPorFila={camposPorFilaCreditosTaquilla} />
             </div>
           )}
         </div>

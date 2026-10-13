@@ -2,12 +2,37 @@
 import { Suspense } from 'react';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
+import { useModoEditorActivo } from '@/components/storefront/ModoEditor';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
 import TiendaCreditos from '@/components/storefront/tienda/TiendaCreditos';
 import TiendaInterludio from '@/components/storefront/tienda/TiendaInterludio';
 import TiendaCierre from '@/components/storefront/tienda/TiendaCierre';
+
+// EL MARCADOR `data-editor-seccion` (§ EDITOR-TIENDA-SIN-MARCADOR-SECCION-1, cierra el límite T-0a
+// que `EDITOR-ORDEN-Y-LIENZO-1` dejó abierto): /tienda es la ÚNICA de las cuatro páginas sin
+// `data-editor-seccion` — /, /nosotros y /suscripciones ya lo tienen (§ `app/(storefront)/nosotros/
+// page.tsx`, `bandaNodo`). "Tocar cualquier punto de una sección la abre en el panel" (el aviso que
+// `EditorPuenteVivo.tsx` lee por `closest('[data-editor-seccion]')`) NO funcionaba acá — el
+// click-to-edit de TEXTO (`CampoEditable`) sí, porque ése depende de su propio marcador
+// `data-editor-campo`, independiente de la sección.
+//
+// DISTINTO MECANISMO que /nosotros/`modoEditorActivo()` server — a propósito: este archivo es
+// `"use client"` (lo era antes de este slice; no se le agregó esa directiva), así que no puede
+// `await modoEditorActivo()`. `useModoEditorActivo()` (el hook de contexto que `CampoEditable` YA
+// usa en esta misma página) resuelve el MISMO booleano — montado una vez por
+// `app/(storefront)/layout.tsx`, nunca una segunda fuente que pudiera divergir.
+//
+// SIN UN "BANDA_TIENDA_IDS", a propósito: /tienda no tiene una secuencia lineal de bandas como /
+// y /nosotros (`resolverOrden`/`resolverOrdenNosotros`) — es TRES ramas mutuamente excluyentes
+// (Legacy/Corte/Apertura) para encabezado+catálogo, más créditos/interludio/cierre que siempre se
+// montan después. `bandaNodo` envuelve cada render INDIVIDUAL en su sitio, por POSICIÓN —igual que
+// las cinco `SeccionConfig` de `pagina: 'tienda'` (tiendaEncabezado/tiendaCatalogo/tiendaCreditos/
+// tiendaInterludio/tiendaCierre, § components/admin/tienda-secciones.ts), no por una lista nueva.
+function bandaNodo(id: string, enModoEditor: boolean, render: React.ReactNode): React.ReactNode {
+  return enModoEditor ? <div data-editor-seccion={id}>{render}</div> : render;
+}
 
 // ─── LA RAMA LEGACY (§ TIENDA-ENCABEZADO-Y-FILTRAR-ORDENAR-1, § TIENDA-PAGINA-REGISTRO-1) ────────
 // El código de HOY, SIN TOCAR — byte a byte el `ShopInner` que existía antes de
@@ -22,6 +47,7 @@ function ShopLegacy({ whatsapp }: { whatsapp?: string }) {
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
   const { navTratamiento } = useSiteContent();
+  const enModoEditor = useModoEditorActivo();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
   // (`lib/config/themes.ts`) para el porqué: reserva el alto REAL del header fijo de CORTE, para
@@ -38,12 +64,12 @@ function ShopLegacy({ whatsapp }: { whatsapp?: string }) {
             § PALETA-ACENTO-TINTA-SOBRE-SUPERFICIE-1, DECISIONS.md. */}
         <div className="bg-[var(--sf-superficie)] sf-divisor-b border-[var(--sf-linea)] py-12">
           <div className={`${contenedorClase} mx-auto`}>
-            <TiendaEncabezado />
+            {bandaNodo('tiendaEncabezado', enModoEditor, <TiendaEncabezado />)}
           </div>
         </div>
 
         <div className={`${contenedorClase} mx-auto py-8`}>
-          <TiendaCatalogo whatsapp={whatsapp} />
+          {bandaNodo('tiendaCatalogo', enModoEditor, <TiendaCatalogo whatsapp={whatsapp} />)}
         </div>
       </div>
   );
@@ -81,16 +107,17 @@ function ShopLegacy({ whatsapp }: { whatsapp?: string }) {
 // que la extracción no mueve un solo byte del DOM.
 function ShopCorte({ whatsapp }: { whatsapp?: string }) {
   const { navTratamiento } = useSiteContent();
+  const enModoEditor = useModoEditorActivo();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   return (
     <div className={offsetClase}>
       <div className={`${contenedorClase} mx-auto py-16`}>
-        <TiendaEncabezado />
+        {bandaNodo('tiendaEncabezado', enModoEditor, <TiendaEncabezado />)}
 
         <div className="mt-10">
-          <TiendaCatalogo whatsapp={whatsapp} />
+          {bandaNodo('tiendaCatalogo', enModoEditor, <TiendaCatalogo whatsapp={whatsapp} />)}
         </div>
       </div>
     </div>
@@ -106,14 +133,15 @@ function ShopCorte({ whatsapp }: { whatsapp?: string }) {
 // tratamiento visual, no las dos ramas Legacy/Corte.
 function ShopApertura({ whatsapp, negocio }: { whatsapp?: string; negocio?: string }) {
   const { navTratamiento } = useSiteContent();
+  const enModoEditor = useModoEditorActivo();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const offsetClase = navOffsetClase(navTratamiento.posicion);
 
   return (
     <div className={offsetClase}>
-      <TiendaEncabezado negocio={negocio} />
+      {bandaNodo('tiendaEncabezado', enModoEditor, <TiendaEncabezado negocio={negocio} />)}
       <div className={`${contenedorClase} mx-auto py-16`}>
-        <TiendaCatalogo whatsapp={whatsapp} />
+        {bandaNodo('tiendaCatalogo', enModoEditor, <TiendaCatalogo whatsapp={whatsapp} />)}
       </div>
     </div>
   );
@@ -141,11 +169,12 @@ function ShopInner({ whatsapp, negocio }: { whatsapp?: string; negocio?: string 
 // `useSiteSettings()`) hacia `TiendaCierre` y hacia `TiendaCatalogo` (para «Avísame por WhatsApp» en
 // una lámina/celda agotada) — mismo patrón que `SuscripcionPlanes`.
 function TiendaAlbumExtra({ whatsapp }: { whatsapp?: string }) {
+  const enModoEditor = useModoEditorActivo();
   return (
     <>
-      <TiendaCreditos />
-      <TiendaInterludio />
-      <TiendaCierre whatsapp={whatsapp} />
+      {bandaNodo('tiendaCreditos', enModoEditor, <TiendaCreditos />)}
+      {bandaNodo('tiendaInterludio', enModoEditor, <TiendaInterludio />)}
+      {bandaNodo('tiendaCierre', enModoEditor, <TiendaCierre whatsapp={whatsapp} />)}
     </>
   );
 }

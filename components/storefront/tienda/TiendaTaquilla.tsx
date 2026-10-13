@@ -23,6 +23,7 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { creditosVisibles, filasCompletas } from '@/lib/tienda/creditos';
+import { camposPorFilaCreditos } from '@/lib/admin/editor-orden-y-lienzo';
 import { derivarMatrizTaquilla, celdaDe, nombreBaseProducto, type MatrizTaquilla } from '@/lib/tienda/taquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
 import {
@@ -69,6 +70,12 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
   // que `TiendaCreditos.tsx` (toggle + piso de 3 filas); el helper compartido `taquillaActiva` (§
   // lib/tienda/taquilla.ts) es lo que le dice a ESA sección que calle para no duplicarla acá.
   const filasCreditos = filasCompletas(tiendaCreditos.items);
+  // EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1 — ídem TiendaCreditos.tsx: el índice ORIGINAL, no el
+  // visible, para que el clic abra el ítem real de `tiendaCreditos.items`.
+  const camposPorFila = camposPorFilaCreditos(tiendaCreditos.items, filasCreditos, (i) => ({
+    etiqueta: `tiendaCreditos.items.${i}.etiqueta`,
+    valor: `tiendaCreditos.items.${i}.valor`,
+  }));
   const mostrarCreditos =
     seccionEsVisible(REGISTRY.tiendaCreditos, tiendaCreditos) && creditosVisibles(tiendaCreditos.items);
 
@@ -146,7 +153,7 @@ export default function TiendaTaquilla({ catalog, whatsapp, barraFijaMovil }: Ti
               EN la columna de compra, no un bloque aparte centrado más abajo de la página. */}
           {mostrarCreditos && (
             <div className="mt-8">
-              <CreditosFilas filas={filasCreditos} />
+              <CreditosFilas filas={filasCreditos} camposPorFila={camposPorFila} />
             </div>
           )}
         </div>

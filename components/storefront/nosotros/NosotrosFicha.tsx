@@ -3,6 +3,7 @@
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { creditosVisibles, filasCompletas } from "@/lib/tienda/creditos";
+import { camposPorFilaCreditos } from "@/lib/admin/editor-orden-y-lienzo";
 import { CreditosFilas } from "@/components/storefront/tienda/TiendaCreditos";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import CampoEditable from "@/components/storefront/CampoEditable";
@@ -46,6 +47,13 @@ export default function NosotrosFicha() {
   ].filter((c) => c.numero.trim() !== "");
 
   const filas = filasCompletas(tiendaCreditos.items);
+  // EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1 — ídem TiendaCreditos.tsx: el índice ORIGINAL para que
+  // el clic abra el ítem real de `tiendaCreditos.items`, no el índice visible (que corre en cuanto
+  // una fila de en medio queda a medias).
+  const camposPorFila = camposPorFilaCreditos(tiendaCreditos.items, filas, (i) => ({
+    etiqueta: `tiendaCreditos.items.${i}.etiqueta`,
+    valor: `tiendaCreditos.items.${i}.valor`,
+  }));
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
@@ -88,7 +96,7 @@ export default function NosotrosFicha() {
             </div>
           )}
           <div className={cifras.length > 0 ? "" : "lg:col-start-2"}>
-            <CreditosFilas filas={filas} invertido />
+            <CreditosFilas filas={filas} invertido camposPorFila={camposPorFila} />
           </div>
         </div>
       </div>

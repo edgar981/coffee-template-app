@@ -22,9 +22,11 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
+import CampoEditable from '@/components/storefront/CampoEditable';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import { creditosVisibles, filasCompletas, type CreditoItem } from '@/lib/tienda/creditos';
+import { camposPorFilaCreditos } from '@/lib/admin/editor-orden-y-lienzo';
 import { taquillaActiva } from '@/lib/tienda/taquilla';
 import { getCatalog } from '@/lib/api/products';
 import type { Product } from '@/types/product';
@@ -43,6 +45,14 @@ export default function TiendaCreditos() {
   if (!creditosVisibles(tiendaCreditos.items)) return null;
   if (catalog !== null && taquillaActiva(catalog)) return null;
 
+  // EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1 — el índice ORIGINAL (no el visible, que corre en
+  // cuanto una fila de en medio queda a medias), para que el clic en una fila abra el ÍTEM real de
+  // `tiendaCreditos.items`. Ver el docstring de `camposPorFilaCreditos`.
+  const camposPorFila = camposPorFilaCreditos(tiendaCreditos.items, filas, (i) => ({
+    etiqueta: `tiendaCreditos.items.${i}.etiqueta`,
+    valor: `tiendaCreditos.items.${i}.valor`,
+  }));
+
   return (
     <motion.section
       initial={preview ? false : { opacity: 0, y: 16 }}
@@ -57,7 +67,7 @@ export default function TiendaCreditos() {
           distinta (cuánto mide la columna), no el margen que este fix corrige. */}
       <div className={`${contenedorAnchoClase(navTratamiento.posicion)} mx-auto`}>
         <div className="mx-auto max-w-xl">
-          <CreditosFilas filas={filas} />
+          <CreditosFilas filas={filas} camposPorFila={camposPorFila} />
         </div>
       </div>
     </motion.section>
@@ -84,22 +94,42 @@ export default function TiendaCreditos() {
  *    el spec item 3), nunca `--sf-texto-suave` (que para Onix deriva oliva, § R2 del informe).
  *  - **R3 (estructura):** filete ARRIBA de la primera fila Y ABAJO de cada fila (N+1), como
  *    `.creditos` de la maqueta (`div:first-child{border-top}` + `div{border-bottom}`) — no sólo
- *    ENTRE filas (N−1, lo que había). */
-export function CreditosFilas({ filas, invertido = false }: { filas: readonly CreditoItem[]; invertido?: boolean }) {
+ *    ENTRE filas (N−1, lo que había).
+ *
+ *  `camposPorFila` (§ EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1, EDITOR-ORDEN-Y-LIENZO-2) — OPCIONAL,
+ *  alineado 1-a-1 con `filas` (NUNCA con el array original: es el llamador quien ya resolvió el
+ *  índice original con `camposPorFilaCreditos`, § lib/admin/editor-orden-y-lienzo.ts). Ausente (el
+ *  default), la fila se pinta como texto plano — el caso de `NosotrosEscenas.tsx`, que no lo pasa
+ *  (§ su propio docstring, aún sin instrumentar). Presente, cada etiqueta/valor se vuelve
+ *  click-to-edit, UNA fila a la vez — nunca el bloque entero. */
+export function CreditosFilas({
+  filas,
+  invertido = false,
+  camposPorFila,
+}: {
+  filas: readonly CreditoItem[];
+  invertido?: boolean;
+  camposPorFila?: readonly { etiqueta: string; valor: string }[];
+}) {
   const filete = invertido ? 'border-[var(--sf-fondo)]/20' : 'border-[var(--sf-tinta)]/15';
   return (
     <>
-      {filas.map((fila, i) => (
-        <div
-          key={`${fila.etiqueta}-${i}`}
-          className={`flex items-baseline justify-between gap-4 border-b ${filete} py-3.5 ${i === 0 ? `border-t ${filete}` : ''}`}
-        >
-          <span className={`text-[11.5px] font-bold uppercase tracking-[0.16em] ${invertido ? 'text-[var(--sf-fondo)]/80' : 'text-[var(--sf-tinta)]'}`}>
-            {fila.etiqueta}
-          </span>
-          <span className={`text-right text-[15px] ${invertido ? 'text-[var(--sf-fondo)]' : 'text-[var(--sf-tinta)]'}`}>{fila.valor}</span>
-        </div>
-      ))}
+      {filas.map((fila, i) => {
+        const campos = camposPorFila?.[i];
+        return (
+          <div
+            key={`${fila.etiqueta}-${i}`}
+            className={`flex items-baseline justify-between gap-4 border-b ${filete} py-3.5 ${i === 0 ? `border-t ${filete}` : ''}`}
+          >
+            <span className={`text-[11.5px] font-bold uppercase tracking-[0.16em] ${invertido ? 'text-[var(--sf-fondo)]/80' : 'text-[var(--sf-tinta)]'}`}>
+              {campos ? <CampoEditable campo={campos.etiqueta}>{fila.etiqueta}</CampoEditable> : fila.etiqueta}
+            </span>
+            <span className={`text-right text-[15px] ${invertido ? 'text-[var(--sf-fondo)]' : 'text-[var(--sf-tinta)]'}`}>
+              {campos ? <CampoEditable campo={campos.valor}>{fila.valor}</CampoEditable> : fila.valor}
+            </span>
+          </div>
+        );
+      })}
     </>
   );
 }

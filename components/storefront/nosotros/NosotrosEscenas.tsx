@@ -32,9 +32,13 @@ import NosotrosEscenasAlbum from "@/components/storefront/nosotros/NosotrosEscen
 // LOS CRÉDITOS por escena (1 o 2 filas) REUSAN `CreditosFilas`/`filasCompletas` de /tienda (§
 // lib/tienda/creditos.ts) en vez de un segundo JSX de fila etiqueta/valor — los 4 campos planos del
 // ítem (`credito1Etiqueta/Valor`, `credito2Etiqueta/Valor`) se empaquetan en un array `CreditoItem[]`
-// ad-hoc y se filtran con la MISMA regla ("fila completa = etiqueta Y valor no vacíos"). Sin
-// CampoEditable en las filas: mismo criterio que `TiendaCreditos`/`TiendaTaquilla`, se editan desde
-// el RepeaterEditor del panel, no inline.
+// ad-hoc y se filtran con la MISMA regla ("fila completa = etiqueta Y valor no vacíos"). SIN
+// CampoEditable en las filas — DISTINTO de `TiendaCreditos`/`TiendaTaquilla`/`SuscripcionTaquilla`
+// desde `EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1` (EDITOR-ORDEN-Y-LIENZO-2), que SÍ las instrumentó:
+// esta sección quedó fuera del alcance de ese slice (no nombrada por el spec) y sigue editándose
+// desde el RepeaterEditor del panel, no inline. Instrumentarla es el mismo mecanismo
+// (`camposPorFilaCreditos`, § lib/admin/editor-orden-y-lienzo.ts) sobre `credito1Etiqueta/Valor`/
+// `credito2Etiqueta/Valor` de CADA ítem — no un caso nuevo, sólo sin hacer todavía.
 //
 // ESPACIADO: `gap-24 sm:gap-[160px]` entre escenas — `gap-24` de Tailwind YA es 96px (coincide con
 // "96 px en celular" del spec), así que no hace falta un arbitrario para el caso mobile.

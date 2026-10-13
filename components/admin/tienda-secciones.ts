@@ -319,7 +319,20 @@ export type CampoImagen = { name: string; label: string; opcional?: boolean; com
 // texto propio que atenuar). El valor INICIAL del switch lo trae el form ya sembrado —el preset lo
 // escribió vía `mergePresetEnContent`, o cae al default de `DEFAULTS` si el preset no lo tocó—: el
 // preset pone el punto de partida, el dueño lo overridea con el switch.
-export type CampoBooleano = { name: string; label: string; hint?: string; gatedFields?: string[] };
+//
+// `composiciones?` (§ EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1, EDITOR-ORDEN-Y-LIENZO-2) — MISMO campo,
+// MISMA semántica que `CampoTexto.composiciones`/`CampoImagen.composiciones` (undefined/vacío =
+// aplica a TODAS, el default): un booleano con efecto en UNA sola composición se pliega bajo las
+// demás, en vez de mostrarse siempre con un hint que diga "Sólo con…" sin que el panel lo haga
+// cumplir. NO se aplicó retroactivamente a los `booleanos` YA declarados que documentan lo
+// contrario a propósito (`mostrarPrecioPor100g`/`barraFijaMovil` de `featured`/`tiendaCatalogo`,
+// `esquineros` — cada uno con su comentario "se edita siempre, no sólo cuando aplica"): ESA es una
+// decisión tomada, no el defecto que esto cierra. El defecto real eran `BOOLEANOS_SUSCRIPCION_
+// PLANES_TAQUILLA` (ONIX-TAQUILLA-SOLO-TABLA-1, el mismo día): sin `composiciones`, sus cinco
+// switches aparecían también bajo "Tarjetas"/"Casillas", donde `SuscripcionPlanes.tsx`/
+// `SuscripcionCasillas.tsx` no los leen — exactamente el defecto SC1 que ya cerró del lado de
+// `CampoTexto`/`CampoImagen`.
+export type CampoBooleano = { name: string; label: string; hint?: string; gatedFields?: string[]; composiciones?: string[] };
 
 // Descriptor de un campo DE ÍTEM (para el RepeaterEditor). `tipo` es GENÉRICO (no nombra ningún
 // campo concreto): texto / textarea / rating / imagen. `resumen` es el ROL del campo en el renglón
@@ -827,12 +840,18 @@ const BRAND_STORY: SeccionConfig = {
     { name: 'titulo',   label: 'Título',         hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'parrafo1', label: 'Primer párrafo', textarea: true, composiciones: ['columnas', 'centrada'], hint: 'Sólo con "Columnas"/"Centrada". Vacío: se usa el texto por defecto.' },
     { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, composiciones: ['columnas', 'centrada'], hint: 'Sólo con "Columnas"/"Centrada". Vacío: no se muestra.' },
-    // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón. Las TRES
-    // composiciones lo reusan (§ HISTORIA-FICHA-DE-FINCA-1: "Titular, ceja y enlace reusan los
-    // campos que ya existen"), así que el hint no se restringe a ninguna, y SIN `composiciones`
-    // (aplican a las tres).
-    { name: 'ctaLabel',   label: 'Botón / enlace',            opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
-    { name: 'ctaDestino', label: 'Botón / enlace · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+    // El CTA de cierre (§ MUESTRARIO-SECCION-CTA-1): ambos opcionales, vacío = sin botón.
+    //
+    // «LAS TRES COMPOSICIONES LO REUSAN» ERA FALSO (§ EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1,
+    // medido contra el código): sólo «Centrada»/«Ficha de finca» lo renderizan —
+    // `BrandStoryColumnas.tsx` NUNCA lee `ctaLabel`/`ctaDestino` (grep: cero apariciones)—, así que
+    // bajo «Columnas» el campo aparecía en el panel prometiendo un botón que la tienda no dibuja.
+    // `composiciones: ['centrada', 'fichaDeFinca']` lo pliega bajo «Columnas», igual que
+    // `parrafo1`/`parrafo2` arriba. El BLOQUE que lo contiene (abajo, en `bloques`) se movió al
+    // FINAL del array — `BrandStoryFichaDeFinca.tsx` lo pinta ÚLTIMO (tras la ficha de filas), no
+    // 2° tras el titular como vivía antes de este fix.
+    { name: 'ctaLabel',   label: 'Botón / enlace',            opcional: true, composiciones: ['centrada', 'fichaDeFinca'], hint: 'Sólo con "Centrada"/"Ficha de finca". Vacío: no se muestra ningún botón.' },
+    { name: 'ctaDestino', label: 'Botón / enlace · destino',  opcional: true, opciones: OPCIONES_CTA_DESTINO, composiciones: ['centrada', 'fichaDeFinca'], hint: 'Sólo con "Centrada"/"Ficha de finca". A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
 
     // ─── «FICHA DE FINCA» (§ HISTORIA-FICHA-DE-FINCA-1) — SÓLO tienen efecto con esa composición
     // (§ EDITOR-COMPOSICION-CAMPOS-1: todos tagueados `composiciones: ['fichaDeFinca']`, así que
@@ -879,14 +898,29 @@ const BRAND_STORY: SeccionConfig = {
     { name: 'pieIlustracion', label: 'Pie de la ilustración', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con «Medio» en "Ilustración" (no se usa con Foto). El texto dibujado al pie del dibujo. Ej. "Castillo · Lavado". Vacío: no se muestra.' },
     { name: 'pieMedio', label: 'Pie (debajo de la foto o la ilustración)', opcional: true, composiciones: ['fichaDeFinca'], hint: 'Sólo con la composición "Ficha de finca". La leyenda bajo toda la figura, en los dos medios. Vacío: no se muestra.' },
   ],
-  // BLOQUES: el COLLAGE de siempre + el texto de columnas/centrada + «Ficha de finca» (medio/entrada,
-  // una TARJETA por fila, y el bloque de ilustración/rango) — TODO campo nuevo tiene que estar en
-  // ALGÚN bloque o queda declarado-pero-invisible (§ `lib/tienda/bloques.ts`: sin red de seguridad
-  // una vez que `bloques` existe).
+  // BLOQUES: el COLLAGE de siempre + el texto de columnas/centrada + «Ficha de finca» (medio, el
+  // bloque de ilustración/rango, la entrada, una TARJETA por fila) + el botón AL FINAL — TODO campo
+  // nuevo tiene que estar en ALGÚN bloque o queda declarado-pero-invisible (§ `lib/tienda/
+  // bloques.ts`: sin red de seguridad una vez que `bloques` existe).
+  //
+  // EL ORDEN DE ESTE ARRAY ES SÓLO DEL PANEL — REORDENARLO NO TOCA EL STOREFRONT (§ EDITOR-BS1-CTA-
+  // FUERA-DE-ORDEN-COLUMNAS-1): `bloquesResueltos`/`particionarBloques` sólo deciden qué campos
+  // muestra el ADMIN y en qué orden; ningún componente de `components/storefront/home/BrandStory*`
+  // lee `tienda-secciones.ts`. Reordenar estos bloques es cero riesgo para la tienda — lo que
+  // justificaba NO tocarlo (§ el ledger de `EDITOR-ORDEN-Y-LIENZO-1`) era el riesgo de romper el
+  // PLIEGUE/colapso del panel, no un riesgo del lado del visitante.
+  //
+  // ORDEN MEDIDO contra `BrandStoryFichaDeFinca.tsx`: título → MEDIO (el toggle, antes de lo que
+  // dibuja) → dentro del medio, en su propio orden de fuente, `lugar`→altitud→`nombrePunto`/
+  // `subLineaPunto`→`pieIlustracion`→`pieMedio` (líneas 61-228) → `entrada` (línea 232, FUERA de la
+  // figura) → las filas (línea 241) → el botón, ÚLTIMO (línea 273). El bloque del botón se movió del
+  // 2° lugar (tras el titular) al final — exactamente el defecto medido: `BrandStoryFichaDeFinca.
+  // tsx` lo pinta ÚLTIMO, no 2°.
   bloques: [
     { tipo: 'collage', titulo: 'Fotos (1 a 4 — así se ubican en la tienda)', imagenes: ['imagen1', 'imagen2', 'imagen3', 'imagen4'] },
-    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2', 'ctaLabel', 'ctaDestino'] },
-    { tipo: 'seccion', campos: ['medio', 'entrada'] },
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo', 'parrafo1', 'parrafo2'] },
+    { tipo: 'seccion', campos: ['medio', 'lugar', 'altitudMin', 'altitudMax', 'altitudUnidad', 'nombrePunto', 'subLineaPunto', 'pieIlustracion', 'pieMedio'] },
+    { tipo: 'seccion', campos: ['entrada'] },
     // Las SEIS filas van como tarjetas — mismo patrón visual que `ORIGEN`/`SUSCRIPCION_PLANES` para
     // slots fijos de una sección que NO es Presentaciones (§ el docstring de `colapsado`,
     // TiendaSeccionEditor.tsx: el PLIEGUE real —colapsar vacías, "+ Agregar tarjeta", "Quitar"— está
@@ -900,7 +934,7 @@ const BRAND_STORY: SeccionConfig = {
     { tipo: 'tarjeta', slot: 4, titulo: 'Fila 4 (opcional)', campos: ['fila4Rotulo', 'fila4Valor', 'fila4SubLinea'] },
     { tipo: 'tarjeta', slot: 5, titulo: 'Fila 5 (opcional)', campos: ['fila5Rotulo', 'fila5Valor', 'fila5SubLinea'] },
     { tipo: 'tarjeta', slot: 6, titulo: 'Fila 6 (opcional)', campos: ['fila6Rotulo', 'fila6Valor', 'fila6SubLinea'] },
-    { tipo: 'seccion', campos: ['altitudMin', 'altitudMax', 'altitudUnidad', 'lugar', 'nombrePunto', 'subLineaPunto', 'pieIlustracion', 'pieMedio'] },
+    { tipo: 'seccion', campos: ['ctaLabel', 'ctaDestino'] },
   ],
 };
 
@@ -1287,10 +1321,16 @@ const NOSOTROS_APERTURA: SeccionConfig = {
     // "Álbum" — el `label` ya lo dice.
     { name: 'franjaTejido', label: 'Franja de tejido (sólo "Álbum")', opcional: true, composiciones: ['album'] },
   ],
+  // ORDEN (§ EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1): `rotuloIzquierda` PRIMERO — bajo «Apertura»
+  // la pieza compartida `Apertura.tsx` lo pinta ANTES del título; bajo «Álbum» es el eyebrow SOBRE
+  // el título (ver su hint), también antes. Reorden PURO del array: `rotuloDerecha` (apertura-only)
+  // y `bajada`/`sticker` (album-only) ya se recortan solos por composición, así que alcanza con
+  // mover `titulo` después de `rotuloIzquierda` para que las DOS composiciones queden en su orden
+  // real — verificado por test.
   campos: [
-    { name: 'titulo', label: 'Título', opcional: true, hint: 'Ej. el nombre de la finca o de quien cultiva. Vacío: se usa el nombre del negocio.' },
     { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Nosotros". Con la composición "Álbum" es el eyebrow sobre el título. Vacío: no se muestra.' },
     { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 12 ha". Vacío: no se muestra.' },
+    { name: 'titulo', label: 'Título', opcional: true, hint: 'Ej. el nombre de la finca o de quien cultiva. Vacío: se usa el nombre del negocio.' },
     { name: 'bajada', label: 'Bajada', opcional: true, textarea: true, composiciones: ['album'], hint: 'Sólo con la composición "Álbum". La frase corta bajo el título. Vacío: no se muestra.' },
     { name: 'sticker', label: 'Sticker de esquina', opcional: true, composiciones: ['album'], hint: 'Sólo con la composición "Álbum". Ej. "Cosecha 2026". Vacío: no se muestra.' },
   ],
@@ -1654,12 +1694,17 @@ const OPCIONES_MAX_BOLSAS: { value: string; label: string }[] =
 // campo de texto que ya existe — apagado, el campo sigue editable pero ATENUADO (§ el patrón de
 // atenuación, `campoAtenuado` arriba). `taquillaMostrarResumen`/`taquillaMostrarSeEnvia` no gatean
 // ningún campo: el resumen y la línea «Se envía: "…"» son texto DERIVADO, sin campo propio.
+// § EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1 — los CINCO llevan `composiciones: ['taquilla']`: a
+// diferencia de `mostrarPrecioPor100g`/`barraFijaMovil`/`esquineros` (universales a propósito, § el
+// docstring de `CampoBooleano`), estos cinco NO los lee ninguna otra composición —
+// `SuscripcionPlanes.tsx` («Tarjetas») y `SuscripcionCasillas.tsx` («Casillas») nunca consultan
+// `taquillaMostrar*`—, así que aparecían bajo las tres sin tener efecto en dos de ellas.
 const BOOLEANOS_SUSCRIPCION_PLANES_TAQUILLA: CampoBooleano[] = [
-  { name: 'taquillaMostrarResumen', label: 'Mostrar el resumen grande', hint: 'Sólo con la composición "Taquilla". La línea grande bajo la tabla, p. ej. "1 × 250 G · CAFÉ MOLIDO · CADA 2 MESES".' },
-  { name: 'taquillaMostrarReferencia', label: 'Mostrar la referencia de precio', hint: 'Sólo con la composición "Taquilla". La línea "Referencia: …, precio de tienda por bolsa".', gatedFields: ['taquillaReferenciaTexto'] },
-  { name: 'taquillaMostrarSeEnvia', label: 'Mostrar el mensaje que se envía', hint: 'Sólo con la composición "Taquilla". La línea "Se envía: …" con el mensaje citado. El botón de WhatsApp manda este mismo mensaje, se muestre o no esta línea.' },
-  { name: 'taquillaMostrarAviso', label: 'Mostrar el aviso bajo el botón', hint: 'Sólo con la composición "Taquilla". El aviso de que no se cobra nada en la tienda.', gatedFields: ['taquillaAviso'] },
-  { name: 'taquillaMostrarCreditos', label: 'Mostrar los créditos del trato', hint: 'Sólo con la composición "Taquilla". Las filas "Pedido · Pago · Envío · Pausa o cambio".', gatedFields: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'] },
+  { name: 'taquillaMostrarResumen', label: 'Mostrar el resumen grande', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". La línea grande bajo la tabla, p. ej. "1 × 250 G · CAFÉ MOLIDO · CADA 2 MESES".' },
+  { name: 'taquillaMostrarReferencia', label: 'Mostrar la referencia de precio', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". La línea "Referencia: …, precio de tienda por bolsa".', gatedFields: ['taquillaReferenciaTexto'] },
+  { name: 'taquillaMostrarSeEnvia', label: 'Mostrar el mensaje que se envía', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". La línea "Se envía: …" con el mensaje citado. El botón de WhatsApp manda este mismo mensaje, se muestre o no esta línea.' },
+  { name: 'taquillaMostrarAviso', label: 'Mostrar el aviso bajo el botón', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". El aviso de que no se cobra nada en la tienda.', gatedFields: ['taquillaAviso'] },
+  { name: 'taquillaMostrarCreditos', label: 'Mostrar los créditos del trato', composiciones: ['taquilla'], hint: 'Sólo con la composición "Taquilla". Las filas "Pedido · Pago · Envío · Pausa o cambio".', gatedFields: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'] },
 ];
 
 const SUSCRIPCION_PLANES: SeccionConfig = {
@@ -1826,10 +1871,13 @@ const SUSCRIPCION_APERTURA: SeccionConfig = {
   ocultable: true,
   notaVisibilidad: 'Apagada de arranque: por defecto, /suscripciones no lleva esta banda.',
   imagenes: [{ name: 'imagen', label: 'Foto de fondo', opcional: true }],
+  // ORDEN (§ EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1): `Apertura.tsx` (la pieza compartida que
+  // monta esta sección) pinta imagen → rótulos → título — `titulo` vivía PRIMERO en este array,
+  // cuando la tienda lo pinta ÚLTIMO.
   campos: [
-    { name: 'titulo', label: 'Título', hint: 'Ej. "Cada mes". Vacío: se usa el texto por defecto.' },
     { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Suscripción". Vacío: no se muestra.' },
     { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Se coordina por WhatsApp". Vacío: no se muestra.' },
+    { name: 'titulo', label: 'Título', hint: 'Ej. "Cada mes". Vacío: se usa el texto por defecto.' },
   ],
 };
 
@@ -2073,7 +2121,17 @@ const TIENDA_ENCABEZADO: SeccionConfig = {
   imagenes: [
     { name: 'imagen', label: 'Foto de fondo', opcional: true, composiciones: ['apertura'] },
   ],
+  // ORDEN (§ EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1, extendido a cada sección con composiciones):
+  // `rotuloIzquierda`/`rotuloDerecha` van PRIMERO porque bajo «Apertura» la pieza compartida
+  // `Apertura.tsx` los pinta ANTES del título (imagen → rótulos → titulo, § su JSX) — antes vivían
+  // AL FINAL del array, así que el panel mostraba "Título" primero cuando la tienda lo pinta último.
+  // Un reorden PURO del array (sin `bloques`) alcanza: como `leyenda`/`intro`/`antojoTitulo` ya están
+  // tagueados a sus propias composiciones, el filtro de `particionarBloques` los recorta solo y las
+  // TRES composiciones («Actual»/«Carta»/«Apertura») quedan en el orden real de su página, medido
+  // contra `TiendaEncabezado.tsx` (actual/carta) y `Apertura.tsx` (apertura) — verificado por test.
   campos: [
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "Cosecha 2026". Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. el origen. Vacío: no se muestra.' },
     { name: 'titulo', label: 'Título', opcional: true, hint: 'Vacío: se usa el texto por defecto (con la composición "Apertura", el nombre del negocio).' },
     { name: 'leyenda', label: 'Leyenda', composiciones: ['actual'], hint: 'Sólo con la composición "Actual". Acompaña al conteo de productos, p. ej. "128 productos · Origen colombiano". Vacío: se usa el texto por defecto.' },
     // `sticker` NO lleva `composiciones`: además de «Carta», lo lee `tiendaProducto` bajo «Lámina
@@ -2082,8 +2140,6 @@ const TIENDA_ENCABEZADO: SeccionConfig = {
     { name: 'sticker', label: 'Sticker girado', opcional: true, hint: 'Sólo con la composición "Carta" de esta sección, o con «Lámina abierta» en la página de producto — ahí reemplaza la etiqueta normal del producto. Un texto corto junto al título, p. ej. "cosecha 2026". Vacío: no se muestra.' },
     { name: 'intro', label: 'Intro en primera persona', opcional: true, textarea: true, composiciones: ['carta'], hint: 'Sólo con la composición "Carta". Dos líneas como máximo. Vacío: no se muestra.' },
     { name: 'antojoTitulo', label: 'Título del selector', composiciones: ['carta'], hint: 'Sólo con la composición "Carta", y sólo con 6 productos o menos. Vacío: se usa el texto por defecto.' },
-    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "Cosecha 2026". Vacío: no se muestra.' },
-    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. el origen. Vacío: no se muestra.' },
   ],
 };
 
