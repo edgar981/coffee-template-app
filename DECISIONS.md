@@ -63510,8 +63510,19 @@ está disponible sin tocar `app/api/` — sigue abierto, sin cambios.
 
 ### Open follow-ups
 
-- **`EDITOR-TOOLTIP-SUPERFICIE-PAQUETE-1`** (no abierto por este slice, sólo re-medido): sin
-  coincidencias nuevas al grep del CLAUDE.md contra los símbolos de este diff.
+- **`COMPRA-LAMINA-STICKER-RECORTADO-1`** — el sticker de estado de «Lámina» (Las Chamisas,
+  `EstadoPedido.tsx`) se recorta un par de píxeles contra el borde de su tarjeta a 390px
+  (`.scratch/revision-owner/pares-compra/chamisas-m-confirmacion-lamina-app.png`): el contenedor
+  lleva `overflow-hidden` y el sticker se posiciona con offset negativo (`-top-2 -right-2`) más
+  rotación — la combinación clipea la punta. Defecto PRE-EXISTENTE de
+  `COMPRA-LINEAS-ONIX-CHAMISAS-1`, no introducido por este slice. *Por qué no ahora:* es un ajuste
+  de estilo acotado a una línea, fuera del alcance de fidelidad que este slice midió (el sticker
+  ESTÁ, inclinado, con el texto correcto — el spec pedía que el tratamiento exista y se vea en un
+  navegador real, no un rediseño de su geometría).
+- **`COMPRA-BOLETO-FECHA-REAL-1`** sigue abierto (§7, arriba) — re-medido, no resuelto: el dato
+  (`Order.createdAt`) no está disponible en `CheckoutResult`/`RetornoWompiResult` sin tocar
+  `app/api/checkout/route.ts`, fuera de `touches:` de este slice y vetado por la frontera con
+  Carlos.
 
 ### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
 
