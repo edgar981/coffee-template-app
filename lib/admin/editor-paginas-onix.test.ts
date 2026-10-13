@@ -62,12 +62,13 @@ test('una composición de UNA sola opción (si existiera) no mostraría el selec
 // slice NO le cambia nada. El defecto real estaba en `nosotrosFicha`: 7 campos PLANOS (no un
 // repeater) que, SIN `bloques`, se dibujan los 7 en fila — el "wall of empty inputs" real.
 
-test('nosotrosFicha agrupa sus 3 cifras en tarjetas (no 7 campos sueltos en fila)', () => {
+test('nosotrosFicha agrupa sus 3 cifras en tarjetas (no 7 campos sueltos en fila) — re-medido contra 5 bloques tras § CHAMISAS-NOSOTROS-ALBUM-1 (sumó el bloque "sello" de la composición "etiqueta")', () => {
   const config = SECCIONES_TIENDA.find((c) => c.seccion === 'nosotrosFicha');
   assert.ok(config, 'nosotrosFicha debería existir en SECCIONES_TIENDA');
   const bloques = bloquesResueltos(config!);
-  assert.equal(bloques.length, 4, 'un bloque seccion (eyebrow) + 3 tarjetas (una por cifra)');
+  assert.equal(bloques.length, 5, 'un bloque seccion (eyebrow) + 3 tarjetas (una por cifra) + un bloque seccion (sello, § CHAMISAS-NOSOTROS-ALBUM-1)');
   assert.equal(bloques[0].tipo, 'seccion');
+  assert.equal(bloques[4].tipo, 'seccion');
   const tarjetas = bloques.filter((b) => b.tipo === 'tarjeta');
   assert.equal(tarjetas.length, 3);
   for (let i = 0; i < 3; i++) {

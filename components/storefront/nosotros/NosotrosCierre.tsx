@@ -11,6 +11,7 @@ import { REGISTRY, seccionEsVisible, resolverCtaSeccion } from "@/lib/config/sit
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import CampoEditable, { HuecoImagenOpcional } from "@/components/storefront/CampoEditable";
 import CierreFraseYBoton from "@/components/storefront/tienda/CierreFraseYBoton";
+import CierreCostura from "@/components/storefront/tienda/CierreCostura";
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — la banda final antes del pie, en el
 // mismo lugar donde el tema real cierra la página con titular + párrafo + botón (medido, §
@@ -71,6 +72,30 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
         // § ONIX-CIERRE-Y-CURSOR-1 — la maqueta aprobada de /nosotros pinta este cierre con la
         // banda `--sf-papel`, distinta del fondo de la página (ver el docstring de la prop).
         bandaPapel
+      />
+    );
+  }
+
+  // LA COMPOSICIÓN «COSTURA» (§ CHAMISAS-NOSOTROS-ALBUM-1): la banda punteada con tejido que ya
+  // existe en /tienda — refero-chamisas.md §3 punto 6, "Tres cafés, una finca." + botón tinta "Ver
+  // los tres cafés" + enlace secundario "Recibirlo cada mes". Reusa `titulo`/`ctaLabel`/`ctaDestino`
+  // IGUAL que «fraseYBoton»; `ctaSecundarioLabel`/`ctaSecundarioDestino` son los dos campos nuevos.
+  if (nosotrosCierre.variante === "costura") {
+    const cta = ctaHref ? { label: nosotrosCierre.ctaLabel, href: ctaHref } : null;
+    const ctaSecundarioHref = resolverCtaSeccion(nosotrosCierre.ctaSecundarioLabel, nosotrosCierre.ctaSecundarioDestino, paginas);
+    const ctaSecundario = ctaSecundarioHref ? { label: nosotrosCierre.ctaSecundarioLabel, href: ctaSecundarioHref } : null;
+    return (
+      <CierreCostura
+        franjaTejido={nosotrosCierre.franjaTejido}
+        frase={nosotrosCierre.titulo}
+        cta={cta}
+        preview={preview}
+        anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
+        campoFrase="nosotrosCierre.titulo"
+        campoBoton="nosotrosCierre.ctaLabel"
+        campoFranjaTejido="nosotrosCierre.franjaTejido"
+        ctaSecundario={ctaSecundario}
+        campoCtaSecundario="nosotrosCierre.ctaSecundarioLabel"
       />
     );
   }

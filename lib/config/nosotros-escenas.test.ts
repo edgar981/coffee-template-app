@@ -33,8 +33,10 @@ test('NosotrosEscenas: una escena SIN foto no se muestra, aunque tenga título y
     ...DEFAULTS,
     nosotrosEscenas: {
       visible: true,
+      variante: 'saintLaurent',
+      esquineros: true,
       items: [
-        { foto: '', titulo: 'Secado fantasma', descripcion: 'No debería aparecer.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
+        { foto: '', titulo: 'Secado fantasma', descripcion: 'No debería aparecer.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
     },
   };
@@ -47,9 +49,11 @@ test('NosotrosEscenas: de dos escenas, la que SÍ tiene foto se muestra y la que
     ...DEFAULTS,
     nosotrosEscenas: {
       visible: true,
+      variante: 'saintLaurent',
+      esquineros: true,
       items: [
-        { foto: '', titulo: 'Secado fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
-        { foto: '/tostion.jpg', titulo: 'Tostión', descripcion: 'Lotes pequeños.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
+        { foto: '', titulo: 'Secado fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
+        { foto: '/tostion.jpg', titulo: 'Tostión', descripcion: 'Lotes pequeños.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
     },
   };
@@ -63,9 +67,11 @@ test('NosotrosEscenas: el número visible sigue a la POSICIÓN ENTRE LAS VISIBLE
     ...DEFAULTS,
     nosotrosEscenas: {
       visible: true,
+      variante: 'saintLaurent',
+      esquineros: true,
       items: [
-        { foto: '', titulo: 'Cosecha fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
-        { foto: '/secado.jpg', titulo: 'Secado', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
+        { foto: '', titulo: 'Cosecha fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
+        { foto: '/secado.jpg', titulo: 'Secado', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
     },
   };
@@ -79,8 +85,10 @@ test('NosotrosEscenas: sin descripción no se muestra ningún párrafo extra, y 
     ...DEFAULTS,
     nosotrosEscenas: {
       visible: true,
+      variante: 'saintLaurent',
+      esquineros: true,
       items: [
-        { foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: 'Cuándo', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' },
+        { foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: 'Cuándo', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
     },
   };
@@ -94,7 +102,9 @@ test('NosotrosEscenas: con toggle `visible:false` devuelve null aunque haya esce
     ...DEFAULTS,
     nosotrosEscenas: {
       visible: false,
-      items: [{ foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '' }],
+      variante: 'saintLaurent',
+      esquineros: true,
+      items: [{ foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' }],
     },
   };
   const html = render(content, React.createElement(NosotrosEscenas));
@@ -117,6 +127,8 @@ test('NosotrosFicha: con tiendaCreditos bajo el piso (2 filas completas) sigue o
       cifra1Numero: '1.600', cifra1Rotulo: 'msnm',
       cifra2Numero: '12', cifra2Rotulo: 'hectáreas',
       cifra3Numero: '52', cifra3Rotulo: 'años',
+      variante: 'tinta',
+      sello: '',
     },
     tiendaCreditos: {
       visible: true,
@@ -156,6 +168,8 @@ test('NosotrosFicha: con tiendaCreditos en el piso (3 filas completas), SÍ rend
       cifra1Numero: '1.600', cifra1Rotulo: 'msnm',
       cifra2Numero: '12', cifra2Rotulo: 'hectáreas',
       cifra3Numero: '52', cifra3Rotulo: 'años',
+      variante: 'tinta',
+      sello: '',
     },
     tiendaCreditos: {
       visible: true,
@@ -182,6 +196,8 @@ test('NosotrosFicha: una cifra con `numero` vacío se omite (slot sobrevive al f
       cifra1Numero: '1.600', cifra1Rotulo: 'msnm',
       cifra2Numero: '', cifra2Rotulo: 'hectáreas', // numero vacío → esta cifra se omite
       cifra3Numero: '52', cifra3Rotulo: 'años',
+      variante: 'tinta',
+      sello: '',
     },
     tiendaCreditos: {
       visible: true,

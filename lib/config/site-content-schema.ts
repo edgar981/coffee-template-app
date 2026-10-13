@@ -347,12 +347,18 @@ const testimonialsEditableSchema = z.object({
 // /nosotros — LA APERTURA PROPIA (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
 // `NosotrosAperturaContent`, site-content-defaults.ts). SOFT como el resto — gemela de
 // `suscripcionAperturaEditableSchema`.
+// `variante` (§ CHAMISAS-NOSOTROS-ALBUM-1) SOBREVIVE al parse como string, SOFT — `resolverVariante`
+// clampa al leer, no acá. `bajada`/`sticker`/`franjaTejido`: nuevos, SOLO con efecto bajo «album».
 const nosotrosAperturaEditableSchema = z.object({
   visible: z.boolean().optional(),
   imagen: z.string().optional(),
   rotuloIzquierda: z.string().optional(),
   rotuloDerecha: z.string().optional(),
   titulo: z.string().optional(),
+  variante: z.string().optional(),
+  bajada: z.string().optional(),
+  sticker: z.string().optional(),
+  franjaTejido: z.string().optional(),
 });
 
 // /nosotros — la historia larga. `imagen` (§ NOSOTROS-COMPOSICION-1) es OPCIONAL, string (path o
@@ -396,6 +402,8 @@ const nosotrosGaleriaEditableSchema = z.object({
 // descripcion, credito1Etiqueta/Valor, credito2Etiqueta/Valor}`, todos SOFT (string opcional) — el
 // requerido/opcional real lo decide el REGISTRY/resolver (`foto`/`titulo` ahí son 'requerido'), no el
 // schema, mismo criterio que `galeriaItemSchema`/`tiendaCreditosItemSchema` arriba.
+// `pie` (§ CHAMISAS-NOSOTROS-ALBUM-1): el ÚNICO campo nuevo del ítem — SOLO tiene efecto bajo
+// `variante==='album'`.
 const nosotrosEscenaItemSchema = z.object({
   foto: z.string().optional(),
   titulo: z.string().optional(),
@@ -404,15 +412,22 @@ const nosotrosEscenaItemSchema = z.object({
   credito1Valor: z.string().optional(),
   credito2Etiqueta: z.string().optional(),
   credito2Valor: z.string().optional(),
+  pie: z.string().optional(),
 });
+// `variante`/`esquineros` (§ CHAMISAS-NOSOTROS-ALBUM-1): `variante` SOBREVIVE al parse como string,
+// SOFT; `esquineros` es un BOOLEANO de sección, mismo criterio que `tiendaCatalogo.barraFijaMovil`.
 const nosotrosEscenasEditableSchema = z.object({
   visible: z.boolean().optional(),
   items: z.array(nosotrosEscenaItemSchema).optional(),
+  variante: z.string().optional(),
+  esquineros: z.boolean().optional(),
 });
 
 // /nosotros — la FICHA (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). Tres cifras FIJAS (número + rótulo), todas
 // string opcional/SOFT — un `numero` vacío omite esa cifra en el render (§ NosotrosFicha.tsx), el
 // schema no lo exige. Sin `items`: no es un repeater (§ el docstring de `NosotrosFichaContent`).
+// `variante`/`sello` (§ CHAMISAS-NOSOTROS-ALBUM-1): `variante` SOFT; `sello` SOLO tiene efecto bajo
+// «etiqueta».
 const nosotrosFichaEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -422,6 +437,8 @@ const nosotrosFichaEditableSchema = z.object({
   cifra2Rotulo: z.string().optional(),
   cifra3Numero: z.string().optional(),
   cifra3Rotulo: z.string().optional(),
+  variante: z.string().optional(),
+  sello: z.string().optional(),
 });
 
 // /nosotros — el CTA de cierre (§ NOSOTROS-COMPOSICION-1). Todo opcional/SOFT, como el resto: el
@@ -431,6 +448,9 @@ const nosotrosFichaEditableSchema = z.object({
 // destino. `imagenFondo` es string (path o Blob), como `subscriptionCTA.imagenFondo`. `variante`
 // (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) SOBREVIVE al parse como string (SOFT, clampada por
 // `resolverVariante` al leer, no acá — mismo criterio que `tiendaCatalogo.variante`).
+// `franjaTejido`/`ctaSecundarioLabel`/`ctaSecundarioDestino` (§ CHAMISAS-NOSOTROS-ALBUM-1): los TRES
+// campos nuevos de la variante «costura» — `ctaSecundarioDestino` del MISMO set cerrado
+// `MENU_CTA_DESTINOS` que `ctaDestino`.
 const nosotrosCierreEditableSchema = z.object({
   visible: z.boolean().optional(),
   titulo: z.string().optional(),
@@ -439,15 +459,19 @@ const nosotrosCierreEditableSchema = z.object({
   ctaDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
   imagenFondo: z.string().optional(),
   variante: z.string().optional(),
+  franjaTejido: z.string().optional(),
+  ctaSecundarioLabel: z.string().optional(),
+  ctaSecundarioDestino: z.union([z.enum(MENU_CTA_DESTINOS), z.literal('')]).optional(),
 });
 
-// /nosotros — EL INTERLUDIO (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1). SOFT como el resto: una sola
-// composición («Plano», la pieza compartida), sin `variante` que clampar — mismo criterio que
+// /nosotros — EL INTERLUDIO (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, GANA una segunda composición en
+// § CHAMISAS-NOSOTROS-ALBUM-1). `variante` SOFT, como el resto — mismo criterio que
 // `suscripcionInterludioEditableSchema`.
 const nosotrosInterludioEditableSchema = z.object({
   visible: z.boolean().optional(),
   imagen: z.string().optional(),
   pie: z.string().optional(),
+  variante: z.string().optional(),
 });
 
 // /suscripciones — los PLANES como dato (§ Backlog #49). Encabezado + "Elige tu plan" + `destacadoSlot`

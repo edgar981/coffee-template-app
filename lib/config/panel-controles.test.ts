@@ -690,3 +690,31 @@ test('suscripcionPlanes.taquillaMostrarX (los cinco) están LEÍDOS y CONTROLADO
   const huecos = huecosDelPanel({ conExenciones: false });
   assert.ok(!huecos.some((h) => h.startsWith('suscripcionPlanes.taquillaMostrar')));
 });
+
+// § CHAMISAS-NOSOTROS-ALBUM-1 — el tratamiento Chamisas de /nosotros (cinco secciones ganan una
+// composición nueva) y la composición «Láminas» tienen control DE ENTRADA, no como hallazgo tardío.
+// El trinquete de PENDIENTE_PANEL no se mueve: ninguna entrada nueva.
+test('CHAMISAS-NOSOTROS-ALBUM-1: los campos nuevos de nosotrosApertura/Historia/Escenas/Ficha/Interludio/Cierre están LEÍDOS y CONTROLADOS, sin exención nueva', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+
+  const rutas = [
+    'nosotrosApertura.variante', 'nosotrosApertura.bajada', 'nosotrosApertura.sticker', 'nosotrosApertura.franjaTejido',
+    'nosotrosEscenas.variante', 'nosotrosEscenas.esquineros', 'nosotrosEscenas.items.pie',
+    'nosotrosFicha.variante', 'nosotrosFicha.sello',
+    'nosotrosInterludio.variante',
+    'nosotrosCierre.franjaTejido', 'nosotrosCierre.ctaSecundarioLabel', 'nosotrosCierre.ctaSecundarioDestino',
+  ];
+  for (const ruta of rutas) {
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+    assert.ok(!pendientes.has(ruta), `${ruta} no debería estar en PENDIENTE_PANEL`);
+  }
+
+  const huecos = huecosDelPanel({ conExenciones: false });
+  for (const ruta of rutas) {
+    assert.ok(!huecos.includes(ruta), `${ruta} no debería ser un hueco`);
+  }
+  assert.equal(PENDIENTE_PANEL.length <= 7, true, 'el techo-trinquete no se mueve por este slice');
+});

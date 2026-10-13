@@ -32,9 +32,16 @@ export interface CierreCosturaProps {
   campoFrase: string;
   campoBoton?: string;
   campoFranjaTejido: string;
+  /** EL ENLACE SECUNDARIO (§ CHAMISAS-NOSOTROS-ALBUM-1, refero-chamisas.md §3 punto 6: "Botón tinta
+   *  ... y enlace «Recibirlo cada mes»"). OPCIONAL, y BYTE-IDÉNTICO para `TiendaCierre`/
+   *  `SuscripcionCierre` —los dos consumidores de hoy, ninguno lo pasa—: ausente/`undefined` no
+   *  renderiza nada, nunca un hueco vacío al lado del botón. Es texto PLANO subrayado, nunca un
+   *  segundo `sf-pildora` — dos píldoras rellenas competirían por la misma atención. */
+  ctaSecundario?: CierreCosturaCta | null;
+  campoCtaSecundario?: string;
 }
 
-export default function CierreCostura({ franjaTejido, frase, cta, preview, anchoClase, campoFrase, campoBoton, campoFranjaTejido }: CierreCosturaProps) {
+export default function CierreCostura({ franjaTejido, frase, cta, preview, anchoClase, campoFrase, campoBoton, campoFranjaTejido, ctaSecundario, campoCtaSecundario }: CierreCosturaProps) {
   return (
     <motion.section
       initial={preview ? false : { opacity: 0, y: 16 }}
@@ -66,11 +73,32 @@ export default function CierreCostura({ franjaTejido, frase, cta, preview, ancho
             <p className="font-playfair text-xl text-[var(--sf-tinta)] sm:text-2xl">
               <CampoEditable campo={campoFrase} multilinea>{frase}</CampoEditable>
             </p>
-            <BotonCierreCostura cta={cta} preview={preview} campoBoton={campoBoton} />
+            <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+              <BotonCierreCostura cta={cta} preview={preview} campoBoton={campoBoton} />
+              {ctaSecundario && (
+                <EnlaceSecundarioCostura cta={ctaSecundario} preview={preview} campo={campoCtaSecundario} />
+              )}
+            </div>
           </div>
         </div>
       </div>
     </motion.section>
+  );
+}
+
+/** El enlace secundario — texto subrayado, nunca un botón: la jerarquía es "el botón decide, el
+ *  enlace acompaña" (mismo criterio de peso que `ctaSecundarioLabel` del CTA de la home). Mismo
+ *  criterio de elemento que `BotonCierreCostura`: ruta interna → `<Link>`, externo/WhatsApp → `<a>`. */
+function EnlaceSecundarioCostura({ cta, preview, campo }: { cta: CierreCosturaCta; preview: boolean; campo?: string }) {
+  const clase = 'cursor-pointer text-sm font-medium text-[var(--sf-tinta)] underline underline-offset-2 transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)]';
+  const label = campo ? <CampoEditable campo={campo}>{cta.label}</CampoEditable> : cta.label;
+  if (cta.href.startsWith('/')) {
+    return <Link href={cta.href} className={clase}>{label}</Link>;
+  }
+  return (
+    <a href={cta.href} target={preview ? undefined : '_blank'} rel="noreferrer" className={clase}>
+      {label}
+    </a>
   );
 }
 

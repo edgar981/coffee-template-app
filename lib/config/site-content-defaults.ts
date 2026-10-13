@@ -918,12 +918,26 @@ export interface TestimonialsContent {
 // → el componente cae al nombre del negocio (`negocio || 'Nosotros'`), MISMO mecanismo que
 // `TiendaApertura` (`titulo || negocio || 'Nuestra Tienda'`) — el fallback vive en el COMPONENTE
 // (`NosotrosApertura.tsx`), no en `DEFAULTS`.
+//
+// `variante` (§ CHAMISAS-NOSOTROS-ALBUM-1): «apertura» (canónica, exactamente el render de arriba —
+// la pieza `Apertura` a pantalla completa) | «album» (el trato Chamisas, refero-chamisas.md §3 punto
+// 1 — eyebrow + H1 + bajada + foto en ARCO, nunca a sangre completa). TRES campos nuevos, SÓLO con
+// efecto bajo «album» (§ el criterio de siempre, "lo que no se usa no se borra"): `bajada` (la frase
+// corta bajo el H1), `sticker` (el rótulo girado de esquina, "cosecha 2026" en la maqueta — MISMO
+// patrón que `tiendaEncabezado.sticker`), `franjaTejido` (la franja al pie de la foto en celular).
+// `rotuloIzquierda` SE REUSA como el eyebrow de «album» (§ NosotrosAperturaAlbum.tsx) — el MISMO dato
+// semántico (un rótulo corto sobre el título), sólo reposicionado; `rotuloDerecha` queda SIN EFECTO
+// bajo «album», como `nosotrosHistoria.titulo` bajo «sinopsis».
 export interface NosotrosAperturaContent {
   visible: boolean;
   imagen: string;
   rotuloIzquierda: string;
   rotuloDerecha: string;
   titulo: string;
+  variante: string;
+  bajada: string;
+  sticker: string;
+  franjaTejido: string;
 }
 
 // LA PÁGINA /nosotros — el relato largo (la home lleva el ANZUELO: el collage de 4 fotos fijas de
@@ -975,14 +989,23 @@ export interface NosotrosHistoriaContent {
 // href, `null` = sin botón). `imagenFondo` es el ÚNICO blob de la sección — vacío = fondo sólido
 // (`--sf-tinta-2`, la misma OSCURA canónica que la suscripción cierra la home).
 //
-// `variante` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): SEGUNDA composición — 'linea' (canónica,
-// renombrada; exactamente el render de arriba, byte a byte) | 'fraseYBoton' (la pieza COMPARTIDA
-// `CierreFraseYBoton`, § ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1 — mismo patrón que
-// `tiendaCierre.variante`). CERO campos nuevos: reusa `titulo` COMO LA FRASE («UN SOLO CAFÉ, DE UNA
-// SOLA FINCA.» del spec es el contenido de la maqueta, no un default a hornear — § el código
-// compartido no NACE siendo Nayoli/demo) y `ctaLabel`/`ctaDestino` como el botón; `parrafo`/
-// `imagenFondo` quedan SIN EFECTO bajo esta composición (siguen editables, por si el dueño vuelve a
-// «Imagen de fondo»).
+// `variante` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, GANA una TERCERA en § CHAMISAS-NOSOTROS-ALBUM-1):
+// 'linea' (canónica, renombrada; exactamente el render de arriba, byte a byte) | 'fraseYBoton' (la
+// pieza COMPARTIDA `CierreFraseYBoton`, § ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1 — mismo patrón que
+// `tiendaCierre.variante`) | 'costura' (la pieza COMPARTIDA `CierreCostura`, § CHAMISAS-SUSCRIPCIONES-
+// CASILLAS-1 — la banda punteada con tejido, refero-chamisas.md §3 punto 6). CERO campos nuevos:
+// reusa `titulo` COMO LA FRASE («UN SOLO CAFÉ, DE UNA SOLA FINCA.» del spec es el contenido de la
+// maqueta, no un default a hornear — § el código compartido no NACE siendo Nayoli/demo) y
+// `ctaLabel`/`ctaDestino` como el botón; `parrafo`/`imagenFondo` quedan SIN EFECTO bajo 'fraseYBoton'
+// Y 'costura' (siguen editables, por si el dueño vuelve a «Imagen de fondo»).
+//
+// `franjaTejido` (§ CHAMISAS-NOSOTROS-ALBUM-1): el ÚNICO campo nuevo de imagen — SÓLO tiene efecto
+// bajo 'costura' (mismo criterio que `tiendaCierre.franjaTejido`/`suscripcionCierre.franjaTejido`).
+// `ctaSecundarioLabel`/`ctaSecundarioDestino` (el "enlace secundario" del spec item 1/6, "Recibirlo
+// cada mes") — MISMO patrón que `subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino`:
+// `ctaDestino` del SET CERRADO `MENU_CTA_DESTINOS`, resuelto con el MISMO `resolverCtaSeccion` que el
+// botón principal. SÓLO tiene efecto bajo 'costura' — `CierreCostura` es la única pieza que hoy sabe
+// pintar un segundo enlace (§ CierreCostura.tsx); 'linea'/'fraseYBoton' lo ignoran.
 export interface NosotrosCierreContent {
   visible: boolean;
   titulo: string;
@@ -991,6 +1014,9 @@ export interface NosotrosCierreContent {
   ctaDestino: string;
   imagenFondo: string;
   variante: string;
+  franjaTejido: string;
+  ctaSecundarioLabel: string;
+  ctaSecundarioDestino: string;
 }
 
 // La GALERÍA de /nosotros: la SEGUNDA sección REPEATER (Testimonios fue la primera), y la que
@@ -1039,6 +1065,11 @@ export interface NosotrosGaleriaContent {
 // segunda implementación de la fila etiqueta/valor. El NÚMERO visible ("01", "02"…) NO es un campo: se
 // deriva de la POSICIÓN entre las escenas VISIBLES (§ NosotrosEscenas.tsx, mismo criterio que
 // `GrindChooserIndice`/`SuscripcionPasos` — "el número es estructura, no contenido").
+//
+// `pie` (§ CHAMISAS-NOSOTROS-ALBUM-1): el ÚNICO campo nuevo del ítem — la leyenda bajo cada lámina
+// (refero-chamisas.md §3 punto 4: "pie «Imagen ilustrativa»", literal, para marcar las fotos
+// generadas por IA; también sirve para el formato "Lámina 02 · La cosecha" de la maqueta). OPCIONAL,
+// SÓLO con efecto bajo la variante «album» (§ abajo) — «saintLaurent» (los créditos) no lo lee.
 export interface NosotrosEscenaItem {
   foto: string;
   titulo: string;
@@ -1047,10 +1078,22 @@ export interface NosotrosEscenaItem {
   credito1Valor: string;
   credito2Etiqueta: string;
   credito2Valor: string;
+  pie: string;
 }
+// `variante` (§ CHAMISAS-NOSOTROS-ALBUM-1): «saintLaurent» (canónica, exactamente el render de
+// arriba) | «album» (la composición «Láminas» de refero-chamisas.md §3/§5 — carrusel con scroll-snap
+// en celular, doble página de álbum en escritorio, § NosotrosEscenasAlbum.tsx). El tope del repeater
+// sube de 4 a 6 (§ tienda-secciones.ts, `NOSOTROS_ESCENAS.repeater.max`) para que «album» pueda
+// mostrar sus "de 3 a 6" — un tope MÁS ANCHO nunca rompe a «saintLaurent» (Onix, con 1-4, sigue
+// pudiendo guardar como siempre). `esquineros` (booleano de SECCIÓN, § `REGISTRY.booleanos`):
+// los esquineros de álbum en terracota de la maqueta, OPCIONALES por diseño (refero-chamisas.md §5:
+// "esquineros opcionales") — nacen `true` (Chamisas los quiere de arranque) y sólo tienen efecto
+// bajo «album»; «saintLaurent» los ignora.
 export interface NosotrosEscenasContent {
   visible: boolean;
   items: NosotrosEscenaItem[];
+  variante: string;
+  esquineros: boolean;
 }
 
 // LA «FICHA» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1): el capítulo verde de la maqueta, cifras
@@ -1069,6 +1112,13 @@ export interface NosotrosEscenasContent {
 // el interruptor esté encendido). Por eso nace `visible:true` —como `nosotrosGaleria`/`tiendaCreditos`,
 // no como `nosotrosApertura`—: con `tiendaCreditos` vacío (Nayoli) el piso YA la mantiene oculta, así
 // que el toggle en `true` no cambia un byte.
+// `variante` (§ CHAMISAS-NOSOTROS-ALBUM-1): «tinta» (canónica, exactamente el render de arriba) |
+// «etiqueta» (el trato Chamisas — refero-chamisas.md §3 punto 4: "etiqueta de la bolsa", retícula de
+// dos columnas con borde punteado y un sello de estampilla). «etiqueta» NO lee las tres cifras —lee
+// `tiendaCreditos.items` igual que «tinta» (ninguna duplicación nueva), sólo con otro layout—, así que
+// quedan SIN EFECTO bajo esa composición (siguen editables, por si el dueño vuelve a «tinta»). `sello`
+// es el ÚNICO campo nuevo: el texto de la estampilla (p. ej. el nombre de la finca) — OPCIONAL, vacío
+// = sin sello (nunca un claim fabricado, § el invariante #44).
 export interface NosotrosFichaContent {
   visible: boolean;
   eyebrow: string;
@@ -1078,24 +1128,33 @@ export interface NosotrosFichaContent {
   cifra2Rotulo: string;
   cifra3Numero: string;
   cifra3Rotulo: string;
+  variante: string;
+  sello: string;
 }
 
 // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, sobre ONIX-PAGINAS-
 // COMPOSICIONES-CENSO-1 — el owner decidió el 2026-10-11 "cada página con su PROPIO interludio/
 // cierre"). Sección NUEVA, montada con la pieza COMPARTIDA `InterludioPlano`
 // (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) — la MISMA composición «Plano» que `tiendaInterludio`/
-// `suscripcionInterludio`, SIN variante propia: el spec sólo pide «Plano» para esta página también
-// (§ refero-onix-paginas.md, "e. Interludio (tal cual)").
+// `suscripcionInterludio`.
 //
 // NACE ENCENDIDA (`visible:true`) pero AUTO-OCULTA SIN FOTO, mismo mecanismo que
 // `suscripcionInterludio`/`tiendaInterludio`: el gate real es tener `imagen`, no un segundo
 // interruptor. `pie` vacío a propósito —«SAN ADOLFO, HUILA · 1.600 MSNM» del spec es un EJEMPLO de
 // la maqueta, no un dato de negocio para hornear (§ el invariante #44, misma familia que prohíbe
 // citas/firmas fabricadas)—: con `imagen:''` ningún tenant (Nayoli incluida) ve nada nuevo sin fila.
+//
+// `variante` (§ CHAMISAS-NOSOTROS-ALBUM-1): GANA una SEGUNDA composición — «plano» (canónica) |
+// «stickers» (refero-chamisas.md §3 punto 5: la franja de tejido a sangre con los cafés del catálogo
+// como stickers recortados, cada uno a su ficha). CERO campos nuevos: `imagen` se REUSA como la
+// franja de tejido bajo «stickers» (mismo criterio que `tiendaInterludio.imagen` entre sus dos
+// composiciones — el slot es el mismo, cambia su significado); `pie` queda SIN EFECTO bajo
+// «stickers» (los stickers son dato VIVO del catálogo, no texto editable).
 export interface NosotrosInterludioContent {
   visible: boolean;
   imagen: string;
   pie: string;
+  variante: string;
 }
 
 // LA PÁGINA /suscripciones — los PLANES como DATO (§ Backlog #49, opción 1). Antes las tarjetas de
@@ -2803,6 +2862,12 @@ export const DEFAULTS: SiteContentData = {
     rotuloIzquierda: 'NOSOTROS',
     rotuloDerecha: '',
     titulo: '',
+    // «apertura» (§ CHAMISAS-NOSOTROS-ALBUM-1) es la CANÓNICA — exactamente lo de arriba, byte a
+    // byte. `bajada`/`sticker`/`franjaTejido` vacíos: sólo tienen efecto bajo «album».
+    variante: 'apertura',
+    bajada: '',
+    sticker: '',
+    franjaTejido: '',
   },
   // El relato largo de la página /nosotros. El default REUSA el texto real de brandStory (no se
   // fabrica copy); `parrafo3` nace vacío para que el owner expanda. La galería variable NO va acá:
@@ -2834,30 +2899,39 @@ export const DEFAULTS: SiteContentData = {
   },
   // LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). NACE VACÍA — `items: []`, ningún dato
   // de finca/proceso vive en el código (mismo criterio que testimonios/#44 y que `nosotrosGaleria`):
-  // hide-on-empty oculta la sección entera sin una sola fila que fabricar.
+  // hide-on-empty oculta la sección entera sin una sola fila que fabricar. «saintLaurent»
+  // (§ CHAMISAS-NOSOTROS-ALBUM-1) es la CANÓNICA; `esquineros` nace `true` (§ el docstring de
+  // `NosotrosEscenasContent`) — sin ítems, ningún tenant ve nada de todos modos.
   nosotrosEscenas: {
     visible: true,
     items: [],
+    variante: 'saintLaurent',
+    esquineros: true,
   },
   // LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). NACE VACÍA — las tres cifras y el rótulo
   // son dato de la finca, no copy de template (ningún número de hectáreas/msnm/años se inventa). El
   // `visible:true` es seguro porque el PISO de `tiendaCreditos` (§ `creditosVisibles`, ambas vacías en
-  // Nayoli) ya mantiene la sección oculta sin que el toggle tenga que ayudar.
+  // Nayoli) ya mantiene la sección oculta sin que el toggle tenga que ayudar. «tinta»
+  // (§ CHAMISAS-NOSOTROS-ALBUM-1) es la CANÓNICA; `sello` vacío — ningún sello fabricado.
   nosotrosFicha: {
     visible: true,
     eyebrow: '',
     cifra1Numero: '', cifra1Rotulo: '',
     cifra2Numero: '', cifra2Rotulo: '',
     cifra3Numero: '', cifra3Rotulo: '',
+    variante: 'tinta',
+    sello: '',
   },
   // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1). `imagen`/`pie` VACÍOS a
   // propósito —«SAN ADOLFO, HUILA · 1.600 MSNM» es el ejemplo de la maqueta, no un dato de negocio a
   // hornear—: con `imagen:''` el componente se auto-oculta pase lo que pase `visible`, así que
-  // ningún tenant sin fila ve nada nuevo (byte-idéntico).
+  // ningún tenant sin fila ve nada nuevo (byte-idéntico). «plano» (§ CHAMISAS-NOSOTROS-ALBUM-1) es
+  // la CANÓNICA.
   nosotrosInterludio: {
     visible: true,
     imagen: '',
     pie: '',
+    variante: 'plano',
   },
   // El CTA de cierre de /nosotros (§ NOSOTROS-COMPOSICION-1). NACE VACÍO — sin `titulo` la banda no
   // se monta (hide-on-empty, § NosotrosCierre.tsx), así que ningún tenant que no la llene cambia un
@@ -2870,8 +2944,12 @@ export const DEFAULTS: SiteContentData = {
     ctaDestino: '',
     imagenFondo: '',
     // «Línea» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): canónica (renombrada, antes la única) —
-    // exactamente el render de arriba. «fraseYBoton» es la pieza compartida `CierreFraseYBoton`.
+    // exactamente el render de arriba. «fraseYBoton» es la pieza compartida `CierreFraseYBoton`;
+    // «costura» (§ CHAMISAS-NOSOTROS-ALBUM-1) es la pieza compartida `CierreCostura`.
     variante: 'linea',
+    franjaTejido: '',
+    ctaSecundarioLabel: '',
+    ctaSecundarioDestino: '',
   },
   // Los PLANES de /suscripciones (antes `SUBSCRIPTION_PLANS` + los literales del encabezado). Byte a
   // byte: sin fila, /suscripciones y el teaser de la home quedan IDÉNTICOS. Precios VACÍOS (Nayoli no
@@ -3826,24 +3904,40 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   nosotrosApertura: {
     label: 'Apertura',
     ocultable: true,
-    imagenes: ['imagen'],
+    // `variantes` (§ CHAMISAS-NOSOTROS-ALBUM-1): «apertura» (canónica) | «album» (el trato Chamisas
+    // — eyebrow + H1 + bajada + foto en arco, § NosotrosAperturaAlbum.tsx). `rotuloDerecha` NO entra
+    // a `composiciones` (sigue en el bloque común): tiene efecto bajo «apertura» y queda sin efecto
+    // bajo «album», pero no hace falta avisarlo con una zona propia (mismo criterio laxo que
+    // `nosotrosCierre.parrafo` bajo 'fraseYBoton' antes de que ganara su zona — acá se declara con
+    // `composiciones` en tienda-secciones.ts, no acá).
+    variantes: { claves: ['apertura', 'album'], canonica: 'apertura' },
+    imagenes: ['imagen', 'franjaTejido'],
     campos: {
       imagen: 'opcional',
+      // OPCIONAL (§ el docstring de `NosotrosAperturaContent`): bajo «album» es el eyebrow
+      // ("Nosotros · San Adolfo, Huila" en la maqueta) — el MISMO dato, reposicionado.
       rotuloIzquierda: 'opcional',
       rotuloDerecha: 'opcional',
       // OPCIONAL (§ el docstring de `NosotrosAperturaContent`): vacío cae al nombre del negocio, no
       // a un literal de finca fabricado.
       titulo: 'opcional',
+      bajada: 'opcional',
+      sticker: 'opcional',
+      franjaTejido: 'opcional',
     },
   },
   nosotrosHistoria: {
     label: 'Historia',
     ocultable: false, // el ocultar es a nivel de PÁGINA (paginas.nosotros.visible), no de esta sección
-    // VARIANTES DE COMPOSICIÓN (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1): 'relato' es la canónica —el
-    // layout de HOY, verbatim—. 'sinopsis' («Sinopsis partida») reusa eyebrow/parrafo1/imagen con otro
-    // layout; `retratoNombre` SÓLO tiene efecto bajo ella. `NosotrosHistoria.tsx` ganó su dispatcher
-    // en este mismo slice (gemelo de `BrandStory.tsx`).
-    variantes: { claves: ['relato', 'sinopsis'], canonica: 'relato' },
+    // VARIANTES DE COMPOSICIÓN (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, GANA una TERCERA en
+    // § CHAMISAS-NOSOTROS-ALBUM-1): 'relato' es la canónica —el layout de HOY, verbatim—. 'sinopsis'
+    // («Sinopsis partida», Onix) reusa eyebrow/parrafo1/imagen con otro layout; `retratoNombre` SÓLO
+    // tiene efecto bajo ella. 'partida' (el trato Chamisas — refero-chamisas.md §3 punto 2: frase
+    // grande + dos párrafos cortos separados por filete punteado, dos columnas en escritorio) reusa
+    // `titulo` (la frase grande) + `parrafo1`/`parrafo2` (los dos párrafos) — CERO campos nuevos;
+    // `parrafo3`/`imagen`/`retratoNombre` quedan SIN EFECTO bajo ella. `NosotrosHistoria.tsx` ganó su
+    // dispatcher en § ONIX-NOSOTROS-APERTURA-SINOPSIS-1 (gemelo de `BrandStory.tsx`).
+    variantes: { claves: ['relato', 'sinopsis', 'partida'], canonica: 'relato' },
     // `imagen` (§ NOSOTROS-COMPOSICION-1): OPCIONAL — vacío = la composición de una sola columna de
     // siempre; con foto, la sección pasa a imagen-con-texto (§ NosotrosHistoriaRelato.tsx). Bajo
     // 'sinopsis' el mismo campo es el retrato a sangre (§ NosotrosHistoriaSinopsis.tsx).
@@ -3884,9 +3978,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // mismo mecanismo que `nosotrosGaleria.imagenes` arriba, repeater-aware: `imagenesDe` itera los
   // items y junta cada `item.foto`. Sección SIN campos planos (no lleva eyebrow/titulo propio, § el
   // docstring de `NosotrosEscenasContent` — la maqueta no dibuja un encabezado sobre las escenas).
+  // `variantes`/`booleanos` (§ CHAMISAS-NOSOTROS-ALBUM-1): «saintLaurent» (canónica) | «album» (la
+  // composición «Láminas», § NosotrosEscenasAlbum.tsx); `esquineros` SÓLO tiene efecto bajo «album».
   nosotrosEscenas: {
     label: 'Escenas',
     ocultable: true,
+    variantes: { claves: ['saintLaurent', 'album'], canonica: 'saintLaurent' },
+    booleanos: ['esquineros'],
     imagenes: ['foto'],
     campos: {},
     repeater: {
@@ -3899,6 +3997,7 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
         credito1Valor: 'opcional',
         credito2Etiqueta: 'opcional',
         credito2Valor: 'opcional',
+        pie: 'opcional',
       },
     },
   },
@@ -3907,25 +4006,33 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // el COMPONENTE aplica ese piso además del toggle, no el resolver, mismo criterio que `tiendaCreditos`
   // consigo misma. Sin `repeater`: las tres cifras son slots FIJOS (número + rótulo), todos opcionales
   // (vacío → esa cifra no se muestra, § el criterio de `subscriptionCTA.bullet1..4`).
+  // `variantes` (§ CHAMISAS-NOSOTROS-ALBUM-1): «tinta» (canónica) | «etiqueta» (el trato Chamisas —
+  // ficha de origen como etiqueta de bolsa, § NosotrosFichaEtiqueta.tsx); `sello` SÓLO tiene efecto
+  // bajo «etiqueta».
   nosotrosFicha: {
     label: 'Ficha de la finca',
     ocultable: true,
+    variantes: { claves: ['tinta', 'etiqueta'], canonica: 'tinta' },
     imagenes: [],
     campos: {
       eyebrow: 'opcional',
       cifra1Numero: 'opcional', cifra1Rotulo: 'opcional',
       cifra2Numero: 'opcional', cifra2Rotulo: 'opcional',
       cifra3Numero: 'opcional', cifra3Rotulo: 'opcional',
+      sello: 'opcional',
     },
   },
   // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, ver el docstring de
   // `NosotrosInterludioContent` arriba). `ocultable: true`, nace ENCENDIDO — el gate real es tener
-  // FOTO, mismo criterio que `suscripcionInterludio`/`tiendaInterludio`. SIN `variantes`: a
-  // diferencia de /tienda, acá sólo existe la composición «Plano» (la pieza `InterludioPlano`), así
-  // que no hay un eje que clampar.
+  // FOTO, mismo criterio que `suscripcionInterludio`/`tiendaInterludio`. `variantes`
+  // (§ CHAMISAS-NOSOTROS-ALBUM-1): «plano» (canónica, la pieza `InterludioPlano`) | «stickers» (el
+  // trato Chamisas — la franja de tejido con los cafés del catálogo como stickers,
+  // § NosotrosInterludioStickers.tsx). CERO campos nuevos: `imagen` se reusa como la franja bajo
+  // «stickers»; `pie` queda sin efecto ahí.
   nosotrosInterludio: {
     label: 'Interludio',
     ocultable: true,
+    variantes: { claves: ['plano', 'stickers'], canonica: 'plano' },
     imagenes: ['imagen'],
     campos: {
       imagen: 'opcional',
@@ -3936,20 +4043,27 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // `titulo` (el gate vive en `NosotrosCierre.tsx`, no en `seccionEsVisible` — no es un repeater, así
   // que esa función no lo hace sola; el componente chequea `titulo.trim()` además del toggle). TODO
   // opcional, nace vacío: ninguna sección nueva nace con copy de una vertical. `imagenFondo` es el
-  // ÚNICO blob — vacío = fondo sólido, sólo esta sección lo lee.
-  // `variantes` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): «Línea» (canónica, renombrada) | «fraseYBoton»
-  // — CERO campos nuevos, reusa `titulo` (como la frase) y `ctaLabel`/`ctaDestino` tal cual.
+  // ÚNICO blob que lee «linea» — vacío = fondo sólido, sólo esta sección lo lee.
+  // `variantes` (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, GANA una TERCERA en § CHAMISAS-NOSOTROS-
+  // ALBUM-1): «Línea» (canónica, renombrada) | «fraseYBoton» — CERO campos nuevos, reusa `titulo`
+  // (como la frase) y `ctaLabel`/`ctaDestino` tal cual — | «costura» (la banda punteada con tejido,
+  // la pieza compartida `CierreCostura`): reusa `titulo`/`ctaLabel`/`ctaDestino` igual que
+  // «fraseYBoton», más `franjaTejido` (la imagen) y el par `ctaSecundarioLabel`/`ctaSecundarioDestino`
+  // (el enlace secundario, "Recibirlo cada mes" en la maqueta) — los DOS campos nuevos de esta sección.
   nosotrosCierre: {
     label: 'CTA de cierre',
     ocultable: true,
-    variantes: { claves: ['linea', 'fraseYBoton'], canonica: 'linea' },
-    imagenes: ['imagenFondo'],
+    variantes: { claves: ['linea', 'fraseYBoton', 'costura'], canonica: 'linea' },
+    imagenes: ['imagenFondo', 'franjaTejido'],
     campos: {
       titulo: 'opcional',
       parrafo: 'opcional',
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
       imagenFondo: 'opcional',
+      franjaTejido: 'opcional',
+      ctaSecundarioLabel: 'opcional',
+      ctaSecundarioDestino: 'opcional',
     },
   },
   // Los PLANES de /suscripciones. Encabezado + "Elige tu plan" + 4 slots de plan (1 requerido, 2-4

@@ -6,6 +6,7 @@ import { creditosVisibles, filasCompletas } from "@/lib/tienda/creditos";
 import { CreditosFilas } from "@/components/storefront/tienda/TiendaCreditos";
 import { contenedorAnchoClase } from "@/lib/config/themes";
 import CampoEditable from "@/components/storefront/CampoEditable";
+import NosotrosFichaEtiqueta from "@/components/storefront/nosotros/NosotrosFichaEtiqueta";
 
 // LA «FICHA» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1, sobre ONIX-PAGINAS-COMPOSICIONES-
 // CENSO-1). El capítulo verde de la maqueta: tres cifras grandes a la izquierda (número + rótulo,
@@ -31,6 +32,12 @@ export default function NosotrosFicha() {
   const { nosotrosFicha, tiendaCreditos, navTratamiento } = useSiteContent();
   if (!seccionEsVisible(REGISTRY.nosotrosFicha, nosotrosFicha)) return null;
   if (!creditosVisibles(tiendaCreditos.items)) return null;
+
+  // LA COMPOSICIÓN «ETIQUETA» (§ CHAMISAS-NOSOTROS-ALBUM-1): el MISMO piso de arriba (`creditosVisibles`)
+  // sigue gateando — la etiqueta de bolsa tampoco tiene nada que mostrar con menos de 3 filas.
+  if (nosotrosFicha.variante === "etiqueta") {
+    return <NosotrosFichaEtiqueta />;
+  }
 
   const cifras = [
     { slot: 1 as const, numero: nosotrosFicha.cifra1Numero, rotulo: nosotrosFicha.cifra1Rotulo },

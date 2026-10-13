@@ -597,8 +597,8 @@ test('nosotrosHistoria: una `variante` guardada válida ("sinopsis") se respeta;
   assert.equal(resolverSiteContent({ nosotrosHistoria: { variante: 'no-existe' } }).nosotrosHistoria.variante, 'relato');
 });
 
-test('REGISTRY.nosotrosHistoria declara `variantes` con el set cerrado ["relato","sinopsis"] y la canónica "relato"', () => {
-  assert.deepEqual(REGISTRY.nosotrosHistoria.variantes, { claves: ['relato', 'sinopsis'], canonica: 'relato' });
+test('REGISTRY.nosotrosHistoria declara `variantes` con el set cerrado ["relato","sinopsis","partida"] y la canónica "relato" (§ CHAMISAS-NOSOTROS-ALBUM-1, "partida" se suma)', () => {
+  assert.deepEqual(REGISTRY.nosotrosHistoria.variantes, { claves: ['relato', 'sinopsis', 'partida'], canonica: 'relato' });
 });
 
 test('nosotrosHistoria.retratoNombre: OPCIONAL — nace vacío, presente-vacío se respeta, ausente cae al default', () => {
@@ -630,14 +630,18 @@ test('nosotrosApertura: `visible:true` guardado se respeta; los campos opcionale
   assert.equal(r.nosotrosApertura.imagen, '/finca.jpg');
 });
 
-test('REGISTRY.nosotrosApertura: ocultable, con imagen opcional y los tres campos de texto opcionales', () => {
+test('REGISTRY.nosotrosApertura: ocultable, con `variantes` ["apertura","album"] (§ CHAMISAS-NOSOTROS-ALBUM-1), imagen+franjaTejido opcionales y los campos de texto opcionales', () => {
   assert.equal(REGISTRY.nosotrosApertura.ocultable, true);
-  assert.deepEqual(REGISTRY.nosotrosApertura.imagenes, ['imagen']);
+  assert.deepEqual(REGISTRY.nosotrosApertura.variantes, { claves: ['apertura', 'album'], canonica: 'apertura' });
+  assert.deepEqual(REGISTRY.nosotrosApertura.imagenes, ['imagen', 'franjaTejido']);
   assert.deepEqual(REGISTRY.nosotrosApertura.campos, {
     imagen: 'opcional',
     rotuloIzquierda: 'opcional',
     rotuloDerecha: 'opcional',
     titulo: 'opcional',
+    bajada: 'opcional',
+    sticker: 'opcional',
+    franjaTejido: 'opcional',
   });
 });
 
@@ -743,7 +747,7 @@ test('nosotrosEscenas: sin nada guardado → items VACÍOS (ningún dato de finc
   assert.deepEqual(resolverSiteContent({}).nosotrosEscenas.items, []);
 });
 
-test('nosotrosEscenas: un ítem guardado resuelve sus 7 campos, foto/titulo requeridos y los 5 restantes opcionales', () => {
+test('nosotrosEscenas: un ítem guardado resuelve sus 8 campos, foto/titulo requeridos y los 6 restantes opcionales (§ CHAMISAS-NOSOTROS-ALBUM-1, "pie" se suma)', () => {
   const r = resolverSiteContent({
     nosotrosEscenas: {
       items: [{
@@ -757,6 +761,7 @@ test('nosotrosEscenas: un ítem guardado resuelve sus 7 campos, foto/titulo requ
     foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: 'Solo cereza roja.',
     credito1Etiqueta: 'Cuándo', credito1Valor: 'Marzo – junio',
     credito2Etiqueta: '', credito2Valor: '',
+    pie: '',
   }]);
 });
 
@@ -838,15 +843,19 @@ test('nosotrosCierre: `ocultable: true`, con `visible` respetando el toggle expl
   assert.equal(seccionEsVisible(def, { visible: false }), false);
 });
 
-test('REGISTRY.nosotrosCierre.imagenes = [imagenFondo] (tripwire del borrado de blobs, § NOSOTROS-COMPOSICION-1)', () => {
-  assert.deepEqual(REGISTRY.nosotrosCierre.imagenes, ['imagenFondo']);
+test('REGISTRY.nosotrosCierre.imagenes = [imagenFondo, franjaTejido] (tripwire del borrado de blobs, § NOSOTROS-COMPOSICION-1, "franjaTejido" se suma en § CHAMISAS-NOSOTROS-ALBUM-1)', () => {
+  assert.deepEqual(REGISTRY.nosotrosCierre.imagenes, ['imagenFondo', 'franjaTejido']);
   assert.equal(REGISTRY.nosotrosCierre.campos.imagenFondo, 'opcional');
+  assert.equal(REGISTRY.nosotrosCierre.campos.franjaTejido, 'opcional');
+  assert.equal(REGISTRY.nosotrosCierre.campos.ctaSecundarioLabel, 'opcional');
+  assert.equal(REGISTRY.nosotrosCierre.campos.ctaSecundarioDestino, 'opcional');
 });
 
 // ── `nosotrosCierre` gana la composición «Frase y botón» (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1) ───
+// y la composición «Costura» (§ CHAMISAS-NOSOTROS-ALBUM-1) ───────────────────────────────────────
 
-test('REGISTRY.nosotrosCierre.variantes: "linea" es la canónica (renombrada, antes la única); "fraseYBoton" es la pieza compartida', () => {
-  assert.deepEqual(REGISTRY.nosotrosCierre.variantes, { claves: ['linea', 'fraseYBoton'], canonica: 'linea' });
+test('REGISTRY.nosotrosCierre.variantes: "linea" es la canónica (renombrada, antes la única); "fraseYBoton"/"costura" son las piezas compartidas', () => {
+  assert.deepEqual(REGISTRY.nosotrosCierre.variantes, { claves: ['linea', 'fraseYBoton', 'costura'], canonica: 'linea' });
 });
 
 test('nosotrosCierre.variante: ausente/vacío/null/basura → "linea"; "fraseYBoton" se respeta', () => {
@@ -886,8 +895,8 @@ test('nosotrosInterludio: `ocultable: true`, con `visible` respetando el toggle 
   assert.equal(seccionEsVisible(def, { visible: false }), false);
 });
 
-test('REGISTRY.nosotrosInterludio: SIN `variantes` (sólo existe la composición «Plano»; nada que clampar) y `imagenes = [imagen]` (tripwire del borrado de blobs)', () => {
-  assert.equal(REGISTRY.nosotrosInterludio.variantes, undefined);
+test('REGISTRY.nosotrosInterludio: `variantes` ["plano","stickers"] (§ CHAMISAS-NOSOTROS-ALBUM-1, la canónica "plano" sigue siendo la única de antes) y `imagenes = [imagen]` (tripwire del borrado de blobs)', () => {
+  assert.deepEqual(REGISTRY.nosotrosInterludio.variantes, { claves: ['plano', 'stickers'], canonica: 'plano' });
   assert.deepEqual(REGISTRY.nosotrosInterludio.imagenes, ['imagen']);
   assert.equal(REGISTRY.nosotrosInterludio.campos.imagen, 'opcional');
   assert.equal(REGISTRY.nosotrosInterludio.campos.pie, 'opcional');

@@ -8,6 +8,7 @@ import { REGISTRY, seccionEsVisible } from "@/lib/config/site-content-defaults";
 import { filasCompletas } from "@/lib/tienda/creditos";
 import { CreditosFilas } from "@/components/storefront/tienda/TiendaCreditos";
 import CampoEditable from "@/components/storefront/CampoEditable";
+import NosotrosEscenasAlbum from "@/components/storefront/nosotros/NosotrosEscenasAlbum";
 
 // LAS «ESCENAS» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1, sobre ONIX-PAGINAS-COMPOSICIONES-
 // CENSO-1 — el owner aprobó el 2026-10-11 la maqueta «Tres escenas» de Onix). El módulo
@@ -41,6 +42,12 @@ export default function NosotrosEscenas() {
   const { nosotrosEscenas } = useSiteContent();
   const preview = useIsPreview();
   if (!seccionEsVisible(REGISTRY.nosotrosEscenas, nosotrosEscenas)) return null;
+
+  // LA COMPOSICIÓN «ÁLBUM» (§ CHAMISAS-NOSOTROS-ALBUM-1): su propio hide-on-empty (sin láminas con
+  // foto) vive DENTRO de `NosotrosEscenasAlbum` (devuelve `null`), igual que el resto de este archivo.
+  if (nosotrosEscenas.variante === "album") {
+    return <NosotrosEscenasAlbum items={nosotrosEscenas.items} esquineros={nosotrosEscenas.esquineros} />;
+  }
 
   const escenas = nosotrosEscenas.items
     .map((e, idx) => ({ e, idx }))

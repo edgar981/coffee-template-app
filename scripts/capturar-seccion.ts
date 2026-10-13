@@ -236,6 +236,8 @@ interface Opciones {
   sinPrototipo: boolean;
   // CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — ver el docstring de `sembrarCasillas`, abajo.
   sembrarCasillas: boolean;
+  // CHAMISAS-NOSOTROS-ALBUM-1 — ver el docstring de `sembrarAlbumNosotros`, abajo.
+  sembrarAlbumNosotros: boolean;
 }
 
 function ayuda(): string {
@@ -338,6 +340,16 @@ productos (Bourbon Rosado/Pacamara/Papayo, un café por fila, una sola bolsa de
 340 g — la matriz mínima que derivarMatrizTaquilla acepta), y publica
 suscripcionPlanes.variante:'casillas' + SiteSetting.nombre/whatsapp. SÓLO
 válido en modo base fresca (mismo motivo que --sembrar-spotlight).
+--sembrar-album-nosotros (§ CHAMISAS-NOSOTROS-ALBUM-1) siembra, sobre la base
+efímera: la MISMA paleta/tipografía/forma de --sembrar-casillas (medidas contra
+el muestrario real de Las Chamisas), TRES productos (Bourbon Rosado/Pacamara/
+Papayo, para los stickers del Interludio y las filas de "Créditos: ficha de
+origen"), y publica las SEIS secciones de /nosotros con el tratamiento Chamisas
+(nosotrosApertura.variante:'album', nosotrosHistoria.variante:'partida',
+nosotrosEscenas.variante:'album' con 5 láminas, nosotrosFicha.variante:
+'etiqueta', nosotrosInterludio.variante:'stickers', nosotrosCierre.variante:
+'costura') + SiteSetting.nombre/whatsapp. SÓLO válido en modo base fresca
+(mismo motivo que --sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -374,6 +386,11 @@ Ejemplo (--sembrar-casillas + --sin-prototipo, § CHAMISAS-SUSCRIPCIONES-CASILLA
   node --import tsx scripts/capturar-seccion.ts --sembrar-casillas --sin-prototipo \\
     --ruta /suscripciones \\
     --nombre chamisas-casillas
+
+Ejemplo (--sembrar-album-nosotros + --sin-prototipo, § CHAMISAS-NOSOTROS-ALBUM-1):
+  node --import tsx scripts/capturar-seccion.ts --sembrar-album-nosotros --sin-prototipo \\
+    --ruta /nosotros \\
+    --nombre chamisas-album-nosotros
 `.trim();
 }
 
@@ -400,6 +417,7 @@ function parseCli(argv: string[]): Opciones {
       "accion-previa": { type: "string", multiple: true },
       "sin-prototipo": { type: "boolean" },
       "sembrar-casillas": { type: "boolean" },
+      "sembrar-album-nosotros": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -450,6 +468,13 @@ function parseCli(argv: string[]): Opciones {
     throw new Error(
       `--sembrar-casillas y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
         `una URL ya desplegada (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1).\n\n${ayuda()}`,
+    );
+  }
+  const sembrarAlbumNosotros = values["sembrar-album-nosotros"] === true;
+  if (sembrarAlbumNosotros && url) {
+    throw new Error(
+      `--sembrar-album-nosotros y --url son mutuamente excluyentes: no hay base local que sembrar ` +
+        `contra una URL ya desplegada (§ CHAMISAS-NOSOTROS-ALBUM-1).\n\n${ayuda()}`,
     );
   }
 
@@ -517,6 +542,7 @@ function parseCli(argv: string[]): Opciones {
     sembrarSpotlight,
     sembrarOrigen,
     sembrarCasillas,
+    sembrarAlbumNosotros,
   };
 }
 
@@ -1119,6 +1145,143 @@ async function sembrarCasillas(): Promise<void> {
   console.log("✔ Casillas sembrado: paleta/tipografía/forma de Las Chamisas + 3 cafés + variante publicada.");
 }
 
+// ─── SEMBRAR ÁLBUM DE NOSOTROS (§ CHAMISAS-NOSOTROS-ALBUM-1) ─────────────────────────────────────
+//
+// Paleta/tipografía/forma: las MISMAS medidas de `sembrarCasillas` (arriba) — el muestrario real de
+// Las Chamisas, un solo despliegue, un solo tema. Repetir la medición acá sería una segunda fuente
+// que podría divergir de la primera si alguna vez cambia.
+//
+// TRES PRODUCTOS (Bourbon Rosado/Pacamara/Papayo — los mismos nombres que `sembrarCasillas`, en
+// slugs PROPIOS para no colisionar si algún día se siembran los dos a la vez): alimentan el
+// Interludio «Stickers» (un sticker de color por café, enlazando a su ficha) y "Créditos: ficha de
+// origen" en /tienda (que la Ficha «Etiqueta» LEE directo, § NosotrosFicha.tsx — nunca una copia
+// propia).
+//
+// EL CONTENIDO ES EL DE refero-chamisas.md §3, no inventado para esta captura: la frase de la bolsa
+// ("Nuestro territorio, sus manos, nuestro orgullo."), las cinco láminas (01 El territorio … 05 La
+// bolsa, con el pie «Imagen ilustrativa» en las que el spec marca como generadas por IA — 01, 02 y
+// 04), y los datos CONFIRMADOS de la ficha (San Adolfo Huila; los tres cafés; altitud 1.600–2.000
+// m s.n.m.). Proceso/cosecha/familias van con el sufijo «[ejemplo]» tal como el spec exige
+// (refero-chamisas.md §3 punto 4: "van marcados [ejemplo] hasta que la finca los confirme").
+//
+// SIN ASSET DE TEJIDO PARA ESTE ARNÉS (mismo límite que `sembrarCasillas`): el Interludio «Stickers»
+// necesita `imagen` no-vacía para montar (es su gate, § NosotrosInterludio.tsx) — se usa una foto
+// EXISTENTE del repo como placeholder, documentado como lo que es, nunca una franja de tejido real.
+// `nosotrosApertura.franjaTejido`/`nosotrosCierre.franjaTejido` SÍ pueden quedar vacíos (son
+// opcionales, § sus componentes) y se dejan así.
+async function sembrarAlbumNosotros(): Promise<void> {
+  console.log("▸ --sembrar-album-nosotros: paleta/tipografía/forma de Las Chamisas + 3 cafés + las 6 secciones de /nosotros…");
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+
+  // Medido en vivo contra el despliegue real (§ el docstring de `sembrarCasillas`, arriba).
+  await guardarTemaBorrador({ fondo: "#FAF4EB", tinta: "#2A2522", acento: "#B8461A", fuentePar: "prensa", forma: "recta" });
+  await publicarSeccion("tema");
+
+  const CONMOLIENDA = [
+    { nombre: "En grano", metodo: "Muele en casa a tu gusto", disponible: true },
+    { nombre: "Molido", metodo: "Filtro / Greca tradicional", disponible: true },
+  ] as unknown as Prisma.InputJsonValue;
+  const CAFES = [
+    { slug: "arnes-album-bourbon", nombre: "Bourbon Rosado", notas: ["Floral", "Frutos rojos", "Dulce"], precio: 52000 },
+    { slug: "arnes-album-pacamara", nombre: "Pacamara", notas: ["Chocolate", "Tropical", "Cremoso"], precio: 48000 },
+    { slug: "arnes-album-papayo", nombre: "Papayo", notas: ["Caramelo", "Cítrico", "Balanceado"], precio: 44000 },
+  ];
+  for (const cafe of CAFES) {
+    await prisma.product.upsert({
+      where: { slug: cafe.slug },
+      update: {
+        activo: true, stock: 42, categoria: cafe.nombre, precio: cafe.precio, peso_gramos: 340,
+        notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
+      },
+      create: {
+        slug: cafe.slug, nombre: `${cafe.nombre} 340 g`, descripcion: `${cafe.nombre}, bolsa de 340 g.`,
+        categoria: cafe.nombre, activo: true, stock: 42, precio: cafe.precio, costo: Math.round(cafe.precio * 0.55),
+        peso_gramos: 340, notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
+        imagen: "/images/cafe-nayoli-250g-molido.webp",
+      },
+    });
+  }
+
+  await guardarBorrador({
+    nosotrosApertura: {
+      visible: true,
+      variante: "album",
+      rotuloIzquierda: "Nosotros · San Adolfo, Huila",
+      titulo: "Nuestro territorio, sus manos, nuestro orgullo.",
+      bajada: "Somos mujeres y familias que cultivan café en San Adolfo, Huila.",
+      imagen: "/images/hero-cerezas-v1.jpg",
+      sticker: "Cosecha 2026",
+    },
+    nosotrosHistoria: {
+      variante: "partida",
+      titulo: "Cada bolsa nace en las mismas manos que la cierran.",
+      parrafo1: "Bolsas de 340 g y 500 g, siempre del mismo lote: lo que cosechamos esta semana es lo que te llega.",
+      parrafo2: "No tercerizamos nada — del cafetal a la bolsa pasa por las mismas familias de San Adolfo.",
+    },
+    nosotrosEscenas: {
+      visible: true,
+      variante: "album",
+      esquineros: true,
+      items: [
+        { foto: "/images/historia-1-v1.jpg", titulo: "El territorio", descripcion: "San Adolfo, Huila: ladera, niebla y sombra, 1.600–2.000 m s.n.m.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "Imagen ilustrativa" },
+        { foto: "/images/historia-2-v1.jpg", titulo: "La cosecha", descripcion: "Grano por grano, a mano, sólo la cereza madura.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "Imagen ilustrativa" },
+        { foto: "/images/historia-3-v1.jpg", titulo: "Las manos", descripcion: "Las mismas familias, cosecha tras cosecha.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "" },
+        { foto: "/images/historia-4-v1.jpg", titulo: "El secado", descripcion: "Al sol, en patios propios, hasta el punto justo.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "Imagen ilustrativa" },
+        { foto: "/images/hero-beans-v1.jpg", titulo: "La bolsa", descripcion: "Tostado en los 7 días antes de salir hacia tu casa.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "" },
+      ],
+    },
+    nosotrosFicha: {
+      visible: true,
+      variante: "etiqueta",
+      eyebrow: "La finca en cifras",
+      sello: "San Adolfo",
+    },
+    nosotrosInterludio: {
+      visible: true,
+      variante: "stickers",
+      imagen: "/images/hero-beans-v1.jpg",
+    },
+    nosotrosCierre: {
+      visible: true,
+      variante: "costura",
+      titulo: "Tres cafés, una finca.",
+      ctaLabel: "Ver los tres cafés",
+      ctaDestino: "/tienda",
+      ctaSecundarioLabel: "Recibirlo cada mes",
+      ctaSecundarioDestino: "/suscripciones",
+    },
+    // "Créditos: ficha de origen" (/tienda) — la Ficha «Etiqueta» de /nosotros LEE estas mismas
+    // filas (§ NosotrosFicha.tsx), nunca una copia propia. Datos CONFIRMADOS (refero-chamisas.md §3
+    // punto 4) + los marcados [ejemplo] hasta que la finca los confirme.
+    tiendaCreditos: {
+      visible: true,
+      items: [
+        { etiqueta: "Finca", valor: "San Adolfo, Huila" },
+        { etiqueta: "Variedades", valor: "Bourbon Rosado, Pacamara y Papayo" },
+        { etiqueta: "Altitud", valor: "1.600 – 2.000 m s.n.m." },
+        { etiqueta: "Proceso", valor: "Lavado [ejemplo]" },
+        { etiqueta: "Cosecha principal", valor: "Marzo – junio [ejemplo]" },
+        { etiqueta: "Familias", valor: "12 familias [ejemplo]" },
+      ],
+    },
+  });
+  await publicarSeccion("nosotrosApertura");
+  await publicarSeccion("nosotrosHistoria");
+  await publicarSeccion("nosotrosEscenas");
+  await publicarSeccion("nosotrosFicha");
+  await publicarSeccion("nosotrosInterludio");
+  await publicarSeccion("nosotrosCierre");
+  await publicarSeccion("tiendaCreditos");
+
+  await prisma.siteSetting.update({
+    where: { id: "default" },
+    data: { nombre: "Café Las Chamisas", tagline: "San Adolfo · Huila", whatsapp: "+573000000000" },
+  });
+
+  console.log("✔ Álbum de /nosotros sembrado: paleta/tipografía/forma de Las Chamisas + 3 cafés + las 6 secciones publicadas.");
+}
+
 // ─── ACCIONES PREVIAS A LA CAPTURA (§ COMPRA-LINEAS-FIDELIDAD-1) ─────────────────────────────────
 //
 // NOMBRES FIJOS, no un DSL de clicks genérico: un DSL (una secuencia arbitraria de selectores +
@@ -1389,6 +1552,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarCasillas) {
       await sembrarCasillas();
+    }
+
+    if (opciones.sembrarAlbumNosotros) {
+      await sembrarAlbumNosotros();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

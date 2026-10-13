@@ -3,6 +3,7 @@
 import { useSiteContent } from "@/components/storefront/SiteContentProvider";
 import NosotrosHistoriaRelato from "@/components/storefront/nosotros/NosotrosHistoriaRelato";
 import NosotrosHistoriaSinopsis from "@/components/storefront/nosotros/NosotrosHistoriaSinopsis";
+import NosotrosHistoriaPartida from "@/components/storefront/nosotros/NosotrosHistoriaPartida";
 
 // "La historia larga" de /nosotros — DISPATCHER de VARIANTES DE COMPOSICIÓN (§ ONIX-NOSOTROS-
 // APERTURA-SINOPSIS-1, sobre REGISTRY.nosotrosHistoria.variantes). Hasta este slice este componente
@@ -16,6 +17,8 @@ import NosotrosHistoriaSinopsis from "@/components/storefront/nosotros/NosotrosH
 const VARIANTES: Record<string, typeof NosotrosHistoriaRelato> = {
   relato: NosotrosHistoriaRelato,
   sinopsis: NosotrosHistoriaSinopsis,
+  // «partida» (§ CHAMISAS-NOSOTROS-ALBUM-1): frase grande + dos párrafos, filete punteado.
+  partida: NosotrosHistoriaPartida,
 };
 
 export default function NosotrosHistoria() {

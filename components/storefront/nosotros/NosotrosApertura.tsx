@@ -28,9 +28,14 @@
 // identidad vive AQUÍ, no en `DEFAULTS` (que se queda vacío a propósito, § el docstring del
 // contenido). `negocio` llega por PROP desde el server (como `NosotrosGaleria`); sin ella (la vista
 // previa del panel) cae a la última red.
+// GANA UNA SEGUNDA COMPOSICIÓN (§ CHAMISAS-NOSOTROS-ALBUM-1): «album», montada con
+// `NosotrosAperturaAlbum` — eyebrow + H1 + bajada + foto en arco (§ su docstring de cabecera). El
+// fallback de título (`titulo || negocio || TITULO_POR_DEFECTO`) sigue valiendo para las dos
+// composiciones por igual.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import Apertura from '@/components/storefront/tienda/Apertura';
+import NosotrosAperturaAlbum from '@/components/storefront/nosotros/NosotrosAperturaAlbum';
 
 const TITULO_POR_DEFECTO = 'Nosotros';
 const ALTO = 'h-[70svh] min-h-[420px]';
@@ -40,6 +45,19 @@ export default function NosotrosApertura({ negocio }: { negocio?: string }) {
   if (!seccionEsVisible(REGISTRY.nosotrosApertura, nosotrosApertura)) return null;
 
   const titulo = nosotrosApertura.titulo || negocio || TITULO_POR_DEFECTO;
+
+  if (nosotrosApertura.variante === 'album') {
+    return (
+      <NosotrosAperturaAlbum
+        eyebrow={nosotrosApertura.rotuloIzquierda}
+        titulo={titulo}
+        bajada={nosotrosApertura.bajada}
+        imagen={nosotrosApertura.imagen}
+        sticker={nosotrosApertura.sticker}
+        franjaTejido={nosotrosApertura.franjaTejido}
+      />
+    );
+  }
 
   return (
     <Apertura

@@ -1248,17 +1248,51 @@ const SPOTLIGHT: SeccionConfig = {
 // LA APERTURA PROPIA DE /nosotros (§ ONIX-NOSOTROS-APERTURA-SINOPSIS-1, ver el docstring de
 // `NosotrosAperturaContent` en site-content-defaults.ts). `ocultable: true`, nace OFF — el
 // `notaVisibilidad` lo dice, mismo criterio que `SUSCRIPCION_APERTURA`.
+// LA APERTURA PROPIA DE /nosotros GANA UNA SEGUNDA COMPOSICIÓN (§ CHAMISAS-NOSOTROS-ALBUM-1): «apertura»
+// (canónica, la pieza `Apertura` a pantalla completa) | «album» (el trato Chamisas — eyebrow + H1 +
+// bajada + foto en arco, § NosotrosAperturaAlbum.tsx). `rotuloIzquierda` se REUSA como el eyebrow de
+// «album» (su hint lo dice bajo esa composición); `rotuloDerecha` queda sin zona bajo «album» (sigue
+// visible en "Micro-rótulos", sin efecto — mismo criterio laxo de siempre para un campo que una
+// composición no lee). MISMO patrón que `OPCIONES_COMPOSICION_TIENDA_INTERLUDIO`: el VALOR y el orden
+// salen de `REGISTRY.nosotrosApertura.variantes.claves`.
+const LABEL_COMPOSICION_NOSOTROS_APERTURA: Record<string, string> = { apertura: 'Apertura', album: 'Álbum' };
+const ZONAS_NOSOTROS_APERTURA_APERTURA: ZonaComposicion[] = [
+  { campos: ['imagen'], label: 'Foto de fondo' },
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['rotuloIzquierda', 'rotuloDerecha'], label: 'Micro-rótulos' },
+];
+const ZONAS_NOSOTROS_APERTURA_ALBUM: ZonaComposicion[] = [
+  { campos: ['rotuloIzquierda'], label: 'Línea superior' },
+  { campos: ['titulo'], label: 'Título' },
+  { campos: ['bajada'], label: 'Bajada' },
+  { campos: ['imagen'], label: 'Foto en arco' },
+  { campos: ['sticker'], label: 'Sticker de esquina' },
+  { campos: ['franjaTejido'], label: 'Franja de tejido (celular)' },
+];
+const OPCIONES_COMPOSICION_NOSOTROS_APERTURA: ComposicionOpcion[] = REGISTRY.nosotrosApertura.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_APERTURA[v] ?? v,
+  zonas: v === 'album' ? ZONAS_NOSOTROS_APERTURA_ALBUM : ZONAS_NOSOTROS_APERTURA_APERTURA,
+}));
+
 const NOSOTROS_APERTURA: SeccionConfig = {
   seccion: 'nosotrosApertura',
   pagina: 'nosotros',
   titulo: 'Apertura',
   ocultable: true,
   notaVisibilidad: 'Apagada de arranque: por defecto, /nosotros no lleva esta banda.',
-  imagenes: [{ name: 'imagen', label: 'Foto de fondo', opcional: true }],
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_APERTURA,
+  imagenes: [
+    { name: 'imagen', label: 'Foto de fondo', opcional: true },
+    // SIN `hint` (`CampoImagen` no lo admite): la franja al pie de la foto en celular, sólo con
+    // "Álbum" — el `label` ya lo dice.
+    { name: 'franjaTejido', label: 'Franja de tejido (sólo "Álbum")', opcional: true, composiciones: ['album'] },
+  ],
   campos: [
     { name: 'titulo', label: 'Título', opcional: true, hint: 'Ej. el nombre de la finca o de quien cultiva. Vacío: se usa el nombre del negocio.' },
-    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Nosotros". Vacío: no se muestra.' },
-    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 12 ha". Vacío: no se muestra.' },
+    { name: 'rotuloIzquierda', label: 'Micro-rótulo izquierdo', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "Nosotros". Con la composición "Álbum" es el eyebrow sobre el título. Vacío: no se muestra.' },
+    { name: 'rotuloDerecha', label: 'Micro-rótulo derecho', opcional: true, composiciones: ['apertura'], hint: 'Sólo con la composición "Apertura". Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 12 ha". Vacío: no se muestra.' },
+    { name: 'bajada', label: 'Bajada', opcional: true, textarea: true, composiciones: ['album'], hint: 'Sólo con la composición "Álbum". La frase corta bajo el título. Vacío: no se muestra.' },
+    { name: 'sticker', label: 'Sticker de esquina', opcional: true, composiciones: ['album'], hint: 'Sólo con la composición "Álbum". Ej. "Cosecha 2026". Vacío: no se muestra.' },
   ],
 };
 
@@ -1267,7 +1301,11 @@ const NOSOTROS_APERTURA: SeccionConfig = {
 // layout y suma `retratoNombre`, el único campo nuevo. MISMO patrón que
 // `OPCIONES_COMPOSICION_TIENDA_INTERLUDIO`: el VALOR y el orden salen de
 // `REGISTRY.nosotrosHistoria.variantes.claves`, este archivo sólo agrega la etiqueta y las zonas.
-const LABEL_COMPOSICION_NOSOTROS_HISTORIA: Record<string, string> = { relato: 'Relato', sinopsis: 'Sinopsis partida' };
+// «partida» (§ CHAMISAS-NOSOTROS-ALBUM-1, el trato Chamisas de "Sinopsis partida"): reusa `titulo`
+// (la frase grande en serif) + `parrafo1`/`parrafo2` (los dos párrafos cortos, separados por un
+// filete punteado) — CERO campos nuevos. `parrafo3`/`imagen`/`retratoNombre` quedan sin zona bajo
+// ella (sin efecto, mismo criterio laxo de siempre).
+const LABEL_COMPOSICION_NOSOTROS_HISTORIA: Record<string, string> = { relato: 'Relato', sinopsis: 'Sinopsis partida', partida: 'Frase y párrafos' };
 const ZONAS_NOSOTROS_HISTORIA_RELATO: ZonaComposicion[] = [
   { campos: ['eyebrow'], label: 'Línea superior' },
   { campos: ['titulo'], label: 'Título' },
@@ -1280,9 +1318,13 @@ const ZONAS_NOSOTROS_HISTORIA_SINOPSIS: ZonaComposicion[] = [
   { campos: ['imagen'], label: 'Retrato' },
   { campos: ['retratoNombre'], label: 'Nombre del caficultor' },
 ];
+const ZONAS_NOSOTROS_HISTORIA_PARTIDA: ZonaComposicion[] = [
+  { campos: ['titulo'], label: 'Frase grande' },
+  { campos: ['parrafo1', 'parrafo2'], label: 'Párrafos' },
+];
 const OPCIONES_COMPOSICION_NOSOTROS_HISTORIA: ComposicionOpcion[] = REGISTRY.nosotrosHistoria.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_NOSOTROS_HISTORIA[v] ?? v,
-  zonas: v === 'sinopsis' ? ZONAS_NOSOTROS_HISTORIA_SINOPSIS : ZONAS_NOSOTROS_HISTORIA_RELATO,
+  zonas: v === 'sinopsis' ? ZONAS_NOSOTROS_HISTORIA_SINOPSIS : v === 'partida' ? ZONAS_NOSOTROS_HISTORIA_PARTIDA : ZONAS_NOSOTROS_HISTORIA_RELATO,
 }));
 
 // La página /nosotros: la historia larga (la galería variable es su propia sección, tanda 2).
@@ -1305,9 +1347,11 @@ const NOSOTROS_HISTORIA: SeccionConfig = {
     // la tienda real nunca lo pinta. `eyebrow`/`parrafo1` SÍ aplican a las dos (los dos componentes
     // los leen, con otro layout) y se quedan sin tag.
     { name: 'eyebrow',  label: 'Línea superior', opcional: true, hint: 'La línea en mayúsculas sobre el título ("Relato") o el rótulo "Sinopsis" ("Sinopsis partida"). Vacío: no se muestra.' },
-    { name: 'titulo',   label: 'Título',         composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Con "Sinopsis partida" es el ÚNICO párrafo que se muestra (hasta 3 frases). Vacío: se usa el texto por defecto.' },
-    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
+    // «partida» (§ CHAMISAS-NOSOTROS-ALBUM-1) reusa `titulo` como la FRASE GRANDE y `parrafo2` como
+    // el SEGUNDO párrafo — se suma a la lista de composiciones de los dos, junto a «relato».
+    { name: 'titulo',   label: 'Título',         composiciones: ['relato', 'partida'], hint: 'Con "Relato" es el título; con "Frase y párrafos" es la frase grande en serif. Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo1', label: 'Primer párrafo', textarea: true, hint: 'Con "Sinopsis partida" o "Frase y párrafos" es el PRIMER párrafo que se muestra. Vacío: se usa el texto por defecto.' },
+    { name: 'parrafo2', label: 'Segundo párrafo', opcional: true, textarea: true, composiciones: ['relato', 'partida'], hint: 'Con "Frase y párrafos" es el SEGUNDO párrafo, separado del primero por un filete punteado. Vacío: no se muestra.' },
     { name: 'parrafo3', label: 'Tercer párrafo',  opcional: true, textarea: true, composiciones: ['relato'], hint: 'Sólo con la composición "Relato". Vacío: no se muestra.' },
     { name: 'retratoNombre', label: 'Nombre del caficultor', opcional: true, composiciones: ['sinopsis'], hint: 'Sólo con la composición "Sinopsis partida": el pie del retrato, "[NOMBRE] · CAFICULTOR". Vacío: el retrato no lleva pie.' },
   ],
@@ -1348,27 +1392,51 @@ const NOSOTROS_GALERIA: SeccionConfig = {
 // escena no se muestra (§ NosotrosEscenas.tsx); `descripcion` y las dos filas de crédito OPCIONALES
 // (1 o 2 filas, § refero-onix-paginas.md). Sin campos de sección: la maqueta no dibuja un encabezado
 // sobre las escenas (§ REGISTRY.nosotrosEscenas, site-content-defaults.ts).
+//
+// «album» (§ CHAMISAS-NOSOTROS-ALBUM-1, la composición «Láminas»): repeater 3-6, carrusel en
+// celular/doble página en escritorio (§ NosotrosEscenasAlbum.tsx). El TOPE sube de 4 a 6 —más ancho
+// nunca rompe a «saintLaurent»— y gana `pie` (la leyenda bajo cada lámina) + el booleano de sección
+// `esquineros`. `LABEL_COMPOSICION_NOSOTROS_ESCENAS` nombra las dos; el VALOR y el orden salen de
+// `REGISTRY.nosotrosEscenas.variantes.claves`, mismo patrón que el resto del archivo.
+const LABEL_COMPOSICION_NOSOTROS_ESCENAS: Record<string, string> = { saintLaurent: 'Escenas', album: 'Láminas' };
+// `zonas: []` — el dialogo con zonas (`ComposicionHero`) es EXCLUSIVO de `seccion === 'hero'`
+// (§ TiendaSeccionEditor.tsx: "SELECT nativo... dos opciones nada más, sin zonas que avisar"); fuera
+// del hero, el select nativo sólo lee `value`/`label`, así que `zonas` queda vacío a propósito.
+const OPCIONES_COMPOSICION_NOSOTROS_ESCENAS: ComposicionOpcion[] = REGISTRY.nosotrosEscenas.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_ESCENAS[v] ?? v, zonas: [],
+}));
 const NOSOTROS_ESCENAS: SeccionConfig = {
   seccion: 'nosotrosEscenas',
   pagina: 'nosotros',
   titulo: 'Escenas',
   ocultable: true,
   notaVisibilidad: 'Sin fotos, esta sección no se muestra.',
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_ESCENAS,
+  // `esquineros` sólo tiene efecto bajo «Láminas» — el hint lo dice, mismo criterio que
+  // `tiendaCatalogo.barraFijaMovil` bajo «Taquilla»: se edita siempre, no sólo cuando aplica.
+  booleanos: [
+    { name: 'esquineros', label: 'Esquineros de álbum', hint: 'Sólo con la composición "Láminas". Las esquinas decorativas en terracota de cada lámina.' },
+  ],
   imagenes: [],
   campos: [],
   repeater: {
     itemsKey: 'items',
     itemLabel: 'Escena',
     genero: 'f', // "¿Eliminar esta escena?"
-    max: 4,
+    max: 6,
+    // SIN `composiciones` en los campos de ÍTEM (`CampoItem` no lo admite — a diferencia de
+    // `CampoTexto`/`CampoImagen` de sección, el repeater no gatea por composición a este nivel): los
+    // créditos y el pie quedan SIEMPRE editables, y el hint de cada uno dice bajo qué composición
+    // tiene efecto (mismo criterio laxo que un campo de sección sin `composiciones`).
     campos: [
-      { name: 'foto', label: 'Foto', tipo: 'imagen', hint: 'Still en 3:2 (4:5 en celular). Sin foto, la escena no se muestra.' },
+      { name: 'foto', label: 'Foto / ilustración', tipo: 'imagen', hint: 'Still en 3:2 (4:5 en celular). Sin foto, la escena no se muestra.' },
       { name: 'titulo', label: 'Título', tipo: 'texto', resumen: 'principal', hint: 'Ej. "Cosecha". Se muestra en mayúscula, junto al número de orden.' },
       { name: 'descripcion', label: 'Descripción', tipo: 'textarea', opcional: true, resumen: 'detalle', hint: 'Una frase corta, dos líneas aprox. Vacío: no se muestra.' },
-      { name: 'credito1Etiqueta', label: 'Crédito 1 · Rótulo', tipo: 'texto', opcional: true, hint: 'Ej. "Cuándo". Vacío: no se muestra esta fila.' },
-      { name: 'credito1Valor', label: 'Crédito 1 · Valor', tipo: 'texto', opcional: true, hint: 'Ej. "Marzo – junio".' },
-      { name: 'credito2Etiqueta', label: 'Crédito 2 · Rótulo', tipo: 'texto', opcional: true, hint: 'Vacío: no se muestra esta fila.' },
-      { name: 'credito2Valor', label: 'Crédito 2 · Valor', tipo: 'texto', opcional: true },
+      { name: 'credito1Etiqueta', label: 'Crédito 1 · Rótulo', tipo: 'texto', opcional: true, hint: 'Sólo con la composición "Escenas". Ej. "Cuándo". Vacío: no se muestra esta fila.' },
+      { name: 'credito1Valor', label: 'Crédito 1 · Valor', tipo: 'texto', opcional: true, hint: 'Sólo con la composición "Escenas". Ej. "Marzo – junio".' },
+      { name: 'credito2Etiqueta', label: 'Crédito 2 · Rótulo', tipo: 'texto', opcional: true, hint: 'Sólo con la composición "Escenas". Vacío: no se muestra esta fila.' },
+      { name: 'credito2Valor', label: 'Crédito 2 · Valor', tipo: 'texto', opcional: true, hint: 'Sólo con la composición "Escenas".' },
+      { name: 'pie', label: 'Pie de lámina', tipo: 'texto', opcional: true, hint: 'Sólo con la composición "Láminas". Ej. "Imagen ilustrativa" para marcar una foto generada por IA. Vacío: no se muestra.' },
     ],
   },
 };
@@ -1388,6 +1456,14 @@ const NOSOTROS_ESCENAS: SeccionConfig = {
 // `puenteTarjetas = seccion === 'presentaciones'`) — sólo la agrupación visual de `tipo:'tarjeta'`,
 // SIN `opcional` (no hay botón "Quitar": las tres cifras no son tarjetas que se agregan/retiran, sus
 // CAMPOS ya son opcionales uno por uno, § arriba). `eyebrow` queda en su propio bloque `seccion`.
+// «etiqueta» (§ CHAMISAS-NOSOTROS-ALBUM-1): el trato Chamisas — ficha de origen como etiqueta de
+// bolsa (retícula de dos columnas, borde punteado, sello de estampilla). NO lee las tres cifras —lee
+// `tiendaCreditos.items` igual que «tinta» (§ NosotrosFichaEtiqueta.tsx)—, así que los tres bloques de
+// cifra se etiquetan `composiciones: ['tinta']` y ganan un bloque propio para `sello`.
+const LABEL_COMPOSICION_NOSOTROS_FICHA: Record<string, string> = { tinta: 'Cifras', etiqueta: 'Etiqueta de bolsa' };
+const OPCIONES_COMPOSICION_NOSOTROS_FICHA: ComposicionOpcion[] = REGISTRY.nosotrosFicha.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_FICHA[v] ?? v, zonas: [], // § el comentario de OPCIONES_COMPOSICION_NOSOTROS_ESCENAS
+}));
 const NOSOTROS_FICHA: SeccionConfig = {
   seccion: 'nosotrosFicha',
   pagina: 'nosotros',
@@ -1397,29 +1473,40 @@ const NOSOTROS_FICHA: SeccionConfig = {
   // CONTENIDO de las filas, no el interruptor de "Créditos: ficha de origen": apagar esa sección en
   // /tienda no apaga ésta si las filas siguen completas.
   notaVisibilidad: 'Con menos de 3 filas completas en "Créditos: ficha de origen" (página Tienda), esta sección no se muestra aunque el interruptor de abajo esté encendido. Mira el CONTENIDO de esas filas, no su propio interruptor: apagarlas allá no apaga ésta si las filas siguen completas.',
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_FICHA,
   imagenes: [],
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'Ej. "La finca en cifras". Vacío: no se muestra.' },
-    { name: 'cifra1Numero', label: 'Cifra 1 · Número', opcional: true, hint: 'Ej. "1.600". Vacío: no se muestra esta cifra.' },
-    { name: 'cifra1Rotulo', label: 'Cifra 1 · Rótulo', opcional: true, hint: 'Ej. "msnm".' },
-    { name: 'cifra2Numero', label: 'Cifra 2 · Número', opcional: true, hint: 'Vacío: no se muestra esta cifra.' },
-    { name: 'cifra2Rotulo', label: 'Cifra 2 · Rótulo', opcional: true, hint: 'Ej. "hectáreas".' },
-    { name: 'cifra3Numero', label: 'Cifra 3 · Número', opcional: true, hint: 'Vacío: no se muestra esta cifra.' },
-    { name: 'cifra3Rotulo', label: 'Cifra 3 · Rótulo', opcional: true, hint: 'Ej. "años".' },
+    { name: 'cifra1Numero', label: 'Cifra 1 · Número', opcional: true, composiciones: ['tinta'], hint: 'Sólo con la composición "Cifras". Ej. "1.600". Vacío: no se muestra esta cifra.' },
+    { name: 'cifra1Rotulo', label: 'Cifra 1 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "msnm".' },
+    { name: 'cifra2Numero', label: 'Cifra 2 · Número', opcional: true, composiciones: ['tinta'], hint: 'Vacío: no se muestra esta cifra.' },
+    { name: 'cifra2Rotulo', label: 'Cifra 2 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "hectáreas".' },
+    { name: 'cifra3Numero', label: 'Cifra 3 · Número', opcional: true, composiciones: ['tinta'], hint: 'Vacío: no se muestra esta cifra.' },
+    { name: 'cifra3Rotulo', label: 'Cifra 3 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "años".' },
+    { name: 'sello', label: 'Texto del sello', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. el nombre de la finca, como estampilla. Vacío: sin sello.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow'] },
-    { tipo: 'tarjeta', slot: 1, titulo: 'Cifra 1', campos: ['cifra1Numero', 'cifra1Rotulo'] },
-    { tipo: 'tarjeta', slot: 2, titulo: 'Cifra 2', campos: ['cifra2Numero', 'cifra2Rotulo'] },
-    { tipo: 'tarjeta', slot: 3, titulo: 'Cifra 3', campos: ['cifra3Numero', 'cifra3Rotulo'] },
+    { tipo: 'tarjeta', slot: 1, titulo: 'Cifra 1', campos: ['cifra1Numero', 'cifra1Rotulo'], composiciones: ['tinta'] },
+    { tipo: 'tarjeta', slot: 2, titulo: 'Cifra 2', campos: ['cifra2Numero', 'cifra2Rotulo'], composiciones: ['tinta'] },
+    { tipo: 'tarjeta', slot: 3, titulo: 'Cifra 3', campos: ['cifra3Numero', 'cifra3Rotulo'], composiciones: ['tinta'] },
+    { tipo: 'seccion', campos: ['sello'], composiciones: ['etiqueta'] },
   ],
 };
 
 // EL INTERLUDIO propio de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, ver el docstring de
 // `NosotrosInterludioContent` en site-content-defaults.ts). `ocultable: true`, nace ENCENDIDO —
 // el gate real es tener FOTO (el componente lo comprueba, § NosotrosInterludio.tsx), mismo
-// criterio que `TIENDA_INTERLUDIO`/`SUSCRIPCION_INTERLUDIO`. SIN `composiciones`: a diferencia de
-// /tienda, acá sólo existe la pieza `InterludioPlano`, así que no hay nada que elegir.
+// criterio que `TIENDA_INTERLUDIO`/`SUSCRIPCION_INTERLUDIO`.
+//
+// «stickers» (§ CHAMISAS-NOSOTROS-ALBUM-1): el trato Chamisas — la franja de tejido a sangre con los
+// cafés del catálogo como stickers (§ NosotrosInterludioStickers.tsx). CERO campos nuevos: `imagen`
+// se reusa como la franja de tejido (el hint lo dice); `pie` queda sólo bajo «plano» — los stickers
+// son dato VIVO del catálogo, no texto editable.
+const LABEL_COMPOSICION_NOSOTROS_INTERLUDIO: Record<string, string> = { plano: 'Plano', stickers: 'Stickers' };
+const OPCIONES_COMPOSICION_NOSOTROS_INTERLUDIO: ComposicionOpcion[] = REGISTRY.nosotrosInterludio.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_NOSOTROS_INTERLUDIO[v] ?? v, zonas: [], // § el comentario de OPCIONES_COMPOSICION_NOSOTROS_ESCENAS
+}));
 const NOSOTROS_INTERLUDIO: SeccionConfig = {
   seccion: 'nosotrosInterludio',
   pagina: 'nosotros',
@@ -1427,16 +1514,23 @@ const NOSOTROS_INTERLUDIO: SeccionConfig = {
   ocultable: true,
   notaVisibilidad: 'Sin foto, esta sección no se muestra aunque el interruptor esté encendido.',
   seMuestraSiCampo: 'imagen',
+  composiciones: OPCIONES_COMPOSICION_NOSOTROS_INTERLUDIO,
+  // SIN `hint` acá (`CampoImagen` no lo admite, § TIENDA_INTERLUDIO arriba): con la composición
+  // "Stickers", esta misma imagen es la franja de tejido a sangre — queda dicho en el docstring de
+  // cabecera, no en el panel.
   imagenes: [{ name: 'imagen', label: 'Foto', opcional: true }],
   campos: [
-    { name: 'pie', label: 'Pie de foto', opcional: true, hint: 'Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 1.600 msnm". Vacío: no se muestra.' },
+    { name: 'pie', label: 'Pie de foto', opcional: true, composiciones: ['plano'], hint: 'Sólo con la composición "Plano". Texto corto en mayúscula, p. ej. "San Adolfo, Huila · 1.600 msnm". Vacío: no se muestra.' },
   ],
 };
 
 // LA COMPOSICIÓN DEL CIERRE de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1): «Línea» (la
 // canónica, renombrada) sigue sus zonas de siempre; «Frase y botón» reusa `titulo` COMO LA FRASE —
 // sin campos propios— mismo patrón que `LABEL_COMPOSICION_TIENDA_CIERRE`/`ZONAS_TIENDA_CIERRE_*`.
-const LABEL_COMPOSICION_NOSOTROS_CIERRE: Record<string, string> = { linea: 'Imagen de fondo', fraseYBoton: 'Frase y botón' };
+// «costura» (§ CHAMISAS-NOSOTROS-ALBUM-1): la pieza compartida `CierreCostura` — reusa `titulo`/
+// `ctaLabel`/`ctaDestino` como «fraseYBoton», más `franjaTejido` y el enlace secundario (MISMO patrón
+// que `ZONAS_SUSCRIPCION_CIERRE_COSTURA`/`ZONAS_TIENDA_CIERRE_COSTURA`).
+const LABEL_COMPOSICION_NOSOTROS_CIERRE: Record<string, string> = { linea: 'Imagen de fondo', fraseYBoton: 'Frase y botón', costura: 'Costura' };
 const ZONAS_NOSOTROS_CIERRE_LINEA: ZonaComposicion[] = [
   { campos: ['titulo'], label: 'Titular' },
   { campos: ['parrafo'], label: 'Párrafo' },
@@ -1446,9 +1540,14 @@ const ZONAS_NOSOTROS_CIERRE_LINEA: ZonaComposicion[] = [
 const ZONAS_NOSOTROS_CIERRE_FRASEYBOTON: ZonaComposicion[] = [
   { campos: ['titulo', 'ctaLabel', 'ctaDestino'], label: 'Frase y botón' },
 ];
+const ZONAS_NOSOTROS_CIERRE_COSTURA: ZonaComposicion[] = [
+  { campos: ['titulo', 'ctaLabel', 'ctaDestino'], label: 'Frase y botón' },
+  { campos: ['ctaSecundarioLabel', 'ctaSecundarioDestino'], label: 'Enlace secundario' },
+  { campos: ['franjaTejido'], label: 'Franja de tejido' },
+];
 const OPCIONES_COMPOSICION_NOSOTROS_CIERRE: ComposicionOpcion[] = REGISTRY.nosotrosCierre.variantes!.claves.map((v) => ({
   value: v, label: LABEL_COMPOSICION_NOSOTROS_CIERRE[v] ?? v,
-  zonas: v === 'fraseYBoton' ? ZONAS_NOSOTROS_CIERRE_FRASEYBOTON : ZONAS_NOSOTROS_CIERRE_LINEA,
+  zonas: v === 'fraseYBoton' ? ZONAS_NOSOTROS_CIERRE_FRASEYBOTON : v === 'costura' ? ZONAS_NOSOTROS_CIERRE_COSTURA : ZONAS_NOSOTROS_CIERRE_LINEA,
 }));
 
 // EL CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1): la banda final, antes del pie — titular +
@@ -1469,14 +1568,22 @@ const NOSOTROS_CIERRE: SeccionConfig = {
   seMuestraSiCampo: 'titulo',
   composiciones: OPCIONES_COMPOSICION_NOSOTROS_CIERRE,
   // § EDITOR-COMPOSICION-CAMPOS-1 (N-CIE2) — medido en `NosotrosCierre.tsx`: `parrafo` e
-  // `imagenFondo` sólo se dibujan bajo «Imagen de fondo» (clave 'linea'); «Frase y botón» reusa
-  // `titulo`/`ctaLabel`/`ctaDestino` tal cual, sin leer ninguno de los dos.
-  imagenes: [{ name: 'imagenFondo', label: 'Imagen de fondo (opcional)', composiciones: ['linea'] }],
+  // `imagenFondo` sólo se dibujan bajo «Imagen de fondo» (clave 'linea'); «Frase y botón»/«Costura»
+  // reusan `titulo`/`ctaLabel`/`ctaDestino` tal cual, sin leer ninguno de los dos. `franjaTejido`
+  // (§ CHAMISAS-NOSOTROS-ALBUM-1) sólo tiene efecto bajo «Costura».
+  imagenes: [
+    { name: 'imagenFondo', label: 'Imagen de fondo (opcional)', composiciones: ['linea'] },
+    { name: 'franjaTejido', label: 'Franja de tejido (sólo "Costura")', opcional: true, composiciones: ['costura'] },
+  ],
   campos: [
-    { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra. Con la composición "Frase y botón", es la frase del cierre.' },
+    { name: 'titulo',     label: 'Titular',         opcional: true, hint: 'Vacío: esta banda NO se muestra. Con "Frase y botón"/"Costura", es la frase del cierre.' },
     { name: 'parrafo',    label: 'Párrafo',         opcional: true, textarea: true, composiciones: ['linea'], hint: 'Sólo con la composición "Imagen de fondo". Vacío: no se muestra.' },
     { name: 'ctaLabel',   label: 'Botón',           opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
     { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
+    // EL ENLACE SECUNDARIO (§ CHAMISAS-NOSOTROS-ALBUM-1, "Recibirlo cada mes" en la maqueta) — SÓLO
+    // bajo «Costura»: mismo patrón que `subscriptionCTA.ctaSecundarioLabel`/`.ctaSecundarioDestino`.
+    { name: 'ctaSecundarioLabel',   label: 'Enlace secundario',           opcional: true, composiciones: ['costura'], hint: 'Sólo con la composición "Costura". Vacío: no se muestra ningún enlace secundario.' },
+    { name: 'ctaSecundarioDestino', label: 'Enlace secundario · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, composiciones: ['costura'], hint: 'A dónde lleva el enlace secundario. Sin destino, no se muestra aunque tenga texto.' },
   ],
 };
 
