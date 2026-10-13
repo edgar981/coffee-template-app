@@ -64455,3 +64455,236 @@ canónicas) el storefront queda PÍXEL-IDÉNTICO (ver el gate). Sin cambio de sc
 solo píxel nuevo para Nayoli (las seis cifras idénticas al piso heredado desde
 `COMPRA-LINEAS-ONIX-CHAMISAS-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-13 — El tema de Onix/Las Chamisas se mide por EJECUCIÓN, no a mano, y el cajón/lámina cierran contra la maqueta (`COMPRA-LINEAS-FIDELIDAD-2`)
+
+**Alcance:** cerrar lo que el orquestador midió tras `COMPRA-LINEAS-FIDELIDAD-1`: los pares de esa
+slice comparaban contra OTRA tienda — la base efímera corría Playfair/Inter (fábrica, `fuentePar:
+null`) y para Las Chamisas un acento aproximado (`#2A2522`, igual a la tinta) en vez de los reales
+(`prensa`/Roboto Serif-Figtree y `#B8461A`). Este slice (a) construye un mecanismo de verificación
+nuevo que mide el tema REAL por ejecución en vez de copiarlo a mano de la maqueta, (b) lo usa para
+re-sembrar el camino interactivo (`sembrarCompra`), (c) cierra las diferencias de tratamiento que
+el tema correcto dejó ver (cuatro en el cajón, cuatro en la «Lámina»).
+
+### 1 · `medirTemaReal` — el tema de un muestrario YA DESPLEGADO, por EJECUCIÓN
+
+`scripts/capturar-compra.ts` exporta `medirTemaReal(url)`: un `fetch()` liso (sin Playwright — el
+storefront es `force-dynamic` e inyecta `cssPaleta`/`cssFuentes`/`cssFormas` como `<style>` LITERAL
+en el HTML servido, así que el HTML crudo ya trae el mismo valor final que
+`getComputedStyle(document.documentElement)` leería en un navegador; medido antes de escribir esto
+contra `cafe-onix.vercel.app` con un `fetch` plano, idéntico al de un browser) que lee los TRES
+bloques `:root{...}` separados (paleta · fuente · forma — `<style>` independientes, no uno solo; el
+hallazgo de esta slice es que una medición anterior sólo leía el primero) y los concatena. De ahí
+deriva:
+
+- `fondo`/`tinta`/`acento`: los hex directos.
+- `fuentePar`: busca en `PARES_FUENTES` (`lib/config/fuentes.ts`) el par cuyo `titulo`/`cuerpo`
+  coincide EXACTO con `--sf-fuente-titulo`/`--sf-fuente-cuerpo` medidos — lanza si no hay match (el
+  set es CERRADO; un tema real fuera de él sería un defecto del catálogo, no algo que absorber en
+  silencio). `null` para 'editorial' (la clave NUNCA se guarda, § fuentes.ts).
+- `forma`: busca en `FORMAS` (`lib/config/formas.ts`) la entrada cuyo `radius3xl` coincide con
+  `--radius-3xl` medido. `null` para 'suave'.
+- `googleFontsHref`: el `<link rel="stylesheet" href="fonts.googleapis.com/...">` del HTML.
+
+Medido fresco en esta corrida, las DOS tiendas:
+
+| | fondo | tinta | acento | fuentePar | forma |
+| --- | --- | --- | --- | --- | --- |
+| Onix | `#fdfbf7` | `#102407` | `#a70004` | `prensa` | `recta` |
+| Las Chamisas | `#FAF4EB` | `#2A2522` | `#B8461A` | `prensa` | `recta` |
+
+Café Onix coincidía por hex en `fondo`/`tinta`/`acento` con lo que `COMPRA-LINEAS-FIDELIDAD-1` ya
+tenía hardcodeado (la paleta de la maqueta resultó correcta para Onix, por casualidad) — lo que
+faltaba ahí era `fuentePar`/`forma` (`null`/`null`, fábrica, en vez de `prensa`/`recta`). Las
+Chamisas divergía en LAS TRES cosas: acento (`#2A2522` vs. el real `#B8461A`) y `fuentePar`/`forma`
+igual que Onix.
+
+`sembrarCompra` (`scripts/capturar-seccion.ts`) se reescribió para llamar a `medirTemaReal` en vez
+de usar una tabla `PALETA` hardcodeada con `fuentePar`/`forma` fijos en `null` — el mismo
+mecanismo que `sembrarCasillas`/`sembrarAlbumNosotros` ya usaban, pero medido en el momento en vez
+de copiado una vez a mano: si el tema real de producción deriva, la próxima corrida de este arnés
+lo refleja sola, sin que alguien tenga que volver a medir.
+
+### 2 · Dos mecanismos de captura, por tipo de pieza
+
+El camino de compra tiene piezas PURAS (`CajonPanel`, `EstadoPedido`, `SeguimientoTimeline` —
+reciben todo por prop, sin `useCartStore`/sesión/pedido real) y piezas INTERACTIVAS (los dos pasos
+del checkout — formulario, selector de método, términos). El spec pedía "una página estática que
+carga el CSS compilado de la app (`next build`) y las variables del tema… tomadas de su demo
+desplegado" — eso se construyó LITERAL para las piezas puras; para las interactivas, que no se
+pueden montar sin estado real, se reusó el camino existente (`npm run capturar:seccion --
+--sembrar-compra …`), ahora sembrado con el MISMO tema medido. Las dos rutas comparten la fuente
+del tema (`medirTemaReal`), así que no pueden divergir sobre qué es "el tema correcto".
+
+**La pieza estática** (`capturar-compra.ts`, invocada DIRECTO — `node --import tsx
+scripts/capturar-compra.ts`, SIN Postgres: no toca ninguna base): monta cada pieza con
+`renderToStaticMarkup` dentro de un documento HTML standalone que carga (a) el CSS compilado del
+storefront — `.next/static/chunks/*.css`, detectado por CONTENIDO (`sf-divisor-b`, una clase que
+sólo el storefront declara — Turbopack hashea los nombres de archivo, así que no hay uno fijo que
+leer) de un `next build` YA CORRIDO (lo deja cualquier corrida de `--sembrar-compra`, que este
+script reusa — no dispara su propio build); (b) el `:root{...}` MEDIDO por `medirTemaReal`,
+inyectado VERBATIM después del CSS compilado (misma especificidad, gana por orden de fuente); (c)
+el `<link>` de Google Fonts real. La página se sirve por un servidor HTTP chico propio (traduce
+`/_next/image?url=...` al archivo crudo de `public/`, medido antes de escribir esto:
+`renderToStaticMarkup` de `CajonPanel` con `imagen:''` produce un `<img src="/_next/image?url=…">`
+que 404earía sin esto) y se captura con Chromium (instalación aislada, duplicada de
+`cargarPlaywright` en `capturar-seccion.ts` — NO importada, para no crear un ciclo de imports entre
+los dos scripts: `capturar-seccion.ts` SÍ importa `medirTemaReal` de `capturar-compra.ts`, una
+dependencia dirigida).
+
+Cubre: el **cajón** (con un departamento ya elegido — § abajo, por qué), los **cinco estados** de
+la página de estado (aprobado/pendiente/rechazado/manual/sin_referencia — un pedido real sólo
+llega a UNO; los otros cuatro los exige el spec "con datos de muestra", el mismo criterio que ya
+usa `PreviewCompra` del editor admin), y el **seguimiento** (`currentStep=2`, para que
+CUMPLIDO/ACTIVO/PENDIENTE —"los tres estados" del spec— se vean a la vez).
+
+**El departamento ya elegido en el cajón ES UNA DECISIÓN, no un descuido:** la captura interactiva
+(`abrir-carrito`) arranca SIN departamento a propósito (es el estado real tras un primer click), y
+ESO ya estaba capturado por `COMPRA-LINEAS-FIDELIDAD-1`. La maqueta, en cambio, captura el cajón
+con el bloque "Envío a" YA resuelto — así que esta pieza pasa `departamento: "Bogotá D.C."` para
+poder comparar esa parte del tratamiento, que de otro modo nunca se vería en una captura.
+
+### 3 · Las cuatro diferencias del CAJÓN, cerradas (`components/storefront/CartDrawer.tsx`)
+
+Las cuatro que el orquestador midió contra `onix-cajon-m-app.png` (`pares-compra/`,
+`COMPRA-LINEAS-FIDELIDAD-1`):
+
+1. **"EN GRANO · 250 G"** — `CajonPanelItem` ganó `peso_gramos?: number` (declarado, no agregado:
+   `CartItem extends Product`, § `lib/cartStore.tsx`, fuera de `touches:`, así que el dato YA
+   viajaba en cada ítem real del carrito; sólo faltaba poder leerlo). La fila de molienda de
+   «Créditos»/«Álbum» le suma ` · N g` cuando está presente — ausente, se omite, byte-idéntico a
+   antes.
+2. **El filete fino, no la barra gruesa** — medido contra `.free .rule{height:2px;background:var(
+   --line)} .rule i{background:var(--ink)}` de la maqueta (exclusivo de Onix — Las Chamisas sigue
+   con `.wbar`, el tejido de rayas, ya construido). `BarraEnvioGratis` ganó `fino?: boolean`
+   (mutuamente excluyente con `tejido`, por construcción del llamador — `CajonPanel` pasa
+   `tejido={esAlbum}`/`fino={esCreditos}`): 2px, relleno `--sf-tinta`, sin redondeo.
+3. **El bloque "Envío a"** (etiqueta + `<select>` a TODO el ancho + línea de costo/método debajo, en
+   vez de un select chico a la derecha de "Envío") — medido contra `.shipsel`/`.fld` de la maqueta:
+   `<label>Envío a</label>` sobre un select full-width, y bajo eso "🚚 {costo} · {método}" o, sin
+   departamento, "Elige tu departamento para ver el envío exacto." Gateado a `esCreditos ||
+   esAlbum`, que REEMPLAZA (no suma) al selector genérico de siempre — `comun`/`flotante` quedan
+   byte-idénticos. La maqueta pide además "N días hábiles" y "tarifa de ejemplo" por departamento —
+   NO replicado: el modelo real de envío (`packages/core/src/shipping-config.ts`, fuera de
+   `touches:`) no tiene un campo de plazo, y una tarifa real no es un ejemplo que anotar.
+4. **La fila ENVÍO, siempre presente** — medido contra `shipTxt = t => t.ship == null ? 'según
+   departamento' : …` de la maqueta: antes la fila se omitía sin departamento elegido
+   (`shippingMethodCajon &&`); ahora SIEMPRE está, con "según departamento" de placeholder cuando
+   no hay costo resuelto. Mismo fix en «Créditos» y en «Álbum» (dos copias del trío de filas, cada
+   una con su propio guard).
+
+### 4 · Las cuatro diferencias de la «Lámina», cerradas (`.../checkout/EstadoPedido.tsx`)
+
+Medidas contra `.lam`/`.lam-in`/`.lam .rows` de la maqueta:
+
+1. **Fondo**: `--sf-tarjeta` (blanco) → `--sf-superficie` — EXACTO contra `.lam{background:
+   #F3E6D5}` (el `--sf-superficie` medido de Las Chamisas es `#f3e6d5`, byte a byte).
+2. **El tejido deja de ser una raya**: `h-2` (8px) → `h-11` (44px) — medido contra `.lam
+   .tejido{height:44px}`.
+3. **Sello + número en serif**: un círculo de `--sf-tinta` con `LogoMark` (`components/storefront/
+   Logo.tsx`, el mark del storefront — el punto de swap por-despliegue de la marca, NO un asset
+   nuevo fabricado para esta captura) junto al número, que pasa de `text-2xl font-bold` a
+   `font-playfair text-[1.9rem]` (serif) — medido contra `.lam .num{font-family:var(--serif);
+   font-size:34px}`.
+4. **Las filas Fecha/Método/Envío a/Total**: la MISMA grilla 2×2 que «Boleto» ya tenía (reusa
+   `resumen`/`etiquetaMetodoPedido`/`formatFecha` — una sola fuente de esas cuatro etiquetas para
+   las dos composiciones, no una copia que pueda divergir).
+
+**Efecto lateral medido, no buscado: cierra `COMPRA-LAMINA-STICKER-RECORTADO-1`** (open follow-up de
+`COMPRA-LINEAS-FIDELIDAD-1`). El sticker vivía en `-top-2 -right-2` (offset NEGATIVO, fuera de la
+caja del card con `overflow-hidden`) y se recortaba contra el borde a 390px. Reposicionarlo a
+`top-2 right-4` (dentro de la caja, como parte del rediseño del punto 1-2) lo saca del borde —
+verificado en `chamisas-estado-aprobado-m-app.png`: el sticker "¡Pagado!" queda intacto. No era el
+objetivo del cambio; se documenta para no reabrir ese follow-up.
+
+### 5 · Verificado — las dos rutas, 36 capturas
+
+- **La pieza estática**: 28 capturas (2 tiendas × [1 cajón + 5 estados + 1 seguimiento] × 2 anchos),
+  cada una emparejada contra su `v-*` de `.scratch/lanzamiento/maqueta-compra/capturas/` (ya
+  existían, no se generaron nuevas). `.scratch/revision-owner/pares-compra-2/`, con su `LEEME.md`.
+- **La pieza interactiva**: 4 corridas (Onix/Las Chamisas × 390/1440) del camino completo (cajón →
+  checkout paso 1/2 → confirmación REAL vía `completar-pedido` → seguimiento), re-sembradas con el
+  tema medido. Las capturas de checkout se copiaron a `pares-compra-2/` junto con el resto, con los
+  `v-*-entrega-lleno`/`v-*-pago-wompi` de la maqueta como referencia (el checkout no tiene
+  composición propia — verifica que el tema se aplica, no un tratamiento nuevo).
+- **No se hizo ningún pago ni pedido real** más allá de las órdenes de prueba contra la base
+  EFÍMERA de este arnés (nunca `development`/`production`) — instrucción explícita del dispatch.
+
+### Desviaciones medidas
+
+- **La medición del tema usa `fetch()`, no `getComputedStyle(document.documentElement)` vía
+  Playwright** (el spec lo nombra así explícito). Medido ANTES de escribir el mecanismo: el
+  storefront es `force-dynamic` e inyecta los `:root{...}` como `<style>` LITERAL en el HTML
+  servido —no hay cascada adicional que un navegador real pudiera cambiar—, así que el HTML crudo
+  ya trae el mismo valor final que `getComputedStyle` leería. `fetch` es equivalente y evita pagar
+  el costo de un browser sólo para esta medición (que además se corre dos veces por invocación de
+  `sembrarCompra`/`capturar-compra.ts`). Playwright se sigue usando para lo que SÍ necesita un
+  navegador real: las capturas en sí.
+- **El bloque "Envío a" no replica "N días hábiles"/"tarifa de ejemplo" por departamento** — § el
+  punto 3 arriba: son datos de EJEMPLO del prototipo (`compra.html:535`), y nuestro modelo real no
+  tiene un campo de plazo por departamento sin tocar `packages/core/` (fuera de `touches:`).
+
+### Open follow-ups
+
+- **`COMPRA-ENVIO-CAJA-PUNTEADA-1`** — el bloque "Envío a" de la maqueta vive en su PROPIA caja con
+  borde punteado (`.shipsel`); acá es un bloque inline sin ese contorno. Ajuste de superficie, no
+  de información. *Por qué no ahora:* fuera del presupuesto medido de este slice (el spec pedía
+  cerrar las diferencias YA MEDIDAS + las que la verificación nueva mostrara; ésta se encontró
+  pero su costo —un contorno más— no se evaluó con el mismo detalle que las cuatro del cajón).
+- **`COMPRA-LAMINA-SELLO-MARK-GATE-1`** — el sello de la «Lámina» usa `<LogoMark>` DIRECTO (no
+  `<Logo conMark=…>`), así que se muestra SIEMPRE que `compra.confirmacion==='lamina'`, sin pasar
+  por el gate `STOREFRONT_TIENE_MARK`/`conMark` que el resto del storefront usa para decidir si un
+  despliegue nuevo muestra la flor de Nayoli (§ CLAUDE.md, "El WORDMARK carga la identidad — el
+  MARK… es OPT-IN… su DEFAULT es FALSE"). Medido, no asumido: un tenant nuevo que active «Lámina»
+  sin configurar `NEXT_PUBLIC_STOREFRONT_MARK=1` vería la flor de Nayoli como su "sello". *Por qué
+  no se decidió acá:* es una pregunta de PRODUCTO (¿el sello de una composición opt-in es un caso
+  distinto del lockup de nav/footer, o debe respetar el mismo flag?), no algo que este slice de
+  fidelidad visual deba resolver solo.
+- **`COMPRA-BOLETO-FECHA-REAL-1`** sigue abierto, sin cambios — mismo motivo que
+  `COMPRA-LINEAS-FIDELIDAD-1` ya documentó: `CheckoutResult` no expone `createdAt` sin tocar
+  `app/api/checkout/route.ts`, fuera de `touches:` y vetado por la frontera con Carlos.
+- **El patrón de tejido es CSS (rayas diagonales), no la ilustración "llave griega" de la
+  maqueta** — sigue sin corregirse, mismo motivo que `COMPRA-LINEAS-FIDELIDAD-1` ya documentó:
+  exigiría un asset de arte nuevo, fuera de alcance de un slice de código.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `CartDrawer.tsx` (`CajonPanelItem.peso_gramos`, `BarraEnvioGratis`
+`fino`, el bloque "Envío a"), `EstadoPedido.tsx` (la rama `esLamina`), `capturar-seccion.ts`
+(`sembrarCompra`), `capturar-compra.ts` (nuevo).
+
+`grep -n "CartDrawer\|CajonPanel\|BarraEnvioGratis\|EstadoPedido\|capturar-seccion\|capturar-compra\|
+sembrarCompra" CLAUDE.md`: **CERO coincidencias** — ninguno de estos símbolos vive en CLAUDE.md; la
+doctrina del camino de compra vive en este archivo (`CHECKOUT-LISTO-PARA-VENDER-1`,
+`COMPRA-LINEAS-ONIX-CHAMISAS-1`, `COMPRA-LINEAS-FIDELIDAD-1`), nunca promovida a CLAUDE.md.
+
+`grep -n "carrito\|cajón\|cajon\b" CLAUDE.md`: 4 coincidencias, las cuatro de OTRAS superficies
+(una opción write-only de suscripción, el eje de variantes/talla, el placeholder de imagen de
+producto, el idiom "cajón-de-sastre" sobre `serie-5`) — ninguna sobre `CartDrawer.tsx` ni afectada
+por este diff. Ninguna sentencia se vuelve falsa.
+
+`grep -n "LogoMark\|conMark\|STOREFRONT_TIENE_MARK" CLAUDE.md`: 3 coincidencias (§ Identidad, "El
+WORDMARK carga la identidad"), las tres describiendo el lockup de `<Logo>` en nav/footer — ninguna
+sentencia ahí se vuelve LITERALMENTE falsa por este diff (siguen siendo ciertas para `<Logo>`), pero
+el nuevo consumidor directo de `<LogoMark>` en la «Lámina» abre una EXCEPCIÓN no declarada a su
+espíritu — § `COMPRA-LAMINA-SELLO-MARK-GATE-1`, arriba, en vez de corregirla acá (sería decidir un
+punto de producto por mi cuenta).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner aprobó la maqueta el 2026-10-12 y
+el orquestador midió, el mismo día, que `COMPRA-LINEAS-FIDELIDAD-1` seguía lejos de ella). Entra
+por `components/storefront/` (bytes del visitante — `CartDrawer.tsx`/`EstadoPedido.tsx`, las dos
+composiciones opt-in «Créditos»/«Álbum»/«Lámina», NUNCA `comun`/`boleto`/`flotante`, verificados
+byte-idénticos por `npm run verificar:nayoli:visual`). Sin cambio de schema/migración, sin contrato
+cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` **4793/4793**, `npm run test:integracion` **409/409**, `npm run verificar:nayoli:visual`
+**sin un solo píxel nuevo para Nayoli** (las seis cifras — home 165052/4608000·174711 crudo,
+`/tienda` 209/2433280·407, `/producto` 1280×1981 vs 1280×1917, `/checkout` 163/1152000·361,
+`/nosotros` 224/1152000·422, `/suscripciones` 258/2144000·456 — IDÉNTICAS, byte a byte, al piso que
+`COMPRA-LINEAS-FIDELIDAD-1` ya midió y documentó como heredado). No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1`, sin mergear.
