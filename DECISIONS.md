@@ -64171,3 +64171,287 @@ documentada por `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` — cero píxeles nuevos par
 además en navegador real (`next build`+`next start`, Postgres efímero) a 1440px y 390px con el arnés
 `--sembrar-album-nosotros`, comparado a mano contra las capturas de la maqueta aprobada. No es
 `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-13 — EDITOR-ORDEN-Y-LIENZO-2: cierra los cinco pendientes de LIENZO-1, y uno (el 7°) ya
+estaba cerrado por un slice anterior
+
+Spec validado CLEAR, continúa `slice/editor-secciones-1` tras `CHAMISAS-NOSOTROS-ALBUM-1`.
+`observed-report: EDITOR-ORDEN-Y-LIENZO-1`. Cierra los cinco `open_followups` que esa tanda dejó —
+`EDITOR-BS1-CTA-FUERA-DE-ORDEN-COLUMNAS-1`, `EDITOR-TIENDA-SIN-MARCADOR-SECCION-1`,
+`EDITOR-CREDITOSFILAS-INDICE-ORIGINAL-1`, `EDITOR-CAMPOBOOLEANO-COMPOSICIONES-1`,
+`EDITOR-TARJETA-GENERICA-QUITAR-SIN-TEST-1` — y mide (ítem 7 del dispatch, "de la lista a la vista
+previa") que esa capacidad YA EXISTÍA, construida por slices anteriores de esta misma rama
+(`EDITOR-TIENDA-SHELL-1`, `EDITOR-TIENDA-SELECCION-1`) sin que `EDITOR-ORDEN-Y-LIENZO-1` lo hubiera
+medido contra el código.
+
+### Item 1 — el orden en TODAS las secciones con composiciones
+
+**BRAND_STORY, el hallazgo nombrado por LIENZO-1, cerrado en las dos mitades:**
+
+- `ctaLabel`/`ctaDestino` ganan `composiciones: ['centrada', 'fichaDeFinca']` (antes sin tag,
+  universal) — `BrandStoryColumnas.tsx` nunca los lee (grep: cero apariciones), así que bajo
+  "Columnas" ahora se PLIEGAN, en vez de prometer un botón que la tienda no dibuja.
+- El bloque del botón se MOVIÓ al final de `BRAND_STORY.bloques` (antes 2°, tras el titular).
+  **Reordenar `bloques` es cero riesgo de storefront** — `bloquesResueltos`/`particionarBloques`
+  sólo deciden qué campos muestra el ADMIN y en qué orden; ningún componente de
+  `components/storefront/home/BrandStory*` lee `tienda-secciones.ts`. El riesgo que
+  `EDITOR-ORDEN-Y-LIENZO-1` midió ("restructurar `BRAND_STORY.bloques` es un cambio mayor... con más
+  riesgo de regresionar") era sobre el PLIEGUE/colapso del panel, no sobre el storefront — medido
+  releyendo el mecanismo antes de tocar, no asumido.
+  - Orden final medido contra `BrandStoryFichaDeFinca.tsx` línea por línea: eyebrow → titulo → medio
+    (el toggle, antes del contenido que gatea) → lugar → altitudMin/Max/Unidad → nombrePunto →
+    subLineaPunto → pieIlustracion → pieMedio (TODO esto dentro del bloque de la ilustración,
+    líneas 82-230 del componente) → entrada (línea 232, fuera de la figura) → fila1..6 (línea 241) →
+    ctaLabel/ctaDestino (línea 273, ÚLTIMO). `brandStory·centrada` y `·columnas` quedan intactas
+    (parrafo1/parrafo2 siguen en el primer bloque; el botón, al moverse al final, resulta ser el
+    ÚNICO bloque visible restante para esas dos composiciones — mismo orden de siempre).
+
+**El hallazgo NUEVO de esta tanda, misma clase, encontrado auditando la pieza compartida
+`Apertura.tsx` (imagen→rótulos→título, orden de JSX fijo para sus tres llamadores):**
+`tiendaEncabezado`, `nosotrosApertura` y `suscripcionApertura` tenían `titulo` PRIMERO en su
+`campos`, cuando bajo "Apertura" la tienda pinta los rótulos ANTES del título. Las tres se
+corrigieron con un REORDEN PURO del array `campos` (sin bloques, sin romper "Actual"/"Carta"/
+"Álbum", verificado campo por campo que las composiciones que SÍ usan `titulo` primero —Actual,
+Carta, Álbum— siguen viéndolo primero porque los campos que lo preceden en Apertura
+—`rotuloIzquierda`/`rotuloDerecha`/`bajada`— están tagueados a esas OTRAS composiciones y se
+filtran solos).
+
+**Auditoría del resto (14 secciones con composiciones, medidas contra sus componentes o contra el
+patrón de pieza compartida ya verificado):** `presentaciones` (mosaico/índice/riel),
+`subscriptionCTA` (bloque/línea), `tiendaInterludio` (retrato/plano — el caso `cita`/`firma`
+universales bajo "Plano" es un TRADEOFF YA DOCUMENTADO en el código, "plegarlos los escondería
+aunque sigan vivos en `ProductoLamina.tsx`" — no se re-litiga), `tiendaCierre`/`nosotrosCierre`/
+`suscripcionCierre` (los tres vía la pieza compartida `CierreFraseYBoton`/`CierreCostura`, orden
+frase→botón→secundario confirmado en el código de la pieza), `nosotrosFicha` (ya ordenado con
+bloques `tarjeta` explícitos por cifra), `nosotrosInterludio`/`suscripcionPasos` (sin el patrón
+título-antes-de-rótulo, de bajo riesgo). **NO auditado a la misma profundidad: HERO** (8 variantes,
+ya recibió tratamiento dedicado en `EDITOR-TIENDA-COMPOSICION-1`/`EDITOR-COMPOSICION-CAMPOS-1`, y
+una auditoría completa de sus 8 ramas excede el alcance razonable de este slice) — queda como
+`EDITOR-HERO-ORDEN-NO-AUDITADO-1` (abajo).
+
+### Item 2 — `/tienda` gana `data-editor-seccion`
+
+`app/(storefront)/tienda/page.tsx` (`"use client"`, a diferencia de `/nosotros`/`/suscripciones`
+que son server components) gana `useModoEditorActivo()` + un helper local `bandaNodo(id,
+enModoEditor, render)` — mismo contrato que el `bandaNodo` de `/nosotros` (envuelve
+incondicionalmente en `<div data-editor-seccion={id}>` sólo en modo editor). Cablea las CINCO
+secciones de `pagina:'tienda'`: `tiendaEncabezado`/`tiendaCatalogo` (en las tres ramas mutuamente
+excluyentes — Legacy/Corte/Apertura) y `tiendaCreditos`/`tiendaInterludio`/`tiendaCierre` (en
+`TiendaAlbumExtra`, montadas siempre después de `ShopInner`). Verificado por EJECUCIÓN
+(`renderToStaticMarkup`, `lib/admin/editor-orden-y-lienzo-2.test.ts`): SIN modo editor, cero
+`data-editor-seccion` en el HTML; CON modo editor, los cinco marcadores aparecen (los tres de cola
+aparecen aunque estén ocultos con los DEFAULTS, como un `<div>` vacío — mismo criterio que
+`/nosotros`).
+
+### Item 3 — las filas de Créditos quedan clicables, con el ÍNDICE ORIGINAL
+
+**El mecanismo** (`camposPorFilaCreditos`, `lib/admin/editor-orden-y-lienzo.ts`): dado el array
+ORIGINAL (sin filtrar) y el array VISIBLE (filtrado por `filasCompletas`), ubica cada fila visible
+en su posición original por **REFERENCIA** (`Array.prototype.indexOf` — válido porque `.filter()`
+nunca clona los elementos) y de ahí deriva el `campo` real con una función que el llamador provee.
+Reusa `filasCompletas`/`creditosVisibles` de `lib/tienda/creditos.ts` (IMPORTADO, no editado — ese
+archivo queda fuera de `touches:`), así que no duplica el predicado "fila completa".
+
+**`CreditosFilas`** (`components/storefront/tienda/TiendaCreditos.tsx`) gana el prop opcional
+`camposPorFila` (alineado 1-a-1 con `filas`, nunca con el array sin filtrar): presente, envuelve
+cada etiqueta/valor en `CampoEditable`; ausente (el default), pinta texto plano — el caso de
+`NosotrosEscenas.tsx`, que NO lo pasa (fuera del alcance nombrado por el dispatch; su comentario se
+corrigió para dejar de decir "mismo criterio que TiendaCreditos/TiendaTaquilla", que se volvió
+falso con este cambio).
+
+**Las CUATRO superficies nombradas por el dispatch + una quinta** quedan instrumentadas:
+`TiendaCreditos.tsx` (standalone), `TiendaTaquilla.tsx`, `NosotrosFicha.tsx`, y
+`SuscripcionTaquilla.tsx` (la Taquilla de suscripción). En `SuscripcionTaquilla.tsx` se retiró el
+uso de `creditosDeTaquilla()` (`lib/storefront/suscripcion-taquilla.ts`, fuera de `touches:`): esa
+función construía y filtraba los 4 slots en un solo paso, sin exponer el array sin filtrar que el
+mapeo por-referencia necesita. Se reemplazó por la construcción local de los 4 slots +
+`filasCompletas` (la MISMA función canónica, no una redundante) — con lo que `creditosDeTaquilla`
+queda SIN llamador en producción (sigue exportada y con su propio test, `lib/storefront/
+suscripcion-taquilla.test.ts`, intacto). **No se borró** — el archivo está fuera de `touches:` — y
+queda nombrado como open follow-up (`EDITOR-CREDITOSDETAQUILLA-SIN-CALLER-1`, abajo): código sin
+callers no se deja ambiguo (§ CLAUDE.md, #68), pero decidir borrar/cablear ese archivo es de otro
+slice.
+
+Verificado por EJECUCIÓN el caso exacto del defecto (`lib/admin/editor-orden-y-lienzo-2.test.ts`):
+4 ítems con el 2° incompleto → la 2ª fila visible ("Pausa") apunta a `items.2`, nunca a `items.1`.
+
+### Item 4 — `CampoBooleano` gana `composiciones`
+
+`CampoBooleano` gana `composiciones?: string[]` (misma semántica que `CampoTexto`/`CampoImagen`:
+ausente = aplica a todas). `TiendaSeccionEditor.tsx` filtra `config.booleanos` por
+`aplicaAComposicion` antes de renderizarlos (fuera del caso especial del hero, que ya tiene su
+propio mecanismo de zonas).
+
+**NO se aplicó retroactivamente a los `booleanos` YA declarados que documentan lo universal a
+propósito** (`mostrarPrecioPor100g`/`barraFijaMovil` de `featured`/`tiendaCatalogo`, `esquineros`
+de `nosotrosEscenas` — cada uno con su comentario "se edita siempre, no sólo cuando aplica", una
+decisión YA TOMADA, distinta del defecto). **El defecto real, medido contra el código del MISMO
+DÍA** (`ONIX-TAQUILLA-SOLO-TABLA-1`): los cinco `BOOLEANOS_SUSCRIPCION_PLANES_TAQUILLA`
+(`taquillaMostrar*`) no tenían `composiciones`, así que aparecían también bajo "Tarjetas"/
+"Casillas" — donde `SuscripcionPlanes.tsx`/`SuscripcionCasillas.tsx` nunca los leen. Se taguearon
+los cinco con `composiciones: ['taquilla']`.
+
+Afirmado en `lib/admin/editor-orden-y-lienzo-2.test.ts`: los cinco aplican bajo "taquilla" y NO
+bajo "tarjetas"/"casillas"; `barraFijaMovil`/`esquineros` siguen SIN `composiciones` (universales,
+sin tocar).
+
+### Item 5 — el aviso «hoy no se ve», extendido
+
+**Re-verificado contra el código actual, los dos deferidos por `EDITOR-ORDEN-Y-LIENZO-1` siguen sin
+caso real que mecanizar:**
+- `taquillaCtaAgotadoLabel` ("texto de agotado") sigue dependiendo de qué producto está
+  SELECCIONADO en la Taquilla — estado de sesión del visitante, no del catálogo como conjunto.
+- "pasos ocultos" (`SUSCRIPCION_PASOS`) — `SuscripcionPasos.tsx` no tiene NINGUNA condición de
+  ocultamiento por paso (grep: cero), confirmando que sigue sin un caso real.
+
+**El hallazgo NUEVO** (mecanizado): `tiendaCreditos` tiene el MISMO piso de 3 filas completas
+(`creditosVisibles`) que gatea su propia visibilidad en la tienda real, pero el mecanismo
+`noSeMuestra`/`avisoNoSeMuestra` del panel (`oculta`/`repeaterVacio`/`campoGateVacio`) NO lo
+cubría: `repeaterVacio` sólo mira `items.length === 0`, así que una lista con 4 ítems y 2
+completos se veía "visible" en el panel aunque `TiendaCreditos.tsx`/`NosotrosFicha.tsx` la
+ocultaran en la tienda. Se agregó `tiendaCreditosPisoIncompleto` (`lib/admin/
+editor-orden-y-lienzo.ts`, extraído para poder testearlo) como CUARTO motivo, específico de esta
+sección (es la ÚNICA con un piso de COMPLETITUD, no sólo de cardinalidad).
+
+**Hallazgo relacionado, NO mecanizado — `nosotrosFicha` depende del MISMO piso, pero de OTRA
+sección** (`tiendaCreditos.items`, cross-sección): su `notaVisibilidad` ya lo dice, pero el
+`TiendaSeccionEditor` de `nosotrosFicha` no tiene acceso al `form` de `tiendaCreditos` (son dos
+instancias separadas) — mecanizarlo exigiría plomería de `seccionCruzada` que no existe para este
+caso. Queda como `EDITOR-NOSOTROSFICHA-PISO-CRUZADO-1` (abajo).
+
+Afirmado en `lib/admin/editor-orden-y-lienzo-2.test.ts`: 4 casos de `tiendaCreditosPisoIncompleto`
+(incompleto, completo, vacío —no se solapa con `repeaterVacio`—, otra sección).
+
+### Item 6 — el test del botón "Quitar" genérico
+
+El parcial que construye el "Quitar" del acordeón genérico (vaciar `bloque.campos`/`.imagen`) se
+extrajo a `vaciosDeBloqueTarjeta` (`lib/admin/editor-orden-y-lienzo.ts`) — `TiendaSeccionEditor.tsx`
+no se puede montar para un test de interacción (el repo no usa React Testing Library). Afirmado
+reproduciendo el bug EXACTO que motivó esta entrada: una tarjeta "Fila 3" de brandStory vacía
+`fila3Rotulo`/`fila3Valor`/`fila3SubLinea`, nunca `label3`/`copy3`/`categoria3`/`imagen3` (los
+nombres de Presentaciones que el primer intento reusaba por error).
+
+### Item 7 — "de la lista a la vista previa": YA ESTABA CONSTRUIDO
+
+**Medido contra el código, no implementado de nuevo.** `VistaTiendaIframe.tsx` (líneas 102-104,
+315-339) ya tiene `irASeccion(seccion)`: hace `scrollIntoView` con `behavior: reduce ? 'auto' :
+'smooth'` —leyendo `matchMedia('(prefers-reduced-motion: reduce)')` DENTRO del propio documento del
+iframe— y pinta un `outline` de 2px ámbar (`COLOR_RESALTE`) durante 1500ms (`DURACION_RESALTE_MS`),
+sin transición CSS (grep en `app/globals.css`: cero reglas `transition` sobre `outline` — el
+resalte es un SET/CLEAR instantáneo de estilo, no una animación que necesite su propio gate de
+movimiento reducido).
+
+**La lista YA dispara este mecanismo**: `TiendaPaginas.tsx:1849` monta cada `TiendaSeccionEditor`
+de la página con `onAbrir={abrirNivelSeccion}`, y `abrirNivelSeccion` (línea 260) llama
+`irASeccion(seccion)` antes de mover el nivel del panel. Esto se construyó en
+`EDITOR-TIENDA-SHELL-1` (commit `729600ec`) y `EDITOR-TIENDA-SELECCION-1` (`8a2114f3`) — AMBOS
+anteriores a `EDITOR-ORDEN-Y-LIENZO-1` en esta misma rama.
+
+**DEVIACIÓN DEL SPEC, medida y declarada**: el dispatch pedía construir esta capacidad; medido
+contra el código, ya existía. No se escribió código nuevo para este ítem — sólo se verificó por
+lectura (`VistaTiendaIframe.tsx`/`TiendaPaginas.tsx` quedan fuera del diff de este slice: ningún
+archivo de ese módulo aparece en `git status`). Ningún test nuevo: el mecanismo vive dentro de un
+componente que manipula el DOM de un `<iframe>` de mismo origen — fuera del alcance de
+`renderToStaticMarkup` (no hay navegador real en este carril) y de RTL (no usado en este repo).
+
+### El gate
+
+- **`npx tsc --noEmit`**: 0 errores, en el árbol final.
+- **`npm test`**: **4793/4793** (antes de este slice, tip de `slice/editor-secciones-1`:
+  **4767/4767**, § `CHAMISAS-NOSOTROS-ALBUM-1`). +26 tests nuevos: 9 de orden (brandStory×3,
+  tiendaEncabezado×3, nosotrosApertura×2, suscripcionApertura×1) + 4 de `vaciosDeBloqueTarjeta` + 3
+  de `camposPorFilaCreditos` + 4 de `tiendaCreditosPisoIncompleto`, los 20 en
+  `lib/admin/editor-orden-y-lienzo.test.ts`; + 6 en el archivo NUEVO `lib/admin/
+  editor-orden-y-lienzo-2.test.ts` (2 de `/tienda` marcadores, 2 de créditos end-to-end, 2 de
+  `CampoBooleano`). 20+6=26, reconciliando exacto contra 4793-4767.
+- **`npm run test:integracion`**: **409/409** — sin cambio (este slice no toca schema ni ninguna
+  cadena del motor).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios), diff contra `main`:
+
+  | ruta | resultado | comparación contra el piso heredado |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo | **IDÉNTICO** |
+  | `/tienda` | 209/2433280 · 407 | **IDÉNTICO** |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px, heredado) | **IDÉNTICO** |
+  | `/checkout` | 163/1152000 · 361 | **IDÉNTICO** |
+  | `/nosotros` | 224/1152000 · 422 | **IDÉNTICO** |
+  | `/suscripciones` | 258/2144000 · 456 | **IDÉNTICO** |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  Las SEIS cifras son idénticas, dígito a dígito, al piso heredado desde `COMPRA-LINEAS-
+  ONIX-CHAMISAS-1` — prueba por EJECUCIÓN de que el reorden de `bloques`/`campos` (puramente
+  admin-side), el nuevo prop opcional `camposPorFila`, el filtro de `config.booleanos` y el cuarto
+  motivo de `noSeMuestra` no mueven un solo píxel del storefront público. `exit 1` esperado — el
+  mismo piso heredado, no un hallazgo nuevo.
+- **`next build` NO se corrió suelto en este árbol** (sin DB configurada en este sandbox, y
+  `npm run build` encadena `db:deploy`, prohibido contra una base no-efímera). El build SÍ corrió,
+  completo, DENTRO de `verificar:nayoli:visual` (worktree + Postgres efímero propio) — la salida
+  de rutas (ƒ/○) de la rama, arriba, confirma que compiló.
+
+### Deviations (fuera de `touches:`, medidas y necesarias)
+
+Ninguna. Los diez archivos tocados/creados están todos dentro de `touches:` (`git status --short`
+verificado: `app/(storefront)/tienda/page.tsx`, `components/admin/TiendaSeccionEditor.tsx`,
+`components/admin/tienda-secciones.ts`, `components/storefront/nosotros/{NosotrosEscenas,
+NosotrosFicha}.tsx`, `components/storefront/suscripciones/SuscripcionTaquilla.tsx`,
+`components/storefront/tienda/{TiendaCreditos,TiendaTaquilla}.tsx`, `lib/admin/
+editor-orden-y-lienzo{,-2}.test.ts`, `lib/admin/editor-orden-y-lienzo.ts`).
+
+**Deviación de MEDICIÓN, no de archivo**: el ítem 7 del dispatch pedía construir "de la lista a la
+vista previa"; medido, ya existía (ver arriba). No se escribió el código que el dispatch describía
+— se verificó y se reportó el drift, en vez de construir una segunda implementación de algo que
+ya funciona.
+
+### Open follow-ups
+
+- **`EDITOR-HERO-ORDEN-NO-AUDITADO-1`** — el orden del editor para las 8 variantes del HERO no se
+  auditó a la misma profundidad que `brandStory`/las piezas "Apertura". *Por qué no ahora:* HERO ya
+  recibió tratamiento dedicado en slices previas (`EDITOR-TIENDA-COMPOSICION-1`/
+  `EDITOR-COMPOSICION-CAMPOS-1`) y una auditoría de sus 8 ramas es, por sí sola, del tamaño de otro
+  slice.
+- **`EDITOR-CREDITOSDETAQUILLA-SIN-CALLER-1`** — `creditosDeTaquilla()` (`lib/storefront/
+  suscripcion-taquilla.ts`) quedó sin llamador en producción tras este slice (sigue exportada, con
+  su propio test). *Por qué no ahora:* el archivo está fuera de `touches:`; decidir borrar/cablear
+  es de otro slice, y dejarlo ambiguo sin nombrarlo sería el defecto que CLAUDE.md #68 ya cerró una
+  vez.
+- **`EDITOR-NOSOTROSFICHA-PISO-CRUZADO-1`** — `nosotrosFicha` se oculta en la tienda real si
+  `tiendaCreditos.items` tiene menos de 3 filas completas (ya documentado en su `notaVisibilidad`),
+  pero el panel de `nosotrosFicha` no tiene acceso al `form` de `tiendaCreditos` para avisarlo como
+  "no se muestra hoy". *Por qué no ahora:* exige plomería de `seccionCruzada` entre dos instancias
+  de `TiendaSeccionEditor`, que no existe para este caso — más grande que el piso de UNA sección
+  (`tiendaCreditosPisoIncompleto`, cerrado en este slice).
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos nuevos o cambiados: `CampoBooleano.composiciones`, `BOOLEANOS_SUSCRIPCION_PLANES_
+TAQUILLA`, `CreditosFilas.camposPorFila`, `camposPorFilaCreditos`, `vaciosDeBloqueTarjeta`,
+`tiendaCreditosPisoIncompleto`, `bandaNodo` (en `app/(storefront)/tienda/page.tsx`),
+`BRAND_STORY.bloques`/`ctaLabel`/`ctaDestino`, el reorden de `campos` de `TIENDA_ENCABEZADO`/
+`NOSOTROS_APERTURA`/`SUSCRIPCION_APERTURA`.
+
+`grep -n "CampoBooleano\|CreditosFilas\|creditosDeTaquilla\|BrandStoryFichaDeFinca\|
+BrandStoryColumnas\|data-editor-seccion\|VistaTiendaIframe\|seMuestraSiCampo\|tiendaCreditos\b"
+CLAUDE.md`: **CERO coincidencias** — ninguno de estos símbolos vive en CLAUDE.md (el mecanismo del
+editor de `/admin/tienda` sigue sin promoverse a la doctrina curada, igual que ya lo notan
+`EDITOR-ORDEN-Y-LIENZO-1`/`ONIX-CIERRE-Y-CURSOR-1`). Nada que falsear ahí.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (el mismo `approval-reason` del spec de `EDITOR-ORDEN-Y-LIENZO-1` —la
+revisión del owner del 2026-10-12— cubre este slice, que cierra su observed-report). Entra por los
+mismos subárboles ya ganados en CLAUDE.md: `components/storefront/` (bytes del visitante — las
+piezas de `tienda/`/`suscripciones/`/`nosotros/` tocadas) y `components/admin/` (el editor). El
+diff cambia bytes que el OWNER lee (el panel: orden de campos, el filtro de booleanos por
+composición, el aviso del piso de créditos) Y bytes que un VISITANTE podría leer en modo editor
+sobre una composición no-canónica (las filas de créditos ahora instrumentadas con
+`CampoEditable`) — medido que para Nayoli (fuera de modo editor, todas sus composiciones
+canónicas) el storefront queda PÍXEL-IDÉNTICO (ver el gate). Sin cambio de schema/migración (cero
+`packages/core/prisma/`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4793/4793, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
+solo píxel nuevo para Nayoli (las seis cifras idénticas al piso heredado desde
+`COMPRA-LINEAS-ONIX-CHAMISAS-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.
