@@ -63281,6 +63281,155 @@ solo píxel nuevo para Nayoli (las seis cifras idénticas al piso heredado de `T
 `COMPRA-LINEAS-ONIX-CHAMISAS-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
 
+## 2026-10-13 — La Taquilla de /suscripciones muestra sólo lo que el comprador necesita para pedir (`ONIX-TAQUILLA-SOLO-TABLA-1`)
+
+**Alcance:** el owner, mirando /suscripciones de Onix en el celular (captura
+`.scratch/revision-owner/onix-taquilla-owner.png`, 2026-10-12): *"It's showing a lot of things that
+the customer doesn't have to know about. The customer would only need to concern about the table and
+the button."* Tres cambios: (1) por defecto el comprador ve sólo rótulo + título + tabla + botón; (2)
+el resumen grande, la referencia de precio, la línea «Se envía: "…"», el aviso y los créditos del
+trato pasan a interruptores apagados; (3) la tabla alinea sus columnas a 390 px.
+
+### 1-2 · Cinco interruptores, apagados por defecto, cada uno con su campo de texto
+
+`SuscripcionPlanesContent` (`lib/config/site-content-defaults.ts`) gana `taquillaMostrarResumen`,
+`taquillaMostrarReferencia`, `taquillaMostrarSeEnvia`, `taquillaMostrarAviso`,
+`taquillaMostrarCreditos` — los cinco `false` en `DEFAULTS.suscripcionPlanes` (Nayoli no usa
+`variante:'taquilla'`, así que esto no le cambia un byte). `SuscripcionTaquilla.tsx` envuelve cada
+elemento en su interruptor; el mensaje de WhatsApp (`mensajeTaquilla`) se sigue armando IGUAL con la
+molienda, se muestre o no la línea «Se envía» — el toggle es de VISTA, nunca del mensaje que el botón
+manda (afirmado: `lib/storefront/suscripcion-taquilla.test.ts`, el href es idéntico apagado/
+encendido).
+
+**"Con su campo de texto" usa el mecanismo YA EXISTENTE, no uno nuevo**: `CampoBooleano.gatedFields`
+(§ PANEL-EDITOR-HERO-TOGGLES-1, `components/admin/tienda-secciones.ts`) — un interruptor apagado deja
+su campo de texto ATENUADO en el editor, no escondido. `taquillaMostrarReferencia` gatea
+`taquillaReferenciaTexto`; `taquillaMostrarAviso` gatea `taquillaAviso`; `taquillaMostrarCreditos`
+gatea los ocho `creditoN{Etiqueta,Valor}`. El resumen y la línea «Se envía» no gatean ningún campo:
+son texto DERIVADO (`resumenTaquilla`/el `mensaje` citado), sin campo propio que atenuar. El patrón de
+atenuación tenía hoy un solo consumidor real pese a existir en DOS `SeccionConfig` (`HERO` y
+`SPOTLIGHT`, el comentario de `TiendaSeccionEditor.tsx:1672` que lo dice "sin llamador vivo" ya estaba
+VENCIDO antes de este slice — ver § Open follow-ups); con `suscripcionPlanes` suma el tercero.
+
+`lib/config/site-content-schema.ts` (`suscripcionPlanesEditableSchema`) gana los cinco como
+`z.boolean().optional()` — sin esto, zod los habría STRIPPEADO al guardar (§ #65-B, CLAUDE.md).
+`REGISTRY.suscripcionPlanes.booleanos` (site-content-defaults.ts) declara los cinco nombres — es lo
+que los vuelve "leídos" para `lib/config/panel-controles.ts` (§ `camposDeSeccion`); sin esa entrada el
+chequeo de higiene del panel ni se habría enterado de que existen.
+
+### 3 · La tabla, a 390 px — medido contra el BUILD REAL, no contra la captura
+
+**El síntoma reportado** ("las filas BOLSAS y CADA no alinean con las de precio, la primera celda del
+encabezado queda vacía y ancha") **no se reprodujo como desalineación de columnas** al medir: se montó
+un arnés propio (`.scratch/verificar-taquilla-real.mjs`, gitignorado, NO en `touches:` — reimplementa
+el mínimo de `postgres-efimero.sh`/`capturar-seccion.ts` necesario para sembrar
+`suscripcionPlanes.variante:'taquilla'` + 4 productos, que `--sembrar-compra` no hace) contra `next
+build`+`next start` reales, Chromium Y WebKit, 390px a DPR 3 (el de un iPhone real). Las CINCO filas
+(encabezado, 2 de precio, bolsas, frecuencia) midieron el MISMO `datosLeft`/`datosRight` —
+`138.33`/`365` — en los DOS motores: el límite etiqueta|datos YA estaba perfectamente alineado en el
+código previo a este slice. Lo que SÍ se midió, con el mismo arnés manipulando el
+`gridTemplateColumns` en vivo: la columna de etiqueta (`minmax(110px,1fr)`, ~113px de ~342px
+disponibles — casi un tercio, TODO vacío en la fila de encabezado) dejaba a BOLSAS/CADA con tan poco
+aire que "15 DÍAS"/"2 MESES" envolvían a dos líneas; reducir el peso a `minmax(90px,0.8fr)` quita UNO
+de los DOS envoltorios de CADA (de `[true,false,true]` a `[false,false,true]`) sin hacer que "CAFÉ EN
+GRANO"/"CAFÉ MOLIDO" ganen una tercera línea (medido: por debajo de `0.65fr` SÍ la ganan — `0.8fr`
+deja margen). Ese ancho reducido entra SÓLO bajo 480px (`max-[480px]:grid-cols-[...]`, literal, no
+interpolado — § `GRID_TAQUILLA`, el mismo criterio que `gridColsPresentaciones`); a 1440px el ancho no
+cambia.
+
+**El mecanismo de alineación SÍ se endureció, aunque no reprodujera el bug**, porque es estrictamente
+más seguro: las CINCO filas pasaron de ser CINCO grids independientes (cada una recalculando
+`minmax(110px,1fr) minmax(0,Nfr)` por su cuenta — en teoría idénticas, pero N cálculos separados, no
+uno compartido) a una tabla con `display:grid` ÚNICO y cada fila `grid-cols-subgrid`: el límite
+etiqueta|datos pasa a ser LA MISMA línea de grid para las cinco, por garantía del spec de CSS Grid, no
+por coincidencia aritmética entre instancias separadas. `border-l`/`border-r`/`border-t` de la tabla
+se consolidaron en el contenedor (antes cada fila los dibujaba por separado). `FilaTaquilla` perdió el
+prop `columnas` (ya no lo necesita: el padre fija el par de columnas, la fila sólo lo hereda).
+
+### Tests
+
+8 tests nuevos (`git diff | grep -c "^+test("`), ninguno borrado: 3 en `onix-paginas-fidelidad.test.ts`
+(apagados = sólo tabla+botón; encendidos = los cinco visibles; el mensaje de WhatsApp es idéntico
+apagado/encendido), 1 en `suscripcion-taquilla.test.ts` (la selección inicial también se lee en el
+mensaje, disponible con los interruptores apagados), 3 en `site-content-defaults.test.ts`
+(`REGISTRY.booleanos`, `DEFAULTS` apagados, `resolverSiteContent` sólo cambia con booleano explícito),
+1 en `panel-controles.test.ts` (los cinco están leídos y controlados, sin exención nueva). Un test
+EXISTENTE se ajustó (`suscripcion-taquilla.test.ts`, "selección inicial"): leía el estado desde el
+resumen, que ahora nace apagado — se enciende EXPLÍCITO en su fixture, con un test gemelo nuevo que
+prueba la MISMA selección inicial vía el mensaje de WhatsApp (que no depende de ningún interruptor),
+doble cobertura del mismo invariante.
+
+### Figuras citadas (MEDIDAS en este slice, sobre el árbol final)
+
+- `git diff --stat`: 8 archivos, 305 inserciones, 76 borrados.
+- `npm run typecheck`: limpio.
+- `npm test`: **4698/4698**.
+- `npm run test:integracion`: **409/409** (sin cambio de schema; no se tocó `packages/core/`).
+- `npm run gate`: verde (los dos carriles).
+- `npm run verificar:nayoli:visual`, medido sobre el árbol de este slice (sin commitear aún — la
+  `rama` del arnés es el working tree):
+
+  | ruta | resultado medido | comparación contra el piso ya citado por `COMPRA-LINEAS-FIDELIDAD-1` (§ arriba, commit `a12d5d8`) |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo, caja `[105,862]–[1183,3581]` | **IDÉNTICO**, dígito a dígito |
+  | `/tienda` | 209/2433280 px AA · 407 crudo, caja `[445,45]–[608,1882]` | **IDÉNTICO** |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px) | **IDÉNTICO** |
+  | `/checkout` | 163/1152000 px AA · 361 crudo, caja `[445,774]–[541,784]` | **IDÉNTICO** |
+  | `/nosotros` | 224/1152000 px AA · 422 crudo, caja `[445,45]–[828,726]` | **IDÉNTICO** |
+  | `/suscripciones` | 258/2144000 px AA · 456 crudo, caja `[445,45]–[735,1656]` | **IDÉNTICO** |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **CERO píxeles nuevos.** Las seis cifras de diferencia son, dígito a dígito, las mismas que
+  `COMPRA-LINEAS-FIDELIDAD-1` ya midió DOS VECES (contra `main` y contra su propio commit padre) para
+  aislar heredado de nuevo — no hacía falta repetir esa doble medición: ninguna ruta pública
+  (`app/(storefront)/`) de este diff cambió de archivo, y `SuscripcionTaquilla.tsx` sólo se monta bajo
+  `suscripcionPlanes.variante==='taquilla'`, que Nayoli no usa (su `variante` nace `'tarjetas'`).
+  `ONIX-TAQUILLA-SOLO-TABLA-1` no le cambia a Nayoli un solo píxel.
+
+### Open follow-ups
+
+- **`TIENDA-SECCION-EDITOR-COMENTARIO-BOOLEANOS-VENCIDO-1`** — el comentario de
+  `components/admin/TiendaSeccionEditor.tsx:1672` ("Hoy NINGUNA sección no-hero declara `booleanos`…
+  esta función está sin llamador vivo") ya estaba FALSO antes de este slice: `SPOTLIGHT`
+  (`mostrarPrecioPor100g`/`barraFijaMovil`) es `seccion:'spotlight'`, no `'hero'`, y SÍ pasa por
+  `renderBooleano` (la rama genérica de la línea 2716). Este slice agrega un TERCER caso
+  (`suscripcionPlanes`), así que el comentario queda aún más lejos de lo cierto. *Por qué no ahora:*
+  `TiendaSeccionEditor.tsx` está en `touches:` (vive bajo `components/admin/`), pero corregir un
+  comentario de OTRA sección (hero) que no edité es ensanchar el diff más allá de lo que el spec pidió
+  — medido y reportado, no corregido.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `SuscripcionTaquilla.tsx`, `FilaTaquilla`, `SuscripcionPlanesContent`,
+`suscripcionPlanesEditableSchema`, `SUSCRIPCION_PLANES`/`tienda-secciones.ts`, `CampoBooleano`,
+`gatedFields`, `grid-cols-subgrid`. Grepeado el CLAUDE.md por cada uno: **CERO coincidencias
+directas** — ninguno de estos identificadores está nombrado en CLAUDE.md (la doctrina de
+`SuscripcionTaquilla`/Taquilla vive en DECISIONS.md, bajo `ONIX-SUSCRIPCION-TAQUILLA-1` y sus
+sucesores, nunca promovida a CLAUDE.md). Dos coincidencias TANGENCIALES, ninguna invalidada por este
+diff: (1) CLAUDE.md:1571 menciona "la pestaña Suscripciones (`suscripcionPlanes`…) nació con ~45
+campos" — una afirmación HISTÓRICA sobre el nacimiento de la pestaña, no un conteo vivo; sigue
+cierta. (2) CLAUDE.md:3000 menciona `tienda-secciones` en el contexto de `PAGINAS` (el toggle de
+PÁGINA apagable) — un concepto distinto de los `booleanos` de SECCIÓN que este slice agrega; no se
+toca.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner, revisando /suscripciones de Onix en
+el celular el 2026-10-12, pidió reducir lo que el comprador ve — "LA APROBACION AUTORIZA LA
+ESCRITURA, NUNCA EL MERGE"). Entra por `app/(storefront)/`/`components/storefront/` (bytes del
+visitante — `SuscripcionTaquilla.tsx` tocado) y por `components/admin/` (el editor). El diff cambia
+bytes que un comprador bajo `suscripcionPlanes.variante==='taquilla'` lee HOY, alcanzables sin otro
+deploy — `customer_bytes.changed=true`. Sin cambio de schema/migración (cero `packages/core/prisma/`)
+ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4698/4698, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` SIN UN
+SOLO píxel nuevo para Nayoli (las seis cifras idénticas al piso ya citado por
+`COMPRA-LINEAS-FIDELIDAD-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.
+
 ## 2026-10-12 — El cajón/confirmación/seguimiento se ven como la maqueta EN UN NAVEGADOR REAL, y el editor gana su vista previa (`COMPRA-LINEAS-FIDELIDAD-1`)
 
 **Alcance: cerrar el hueco que `COMPRA-LINEAS-ONIX-CHAMISAS-1` dejó abierto.** Esa slice construyó

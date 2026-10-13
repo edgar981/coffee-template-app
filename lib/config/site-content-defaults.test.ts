@@ -2862,3 +2862,38 @@ test('vaciar un texto de la Taquilla cae al default — requerido, nunca en blan
   const r = resolverSiteContent({ suscripcionPlanes: { taquillaKicker: '' } });
   assert.equal(r.suscripcionPlanes.taquillaKicker, DEFAULTS.suscripcionPlanes.taquillaKicker);
 });
+
+// ─── suscripcionPlanes · los cinco interruptores "solo tabla" (§ ONIX-TAQUILLA-SOLO-TABLA-1) ──────
+// El comprador ve por defecto sólo rótulo + título + tabla + botón; el resumen, la referencia de
+// precio, la línea «Se envía: …», el aviso y los créditos quedan apagados de arranque.
+
+test('REGISTRY.suscripcionPlanes.booleanos declara los cinco interruptores de la Taquilla', () => {
+  assert.deepEqual(REGISTRY.suscripcionPlanes.booleanos, [
+    'taquillaMostrarResumen', 'taquillaMostrarReferencia', 'taquillaMostrarSeEnvia',
+    'taquillaMostrarAviso', 'taquillaMostrarCreditos',
+  ]);
+});
+
+test('DEFAULTS.suscripcionPlanes: los cinco interruptores de la Taquilla nacen APAGADOS', () => {
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaMostrarResumen, false);
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaMostrarReferencia, false);
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaMostrarSeEnvia, false);
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaMostrarAviso, false);
+  assert.equal(DEFAULTS.suscripcionPlanes.taquillaMostrarCreditos, false);
+});
+
+test('resolverSiteContent: los cinco interruptores de la Taquilla sólo cambian con un booleano EXPLÍCITO guardado', () => {
+  const r = resolverSiteContent({
+    suscripcionPlanes: {
+      taquillaMostrarResumen: true, taquillaMostrarReferencia: true, taquillaMostrarSeEnvia: true,
+      taquillaMostrarAviso: true, taquillaMostrarCreditos: true,
+    },
+  });
+  assert.equal(r.suscripcionPlanes.taquillaMostrarResumen, true);
+  assert.equal(r.suscripcionPlanes.taquillaMostrarReferencia, true);
+  assert.equal(r.suscripcionPlanes.taquillaMostrarSeEnvia, true);
+  assert.equal(r.suscripcionPlanes.taquillaMostrarAviso, true);
+  assert.equal(r.suscripcionPlanes.taquillaMostrarCreditos, true);
+  const sinNada = resolverSiteContent({ suscripcionPlanes: { taquillaMostrarResumen: 'si' as unknown as boolean } });
+  assert.equal(sinNada.suscripcionPlanes.taquillaMostrarResumen, false); // basura → el default, nunca lanza
+});

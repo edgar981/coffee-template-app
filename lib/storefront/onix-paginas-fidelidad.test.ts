@@ -115,6 +115,62 @@ test('SuscripcionTaquilla: los filetes son tinta al 15% — cero `--sf-linea` en
   assert.ok(!html.includes('var(--sf-linea)'), 'SuscripcionTaquilla no debe usar --sf-linea — invisible para Onix (R1 del informe)');
 });
 
+// ─── (5) § ONIX-TAQUILLA-SOLO-TABLA-1 — el comprador ve sólo rótulo + título + tabla + botón ──────
+//
+// El owner, mirando /suscripciones de Onix en el celular: "It's showing a lot of things that the
+// customer doesn't have to know about. The customer would only need to concern about the table and
+// the button." Los cinco interruptores nacen APAGADOS (§ DEFAULTS.suscripcionPlanes) — `PLANES_ONIX`
+// (arriba) los hereda tal cual, así que es el caso por defecto, no un fixture aparte.
+
+test('SuscripcionTaquilla, interruptores APAGADOS (el default): sin resumen, sin referencia, sin "Se envía", sin aviso, sin créditos — tabla y botón SÍ', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onixCatalog(), whatsapp: '573000000000', suscripcionPlanes: PLANES_ONIX }),
+  );
+  // La tabla (los pesos del encabezado) y el botón de pedido siguen ahí.
+  assert.ok(html.includes('250 g') && html.includes('500 g'), 'la tabla sigue mostrándose');
+  assert.ok(html.includes('Pedir por WhatsApp'), 'el botón de pedido sigue mostrándose');
+  // Lo demás, apagado de arranque, no debe aparecer.
+  assert.ok(!html.includes('CAFÉ MOLIDO'), 'el resumen grande (la presentación en mayúscula) no debe mostrarse');
+  assert.ok(!html.includes('Referencia:'), 'la referencia de precio no debe mostrarse');
+  assert.ok(!html.includes('Se envía:'), 'la línea "Se envía" no debe mostrarse');
+  assert.ok(!html.includes('No se cobra nada aquí'), 'el aviso no debe mostrarse');
+  // credito1 por defecto es {etiqueta:'Pedido', valor:'Por WhatsApp'} — "Por WhatsApp" (con
+  // mayúscula) no colisiona con el botón "Pedir por WhatsApp" (minúscula), case-sensitive.
+  assert.ok(!html.includes('Pedido') && !html.includes('Por WhatsApp'), 'los créditos del trato no deben mostrarse');
+});
+
+test('SuscripcionTaquilla, los cinco interruptores ENCENDIDOS: resumen, referencia, "Se envía", aviso y créditos SÍ se muestran', () => {
+  const planes: SuscripcionPlanesContent = {
+    ...PLANES_ONIX,
+    taquillaMostrarResumen: true, taquillaMostrarReferencia: true, taquillaMostrarSeEnvia: true,
+    taquillaMostrarAviso: true, taquillaMostrarCreditos: true,
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onixCatalog(), whatsapp: '573000000000', suscripcionPlanes: planes }),
+  );
+  assert.ok(html.includes('CAFÉ MOLIDO'), 'el resumen grande debe mostrarse encendido');
+  assert.ok(html.includes('Referencia:'), 'la referencia de precio debe mostrarse encendida');
+  assert.ok(html.includes('Se envía:'), 'la línea "Se envía" debe mostrarse encendida');
+  assert.ok(html.includes('No se cobra nada aquí'), 'el aviso debe mostrarse encendido');
+  assert.ok(html.includes('Pedido') && html.includes('Por WhatsApp'), 'los créditos del trato deben mostrarse encendidos');
+});
+
+test('SuscripcionTaquilla: el mensaje de WhatsApp (href del botón) es IGUAL con los interruptores apagados o encendidos — el toggle es de vista, no del mensaje', () => {
+  const htmlApagado = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onixCatalog(), whatsapp: '573000000000', suscripcionPlanes: PLANES_ONIX }),
+  );
+  const planesEncendidos: SuscripcionPlanesContent = { ...PLANES_ONIX, taquillaMostrarSeEnvia: true };
+  const htmlEncendido = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onixCatalog(), whatsapp: '573000000000', suscripcionPlanes: planesEncendidos }),
+  );
+  const hrefDe = (html: string) => html.match(/href="([^"]*wa\.me[^"]*)"/)?.[1];
+  const hrefApagado = hrefDe(htmlApagado);
+  const hrefEncendido = hrefDe(htmlEncendido);
+  assert.ok(hrefApagado, 'el botón de WhatsApp debe tener un href wa.me con el mensaje apagado');
+  assert.ok(hrefApagado!.includes('molido'), 'el mensaje sigue llevando la molienda/presentación aunque "Se envía" esté apagado');
+  assert.equal(hrefApagado, hrefEncendido, 'el mismo mensaje se arma con el toggle apagado o encendido — sólo cambia si se MUESTRA la línea "Se envía"');
+});
+
 test('PreguntasFrecuentes (variante letraPequena): rótulo + filetes de tinta, N+1 filetes para N preguntas', () => {
   const contenido = conSeccion('suscripcionFaq', {
     visible: true,

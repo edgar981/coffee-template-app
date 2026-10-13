@@ -667,3 +667,26 @@ test('nosotrosInterludio (sección + sus 2 campos) y nosotrosCierre.variante est
   assert.ok(!huecos.some((h) => h.startsWith('nosotrosInterludio.')));
   assert.ok(!huecos.includes('nosotrosCierre.variante'));
 });
+
+// § ONIX-TAQUILLA-SOLO-TABLA-1 — los CINCO interruptores de la Taquilla tienen control DE ENTRADA
+// (`BOOLEANOS_SUSCRIPCION_PLANES_TAQUILLA` en tienda-secciones.ts), no como hallazgo tardío — mismo
+// criterio que `nosotrosInterludio`/`nosotrosCierre.variante` arriba. El trinquete de
+// PENDIENTE_PANEL no se mueve: ninguna entrada nueva.
+test('suscripcionPlanes.taquillaMostrarX (los cinco) están LEÍDOS y CONTROLADOS, sin exención nueva', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+
+  for (const campo of [
+    'taquillaMostrarResumen', 'taquillaMostrarReferencia', 'taquillaMostrarSeEnvia',
+    'taquillaMostrarAviso', 'taquillaMostrarCreditos',
+  ]) {
+    const ruta = `suscripcionPlanes.${campo}`;
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+    assert.ok(!pendientes.has(ruta), `${ruta} no debería estar en PENDIENTE_PANEL`);
+  }
+
+  const huecos = huecosDelPanel({ conExenciones: false });
+  assert.ok(!huecos.some((h) => h.startsWith('suscripcionPlanes.taquillaMostrar')));
+});

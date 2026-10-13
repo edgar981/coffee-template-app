@@ -1194,6 +1194,22 @@ export interface SuscripcionPlanesContent {
   taquillaAviso: string;
   taquillaBarraCtaLabel: string;
   taquillaBarraAgotadoLabel: string;
+  // § ONIX-TAQUILLA-SOLO-TABLA-1 — CINCO interruptores, APAGADOS por defecto (owner, revisando
+  // /suscripciones de Onix en el celular: "It's showing a lot of things that the customer doesn't
+  // have to know about. The customer would only need to concern about the table and the button.").
+  // El comprador por defecto ve sólo rótulo + título + tabla + botón; estos cinco elementos —antes
+  // SIEMPRE visibles— pasan a opt-in. Cada uno gatea (§ CampoBooleano.gatedFields,
+  // components/admin/tienda-secciones.ts) el campo de texto que YA existe para él, cuando lo tiene:
+  // `taquillaMostrarReferencia` gatea `taquillaReferenciaTexto`; `taquillaMostrarAviso` gatea
+  // `taquillaAviso`; `taquillaMostrarCreditos` gatea los ocho `creditoN*`. El resumen grande y la
+  // línea «Se envía: "…"» son texto DERIVADO (no tienen campo propio que gatear) — sólo el toggle.
+  // El mensaje de WhatsApp (`mensajeTaquilla`) sigue armándose igual con la molienda, SE MUESTRE o
+  // no la línea «Se envía»: el toggle controla la VISTA, nunca lo que el botón manda.
+  taquillaMostrarResumen: boolean;
+  taquillaMostrarReferencia: boolean;
+  taquillaMostrarSeEnvia: boolean;
+  taquillaMostrarAviso: boolean;
+  taquillaMostrarCreditos: boolean;
 }
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, sobre ONIX-PAGINAS-
@@ -2856,6 +2872,14 @@ export const DEFAULTS: SiteContentData = {
     taquillaAviso: 'No se cobra nada aquí. Pago y envío se acuerdan por chat.',
     taquillaBarraCtaLabel: 'Pedir',
     taquillaBarraAgotadoLabel: 'Agotado',
+    // § ONIX-TAQUILLA-SOLO-TABLA-1 — apagados de arranque: por defecto el comprador sólo ve rótulo,
+    // título, tabla y botón. Nayoli no mostraba Taquilla (su `variante` nace 'tarjetas'), así que
+    // esto no cambia un byte de lo que hoy se publica sin fila.
+    taquillaMostrarResumen: false,
+    taquillaMostrarReferencia: false,
+    taquillaMostrarSeEnvia: false,
+    taquillaMostrarAviso: false,
+    taquillaMostrarCreditos: false,
   },
   // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de
   // `SuscripcionAperturaContent` arriba). `visible: false` — "por defecto la página queda como
@@ -3873,6 +3897,13 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     // GEMELO, mismo mecanismo que `variante` sin la ranura fija (§ `SeccionDef.escalares`).
     variantes: { claves: ['tarjetas', 'taquilla'], canonica: 'tarjetas' },
     escalares: { maxBolsas: { claves: ['1', '2', '3', '4', '5'], canonica: '3' } },
+    // § ONIX-TAQUILLA-SOLO-TABLA-1 — los CINCO interruptores de la Taquilla (§ el docstring de
+    // `SuscripcionPlanesContent`, arriba). SÓLO tienen efecto bajo 'taquilla', como el resto de los
+    // campos `taquilla*` de esta sección.
+    booleanos: [
+      'taquillaMostrarResumen', 'taquillaMostrarReferencia', 'taquillaMostrarSeEnvia',
+      'taquillaMostrarAviso', 'taquillaMostrarCreditos',
+    ],
     campos: {
       eyebrow: 'opcional',
       titulo: 'requerido',

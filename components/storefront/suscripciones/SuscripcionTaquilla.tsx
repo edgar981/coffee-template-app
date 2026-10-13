@@ -182,62 +182,81 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
           </p>
           <h2 className="mt-[10px] font-playfair text-3xl text-[var(--sf-tinta)] sm:text-4xl">{nombreProducto}</h2>
 
-          <FilaTaquilla
-            etiqueta={null}
-            celdas={matriz.columnas.map((peso) => ({ valor: peso, label: `${peso} g` }))}
-            columnas={matriz.columnas.length}
-            encabezado
-          />
-          {matriz.filas.map((categoria) => (
+          {/* LA TABLA ES AHORA UN ÚNICO GRID (§ ONIX-TAQUILLA-SOLO-TABLA-1, el spec item 3) —
+              reemplaza los N grids INDEPENDIENTES de antes (uno por `FilaTaquilla`, cada uno
+              recalculando su propia `minmax(110px,1fr) minmax(0,Nfr)`). Las filas comparten AHORA
+              el mismo par de columnas vía `grid-cols-subgrid` (§ `FilaTaquilla`, abajo): el límite
+              etiqueta|datos es LA MISMA línea de grid para todas, nunca una coincidencia entre
+              cálculos independientes. `GRID_TAQUILLA[columnas]` da además el ESTRECHAMIENTO de la
+              columna de etiqueta bajo 480px (§ item 3: la celda vacía del encabezado medía ~113px,
+              un tercio del ancho a 390px, y angostarla le da a BOLSAS/CADA el aire que les faltaba
+              para no envolver tanto texto a dos líneas). */}
+          <div className={`grid mt-[22px] border-l border-t border-r ${FILETE_TAQUILLA} ${GRID_TAQUILLA[matriz.columnas.length] ?? GRID_TAQUILLA[2]}`}>
             <FilaTaquilla
-              key={categoria}
-              etiqueta={categoria}
-              celdas={matriz.columnas.map((peso) => {
-                const p = matriz.celdas.get(celdaDe(categoria, peso))!;
-                return { valor: peso, label: formatCOP(p.precio), agotada: !p.disponible };
-              })}
-              columnas={matriz.columnas.length}
-              tipo="precio"
-              activa={activa.peso}
-              elegidaCategoria={activa.categoria === categoria}
-              onElegir={(peso) => setSeleccion({ categoria, peso: peso as number })}
+              etiqueta={null}
+              celdas={matriz.columnas.map((peso) => ({ valor: peso, label: `${peso} g` }))}
+              encabezado
             />
-          ))}
+            {matriz.filas.map((categoria) => (
+              <FilaTaquilla
+                key={categoria}
+                etiqueta={categoria}
+                celdas={matriz.columnas.map((peso) => {
+                  const p = matriz.celdas.get(celdaDe(categoria, peso))!;
+                  return { valor: peso, label: formatCOP(p.precio), agotada: !p.disponible };
+                })}
+                tipo="precio"
+                activa={activa.peso}
+                elegidaCategoria={activa.categoria === categoria}
+                onElegir={(peso) => setSeleccion({ categoria, peso: peso as number })}
+              />
+            ))}
 
-          <FilaTaquilla
-            etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaBolsas">{c.taquillaEtiquetaBolsas}</CampoEditable>}
-            celdas={bolsasOpciones.map((n) => ({ valor: n, label: String(n) }))}
-            columnas={matriz.columnas.length}
-            tipo="opcion"
-            activa={bolsasActivas}
-            onElegir={(n) => setBolsas(n as number)}
-          />
-          <FilaTaquilla
-            etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaFrecuencia">{c.taquillaEtiquetaFrecuencia}</CampoEditable>}
-            celdas={frecuencias.map((f) => ({ valor: f, label: f }))}
-            columnas={matriz.columnas.length}
-            tipo="opcion"
-            activa={frecuenciaActiva}
-            onElegir={(f) => setFrecuenciaElegida(f as string)}
-          />
-          {decision.modo === 'eleccion' && (
             <FilaTaquilla
-              etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaMolienda">{c.taquillaEtiquetaMolienda}</CampoEditable>}
-              celdas={opcionesMolienda.map((o) => ({ valor: o.nombre, label: o.nombre, agotada: !o.disponible }))}
-              columnas={matriz.columnas.length}
+              etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaBolsas">{c.taquillaEtiquetaBolsas}</CampoEditable>}
+              celdas={bolsasOpciones.map((n) => ({ valor: n, label: String(n) }))}
               tipo="opcion"
-              activa={nombreMoliendaActiva}
-              onElegir={(n) => setMoliendaElegida(n as string)}
+              activa={bolsasActivas}
+              onElegir={(n) => setBolsas(n as number)}
             />
-          )}
+            <FilaTaquilla
+              etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaFrecuencia">{c.taquillaEtiquetaFrecuencia}</CampoEditable>}
+              celdas={frecuencias.map((f) => ({ valor: f, label: f }))}
+              tipo="opcion"
+              activa={frecuenciaActiva}
+              onElegir={(f) => setFrecuenciaElegida(f as string)}
+            />
+            {decision.modo === 'eleccion' && (
+              <FilaTaquilla
+                etiqueta={<CampoEditable campo="suscripcionPlanes.taquillaEtiquetaMolienda">{c.taquillaEtiquetaMolienda}</CampoEditable>}
+                celdas={opcionesMolienda.map((o) => ({ valor: o.nombre, label: o.nombre, agotada: !o.disponible }))}
+                tipo="opcion"
+                activa={nombreMoliendaActiva}
+                onElegir={(n) => setMoliendaElegida(n as string)}
+              />
+            )}
+          </div>
 
-          {/* EL RESUMEN, en serif mayúscula (§ el spec, item 2: «2 × 250 G · CAFÉ MOLIDO, MOLIENDA
-              MEDIA · CADA MES»). El texto YA llega en mayúscula de `resumenTaquilla` — la clase sólo
-              aporta la tipografía, no el case. `tracking`/`leading` (§ el spec, punto 6). */}
-          <p className="mt-6 font-playfair text-2xl tracking-[0.02em] leading-[37px] tabular-nums text-[var(--sf-tinta)] sm:text-[24px]">{resumen}</p>
-          <p className="mt-1 text-[15px] text-[var(--sf-tinta)]/65">
-            <CampoEditable campo="suscripcionPlanes.taquillaReferenciaTexto">{referencia}</CampoEditable>
-          </p>
+          {/* EL COMPRADOR VE, POR DEFECTO, SÓLO EL RÓTULO + TÍTULO + TABLA + BOTÓN (§ ONIX-TAQUILLA-
+              SOLO-TABLA-1, el spec item 1 — el owner, mirando /suscripciones en el celular: "It's
+              showing a lot of things that the customer doesn't have to know about. The customer
+              would only need to concern about the table and the button"). El resumen grande, la
+              referencia de precio, la línea «Se envía: "…"», el aviso y los créditos pasan a
+              INTERRUPTORES (apagados de arranque, § `SuscripcionPlanesContent.taquillaMostrarX`) —
+              para la tienda que SÍ los quiera. El mensaje de WhatsApp (`mensaje`) se arma IGUAL con
+              la molienda, se muestre o no la línea «Se envía»: el toggle es de VISTA, nunca de lo
+              que el botón manda. */}
+          {c.taquillaMostrarResumen && (
+            // EL RESUMEN, en serif mayúscula (§ el spec, item 2: «2 × 250 G · CAFÉ MOLIDO, MOLIENDA
+            // MEDIA · CADA MES»). El texto YA llega en mayúscula de `resumenTaquilla` — la clase
+            // sólo aporta la tipografía, no el case. `tracking`/`leading` (§ el spec, punto 6).
+            <p className="mt-6 font-playfair text-2xl tracking-[0.02em] leading-[37px] tabular-nums text-[var(--sf-tinta)] sm:text-[24px]">{resumen}</p>
+          )}
+          {c.taquillaMostrarReferencia && (
+            <p className={`${c.taquillaMostrarResumen ? 'mt-1' : 'mt-6'} text-[15px] text-[var(--sf-tinta)]/65`}>
+              <CampoEditable campo="suscripcionPlanes.taquillaReferenciaTexto">{referencia}</CampoEditable>
+            </p>
+          )}
 
           <div ref={botonRef} className="mt-6">
             <BotonPedir
@@ -247,15 +266,21 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
             />
           </div>
           {/* «SE ENVÍA: "…"» (§ ONIX-PAGINAS-FIDELIDAD-1, el spec item 4) — el mensaje EXACTO que el
-              botón promete, citado tal cual con `<q>` (el navegador le pone las comillas). Antes
-              sólo se veía el aviso de "no se cobra…"; el mensaje en sí quedaba invisible. */}
-          <p className="mt-2 text-[13px] leading-normal text-[var(--sf-tinta)]/65">
-            Se envía: <q className="text-[var(--sf-tinta)]">{mensaje}</q>
-            <br />
-            <CampoEditable campo="suscripcionPlanes.taquillaAviso" multilinea>{c.taquillaAviso}</CampoEditable>
-          </p>
+              botón promete, citado tal cual con `<q>` (el navegador le pone las comillas). Y EL
+              AVISO, AHORA DOS PÁRRAFOS INDEPENDIENTES (antes uno solo con `<br/>`): cada uno tiene
+              su propio interruptor (§ arriba), así que no pueden seguir compartiendo un `<p>`. */}
+          {c.taquillaMostrarSeEnvia && (
+            <p className="mt-2 text-[13px] leading-normal text-[var(--sf-tinta)]/65">
+              Se envía: <q className="text-[var(--sf-tinta)]">{mensaje}</q>
+            </p>
+          )}
+          {c.taquillaMostrarAviso && (
+            <p className="mt-2 text-[13px] leading-normal text-[var(--sf-tinta)]/65">
+              <CampoEditable campo="suscripcionPlanes.taquillaAviso" multilinea>{c.taquillaAviso}</CampoEditable>
+            </p>
+          )}
 
-          {creditos.length > 0 && (
+          {c.taquillaMostrarCreditos && creditos.length > 0 && (
             <div className="mt-8">
               <CreditosFilas filas={creditos} />
             </div>
@@ -297,6 +322,25 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
   );
 }
 
+// EL FILETE compartido por la tabla y cada una de sus filas (§ R1 del informe, abajo).
+const FILETE_TAQUILLA = 'border-[var(--sf-tinta)]/15';
+
+// EL GRID COMPARTIDO de la tabla (§ ONIX-TAQUILLA-SOLO-TABLA-1, el spec item 3) — UNA sola
+// declaración de columnas para TODA la tabla, indexada por `matriz.columnas.length` (1 a
+// `MAX_VALORES_POR_EJE`, § lib/tienda/taquilla.ts). Literal y no interpolado, para que el JIT de
+// Tailwind vea las clases (mismo criterio que `gridColsPresentaciones`, § CLAUDE.md). Cada entrada
+// trae DOS anchos: el de siempre (`minmax(110px,1fr)` para la etiqueta) y, bajo 480px, uno más
+// angosto (`minmax(90px,0.8fr)`) — MEDIDO contra el build real de Onix (§ el asiento de
+// DECISIONS.md): a 390px la celda vacía del encabezado medía ~113px (un tercio del ancho) y BOLSAS/
+// CADA envolvían texto a dos líneas por falta de aire; angostar la etiqueta a ~97px le da a esas
+// filas el espacio que necesitan SIN hacer que "CAFÉ EN GRANO"/"CAFÉ MOLIDO" ganen una tercera
+// línea (medido: por debajo de ~0.65fr sí la ganan — 0.8fr deja margen).
+const GRID_TAQUILLA: Record<number, string> = {
+  1: 'grid-cols-[minmax(110px,1fr)_minmax(0,1fr)] max-[480px]:grid-cols-[minmax(90px,0.8fr)_minmax(0,1fr)]',
+  2: 'grid-cols-[minmax(110px,1fr)_minmax(0,2fr)] max-[480px]:grid-cols-[minmax(90px,0.8fr)_minmax(0,2fr)]',
+  3: 'grid-cols-[minmax(110px,1fr)_minmax(0,3fr)] max-[480px]:grid-cols-[minmax(90px,0.8fr)_minmax(0,3fr)]',
+};
+
 // UNA FILA de la Taquilla (§ el spec, item 2: "dos filas con la misma celda y la misma columna de
 // etiqueta que la Taquilla"). `encabezado` pinta la fila de pesos arriba de la tabla (sin etiqueta,
 // sin selección); las demás son filas elegibles. El criterio de celda ELEGIDA depende del tipo de
@@ -307,15 +351,16 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 // (`.taquilla`/`.fila`/`.opciones` de `onix-suscripciones-nosotros.html`):
 // - **R1 (filete):** tinta al 15% (`--sf-tinta`/15), no `--sf-linea`/20 — ese token deriva casi
 //   invisible para Onix (§ el informe, R1).
-// - **Alineación (`columnas`):** la maqueta logra que la columna de ETIQUETA mida LO MISMO en
-//   TODAS las filas dándole SIEMPRE la razón `1 : columnas.length` — en la tabla de precio porque
-//   literalmente hay `columnas.length` columnas reales de `1fr` cada una; en bolsas/frecuencia/
-//   molienda porque su ÚNICA columna de datos vale `columnas.length` fr completos (NUNCA su propio
-//   conteo de opciones), subdividida ADENTRO por un grid anidado. Antes cada fila declaraba su
-//   propio `minmax(0,1fr) repeat(N, minmax(0,1fr))` con SU N (2 pesos, hasta 5 bolsas, hasta 4
-//   frecuencias…), así que la columna de etiqueta cambiaba de ancho fila a fila — "153px en las
-//   filas de precio, 115px en bolsas/frecuencia" (§ el informe). Con el ancho SIEMPRE repartido
-//   `1 : columnas.length`, la etiqueta mide igual sea cual sea cuántas opciones tenga esa fila.
+// - **Alineación — AHORA POR `subgrid`, NO por una razón `1:columnas` recalculada por fila
+//   (§ ONIX-TAQUILLA-SOLO-TABLA-1, el spec item 3).** Cada fila era su PROPIO grid de 2 columnas,
+//   con la MISMA razón `minmax(110px,1fr) minmax(0,Nfr)` repetida N veces (una por fila) — en
+//   teoría idéntica en las N, pero N cálculos independientes, no UNO compartido. La fila ahora es
+//   `grid-cols-subgrid` dentro del grid de la tabla (§ `GRID_TAQUILLA`, arriba): hereda LAS MISMAS
+//   dos líneas de columna que sus vecinas por construcción del spec de CSS Grid, no por coincidencia
+//   aritmética entre grids separados. La columna de DATOS sigue subdividiéndose ADENTRO por un grid
+//   anidado propio (celdas.length columnas, nunca subgrid — sus divisores internos son del tamaño de
+//   ESA fila, a propósito: BOLSAS con 3 opciones y la fila de precio con 2 no tienen por qué compartir
+//   divisores internos, sólo el límite etiqueta|datos).
 // - **Tipografía por `tipo`:** las celdas de PRECIO van en serif (`font-playfair`, 20px/400, como
 //   la maqueta — `.celda{font-family:f-display;font-size:20px}`); las de OPCIÓN (bolsas,
 //   frecuencia, molienda) van en sans mayúscula compacta (13px/700/ls .12em, como
@@ -323,29 +368,26 @@ export default function SuscripcionTaquilla({ catalog, whatsapp, suscripcionPlan
 //   text-transform:uppercase}`) — antes las dos compartían `text-sm font-medium`, sin serif ni
 //   mayúscula.
 function FilaTaquilla({
-  etiqueta, celdas, columnas, activa, elegidaCategoria, onElegir, encabezado = false, tipo = 'opcion',
+  etiqueta, celdas, activa, elegidaCategoria, onElegir, encabezado = false, tipo = 'opcion',
 }: {
   etiqueta: ReactNode;
   celdas: { valor: string | number; label: string; agotada?: boolean }[];
-  /** El Nº de columnas de peso de la tabla de precio — la razón `1:columnas` que mantiene esta fila
-   *  alineada con todas las demás (ver el docstring de arriba). */
-  columnas: number;
   activa?: string | number | null;
   elegidaCategoria?: boolean;
   onElegir?: (valor: string | number) => void;
   encabezado?: boolean;
   tipo?: 'precio' | 'opcion';
 }) {
-  const filete = 'border-[var(--sf-tinta)]/15';
+  const filete = FILETE_TAQUILLA;
   const celdaTipografia =
     tipo === 'precio'
       ? 'font-playfair text-xl'
       : 'font-sans text-[13px] font-bold uppercase tracking-[0.12em]';
+  // SIN `border-t`/`mt-[22px]` propios — eso es ahora del CONTENEDOR compartido (§ el `<div>` que
+  // monta `GRID_TAQUILLA`, en `SuscripcionTaquilla`), una vez para toda la tabla. Antes vivía acá,
+  // condicional a `encabezado`, porque cada fila era su PROPIO grid sin padre que lo diera.
   return (
-    <div
-      className={`grid border-l border-r ${filete} ${encabezado ? 'mt-[22px] border-t' : 'border-t-0'}`}
-      style={{ gridTemplateColumns: `minmax(110px,1fr) minmax(0,${columnas}fr)` }}
-    >
+    <div className="col-span-2 grid grid-cols-subgrid">
       <div className={`flex min-h-[54px] items-center border-t ${filete} px-3 py-2 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}>
         {etiqueta}
       </div>

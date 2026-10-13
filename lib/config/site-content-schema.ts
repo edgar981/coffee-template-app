@@ -494,6 +494,13 @@ const suscripcionPlanesEditableSchema = z.object({
   taquillaAviso: z.string().optional(),
   taquillaBarraCtaLabel: z.string().optional(),
   taquillaBarraAgotadoLabel: z.string().optional(),
+  // § ONIX-TAQUILLA-SOLO-TABLA-1 — los cinco interruptores (§ SuscripcionPlanesContent,
+  // site-content-defaults.ts). Sin declararlos acá, zod los STRIPPEA al guardar (§ #65-B).
+  taquillaMostrarResumen: z.boolean().optional(),
+  taquillaMostrarReferencia: z.boolean().optional(),
+  taquillaMostrarSeEnvia: z.boolean().optional(),
+  taquillaMostrarAviso: z.boolean().optional(),
+  taquillaMostrarCreditos: z.boolean().optional(),
 });
 
 // LA APERTURA PROPIA DE /suscripciones (§ ONIX-SUSCRIPCION-TAQUILLA-1, ver el docstring de

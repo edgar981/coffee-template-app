@@ -170,8 +170,13 @@ const PLANES_ONIX: SuscripcionPlanesContent = {
 };
 
 test('SuscripcionTaquilla: selección inicial — "Café Molido · 250 · Mes" (última fila, primera columna, última frecuencia)', () => {
+  // § ONIX-TAQUILLA-SOLO-TABLA-1 — el resumen (de donde este test leía la selección) pasa a
+  // interruptor APAGADO por defecto; se enciende ACÁ porque es la señal que este test necesita, no
+  // porque la selección inicial dependa de mostrarlo. El mensaje de WhatsApp (abajo) prueba lo
+  // MISMO sin depender de ningún interruptor — doble cobertura del mismo invariante.
+  const planes: SuscripcionPlanesContent = { ...PLANES_ONIX, taquillaMostrarResumen: true };
   const html = renderToStaticMarkup(
-    React.createElement(SuscripcionTaquilla, { catalog: onix(), whatsapp: '573000000000', suscripcionPlanes: PLANES_ONIX }),
+    React.createElement(SuscripcionTaquilla, { catalog: onix(), whatsapp: '573000000000', suscripcionPlanes: planes }),
   );
   // El resumen nombra la presentación activa — si el default fuera "Café en Grano" (la PRIMERA
   // fila, el bug de antes) o la frecuencia fuera "15 días" (la PRIMERA, no la última), el texto
@@ -179,6 +184,21 @@ test('SuscripcionTaquilla: selección inicial — "Café Molido · 250 · Mes" (
   assert.ok(html.includes('CAFÉ MOLIDO'), 'el resumen debe nombrar "Café Molido", no "Café en Grano"');
   assert.ok(html.includes('CADA MES'), 'la frecuencia activa debe ser la ÚLTIMA configurada ("Mes"), no la primera ("15 días")');
   assert.ok(!html.includes('CADA 15 DÍAS'), 'NO debe quedar en la primera frecuencia');
+});
+
+test('SuscripcionTaquilla: la selección inicial también se lee en el mensaje de WhatsApp — DISPONIBLE con los interruptores APAGADOS (el default)', () => {
+  // El mensaje no depende de ningún `taquillaMostrarX` (§ ONIX-TAQUILLA-SOLO-TABLA-1): se arma
+  // igual aunque la línea "Se envía" no se muestre. `PLANES_ONIX` (sin overrides) es el estado por
+  // defecto — los cinco interruptores apagados.
+  const html = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: onix(), whatsapp: '573000000000', suscripcionPlanes: PLANES_ONIX }),
+  );
+  const href = html.match(/href="([^"]*wa\.me[^"]*)"/)?.[1];
+  assert.ok(href, 'el botón de WhatsApp debe tener un href wa.me');
+  const mensaje = decodeURIComponent(href!.split('text=')[1] ?? '');
+  assert.ok(mensaje.includes('molido'), 'la presentación activa ("café molido") sigue en el mensaje con el resumen apagado');
+  assert.ok(mensaje.includes('cada mes'), 'la frecuencia activa ("cada mes", la última configurada) sigue en el mensaje');
+  assert.ok(!mensaje.includes('cada 15 días'), 'NO debe quedar en la primera frecuencia');
 });
 
 // ─── BYTE-IDENTIDAD: /suscripciones sin composiciones nuevas == el árbol de ayer ───────────────

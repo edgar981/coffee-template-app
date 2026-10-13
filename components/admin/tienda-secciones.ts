@@ -1525,12 +1525,27 @@ const OPCIONES_COMPOSICION_SUSCRIPCION_PLANES: ComposicionOpcion[] = REGISTRY.su
 const OPCIONES_MAX_BOLSAS: { value: string; label: string }[] =
   REGISTRY.suscripcionPlanes.escalares!.maxBolsas.claves.map((v) => ({ value: v, label: v }));
 
+// § ONIX-TAQUILLA-SOLO-TABLA-1 — los CINCO interruptores de la Taquilla (apagados por defecto, § el
+// docstring de `SuscripcionPlanesContent`, site-content-defaults.ts): por defecto el comprador ve
+// sólo el rótulo, el título, la tabla y el botón de WhatsApp. Cada uno GATEA (`gatedFields`) el
+// campo de texto que ya existe — apagado, el campo sigue editable pero ATENUADO (§ el patrón de
+// atenuación, `campoAtenuado` arriba). `taquillaMostrarResumen`/`taquillaMostrarSeEnvia` no gatean
+// ningún campo: el resumen y la línea «Se envía: "…"» son texto DERIVADO, sin campo propio.
+const BOOLEANOS_SUSCRIPCION_PLANES_TAQUILLA: CampoBooleano[] = [
+  { name: 'taquillaMostrarResumen', label: 'Mostrar el resumen grande', hint: 'Sólo con la composición "Taquilla". La línea grande bajo la tabla, p. ej. "1 × 250 G · CAFÉ MOLIDO · CADA 2 MESES".' },
+  { name: 'taquillaMostrarReferencia', label: 'Mostrar la referencia de precio', hint: 'Sólo con la composición "Taquilla". La línea "Referencia: …, precio de tienda por bolsa".', gatedFields: ['taquillaReferenciaTexto'] },
+  { name: 'taquillaMostrarSeEnvia', label: 'Mostrar el mensaje que se envía', hint: 'Sólo con la composición "Taquilla". La línea "Se envía: …" con el mensaje citado. El botón de WhatsApp manda este mismo mensaje, se muestre o no esta línea.' },
+  { name: 'taquillaMostrarAviso', label: 'Mostrar el aviso bajo el botón', hint: 'Sólo con la composición "Taquilla". El aviso de que no se cobra nada en la tienda.', gatedFields: ['taquillaAviso'] },
+  { name: 'taquillaMostrarCreditos', label: 'Mostrar los créditos del trato', hint: 'Sólo con la composición "Taquilla". Las filas "Pedido · Pago · Envío · Pausa o cambio".', gatedFields: ['credito1Etiqueta', 'credito1Valor', 'credito2Etiqueta', 'credito2Valor', 'credito3Etiqueta', 'credito3Valor', 'credito4Etiqueta', 'credito4Valor'] },
+];
+
 const SUSCRIPCION_PLANES: SeccionConfig = {
   seccion: 'suscripcionPlanes',
   pagina: 'suscripciones',
   titulo: 'Planes',
   ocultable: false,
   composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_PLANES,
+  booleanos: BOOLEANOS_SUSCRIPCION_PLANES_TAQUILLA,
   imagenes: [], // sección de solo texto (los planes no llevan imagen)
   // § EDITOR-COMPOSICION-CAMPOS-1 — TODO lo de «Tarjetas» (encabezado, "Elige tu plan", los 4
   // planes + beneficios) ahora lleva `composiciones: ['tarjetas']`: medido en `SuscripcionPlanes.
