@@ -63710,3 +63710,223 @@ migración (cero `packages/core/prisma/`) ni contrato cruzado de repositorio.
 SOLO píxel nuevo para Nayoli (medido contra el commit padre de este slice, no sólo contra `main` —
 las seis cifras heredadas son byte a byte idénticas en los dos). No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1` (`a12d5d8`), sin mergear.
+
+## 2026-10-12 — CHAMISAS-SUSCRIPCIONES-CASILLAS-1: /suscripciones gana la composición «Casillas» de Las Chamisas (el armador de varios cafés, la Nota de pedido y las Casillas de frecuencia)
+
+**Pedido del owner** (2026-10-12, sobre la maqueta `.scratch/chamisas-paginas/nosotros-suscripciones.html`,
+la propuesta "Casillas" del discovery con Refero, § `refero-chamisas.md` §4): *"Liked the mockup, go
+ahead with it."* La molienda y el tamaño de bolsa valen para TODO el pedido, como en la maqueta.
+
+### El modelo — dos piezas REUTILIZABLES, nuevas, y la composición que las junta
+
+- **`lib/storefront/casillas-frecuencia.ts`** (PURO, capa 1, agnóstico de "café"): dado un `FrecuenciaEnvio`
+  (`{enviosPorMes, cadaNMeses}`), una `hoy` y un array de `marcas` genérico (`M`, el tipo de la marca que
+  CADA tienda decide pintar — sticker/punto/sello, § refero-chamisas.md §5), devuelve las próximas `n`
+  (default 6) `CasillaFrecuencia<M>`: mes/año, si lleva envío, si es doble ("×2"), y las marcas (vacías si
+  no hay envío O si no hay nada elegido todavía — "las vacías llevan el sello en tono"). `totalEnviosEnVentana`
+  cuenta envíos (×2 pesa doble). 14 tests, ancla fija 2026-10-12 — nunca `new Date()`.
+- **`lib/storefront/nota-pedido.ts`** (PURO, capa 1, agnóstico de café/tienda): `lineasNotaPedido`/
+  `mensajeNotaPedido` arman el mensaje EXACTO de WhatsApp —negocio, frecuencia, una línea por ítem
+  (cantidad × nombre · tamaño · molienda), total, ciudad, pregunta de cierre— a partir de strings YA
+  resueltos por el llamador; nunca sabe de café. 6 tests.
+- **`SuscripcionCasillas.tsx`** (nueva): monta las dos piezas de arriba sobre el catálogo REAL, derivado
+  con la MISMA `derivarMatrizTaquilla`/`celdaDe` que ya usa «Taquilla» (§ ONIX-SUSCRIPCION-TAQUILLA-1) —
+  nunca un segundo modelo de producto. La diferencia de cardinalidad frente a Taquilla: Taquilla elige
+  UNA celda; Casillas elige VARIOS cafés (las `matriz.filas`) a la vez, cada uno con su cantidad,
+  compartiendo UNA bolsa y UNA molienda para todo el pedido. El color de cada café sale de `colorDeLamina`
+  (`lib/tienda/laminas.ts`, ya existente) sobre `tiendaCatalogo.coloresPorProducto` — el MISMO mapa que
+  «Láminas» de /tienda, nunca un segundo sistema de color.
+- **"Precio por confirmar" NO EXISTE en la implementación real**, a diferencia de la maqueta (que lo
+  simula con un literal fijo para 500 g): `derivarMatrizTaquilla` exige matriz COMPLETA (toda fila×columna
+  con producto) o cae entera a `null` — con un catálogo parcial (sólo algunos cafés con 500 g) la sección
+  cae SOLA a «Tarjetas» (§ el spec, item 2: "sin catálogo que alcance, la sección cae a la composición por
+  defecto"), nunca a una Casillas con huecos. Documentado en el docstring de cabecera de
+  `lib/storefront/suscripcion-taquilla.ts`, § LA COMPOSICIÓN «CASILLAS».
+- **`lib/storefront/suscripcion-taquilla.ts` gana 7 funciones** (`itemsCasillas`, `bolsasCasillas`,
+  `totalPorEnvioCasillas`, `moliendasCasillas`, `frecuenciaEstructuraPorSlot`, `topeUnidadesCasilla`, el
+  tipo `ItemCasilla`): la derivación de ítems/precio/molienda/tope, y el MAPEO POSICIONAL slot→estructura
+  de calendario (slot 1=quincenal, 2=mensual, 3=bimestral, 4=trimestral) — convención PROPIA de esta
+  composición, DISTINTA del módulo agnóstico de frecuencia (que no sabe qué es un "slot"). Límite
+  DECLARADO en el código: un dueño que reordene sus frecuencias fuera de "más frecuente a menos frecuente"
+  rompe la calendarización sin aviso del editor — no hay hoy un campo estructurado de "cada cuántos días"
+  por fuera del texto libre.
+- **`suscripcionPlanes` gana `variante:'casillas'`** (tercera clave, junto a 'tarjetas'/'taquilla') + 12
+  campos NUEVOS que SÓLO tienen efecto bajo esa variante (`casillasSticker`, `casillasAyudaLabel/Mensaje`,
+  `casillasCiudadLabel/Placeholder`, `casillasPreguntaCierre`, `casillasCtaLabel/CtaVacioLabel`,
+  `casillasAviso`, `casillasNotaTitulo/Intro`) — REUTILIZA `eyebrow`/`titulo`/`tituloEnfasis`/`subtitulo`
+  (el encabezado de «Tarjetas», mismo concepto de apertura, tratamiento visual distinto) y `frecuencia1..4`/
+  `taquillaEtiquetaMolienda` (compartidos con «Taquilla», docstring actualizado para decirlo) — NUNCA
+  duplica un campo que ya existe (el test anti-duplicados de `site-content-defaults.test.ts` atrapó un
+  intento de `casillasEtiquetaMolienda` separado y se corrigió reusando `taquillaEtiquetaMolienda`).
+- **`suscripcionPasos` gana `variante`** ('tarjetas' canónica | 'casillas', CERO campos nuevos — las
+  mismas `pasoNLabel/Desc`, sólo otro tratamiento: lista numerada vertical/en fila, números rotados,
+  filetes punteados, en vez de la rejilla de 4 íconos).
+- **"Cierre" gana la pieza compartida `CierreCostura.tsx`** (§ refero-chamisas.md §4, item 6: "la banda
+  punteada"): EXTRAÍDA de `TiendaCierre.tsx` (que la montaba inline para su composición «Costura») al
+  mismo patrón que `CierreFraseYBoton.tsx` ya estableció (§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) —
+  presentacional, props puras. `TiendaCierre.tsx` se REFACTORIZÓ para usarla (byte-idéntico, afirmado por
+  test: "Costura (tiendaCierre canónica) — byte-identidad" sigue verde). `suscripcionCierre` gana
+  `variante` ('fraseYBoton' canónica | 'costura') + `franjaTejido`. **LÍMITE DECLARADO**:
+  `suscripcionCierre.ctaDestino` sigue acotado al set cerrado `MENU_CTA_DESTINOS` ('/tienda',
+  '/suscripciones', '/nosotros') — NUNCA WhatsApp directo, a diferencia de `tiendaCierre.boton`, que
+  resuelve WhatsApp con su propia `botonCierre()`. La maqueta pide literalmente "Escribir por WhatsApp"
+  como destino de este botón, y hoy esta sección no puede reproducirlo — documentado en el content guide
+  y en el seed de captura (que usa "Ver el catálogo" → `/tienda` como alternativa válida).
+
+### Panel — el gate `huecosDelPanel()` exigió registrar CADA campo nuevo, sin exenciones
+
+Los 12 campos de `suscripcionPlanes` + el `variante` de `suscripcionPasos` + el `variante`/`franjaTejido`
+de `suscripcionCierre` se registraron en `components/admin/tienda-secciones.ts` (zonas + campos + bloques
+`tipo:'seccion'` como "vehículo" para que `nombresDelBloque` los encuentre — el mecanismo de
+`particionarBloques`, § `EDITOR-COMPOSICION-CAMPOS-1`, exige que TODO campo de `config.campos` aparezca en
+algún bloque o el test "no pierde ningún campo" falla). **Medido, no asumido**: `panel-controles.test.ts`
+pasa con CERO entradas nuevas en `PENDIENTE_PANEL` — el panel refleja la tienda de punta a punta para esta
+composición, desde el primer commit.
+
+### Movimiento — se usó el patrón CSS liviano, NO `lib/movimiento/`
+
+**Desviación medida, declarada**: el spec menciona "Movimiento por el motor"; `lib/movimiento/` (el
+catálogo GSAP de `MOVIMIENTO-MARCO-GSAP-1`) es un motor de animaciones de SECCIÓN completas
+(pin+scrub narrativo, configurado vía el eje `animacion` del editor), no shaped para micro-interacciones
+disparadas por estado de usuario (un sticker que se pega al elegir un café, una cascada al cambiar de
+frecuencia). Se usó el MISMO patrón ya establecido por `COMPRA-LINEAS-ONIX-CHAMISAS-1` para
+`EstadoPedido.tsx`: un `<style>` con `@keyframes` propio, cubierto por el guard GLOBAL de
+`prefers-reduced-motion` de `app/globals.css` (cero guard propio necesario). `lib/movimiento/` y
+`components/storefront/movimiento/` quedan SIN TOCAR — estaban en `touches:` como permiso, no como
+obligación.
+
+### La paleta/tipografía/forma de Las Chamisas — MEDIDAS contra el despliegue real, no contra un mockup
+
+`https://coffee-template-app-las-chamisas.vercel.app/` responde 200 vía `fetch()` plano (sin Playwright:
+el storefront es `force-dynamic` e inyecta `cssPaleta`/`cssFuentes`/`cssFormas` como `<style>` LITERAL en
+el HTML servido, así que el HTML crudo ya trae el mismo valor final que `getComputedStyle` leería en un
+navegador). Medido el 2026-10-12: `--sf-fondo:#FAF4EB`, `--sf-tinta:#2A2522`, `--sf-acento:#B8461A`,
+`--sf-fuente-titulo:'Roboto Serif'`, `--sf-fuente-cuerpo:'Figtree'`, `--radius-3xl:4px` (forma 'recta').
+`fuentePar:'prensa'` es la ÚNICA clave de `lib/config/fuentes.ts` cuyo par es exactamente Roboto
+Serif/Figtree. Esto es DISTINTO de la paleta `.ln-ch` que `sembrarCompra` (`COMPRA-LINEAS-FIDELIDAD-1`) ya
+usaba para Las Chamisas —esa viene de un MOCKUP (`acento: tinta`, sin fuentePar/forma propios)—, no del
+despliegue real; las dos conviven en `scripts/capturar-seccion.ts` sin que una reemplace a la otra, cada
+una sirviendo a su propio slice.
+
+### El arnés de captura — `--sembrar-casillas` + dos acciones previas nuevas
+
+`scripts/capturar-seccion.ts` gana `sembrarCasillas()` (paleta/tipografía/forma medidas arriba + TRES
+productos de muestra —Bourbon Rosado/Pacamara/Papayo, un café por FILA de la matriz, una sola bolsa de
+340 g, con `moliendasOpciones` y `notas` reales— + `suscripcionPlanes.variante:'casillas'` +
+`suscripcionPasos.variante:'casillas'` + `suscripcionCierre.variante:'costura'` publicados +
+`SiteSetting.nombre/whatsapp`) y dos `--accion-previa` nuevas (`casillas-dos-cafes`: suma una bolsa de
+Bourbon Rosado y una de Pacamara; `casillas-quincenal`: elige la frecuencia "15 días") — mismo patrón de
+nombres FIJOS (no un DSL) que `COMPRA-LINEAS-FIDELIDAD-1` ya estableció.
+
+### Verificado en un navegador real — escritorio y celular, las tres configuraciones del comprador
+
+`next build` + `next start` reales, Postgres efímero, Chromium headless — NUNCA `next dev`
+(§ CROMO-DEV-HIDRATACION-SPA-1). Capturas en `.capturas/chamisas-casillas-v3-1440/` (vacía · dos cafés ·
+quincenal, incluye "Así funciona" en Casillas y el Cierre «Costura»), `.capturas/chamisas-casillas-390/`
+(vacía · dos cafés) y `.capturas/chamisas-casillas-barra-390/` (la barra fija, capturada tras
+`--accion-previa casillas-dos-cafes` + `--scroll 3400` para empujar el botón principal fuera del
+viewport — la barra "2 bolsas · 2 meses · $ 100.000 · Pedir" aparece correctamente). Comparadas a mano
+contra `.scratch/chamisas-paginas/capturas/v-d-suscripciones.jpg`/`v-d-suscripciones-quincenal.jpg`/
+`v-m-suscripciones-barra.jpg` (las capturas de la maqueta aprobada): estructura, agrupación y datos
+coinciden; lo que NO se replicó —documentado, no un descuido:
+- **El tejido de membrete/franja** usa un degradado diagonal repetido (CSS puro), no la imagen de patrón
+  geométrico colorido de la maqueta — no hay asset de tejido cargado para esta captura (`franjaTejido`
+  vacío en el seed); con una imagen real cargada por el dueño, la pieza la muestra (mismo mecanismo que
+  `tiendaCierre.franjaTejido`).
+- **Las "marcas" de café en las Casillas de frecuencia y la Nota de pedido** son círculos de color
+  (derivados de `colorDeLamina`), no fotos de bolsa recortadas — refero-chamisas.md §5 nombra "sticker,
+  punto o sello" como marcas válidas para esta pieza reutilizable; el punto de color es la elegida, sin
+  requerir un sistema de upload de sticker-por-café que no existe.
+- **El botón "Pedir" de la barra fija móvil es un literal fijo**, no un campo editable — a diferencia de
+  `taquillaBarraCtaLabel` (Taquilla SÍ lo tiene editable). Deuda menor, declarada.
+
+**No se hizo ningún pago ni pedido real** — los 3 productos sembrados viven en la base EFÍMERA de este
+arnés (nunca `development`/`production`).
+
+### Desviaciones medidas
+
+- **La frecuencia por defecto de Casillas es la ÚLTIMA configurada** (como Taquilla, § ONIX-PAGINAS-
+  FIDELIDAD-1), no la "del medio" que muestra el estado inicial de la maqueta interactiva (`S.freq`
+  arranca en `'m1'`, la segunda de tres): alineado a la convención YA establecida de esta sección en vez
+  de introducir una segunda regla de default para el mismo concepto. Medido en la captura `app-0` de
+  `chamisas-casillas-v3-1440`: con `frecuencia1/2/3` = "15 días"/"Mes"/"2 meses", el estado vacío arranca
+  en "2 meses" (slot 3, el último configurado).
+- **Los tres encabezados de paso ("¿Qué café?"/"Bolsa y molienda"/"¿Cada cuánto?") son ESTRUCTURALES, no
+  campos editables** — simplificación DECLARADA frente al spec item 7 ("todo texto visible es un campo
+  editable"), que se aplicó de lleno al resto de la página (apertura/así-funciona/letra-pequeña/cierre)
+  pero no se extendió a la cáscara del armador por presupuesto del slice. Mismo criterio que los números
+  "0N" estructurales de `SuscripcionPasos.tsx`.
+- **`suscripcionCierre.ctaDestino` no resuelve WhatsApp** (§ arriba, "El cierre gana la pieza compartida
+  CierreCostura").
+- **El botón de la barra fija móvil de Casillas no es editable** (§ arriba).
+
+### Figuras citadas (todas MEDIDAS en este slice, sobre el árbol final)
+
+- `tsc --noEmit`: **0 errores**, corrido TRES veces en el curso del slice (tras cada tanda de cambios),
+  limpio las tres.
+- `npm test`: **4741/4741** (antes de este slice, tip de `slice/editor-secciones-1`: 4690/4690,
+  § `COMPRA-LINEAS-FIDELIDAD-1`). +51 tests nuevos: 14 en `casillas-frecuencia.test.ts`, 6 en
+  `nota-pedido.test.ts`, 17 en `suscripcion-taquilla.test.ts` (10 de las funciones puras de Casillas + 3 de
+  render de `SuscripcionCasillas` + 4 de `SuscripcionCierre`/`TiendaCierre`), y el resto por el crecimiento
+  derivado de `panel-controles.test.ts`/`site-content-defaults.test.ts` al registrar los campos nuevos
+  (ningún test existente se tocó más allá de lo que exige mantenerlos verdes).
+- `npm run test:integracion`: **409/409** — sin cambio (este slice no toca schema ni ninguna cadena del
+  motor).
+- `next build` (producción, vía el arnés): **0 errores**, 54 rutas, verificado en CUATRO corridas
+  independientes del arnés (desktop ×2, mobile ×1, la barra fija ×1) más las dos del
+  `verificar:nayoli:visual` (main y rama).
+- `npm run verificar:nayoli:visual`: **salió con diferencias — las MISMAS SEIS, byte a byte, que
+  `COMPRA-LINEAS-FIDELIDAD-1` ya midió y documentó como heredadas** (home 165052/4608000 px AA·174711
+  crudo; tienda 209/2433280·407; producto main 1280×1981 vs. rama 1280×1917; checkout 163/1152000·361;
+  nosotros 224/1152000·422; suscripciones 258/2144000·456; hover automatica/eleccion 0 px) — este slice no
+  toca ni un componente ni una ruta que esas capturas ejerciten de forma nueva (`SuscripcionCasillas`/
+  `CierreCostura` sólo se montan bajo `variante==='casillas'`/`'costura'`, que Nayoli nunca elige), así que
+  la reproducción EXACTA del mismo diff (no uno distinto, no uno mayor) es la evidencia de que el slice no
+  agregó un solo píxel nuevo. No se re-corrió contra el commit padre inmediato de este slice —ya está
+  comparado contra `main`, y la cifra es IDÉNTICA a la que `COMPRA-LINEAS-FIDELIDAD-1` midió DOS VECES
+  (contra `main` y contra su propio padre) hace un commit — reconciliar contra esa medición doble
+  sustituye a repetirla.
+
+### Open follow-ups
+
+- **`CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1`** — si el dueño quiere que la Nota de pedido y las Casillas de
+  frecuencia muestren la FOTO del café (sticker recortado) en vez de un punto de color, hace falta una
+  capacidad de sticker-por-producto que no existe hoy (subida de imagen recortada, o derivarla de
+  `producto.imagen`). *Por qué no ahora:* el punto de color ya cumple "cada línea pone su marca" (§ el
+  spec de la pieza reutilizable) sin inventar una capacidad de upload nueva.
+- **`CHAMISAS-CIERRE-CTA-WHATSAPP-1`** — `suscripcionCierre.ctaDestino` no puede apuntar a WhatsApp
+  directo (§ arriba). *Por qué no ahora:* extender `resolverCtaSeccion`/`MENU_CTA_DESTINOS` o darle a
+  `suscripcionCierre` su propio `botonCierre()`-como-`tiendaCierre` es una decisión de alcance mayor
+  (toca una función compartida por varias secciones) fuera de este slice.
+- **`CHAMISAS-BARRA-FIJA-CTA-EDITABLE-1`** — el texto "Pedir" de la barra fija móvil de Casillas no es
+  editable, a diferencia de `taquillaBarraCtaLabel`. *Por qué no ahora:* es un campo más, de bajo costo,
+  pero no se detectó hasta la verificación visual final del slice.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `SuscripcionPlanes.tsx`, `SuscripcionCasillas` (nuevo), `SuscripcionPasos.tsx`,
+`SuscripcionCierre.tsx`, `TiendaCierre.tsx`, `CierreCostura` (nuevo), `suscripcion-taquilla.ts`,
+`casillas-frecuencia`/`nota-pedido` (nuevos), `SuscripcionPlanesContent`/`SuscripcionPasosContent`/
+`SuscripcionCierreContent`, `tienda-secciones.ts`, `capturar-seccion.ts`, `suscripciones/page.tsx`.
+Grepeado el CLAUDE.md por cada uno: **CERO apariciones, para los doce.** CLAUDE.md no documenta la
+Taquilla/Suscripciones de /suscripciones en absoluto — mismo hallazgo que `COMPRA-LINEAS-FIDELIDAD-1` ya
+registró para su propio diff ("la doctrina de esa pieza vive en DECISIONS.md, nunca promovida a
+CLAUDE.md"): nada que verificar, nada que una sentencia de CLAUDE.md pudiera volverse falsa.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner aprobó la maqueta el 2026-10-12 —
+*"Liked the mockup, go ahead with it."*). Entra por `app/(storefront)/` y `components/storefront/` (bytes
+del visitante — `SuscripcionPlanes.tsx`, `SuscripcionCasillas.tsx`, `SuscripcionPasos.tsx`,
+`SuscripcionCierre.tsx`, `TiendaCierre.tsx`, `CierreCostura.tsx`, `suscripciones/page.tsx` tocados) y por
+`components/admin/` (el registro del panel). El diff cambia bytes que un comprador de Las Chamisas (y de
+cualquier tienda que elija «Casillas»/«Costura») lee, alcanzables sin otro deploy —
+`customer_bytes.changed=true`. Sin cambio de schema/migración (cero `packages/core/prisma/`, el
+contenido nuevo vive en `SiteContent`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio, `npm
+test` 4741/4741, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` reproduce EXACTO
+el diff ya documentado como heredado por `COMPRA-LINEAS-FIDELIDAD-1` — cero píxeles nuevos para Nayoli.
+No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
