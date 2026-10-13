@@ -28,6 +28,7 @@ import { composicionCarrito } from "@/lib/storefront/carrito-drawer";
 import { vendedorEstaCompleto, lineaVendedor } from "@/lib/legal/plantillas";
 import { composicionCajon } from "@/lib/checkout/composiciones-compra";
 import { HEX6 } from "@/lib/tienda/laminas";
+import type { VendedorContent } from "@/lib/config/site-content-defaults";
 
 // CartTitulo y CartCTA no dependen de useCartStore (el título es fijo; el CTA recibe su onClick por
 // prop) a propósito: § CROMO-CARRITO-TEMATIZADO-1 -- useCartStore es un CONTEXT que revienta sin
@@ -196,27 +197,81 @@ export function CartCTA({ onClick, label = "Ir al Checkout" }: { onClick: () => 
   );
 }
 
-export default function CartDrawer() {
-  const {
-    items,
-    isOpen,
-    closeCart,
-    removeItem,
-    updateQuantity,
-    subtotal,
-    departamento,
-    setDepartamento,
-  } = useCartStore();
-  const { carritoEnvio, carrito, vendedor, compra, tiendaCatalogo } = useSiteContent();
+// COMPRA-LINEAS-FIDELIDAD-1 — `CajonPanel` es el CUERPO del cajón (cabecera + filas + pie),
+// extraído de `CartDrawer` por la MISMA razón que ya separó `CartTitulo`/`CartCTA`/
+// `BarraEnvioGratis`: ninguno de esos tres fragmentos depende de `useCartStore` — y éste tampoco,
+// porque recibe TODO por props. Eso es lo que permite que el editor admin (`CompraSeccion.tsx`,
+// § el preview de «Camino de compra») lo monte con datos de MUESTRA, sin `CartProvider` — montar
+// `<CartDrawer/>` completo ahí reventaría (`useCartStore` throws sin su Provider) y, peor, un
+// `<CartProvider>` de verdad en el panel LEE Y ESCRIBE el `localStorage` del comprador real
+// (`lib/cartStore.tsx`, `guardarCarrito`/`restaurarCarrito`) — mismo origen que el storefront —,
+// así que sembrar ítems de ejemplo ahí contaminaría el carrito real de quien esté usando el panel
+// en el mismo navegador. `CajonPanel` no toca ningún storage: todo lo que pinta vive en sus props.
+//
+// El cuerpo es BYTE-IDÉNTICO al que `CartDrawer` ya rendía — sólo cambiaron los NOMBRES de lo que
+// antes venía de los hooks (`closeCart`→`onClose`, `setDepartamento`→`onDepartamentoChange`, …) por
+// los mismos valores recibidos como prop. `CartDrawer`, abajo, sigue siendo el único que habla con
+// `useCartStore`/`useSiteContent` y el único que monta el backdrop + la animación de entrada.
+export interface CajonPanelItem {
+  key: string;
+  id: string;
+  nombre: string;
+  imagen?: string;
+  precio: number;
+  quantity: number;
+  options?: Record<string, string | boolean>;
+}
 
+export interface CajonPanelProps {
+  cajon: ReturnType<typeof composicionCajon>;
+  // `carrito`/`carritoEnvio` se reciben como los SUB-OBJETOS de `SiteContentData` (no aplanados a
+  // `carritoVariante`/`carritoEnvioVisible`) A PROPÓSITO — § DEVIACIÓN COMPRA-LINEAS-FIDELIDAD-1:
+  // `lib/config/detalles-sitio.test.ts` (fuera de `touches:` de este slice) lee la FUENTE de este
+  // archivo y afirma los literales `carrito.variante`/`carritoEnvio.visible` tal cual aparecían
+  // antes de esta extracción; aplanarlos a nombres propios habría dejado esos tests leyendo un
+  // literal que ya no existe, sin que este slice pudiera tocar ese archivo para corregirlos. Pasar
+  // los mismos sub-objetos preserva la expresión exacta `carrito.variante`/`carritoEnvio.visible`
+  // dentro de `CajonPanel`, así que esos tests se quedan verdes sin tocarlos.
+  carrito: { variante: 'anclado' | 'flotante' };
+  /** § el docstring de `composicionCarrito`: hoy siempre `false`, `/carrito` no existe. */
+  paginaCarritoExiste?: boolean;
+  items: CajonPanelItem[];
+  departamento: string | null;
+  carritoEnvio: { visible: boolean };
+  coloresPorProducto: Record<string, string>;
+  vendedor: VendedorContent;
+  onClose: () => void;
+  onUpdateQuantity: (key: string, quantity: number) => void;
+  onRemoveItem: (key: string) => void;
+  onDepartamentoChange: (value: string | null) => void;
+}
+
+export function CajonPanel({
+  cajon,
+  carrito,
+  paginaCarritoExiste = false,
+  items,
+  departamento,
+  carritoEnvio,
+  coloresPorProducto,
+  vendedor,
+  onClose,
+  onUpdateQuantity,
+  onRemoveItem,
+  onDepartamentoChange,
+}: CajonPanelProps) {
   // COMPRA-LINEAS-ONIX-CHAMISAS-1 — el cajón gana una composición ELEGIBLE por tienda, ORTOGONAL a
   // `carrito.variante` (anclado/flotante, § MUESTRARIO-CARRITO-COMPOSICION-1): esa es la POSICIÓN
-  // del panel; ésta es el TRATAMIENTO de sus filas y su pie. `composicionCajon` resuelve al set
-  // cerrado — `'comun'` (AUSENTE, el default de toda tienda que no elige) rinde EXACTAMENTE lo
-  // que este archivo ya rendía.
-  const cajon = composicionCajon(compra.cajon);
+  // del panel; ésta es el TRATAMIENTO de sus filas y su pie. `cajon` ya llega RESUELTO al set
+  // cerrado — `'comun'` (el default de toda tienda que no elige) rinde EXACTAMENTE lo que este
+  // archivo ya rendía.
   const esCreditos = cajon === 'creditos';
   const esAlbum = cajon === 'album';
+
+  // Misma fórmula que `lib/cartStore.tsx` (`subtotal = items.reduce((s,i)=>s+i.precio*i.quantity,0)`)
+  // — recalculada acá para que `CajonPanel` no dependa del Context; para `CartDrawer` (abajo) da el
+  // MISMO número, porque recibe los MISMOS `items`.
+  const subtotal = items.reduce((sum, item) => sum + item.precio * item.quantity, 0);
 
   // CHECKOUT-LISTO-PARA-VENDER-1 — el envío YA NO dice "Se calcula en el checkout" (§ el
   // reporte del slice, § `paginas-pendientes.md` §2.1): el costo depende SOLO del
@@ -226,6 +281,10 @@ export default function CartDrawer() {
   const metodoEnvioCajon = departamento ? (isBogotaDC(departamento) ? 'bogota' : 'nacional') : null;
   const shippingMethodCajon = metodoEnvioCajon ? getShippingMethod(metodoEnvioCajon) : null;
   const shippingCostCajon = metodoEnvioCajon ? computeShippingCost(metodoEnvioCajon, subtotal) : null;
+  // COMPRA-LINEAS-FIDELIDAD-1 — el total que el pie «Créditos»/«Álbum» YA mostraba en su fila
+  // TOTAL (§ abajo) es el MISMO que el botón de pagar necesita repetir junto al verbo (§ la
+  // maqueta: «IR A PAGAR · $ 87.000» / «Ir a pagar · $ 115.000») — una sola cuenta, dos lugares.
+  const totalCajon = subtotal + (shippingCostCajon ?? 0);
 
   // El costo de envío depende de la dirección; se calcula en el checkout. Aquí
   // solo mostramos el subtotal (el total real lo recalcula el servidor).
@@ -240,8 +299,473 @@ export default function CartDrawer() {
   // § CARRITO-Y-MENU-MOVIL-CAFEONE-1 -- `paginaCarritoExiste=false`: `app/(storefront)/` no
   // declara `/carrito` hoy, así que ninguna variante muestra el botón secundario. Cambia acá el
   // día que esa página exista (§ el docstring de `composicionCarrito`).
-  const flotante = carrito.variante === 'flotante';
-  const composicion = composicionCarrito(carrito.variante, false);
+  const flotante = carrito.variante !== 'anclado';
+  const composicion = composicionCarrito(carrito.variante, paginaCarritoExiste);
+
+  return (
+    <>
+            {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 — composición «Álbum» (Las Chamisas): franja de tejido
+                en la cabecera, un patrón de rayas diagonales alternadas con los tokens del tema —
+                nunca un color literal — que distingue el cajón de un vistazo, antes de leer nada. */}
+            {esAlbum && (
+              <div
+                aria-hidden="true"
+                className="h-2 w-full shrink-0"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(45deg, var(--sf-acento) 0, var(--sf-acento) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 12px)',
+                }}
+              />
+            )}
+            {/* Header */}
+            <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
+              <div className="flex items-center gap-2">
+                {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 -- 'flotante' pierde el ícono de bolsa: la
+                    cabecera REAL de Cafeone (`xo-modal-content__header`, fetch directo) es sólo
+                    título + botón de cerrar, sin ícono -- las capturas de móvil (`.scratch/refs/
+                    cafeone-carrito-*-movil.png`) lo confirman. 'anclado' (Nayoli) lo conserva
+                    byte-idéntico: el ícono sigue siendo del rol de hoy.
+                    COMPRA-LINEAS-FIDELIDAD-1 -- «Créditos»/«Álbum» tampoco lo llevan (§ la
+                    maqueta, `.dr-hd`: sólo título + botón de cerrar, para las DOS tiendas). */}
+                {!flotante && cajon === 'comun' && <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />}
+
+                {cajon === 'comun' ? (
+                  <>
+                    <CartTitulo variante={carrito.variante} />
+
+                    {items.length > 0 && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-[var(--sf-acento-txt)]">
+                        {totalItems}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  // COMPRA-LINEAS-FIDELIDAD-1 -- «Tu pedido (n)» (§ la maqueta, `dr-hd h2`: "Tu
+                  // pedido <span>(n)</span>" -- el MISMO texto para las dos tiendas, SIN el badge
+                  // circular rojo de 'comun'; Onix se ve mayúscula sólo por una clase CSS propia
+                  // (`.ln-onix .dr-hd h2{text-transform:uppercase}` en la maqueta), nunca en el
+                  // string -- el "(n)" se queda en registro normal, como el prototipo.
+                  <h2 className={`font-playfair font-normal text-[var(--sf-tinta)] ${esCreditos ? 'text-xl uppercase tracking-wide' : 'text-2xl'}`}>
+                    Tu pedido{' '}
+                    <span className="font-sans text-sm font-normal normal-case tracking-normal text-[var(--sf-texto-suave)]">
+                      ({totalItems})
+                    </span>
+                  </h2>
+                )}
+              </div>
+
+              <button
+                onClick={onClose}
+                className="sf-radio-lg p-1.5 transition-colors hover:bg-[var(--sf-superficie)]"
+              >
+                <X className="h-5 w-5 text-[var(--sf-texto)]" />
+              </button>
+            </div>
+
+            {/* Items */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {carritoEnvio.visible && (
+                <div className="mb-4">
+                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} tejido={esAlbum} />
+                </div>
+              )}
+
+              {items.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--sf-superficie)]">
+                    <ShoppingBag aria-hidden="true" className={`h-7 w-7 ${composicion.claseIconoVacio}`} />
+                  </div>
+
+                  <p className={`mb-1 text-[var(--sf-tinta)] ${composicion.claseTituloVacio}`}>
+                    Tu carrito está vacío
+                  </p>
+
+                  <p className="mb-6 text-sm text-[var(--sf-texto-suave)]">
+                    Explora nuestros productos y agrega tu café favorito.
+                  </p>
+
+                  {flotante ? (
+                    <button
+                      onClick={onClose}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] cursor-pointer"
+                    >
+                      Seguir comprando
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onClose}
+                      className="text-sm font-medium text-[var(--sf-acento-texto)] underline underline-offset-2 crusor-pointer"
+                    >
+                      Seguir comprando
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {items.map((item) => (
+                    <div
+                      key={item.key}
+                      className="flex gap-3"
+                    >
+                      {/* Image -- § CARRITO-Y-MENU-MOVIL-CAFEONE-1: `sf-radio-lg` bajo 'flotante'
+                          (2px en 'recta', "tile suavizado") en vez de `rounded-xl` (`--radius-xl`,
+                          0 bajo 'recta' -- fully square, no "suavizado"). AUSENTE/'anclado' queda
+                          `rounded-xl`, byte-idéntico.
+                          COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Álbum»: la miniatura se
+                          pinta SOBRE el color de ESE café (`coloresPorProducto`, el
+                          MISMO mapa que ya alimenta la lámina de /tienda, § TIENDA-CHAMISAS-ALBUM-1
+                          -- nunca un color nuevo), con la foto en `object-contain` para que el
+                          color se vea alrededor. Sin color elegido para ESTE producto, el fondo
+                          cae a la superficie de siempre -- no se inventa un color de reserva acá
+                          (ese cálculo exige el índice del producto en el catálogo completo, que
+                          el cajón no tiene). */}
+                      <div
+                        className={`relative h-16 w-16 shrink-0 overflow-hidden bg-[var(--sf-superficie)] ${flotante ? 'sf-radio-lg' : 'rounded-xl'}`}
+                        style={esAlbum && HEX6.test(coloresPorProducto[item.id] ?? '')
+                          ? { backgroundColor: coloresPorProducto[item.id] }
+                          : undefined}
+                      >
+                        <Image
+                          src={imagenPortada(item.imagen)}
+                          alt={item.nombre}
+                          fill
+                          className={esAlbum ? 'object-contain p-1.5' : 'object-cover'}
+                          sizes="64px"
+                        />
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <p className={`line-clamp-2 text-sm leading-tight text-[var(--sf-tinta)] ${flotante ? 'font-playfair font-normal' : 'font-medium'}`}>
+                          {item.nombre}
+                        </p>
+
+                        {typeof item.options?.molienda === "string" && (
+                          esCreditos ? (
+                            // «Créditos» (Onix): la fila al estilo Taquilla (§ el spec: "EN GRANO ·
+                            // 500 G") -- mayúscula espaciada, sin el prefijo "Molienda:".
+                            <p className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-[var(--sf-tostado-3)]">
+                              {item.options.molienda}
+                            </p>
+                          ) : esAlbum ? (
+                            // COMPRA-LINEAS-FIDELIDAD-1 -- «Álbum» (Las Chamisas): el mismo dato,
+                            // también SIN el prefijo "Molienda:", pero en registro NORMAL -- § la
+                            // maqueta, `.ln-ch .rw .vr{text-transform:none}` (a diferencia de
+                            // «Créditos», que lo lleva en mayúscula espaciada).
+                            <p className="mt-0.5 text-xs text-[var(--sf-texto)]">
+                              {item.options.molienda}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-[var(--sf-tostado-3)]">
+                              Molienda: {item.options.molienda}
+                            </p>
+                          )
+                        )}
+
+                        {/* COMPRA-LINEAS-FIDELIDAD-1 -- «Créditos»/«Álbum» NO repiten el precio
+                            UNITARIO bajo el nombre (§ la maqueta: sólo el precio de LÍNEA, a la
+                            derecha de la fila -- abajo, "Price"); 'comun' y 'flotante' lo
+                            conservan byte-idéntico. */}
+                        {!esCreditos && !esAlbum && (
+                          <p className="mt-0.5 text-xs text-[var(--sf-texto-suave)]">
+                            {formatCOP(item.precio)}
+                          </p>
+                        )}
+
+                        {/* Quantity Controls — CHECKOUT-LISTO-PARA-VENDER-1: el tap target sube
+                            a 44px (§ el spec del slice, "stepper de 44 px"), el tamaño mínimo
+                            táctil recomendado — 28px (`h-7 w-7`, de antes) es chico para un dedo
+                            en celular, que es donde este cajón ocupa toda la pantalla. */}
+                        <div className="mt-2 flex items-center gap-3">
+                          {esCreditos || esAlbum ? (
+                            // COMPRA-LINEAS-FIDELIDAD-1 -- el stepper gana su propia forma por
+                            // cajón (§ la maqueta, `.step`): «Créditos» es un grupo CUADRADO con
+                            // un borde único y divisores internos (`border:1px solid var(--ink)`,
+                            // `span{border-left/right}`); «Álbum» es el MISMO grupo pero en
+                            // PÍLDORA (`border-radius:999px`), sin divisores internos
+                            // (`.ln-ch .step span{border:0}`). Ninguno de los dos reusa
+                            // `composicionCarrito.claseCajaCantidad` -- ese eje es la POSICIÓN del
+                            // cajón (anclado/flotante), ORTOGONAL al tratamiento del cajón.
+                            <div
+                              className={
+                                esCreditos
+                                  ? 'inline-flex h-11 items-stretch border border-[var(--sf-tinta)]'
+                                  : 'inline-flex h-11 items-stretch overflow-hidden rounded-full border border-[var(--sf-linea)] bg-[var(--sf-fondo)]'
+                              }
+                            >
+                              <button
+                                onClick={() => onUpdateQuantity(item.key, item.quantity - 1)}
+                                aria-label="Reducir cantidad"
+                                className="flex h-full w-11 items-center justify-center transition-colors hover:bg-[var(--sf-linea)]/40 cursor-pointer"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+
+                              <span
+                                className={`flex min-w-9 items-center justify-center text-sm font-medium [font-variant-numeric:tabular-nums] ${esCreditos ? 'border-x border-[var(--sf-linea)]' : ''}`}
+                              >
+                                {item.quantity}
+                              </span>
+
+                              <button
+                                onClick={() => onUpdateQuantity(item.key, item.quantity + 1)}
+                                aria-label="Aumentar cantidad"
+                                className="flex h-full w-11 items-center justify-center transition-colors hover:bg-[var(--sf-linea)]/40 cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className={`flex items-center gap-1 sf-radio-lg ${composicion.claseCajaCantidad}`}>
+                              <button
+                                onClick={() =>
+                                  onUpdateQuantity(
+                                    item.key,
+                                    item.quantity - 1
+                                  )
+                                }
+                                aria-label="Reducir cantidad"
+                                className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+
+                              <span className="w-8 text-center text-sm font-medium">
+                                {item.quantity}
+                              </span>
+
+                              <button
+                                onClick={() =>
+                                  onUpdateQuantity(
+                                    item.key,
+                                    item.quantity + 1
+                                  )
+                                }
+                                aria-label="Aumentar cantidad"
+                                className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+
+                          {esCreditos || esAlbum ? (
+                            // COMPRA-LINEAS-FIDELIDAD-1 -- «Quitar» como TEXTO subrayado (§ la
+                            // maqueta, `.rm{text-decoration:underline}`), compartido por las DOS
+                            // tiendas -- 'comun' conserva el ícono de papelera, byte-idéntico.
+                            <button
+                              onClick={() => onRemoveItem(item.key)}
+                              className="text-xs text-[var(--sf-texto-suave)] underline underline-offset-2 transition-colors hover:text-[var(--sf-texto)] cursor-pointer"
+                            >
+                              Quitar
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onRemoveItem(item.key)}
+                              className="text-[var(--sf-tostado-2)] transition-colors hover:text-red-500 cursor-pointer"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <p className="shrink-0 text-sm font-bold text-[var(--sf-tinta)]">
+                        {formatCOP(
+                          item.precio * item.quantity
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {items.length > 0 && (
+              <div className="space-y-3 sf-divisor-t border-[var(--sf-linea)] px-5 py-4">
+                <div className="space-y-1.5 text-sm">
+                  {/* CHECKOUT-LISTO-PARA-VENDER-1 — "Envío a [departamento]", con SELECTOR real
+                      (§ el spec del slice): el envío sólo depende del departamento, así que
+                      "se calcula en el checkout" era una frase de espera para un dato que el
+                      comprador puede elegir ACÁ mismo. Con un departamento ya elegido se
+                      muestra el costo REAL (`shippingCostCajon`); sin elegir, el selector pide
+                      el dato con la MISMA etiqueta ("Envío a…") para que el comprador entienda
+                      qué decide. El valor viaja al checkout vía el CartContext (persistido). */}
+                  <div className="flex items-center justify-between gap-3 text-[var(--sf-texto)]">
+                    <label htmlFor="carrito-departamento" className="shrink-0">
+                      Envío{departamento ? ` a ${departamento}` : ''}
+                    </label>
+                    <select
+                      id="carrito-departamento"
+                      value={departamento ?? ''}
+                      onChange={(e) => onDepartamentoChange(e.target.value || null)}
+                      className="min-w-0 max-w-[60%] truncate rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-2 py-1.5 text-xs text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
+                    >
+                      <option value="">Selecciona departamento</option>
+                      {COLOMBIA_DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- bajo «Créditos»/«Álbum» el envío ya se
+                      repite como fila del pie (abajo); mostrarlo también acá sería la misma línea
+                      dos veces. */}
+                  {shippingMethodCajon && !esCreditos && !esAlbum && (
+                    <div className="flex justify-between text-[var(--sf-texto-suave)]">
+                      <span>{shippingMethodCajon.label}</span>
+                      <span className={shippingCostCajon === 0 ? 'text-emerald-600' : undefined}>
+                        {shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}
+                      </span>
+                    </div>
+                  )}
+
+                  {!carritoEnvio.visible && (
+                    <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
+                  )}
+
+                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Créditos» (Onix): el pie como
+                      Créditos -- SUBTOTAL / ENVÍO / TOTAL en filas con filete, mayúscula espaciada,
+                      el TOTAL en el acento de la tienda (§ el spec, § refero-compra.md §4: "verde
+                      de la tienda... en el boleto y el pie"). Prioridad sobre 'flotante': es el
+                      tratamiento del PIE que esta tienda eligió, independiente de la posición del
+                      cajón.
+                      COMPRA-LINEAS-FIDELIDAD-1 -- «Envío» gana el departamento elegido (§ la
+                      maqueta: "ENVÍO A BOGOTÁ D.C."), la MISMA etiqueta que ya usa el selector de
+                      arriba -- una sola frase para el mismo hecho, no una segunda. */}
+                  {esCreditos ? (
+                    <div className="space-y-1 pt-1 text-xs font-medium uppercase tracking-wider">
+                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
+                        <span>Subtotal</span>
+                        <span>{formatCOP(subtotal)}</span>
+                      </div>
+                      {shippingMethodCajon && (
+                        <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
+                          <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
+                          <span>{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-sm text-[var(--sf-acento-texto)]">
+                        <span>Total</span>
+                        <span className="font-playfair normal-case tracking-normal">{formatCOP(totalCajon)}</span>
+                      </div>
+                    </div>
+                  ) : esAlbum ? (
+                    // COMPRA-LINEAS-FIDELIDAD-1 -- «Álbum» (Las Chamisas): el MISMO trío de filas
+                    // que «Créditos», en registro NORMAL -- § la maqueta, `.ln-ch .cr` (sin
+                    // mayúscula ni filete entre filas) con el TOTAL en serif (`.ln-ch .cr.tot
+                    // .v{font-family:var(--serif);font-size:24px}`).
+                    <div className="space-y-1.5 pt-1 text-sm">
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Subtotal</span>
+                        <span className="font-semibold">{formatCOP(subtotal)}</span>
+                      </div>
+                      {shippingMethodCajon && (
+                        <div className="flex justify-between text-[var(--sf-texto)]">
+                          <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
+                          <span className="font-semibold">{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between pt-1 text-[var(--sf-tinta)]">
+                        <span>Total</span>
+                        <span className="font-playfair text-xl font-normal">{formatCOP(totalCajon)}</span>
+                      </div>
+                    </div>
+                  ) : flotante ? (
+                    <div className="flex items-baseline justify-between pt-1">
+                      <span className="text-[var(--sf-texto)]">Total estimado</span>
+
+                      <span className="font-playfair text-2xl font-normal text-[var(--sf-tinta)]">
+                        {formatCOP(subtotal)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
+                      <span>Subtotal</span>
+
+                      <span>{formatCOP(subtotal)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* TIENDA-LEGAL-1 — la línea «Vende [nombre] · [documento] · [ciudad]», debajo
+                    del total y antes del CTA. Gateada por `vendedorEstaCompleto`: sin esa
+                    configuración, no se renderiza nada en su lugar (nunca un dato inventado).
+                    COMPRA-LINEAS-FIDELIDAD-1 -- «Créditos»/«Álbum» la mueven DESPUÉS del CTA,
+                    centrada (§ la maqueta: el botón primero, "Vende … [ejemplo]" debajo) -- la
+                    única excepción a TIENDA-LEGAL-1, que sigue rigiendo 'comun'/'flotante'. */}
+                {!esCreditos && !esAlbum && vendedorEstaCompleto(vendedor) && (
+                  <p className="text-xs text-[var(--sf-texto-suave)]">{lineaVendedor(vendedor)}</p>
+                )}
+
+                <CartCTA
+                  onClick={onClose}
+                  label={
+                    // COMPRA-LINEAS-FIDELIDAD-1 -- el botón repite el verbo + el total (§ la
+                    // maqueta: «IR A PAGAR · $ 87.000» en Onix, «Ir a pagar · $ 115.000» en Las
+                    // Chamisas -- la mayúscula de Onix es del STRING, no de una clase CSS, porque
+                    // `CartCTA` no admite una clase extra sin tocar su contrato (`cromo-
+                    // carrito.test.ts`)).
+                    esCreditos
+                      ? `IR A PAGAR · ${formatCOP(totalCajon)}`
+                      : esAlbum
+                        ? `Ir a pagar · ${formatCOP(totalCajon)}`
+                        : composicion.ctaLabel
+                  }
+                />
+
+                {/* COMPRA-LINEAS-FIDELIDAD-1 -- la línea «Vende…» de «Créditos»/«Álbum», debajo
+                    del CTA y centrada (§ arriba). */}
+                {(esCreditos || esAlbum) && vendedorEstaCompleto(vendedor) && (
+                  <p className="text-center text-xs text-[var(--sf-texto-suave)]">{lineaVendedor(vendedor)}</p>
+                )}
+
+                {/* El secundario "Ver carrito" sólo existiría si `/carrito` existiera
+                    (`composicion.mostrarBotonSecundario`, hoy siempre `false` -- § el docstring de
+                    `composicionCarrito`). Bajo 'flotante' el pie del prototipo no lleva un TERCER
+                    link de texto (§ `.drawer-foot`, `docs/prototipos/cafeone/index.html:416-444`:
+                    totales + `.drawer-cta` nada más), así que ese link se omite; 'anclado' lo
+                    conserva byte-idéntico. COMPRA-LINEAS-FIDELIDAD-1 -- «Créditos»/«Álbum»
+                    tampoco lo llevan (§ la maqueta: el pie del cajón termina en la línea «Vende…»,
+                    sin un tercer link de texto). */}
+                {!flotante && !esCreditos && !esAlbum && (
+                  <button
+                    onClick={onClose}
+                    className="w-full text-center text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-texto)] cursor-pointer"
+                  >
+                    Seguir comprando
+                  </button>
+                )}
+              </div>
+            )}
+    </>
+  );
+}
+
+// `CartDrawer` queda como el ÚNICO que habla con `useCartStore`/`useSiteContent`: arma el backdrop
+// y la animación de entrada/salida, resuelve `cajon` y le pasa a `CajonPanel` (arriba) todo ya
+// resuelto. El editor admin (§ `CompraSeccion.tsx`) monta `CajonPanel` directo, con props de
+// muestra, sin este wrapper — no necesita backdrop ni Context.
+export default function CartDrawer() {
+  const {
+    items,
+    isOpen,
+    closeCart,
+    removeItem,
+    updateQuantity,
+    departamento,
+    setDepartamento,
+  } = useCartStore();
+  const { carritoEnvio, carrito, vendedor, compra, tiendaCatalogo } = useSiteContent();
+
+  // COMPRA-LINEAS-ONIX-CHAMISAS-1 — el cajón gana una composición ELEGIBLE por tienda, ORTOGONAL a
+  // `carrito.variante` (anclado/flotante, § MUESTRARIO-CARRITO-COMPOSICION-1): esa es la POSICIÓN
+  // del panel; ésta es el TRATAMIENTO de sus filas y su pie. `composicionCajon` resuelve al set
+  // cerrado — `'comun'` (AUSENTE, el default de toda tienda que no elige) rinde EXACTAMENTE lo
+  // que este archivo ya rendía.
+  const cajon = composicionCajon(compra.cajon);
 
   return (
     <AnimatePresence>
@@ -279,309 +803,19 @@ export default function CartDrawer() {
                 : "fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col bg-[var(--sf-tarjeta)] shadow-2xl"
             }
           >
-            {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 — composición «Álbum» (Las Chamisas): franja de tejido
-                en la cabecera, un patrón de rayas diagonales alternadas con los tokens del tema —
-                nunca un color literal — que distingue el cajón de un vistazo, antes de leer nada. */}
-            {esAlbum && (
-              <div
-                aria-hidden="true"
-                className="h-2 w-full shrink-0"
-                style={{
-                  backgroundImage:
-                    'repeating-linear-gradient(45deg, var(--sf-acento) 0, var(--sf-acento) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 12px)',
-                }}
-              />
-            )}
-            {/* Header */}
-            <div className="flex items-center justify-between sf-divisor-b border-[var(--sf-linea)] px-5 py-4">
-              <div className="flex items-center gap-2">
-                {/* § CARRITO-CABECERA-Y-COLORES-NAV-1 -- 'flotante' pierde el ícono de bolsa: la
-                    cabecera REAL de Cafeone (`xo-modal-content__header`, fetch directo) es sólo
-                    título + botón de cerrar, sin ícono -- las capturas de móvil (`.scratch/refs/
-                    cafeone-carrito-*-movil.png`) lo confirman. 'anclado' (Nayoli) lo conserva
-                    byte-idéntico: el ícono sigue siendo del rol de hoy. */}
-                {!flotante && <ShoppingBag className="h-5 w-5 text-[var(--sf-acento-texto)]" />}
-
-                <CartTitulo variante={carrito.variante} />
-
-                {items.length > 0 && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sf-acento)] text-xs text-[var(--sf-acento-txt)]">
-                    {totalItems}
-                  </span>
-                )}
-              </div>
-
-              <button
-                onClick={closeCart}
-                className="sf-radio-lg p-1.5 transition-colors hover:bg-[var(--sf-superficie)]"
-              >
-                <X className="h-5 w-5 text-[var(--sf-texto)]" />
-              </button>
-            </div>
-
-            {/* Items */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {carritoEnvio.visible && (
-                <div className="mb-4">
-                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} tejido={esAlbum} />
-                </div>
-              )}
-
-              {items.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--sf-superficie)]">
-                    <ShoppingBag aria-hidden="true" className={`h-7 w-7 ${composicion.claseIconoVacio}`} />
-                  </div>
-
-                  <p className={`mb-1 text-[var(--sf-tinta)] ${composicion.claseTituloVacio}`}>
-                    Tu carrito está vacío
-                  </p>
-
-                  <p className="mb-6 text-sm text-[var(--sf-texto-suave)]">
-                    Explora nuestros productos y agrega tu café favorito.
-                  </p>
-
-                  {flotante ? (
-                    <button
-                      onClick={closeCart}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--sf-accion,var(--sf-tostado))] px-6 py-3 text-sm font-semibold text-[var(--sf-accion-txt,var(--sf-tinta))] transition-colors hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] cursor-pointer"
-                    >
-                      Seguir comprando
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={closeCart}
-                      className="text-sm font-medium text-[var(--sf-acento-texto)] underline underline-offset-2 crusor-pointer"
-                    >
-                      Seguir comprando
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {items.map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex gap-3"
-                    >
-                      {/* Image -- § CARRITO-Y-MENU-MOVIL-CAFEONE-1: `sf-radio-lg` bajo 'flotante'
-                          (2px en 'recta', "tile suavizado") en vez de `rounded-xl` (`--radius-xl`,
-                          0 bajo 'recta' -- fully square, no "suavizado"). AUSENTE/'anclado' queda
-                          `rounded-xl`, byte-idéntico.
-                          COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Álbum»: la miniatura se
-                          pinta SOBRE el color de ESE café (`tiendaCatalogo.coloresPorProducto`, el
-                          MISMO mapa que ya alimenta la lámina de /tienda, § TIENDA-CHAMISAS-ALBUM-1
-                          -- nunca un color nuevo), con la foto en `object-contain` para que el
-                          color se vea alrededor. Sin color elegido para ESTE producto, el fondo
-                          cae a la superficie de siempre -- no se inventa un color de reserva acá
-                          (ese cálculo exige el índice del producto en el catálogo completo, que
-                          el cajón no tiene). */}
-                      <div
-                        className={`relative h-16 w-16 shrink-0 overflow-hidden bg-[var(--sf-superficie)] ${flotante ? 'sf-radio-lg' : 'rounded-xl'}`}
-                        style={esAlbum && HEX6.test(tiendaCatalogo.coloresPorProducto[item.id] ?? '')
-                          ? { backgroundColor: tiendaCatalogo.coloresPorProducto[item.id] }
-                          : undefined}
-                      >
-                        <Image
-                          src={imagenPortada(item.imagen)}
-                          alt={item.nombre}
-                          fill
-                          className={esAlbum ? 'object-contain p-1.5' : 'object-cover'}
-                          sizes="64px"
-                        />
-                      </div>
-
-                      {/* Info */}
-                      <div className="min-w-0 flex-1">
-                        <p className={`line-clamp-2 text-sm leading-tight text-[var(--sf-tinta)] ${flotante ? 'font-playfair font-normal' : 'font-medium'}`}>
-                          {item.nombre}
-                        </p>
-
-                        {typeof item.options?.molienda === "string" && (
-                          esCreditos ? (
-                            // «Créditos» (Onix): la fila al estilo Taquilla (§ el spec: "EN GRANO ·
-                            // 500 G") -- mayúscula espaciada, sin el prefijo "Molienda:".
-                            <p className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-[var(--sf-tostado-3)]">
-                              {item.options.molienda}
-                            </p>
-                          ) : (
-                            <p className="mt-0.5 text-xs text-[var(--sf-tostado-3)]">
-                              Molienda: {item.options.molienda}
-                            </p>
-                          )
-                        )}
-
-                        <p className="mt-0.5 text-xs text-[var(--sf-texto-suave)]">
-                          {formatCOP(item.precio)}
-                        </p>
-
-                        {/* Quantity Controls — CHECKOUT-LISTO-PARA-VENDER-1: el tap target sube
-                            a 44px (§ el spec del slice, "stepper de 44 px"), el tamaño mínimo
-                            táctil recomendado — 28px (`h-7 w-7`, de antes) es chico para un dedo
-                            en celular, que es donde este cajón ocupa toda la pantalla. */}
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className={`flex items-center gap-1 sf-radio-lg ${composicion.claseCajaCantidad}`}>
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.key,
-                                  item.quantity - 1
-                                )
-                              }
-                              aria-label="Reducir cantidad"
-                              className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </button>
-
-                            <span className="w-8 text-center text-sm font-medium">
-                              {item.quantity}
-                            </span>
-
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.key,
-                                  item.quantity + 1
-                                )
-                              }
-                              aria-label="Aumentar cantidad"
-                              className="flex h-11 w-11 items-center justify-center sf-radio-lg transition-colors hover:bg-[var(--sf-linea)] cursor-pointer"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          </div>
-
-                          <button
-                            onClick={() => removeItem(item.key)}
-                            className="text-[var(--sf-tostado-2)] transition-colors hover:text-red-500 cursor-pointer"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Price */}
-                      <p className="shrink-0 text-sm font-bold text-[var(--sf-tinta)]">
-                        {formatCOP(
-                          item.precio * item.quantity
-                        )}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            {items.length > 0 && (
-              <div className="space-y-3 sf-divisor-t border-[var(--sf-linea)] px-5 py-4">
-                <div className="space-y-1.5 text-sm">
-                  {/* CHECKOUT-LISTO-PARA-VENDER-1 — "Envío a [departamento]", con SELECTOR real
-                      (§ el spec del slice): el envío sólo depende del departamento, así que
-                      "se calcula en el checkout" era una frase de espera para un dato que el
-                      comprador puede elegir ACÁ mismo. Con un departamento ya elegido se
-                      muestra el costo REAL (`shippingCostCajon`); sin elegir, el selector pide
-                      el dato con la MISMA etiqueta ("Envío a…") para que el comprador entienda
-                      qué decide. El valor viaja al checkout vía el CartContext (persistido). */}
-                  <div className="flex items-center justify-between gap-3 text-[var(--sf-texto)]">
-                    <label htmlFor="carrito-departamento" className="shrink-0">
-                      Envío{departamento ? ` a ${departamento}` : ''}
-                    </label>
-                    <select
-                      id="carrito-departamento"
-                      value={departamento ?? ''}
-                      onChange={(e) => setDepartamento(e.target.value || null)}
-                      className="min-w-0 max-w-[60%] truncate rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-2 py-1.5 text-xs text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
-                    >
-                      <option value="">Selecciona departamento</option>
-                      {COLOMBIA_DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- bajo «Créditos» el envío ya se repite como
-                      fila del pie (abajo), con filete; mostrarlo también acá sería la misma línea
-                      dos veces. */}
-                  {shippingMethodCajon && !esCreditos && (
-                    <div className="flex justify-between text-[var(--sf-texto-suave)]">
-                      <span>{shippingMethodCajon.label}</span>
-                      <span className={shippingCostCajon === 0 ? 'text-emerald-600' : undefined}>
-                        {shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}
-                      </span>
-                    </div>
-                  )}
-
-                  {!carritoEnvio.visible && (
-                    <FraseEnvioGratis belowFreeShipping={belowFreeShipping} threshold={freeShippingThreshold} />
-                  )}
-
-                  {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- composición «Créditos» (Onix): el pie como
-                      Créditos -- SUBTOTAL / ENVÍO / TOTAL en filas con filete, mayúscula espaciada,
-                      el TOTAL en el acento de la tienda (§ el spec, § refero-compra.md §4: "verde
-                      de la tienda... en el boleto y el pie"). Prioridad sobre 'flotante': es el
-                      tratamiento del PIE que esta tienda eligió, independiente de la posición del
-                      cajón. */}
-                  {esCreditos ? (
-                    <div className="space-y-1 pt-1 text-xs font-medium uppercase tracking-wider">
-                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
-                        <span>Subtotal</span>
-                        <span>{formatCOP(subtotal)}</span>
-                      </div>
-                      {shippingMethodCajon && (
-                        <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
-                          <span>Envío</span>
-                          <span>{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-sm text-[var(--sf-acento-texto)]">
-                        <span>Total</span>
-                        <span>{formatCOP(subtotal + (shippingCostCajon ?? 0))}</span>
-                      </div>
-                    </div>
-                  ) : flotante ? (
-                    <div className="flex items-baseline justify-between pt-1">
-                      <span className="text-[var(--sf-texto)]">Total estimado</span>
-
-                      <span className="font-playfair text-2xl font-normal text-[var(--sf-tinta)]">
-                        {formatCOP(subtotal)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1 text-base font-bold text-[var(--sf-tinta)]">
-                      <span>Subtotal</span>
-
-                      <span>{formatCOP(subtotal)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* TIENDA-LEGAL-1 — la línea «Vende [nombre] · [documento] · [ciudad]», debajo
-                    del total y antes del CTA. Gateada por `vendedorEstaCompleto`: sin esa
-                    configuración, no se renderiza nada en su lugar (nunca un dato inventado). */}
-                {vendedorEstaCompleto(vendedor) && (
-                  <p className="text-xs text-[var(--sf-texto-suave)]">{lineaVendedor(vendedor)}</p>
-                )}
-
-                <CartCTA onClick={closeCart} label={composicion.ctaLabel} />
-
-                {/* El secundario "Ver carrito" sólo existiría si `/carrito` existiera
-                    (`composicion.mostrarBotonSecundario`, hoy siempre `false` -- § el docstring de
-                    `composicionCarrito`). Bajo 'flotante' el pie del prototipo no lleva un TERCER
-                    link de texto (§ `.drawer-foot`, `docs/prototipos/cafeone/index.html:416-444`:
-                    totales + `.drawer-cta` nada más), así que ese link se omite; 'anclado' lo
-                    conserva byte-idéntico. */}
-                {!flotante && (
-                  <button
-                    onClick={closeCart}
-                    className="w-full text-center text-sm text-[var(--sf-texto-suave)] transition-colors hover:text-[var(--sf-texto)] cursor-pointer"
-                  >
-                    Seguir comprando
-                  </button>
-                )}
-              </div>
-            )}
+            <CajonPanel
+              cajon={cajon}
+              carrito={carrito}
+              items={items}
+              departamento={departamento}
+              carritoEnvio={carritoEnvio}
+              coloresPorProducto={tiendaCatalogo.coloresPorProducto}
+              vendedor={vendedor}
+              onClose={closeCart}
+              onUpdateQuantity={updateQuantity}
+              onRemoveItem={removeItem}
+              onDepartamentoChange={setDepartamento}
+            />
           </motion.div>
         </>
       )}

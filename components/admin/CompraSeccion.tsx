@@ -6,7 +6,13 @@ import { useAutoguardado } from '@/hooks/useAutoguardado';
 import { ConfirmDescartarDialog } from '@/components/admin/ConfirmDescartarDialog';
 import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
-import type { CompraContent } from '@/lib/config/site-content-defaults';
+import { DEFAULTS, type CompraContent, type SiteContentData } from '@/lib/config/site-content-defaults';
+import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
+import { CajonPanel, type CajonPanelItem } from '@/components/storefront/CartDrawer';
+import EstadoPedido, { type ResumenEstadoPedido } from '@/components/storefront/checkout/EstadoPedido';
+import { SeguimientoTimeline } from '@/app/(storefront)/rastrear-pedido/page';
+import type { EstadoPedidoPagina } from '@/lib/checkout/estado-pedido';
+import { TENANT_ORDER_PREFIX } from '@duna/core/metrics/order-stat-filters';
 
 // ─── Bloque CAMINO DE COMPRA — vive en el editor, junto a Identidad del vendedor ──────────────────
 //
@@ -17,11 +23,16 @@ import type { CompraContent } from '@/lib/config/site-content-defaults';
 //
 // PATRÓN `VendedorSeccion`, NO `TiendaSeccionEditor`: `compra` SÍ está en `REGISTRY` (así que el
 // PUT/POST GENÉRICO de `/api/site-content` ya la acepta, sin tocar ese archivo), pero no hay una
-// página real del storefront a la que esta elección "pertenezca" para armar una vista previa en
-// vivo — el cajón necesita estado de carrito, la confirmación un pedido ya creado, el seguimiento
-// una búsqueda. El MISMO argumento que ya descartó ese camino para `vendedor`/`menu`/`footer`.
+// página real del storefront a la que esta elección "pertenezca" EN VIVO —el cajón necesita estado
+// de carrito, la confirmación un pedido ya creado, el seguimiento una búsqueda—, así que el flujo
+// borrador/publicar sigue siendo el de `VendedorSeccion` (no el de `TiendaSeccionEditor`, que
+// escala contra una PÁGINA real).
 //
-// SIN VISTA PREVIA EN VIVO, por lo mismo — en su lugar, el nombre del tratamiento elegido.
+// "SIN VISTA PREVIA EN VIVO" VENCIÓ (§ COMPRA-LINEAS-FIDELIDAD-1): el argumento de arriba decidía
+// si el día del preview correspondía a ESTA tanda; la pieza en sí —`PreviewCompra`, abajo— sale de
+// que ninguna de las tres piezas necesita un estado REAL para mostrarse: alcanza con datos de
+// MUESTRA. `PreviewCompra` monta los MISMOS componentes que ve un comprador (`CajonPanel`,
+// `EstadoPedido`, `SeguimientoTimeline`) con esos datos, nunca una aproximación — ver su docstring.
 
 type Form = Omit<CompraContent, never>;
 
@@ -50,6 +61,145 @@ const OPCIONES_SEGUIMIENTO: OpcionCompra<'seguimiento'>[] = [
 
 function etiquetaDe<K extends keyof Form>(opciones: OpcionCompra<K>[], valor: Form[K]): string {
   return opciones.find((o) => o.value === valor)?.label ?? valor;
+}
+
+// ─── Vista previa — COMPRA-LINEAS-FIDELIDAD-1 ──────────────────────────────────────────────────
+//
+// Al elegir una composición, la vista previa muestra ESA PIEZA con datos de MUESTRA (§ el spec:
+// "el cajón abierto, la página de estado (con un selector de estado) y el seguimiento con un
+// resultado"). Las tres piezas son los MISMOS componentes que ve un comprador real —`CajonPanel`
+// (`CartDrawer.tsx`), `EstadoPedido` y `SeguimientoTimeline` (`rastrear-pedido/page.tsx`)—, nunca
+// una aproximación: el día que alguien les cambie el tratamiento, este preview cambia solo.
+//
+// NINGUNA de las tres necesita una ruta de muestra del storefront ni el gate de `modoEditorActivo`
+// (§ `lib/config/modo-editor-gate.ts`, NO tocado por este slice): las tres son componentes de
+// React que este archivo monta DIRECTO, dentro de `/admin`, una ruta que YA exige sesión
+// OWNER/MANAGER (`app/(admin)/admin/layout.tsx`) — el mismo gate que protegería una ruta de
+// muestra, sin tener que construir una. Un comprador nunca llega a `/admin`, así que nunca ve esto.
+//
+// `CajonPanel` es PROP-DRIVEN a propósito (§ su docstring en `CartDrawer.tsx`): NO se monta
+// `<CartProvider>` acá. `CartProvider` restaura y persiste en el MISMO `localStorage` que usa el
+// storefront real (`duna:carrito:v1`) — sembrarle ítems de muestra para este preview escribiría
+// datos falsos en el carrito real de quien esté usando el panel en ese navegador. `CajonPanel` no
+// toca storage: el ítem de ejemplo vive sólo en este render.
+//
+// `EstadoPedido`/`SeguimientoTimeline` sí leen `useSiteContent()` (vendedor/compra) — un
+// `SiteContentProvider` LOCAL, con `compra` apuntando al FORM EN VIVO (mismo mecanismo que
+// `VistaTiendaEnVivo.tsx`), se lo da sin depender del borrador persistido ni de la publicación.
+
+const ESTADOS_PAGINA: { value: EstadoPedidoPagina; label: string }[] = [
+  { value: 'aprobado', label: 'Pago aprobado' },
+  { value: 'pendiente', label: 'Pago pendiente' },
+  { value: 'rechazado', label: 'Pago rechazado' },
+  { value: 'manual', label: 'Confirmación manual (sin pasarela)' },
+  { value: 'sin_referencia', label: 'Sin referencia de pago' },
+];
+
+const ITEM_CAJON_MUESTRA: CajonPanelItem = {
+  key: 'muestra-1', id: 'muestra-1', nombre: 'Café de muestra', imagen: '',
+  precio: 35_000, quantity: 1, options: { molienda: 'En grano' },
+};
+
+const RESUMEN_CONFIRMACION_MUESTRA: ResumenEstadoPedido = {
+  items: [{ nombre: 'Café de muestra', cantidad: 1, subtotal: 35_000, molienda: 'En grano' }],
+  subtotal: 35_000,
+  envio: 12_000,
+  total: 47_000,
+  metodoEnvioLabel: 'Bogotá D.C.',
+  direccionDetalle: null,
+};
+
+const NUMERO_ORDEN_MUESTRA = `${TENANT_ORDER_PREFIX}000000`;
+
+function PreviewCompra({ form }: { form: Form }) {
+  const [estadoElegido, setEstadoElegido] = useState<EstadoPedidoPagina>('aprobado');
+
+  // El `SiteContentProvider` LOCAL: `compra` es el FORM EN VIVO (lo que `EstadoPedido`/
+  // `SeguimientoTimeline` leen para resolver su composición), el resto queda en DEFAULTS — un
+  // objeto NUEVO por render, así que el preview sigue al `<select>` sin recargar nada.
+  const contenido: SiteContentData = { ...DEFAULTS, compra: form };
+
+  return (
+    <SiteContentProvider value={contenido}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--duna-space-6)', marginTop: 'var(--duna-space-4)' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-2)' }}>
+            <h3 className="duna-field__label" style={{ fontSize: 'var(--duna-text-body)' }}>Cajón del carrito</h3>
+            <span className="duna-badge duna-badge--neutral">Datos de ejemplo</span>
+          </div>
+          <div
+            style={{
+              display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '384px',
+              border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)', overflow: 'hidden',
+              background: 'var(--sf-tarjeta,#fff)', maxHeight: '560px',
+            }}
+          >
+            <CajonPanel
+              cajon={form.cajon}
+              carrito={{ variante: 'anclado' }}
+              items={[ITEM_CAJON_MUESTRA]}
+              departamento="Bogotá D.C."
+              carritoEnvio={{ visible: false }}
+              coloresPorProducto={{}}
+              vendedor={DEFAULTS.vendedor}
+              onClose={() => {}}
+              onUpdateQuantity={() => {}}
+              onRemoveItem={() => {}}
+              onDepartamentoChange={() => {}}
+            />
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-2)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)' }}>
+              <h3 className="duna-field__label" style={{ fontSize: 'var(--duna-text-body)' }}>Confirmación y página de estado</h3>
+              <span className="duna-badge duna-badge--neutral">Datos de ejemplo</span>
+            </div>
+            <div className="duna-field" style={{ marginBottom: 0 }}>
+              <label className="duna-sr-only" htmlFor="compra-preview-estado">Estado de muestra</label>
+              <select
+                id="compra-preview-estado" className="duna-input duna-select"
+                value={estadoElegido} onChange={(e) => setEstadoElegido(e.target.value as EstadoPedidoPagina)}
+              >
+                {ESTADOS_PAGINA.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div
+            style={{
+              width: '100%', maxWidth: '420px', padding: 'var(--duna-space-6) var(--duna-space-4)',
+              border: '1px solid var(--duna-border)', borderRadius: 'var(--duna-r-m)',
+              background: 'var(--sf-fondo,#faf7f4)', display: 'flex', justifyContent: 'center',
+            }}
+          >
+            <EstadoPedido
+              estado={estadoElegido}
+              metodo={estadoElegido === 'sin_referencia' ? null : 'nequi'}
+              numeroOrden={estadoElegido === 'sin_referencia' ? null : NUMERO_ORDEN_MUESTRA}
+              correo="correo@ejemplo.com"
+              nombre="Nombre de ejemplo"
+              resumen={estadoElegido === 'sin_referencia' ? null : RESUMEN_CONFIRMACION_MUESTRA}
+              acciones={[]}
+            />
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--duna-space-2)', marginBottom: 'var(--duna-space-2)' }}>
+            <h3 className="duna-field__label" style={{ fontSize: 'var(--duna-text-body)' }}>Seguimiento del pedido</h3>
+            <span className="duna-badge duna-badge--neutral">Datos de ejemplo</span>
+          </div>
+          <div style={{ width: '100%', maxWidth: '480px' }}>
+            {/* `currentStep=2` -- "Preparando": un resultado a medio camino, ni el primero ni el
+                último, para que los tres tratamientos (punto/círculo/sticker) se vean con pasos
+                CUMPLIDOS, el ACTIVO, y PENDIENTES a la vez. */}
+            <SeguimientoTimeline seguimiento={form.seguimiento} currentStep={2} fechaPedido={new Date().toISOString()} />
+          </div>
+        </div>
+      </div>
+    </SiteContentProvider>
+  );
 }
 
 export default function CompraSeccion() {
@@ -236,6 +386,8 @@ export default function CompraSeccion() {
           </div>
         </div>
       </div>
+
+      <PreviewCompra form={form} />
 
       <ConfirmDescartarDialog
         abierto={confirmandoDescarte}

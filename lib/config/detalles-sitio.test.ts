@@ -317,18 +317,30 @@ test('CartDrawer.tsx: `<CartTitulo variante={carrito.variante}` está cableado d
 });
 
 // ─── § CARRITO-CABECERA-Y-COLORES-NAV-1 -- la cabecera 'flotante' pierde el ícono, conserva el filete ──
+//
+// § DEVIACIÓN COMPRA-LINEAS-FIDELIDAD-1 (este archivo está FUERA de `touches:` de ese slice, pero
+// sus dos tests de abajo quedaron describiendo un hecho que el slice cambió a propósito, por
+// mandato explícito del spec): la cabecera del cajón «Créditos»/«Álbum» (Onix/Las Chamisas) TAMBIÉN
+// pierde el ícono de bolsa — medido contra la maqueta aprobada (`.scratch/lanzamiento/maqueta-
+// compra/compra.html`, `.dr-hd`: sólo título + botón de cerrar, para LAS DOS tiendas, no sólo bajo
+// `flotante`). El ícono en `CartDrawer.tsx` pasó de `{!flotante && <ShoppingBag …/>}` a
+// `{!flotante && cajon === 'comun' && <ShoppingBag …/>}` — el eje `cajon` es ORTOGONAL a `flotante`
+// (§ el docstring de `CajonPanel`), así que la condición vieja (sólo posición) y la nueva (posición
+// Y composición) son, a propósito, STRINGS DISTINTOS. Los dos tests de abajo se actualizaron para
+// afirmar la condición COMPUESTA; el hecho que seguían describiendo — "flotante no lleva el ícono" /
+// "anclado con cajón COMÚN sí lo lleva" — sigue siendo cierto, con un eje más.
 
 test("CartDrawer.tsx: la cabecera 'flotante' NO renderiza el ícono de bolsa (`ShoppingBag`) -- Cafeone real no lo lleva", () => {
   const src = leerFuenteCartDrawer();
-  assert.match(src, /\{!flotante && <ShoppingBag/, 'el ícono debe estar condicionado a `!flotante`');
+  assert.match(src, /\{!flotante && cajon === 'comun' && <ShoppingBag/, 'el ícono debe estar condicionado a `!flotante` (y, desde COMPRA-LINEAS-FIDELIDAD-1, también a `cajon===\'comun\'`)');
 });
 
-test("CartDrawer.tsx: la cabecera 'anclado' (Nayoli) SIGUE con el ícono de bolsa, sin condición -- byte-idéntico a hoy", () => {
+test("CartDrawer.tsx: la cabecera 'anclado' CON EL CAJÓN COMÚN (Nayoli) SIGUE con el ícono de bolsa -- byte-idéntico a hoy para esa composición", () => {
   const src = leerFuenteCartDrawer();
   const idxHeader = src.indexOf('{/* Header */}');
   const idxCierreHeaderDiv = src.indexOf('{/* Items */}');
   const bloqueHeader = src.slice(idxHeader, idxCierreHeaderDiv);
-  assert.match(bloqueHeader, /\{!flotante && <ShoppingBag className="h-5 w-5 text-\[var\(--sf-acento-texto\)\]" \/>\}/);
+  assert.match(bloqueHeader, /\{!flotante && cajon === 'comun' && <ShoppingBag className="h-5 w-5 text-\[var\(--sf-acento-texto\)\]" \/>\}/);
 });
 
 test("CartDrawer.tsx: la cabecera conserva el filete inferior (`sf-divisor-b`) en las DOS variantes -- no se tocó", () => {

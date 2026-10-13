@@ -172,6 +172,10 @@ interface PlaywrightPage {
 interface PlaywrightLocator {
   screenshot(opts: { path: string }): Promise<Buffer>;
   waitFor(opts?: { timeout?: number }): Promise<void>;
+  // § COMPRA-LINEAS-FIDELIDAD-1 — `.first()`/`.click()`, para `ejecutarAccionPrevia` (abajo): el
+  // resto del archivo nunca necesitó clickear nada, sólo screenshotear lo que ya estaba en pantalla.
+  first(): PlaywrightLocator;
+  click(opts?: { timeout?: number }): Promise<void>;
 }
 interface PlaywrightBrowser {
   newPage(opts?: { viewport?: { width: number; height: number } }): Promise<PlaywrightPage>;
@@ -226,6 +230,10 @@ interface Opciones {
   estiloElementoExtra: string[];
   sembrarSpotlight: boolean;
   sembrarOrigen: boolean;
+  // COMPRA-LINEAS-FIDELIDAD-1 — ver el docstring de `sembrarCompra`/`ejecutarAccionPrevia`, abajo.
+  sembrarCompra: "onix" | "chamisas" | undefined;
+  accionesPrevias: (string | undefined)[];
+  sinPrototipo: boolean;
 }
 
 function ayuda(): string {
@@ -285,6 +293,37 @@ de la banda origen con el MISMO contenido que .spec-list/.stats muestra
 siembra, los 8 campos nacen VACÍOS (§ el docstring de OrigenContent) y la
 lista/los contadores no rinden nada (hide-on-empty). SÓLO válido en modo base
 fresca (mismo motivo que --sembrar-spotlight).
+--sembrar-compra <onix|chamisas> (§ COMPRA-LINEAS-FIDELIDAD-1) siembra, sobre
+la base efímera, DESPUÉS de --preset/--sembrar-spotlight/--sembrar-origen (si
+se pasaron): la paleta (content.tema: fondo/tinta/acento MEDIDOS contra la
+maqueta aprobada, .scratch/lanzamiento/maqueta-compra/compra.html, líneas
+.ln-onix/.ln-ch), los TRES ejes de content.compra para esa tienda (Onix:
+creditos/boleto/escaleta — Las Chamisas: album/lamina/album), un vendedor
+completo (para la línea "Vende…"), UN producto sin moliendas (agrega directo
+al carrito, sin modal) y SiteSetting.metodosPago con 'efectivo' (el único que
+no pide credenciales de pasarela) para que el checkout pueda completarse.
+SÓLO válido en modo base fresca (mismo motivo que --sembrar-spotlight).
+--accion-previa <nombre> (repetible, se empareja por ÍNDICE con --ruta, como
+--selector-app — "" es el placeholder de "sin acción para este índice")
+ejecuta una interacción de Playwright ANTES de capturar esa ruta. CINCO
+nombres fijos: 'abrir-carrito' (agrega el primer producto del catálogo y abre
+el cajón solo); 'checkout-pago' (completa el paso 1 de /checkout y avanza al
+paso 2, método efectivo); 'completar-pedido' (como checkout-pago, y además
+acepta términos + confirma — crea una orden REAL y aterriza en la
+confirmación); 'rastrear-noencontrado' (busca en /rastrear-pedido con datos
+que no matchean nada); 'rastrear-resultado' (busca el pedido que la ÚLTIMA
+completar-pedido de esta misma corrida acaba de crear — requiere una
+completar-pedido en un índice ANTERIOR). Las que dependen del carrito/de una
+orden ya creada necesitan su acción previa en un índice ANTERIOR, en la MISMA
+corrida (mismo browser context, § el docstring de ejecutarAccionPrevia).
+Ver ese docstring para el porqué de nombres fijos y no un DSL de clicks genérico.
+--sin-prototipo salta la mitad "prototipo" de la captura — sin ella NO hace
+falta --prototipo. Pensado para comparar contra una maqueta que NO vive bajo
+docs/prototipos/cafeone/ (§ COMPRA-LINEAS-FIDELIDAD-1: la maqueta de este
+slice es un SPA de un solo archivo con estado en JS, no páginas estáticas por
+sección — automatizar sus transiciones duplicaría las capturas que ya existen
+en .scratch/lanzamiento/maqueta-compra/capturas/); el par se arma a mano
+contra esas capturas YA EXISTENTES, no contra una captura nueva del prototipo.
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -310,6 +349,12 @@ Ejemplo (--url, el muestrario real):
     --selector-app "header nav a" \\
     --prototipo index.html --selector-prototipo ".nav-link" \\
     --nombre muestrario-nav
+
+Ejemplo (--sembrar-compra + --accion-previa + --sin-prototipo, § COMPRA-LINEAS-FIDELIDAD-1 — el
+cajón de Onix, abierto con un producto):
+  node --import tsx scripts/capturar-seccion.ts --sembrar-compra onix --sin-prototipo \\
+    --ruta /tienda --accion-previa abrir-carrito \\
+    --nombre onix-cajon
 `.trim();
 }
 
@@ -332,6 +377,9 @@ function parseCli(argv: string[]): Opciones {
       "estilo-elemento": { type: "string", multiple: true },
       "sembrar-spotlight": { type: "boolean" },
       "sembrar-origen": { type: "boolean" },
+      "sembrar-compra": { type: "string" },
+      "accion-previa": { type: "string", multiple: true },
+      "sin-prototipo": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -365,18 +413,35 @@ function parseCli(argv: string[]): Opciones {
         `una URL ya desplegada (§ ORIGEN-DATOS-EXACTO-1).\n\n${ayuda()}`,
     );
   }
+  const sembrarCompraIn = values["sembrar-compra"];
+  if (sembrarCompraIn !== undefined && sembrarCompraIn !== "onix" && sembrarCompraIn !== "chamisas") {
+    throw new Error(`--sembrar-compra sólo acepta "onix" o "chamisas" (recibido: «${sembrarCompraIn}»).\n\n${ayuda()}`);
+  }
+  const sembrarCompra = sembrarCompraIn as "onix" | "chamisas" | undefined;
+  if (sembrarCompra && url) {
+    throw new Error(
+      `--sembrar-compra y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
+        `una URL ya desplegada (§ COMPRA-LINEAS-FIDELIDAD-1).\n\n${ayuda()}`,
+    );
+  }
+  const sinPrototipo = values["sin-prototipo"] === true;
 
   // En modo --url, sin --ruta se asume una única ruta implícita ("/") — la URL ya trae el
   // destino (§ ARNES-CAPTURA-MUESTRARIO-REAL-1, el ejemplo canónico del modo no repite --ruta /).
   const rutas = values.ruta ?? (url ? ["/"] : []);
+  // § COMPRA-LINEAS-FIDELIDAD-1 — con --sin-prototipo, --prototipo deja de ser obligatorio (no hay
+  // mitad "prototipo" que capturar); sin la bandera, el comportamiento de siempre se mantiene.
   const prototipos = values.prototipo ?? [];
-  if (rutas.length === 0 || prototipos.length === 0) {
-    throw new Error(`Hacen falta --ruta y --prototipo (al menos uno de cada uno).\n\n${ayuda()}`);
+  if (rutas.length === 0 || (!sinPrototipo && prototipos.length === 0)) {
+    throw new Error(`Hacen falta --ruta y --prototipo (al menos uno de cada uno) — o --ruta y --sin-prototipo.\n\n${ayuda()}`);
   }
-  if (rutas.length !== prototipos.length) {
+  if (!sinPrototipo && rutas.length !== prototipos.length) {
     throw new Error(
       `--ruta (${rutas.length}) y --prototipo (${prototipos.length}) tienen que venir en la MISMA cantidad — se emparejan por índice.`,
     );
+  }
+  if (sinPrototipo && prototipos.length > 0) {
+    throw new Error(`--sin-prototipo y --prototipo son mutuamente excluyentes — sin la mitad "prototipo" no hay nada que emparejarle.\n\n${ayuda()}`);
   }
   const selectoresAppIn = values["selector-app"] ?? [];
   const selectoresProtoIn = values["selector-prototipo"] ?? [];
@@ -386,6 +451,19 @@ function parseCli(argv: string[]): Opciones {
   if (selectoresProtoIn.length > 0 && selectoresProtoIn.length !== prototipos.length) {
     throw new Error(`--selector-prototipo, si se pasa, tiene que venir una vez por --prototipo (${prototipos.length}).`);
   }
+  const accionesPreviasIn = values["accion-previa"] ?? [];
+  if (accionesPreviasIn.length > 0 && accionesPreviasIn.length !== rutas.length) {
+    throw new Error(`--accion-previa, si se pasa, tiene que venir una vez por --ruta (${rutas.length}).`);
+  }
+  // "" es el placeholder de "sin acción para este índice" — el mismo patrón que `--selector-app`/
+  // `--selector-prototipo` ya usan (una cadena vacía es falsy, así que el índice cae al
+  // comportamiento de siempre, § el `if (accionPrevia)` del loop principal).
+  const ACCIONES_VALIDAS = ["abrir-carrito", "checkout-pago", "completar-pedido", "rastrear-noencontrado", "rastrear-resultado"];
+  for (const a of accionesPreviasIn) {
+    if (a !== "" && !ACCIONES_VALIDAS.includes(a)) {
+      throw new Error(`--accion-previa sólo acepta "" (sin acción) o una de: ${ACCIONES_VALIDAS.join(", ")} (recibido: «${a}»).\n\n${ayuda()}`);
+    }
+  }
 
   return {
     preset,
@@ -393,7 +471,7 @@ function parseCli(argv: string[]): Opciones {
     rutas,
     selectoresApp: rutas.map((_, i) => selectoresAppIn[i]),
     prototipos,
-    selectoresPrototipo: prototipos.map((_, i) => selectoresProtoIn[i]),
+    selectoresPrototipo: sinPrototipo ? rutas.map(() => undefined) : prototipos.map((_, i) => selectoresProtoIn[i]),
     nombre:
       values.nombre ??
       (url ? `muestrario-real-${Date.now()}` : `${preset ? preset.toLowerCase() : "sin-preset"}-${Date.now()}`),
@@ -403,6 +481,9 @@ function parseCli(argv: string[]): Opciones {
     anchoPx: values.ancho ? Number(values.ancho) : 1280,
     altoPx: values.alto ? Number(values.alto) : 900,
     estiloElementoExtra: values["estilo-elemento"] ?? [],
+    sembrarCompra,
+    accionesPrevias: rutas.map((_, i) => accionesPreviasIn[i]),
+    sinPrototipo,
     sembrarSpotlight,
     sembrarOrigen,
   };
@@ -792,6 +873,302 @@ async function sembrarOrigen(): Promise<void> {
   console.log("✔ Origen sembrado (content.origen publicado con los datos/contadores del prototipo).");
 }
 
+// ─── SEMBRAR COMPRA (§ COMPRA-LINEAS-FIDELIDAD-1) ────────────────────────────────────────────────
+//
+// SIN esto, activar el cajón «Créditos»/«Álbum» (§ `compra.cajon`) en un navegador real exige: (a)
+// una paleta que de verdad diferencie la tienda del Nayoli de fábrica (si no, "se ve igual" sería
+// cierto por motivos ajenos al tratamiento), (b) los TRES ejes de `content.compra` elegidos, (c) un
+// producto SIN moliendas en el catálogo (si no, el carrito queda vacío y las tres composiciones se
+// ven idénticas — vacías), y (d) un método de pago que el checkout pueda ofrecer SIN credenciales de
+// pasarela (`efectivo`, el único — § `lib/checkout/metodos-pago.ts`). Este es exactamente el hueco
+// que el reporte del orquestador nombra: "COMPRA-LINEAS-ONIX-CHAMISAS-1 verificó sólo con render en
+// memoria... el dato llega; el tratamiento no está" — llegaba el DATO (`compra.cajon`), pero sin (a)/
+// (c)/(d) nunca había nada que ver.
+//
+// LA PALETA ESTÁ MEDIDA, NO INVENTADA: los hex de `fondo`/`tinta`/`acento` son los de
+// `.ln-onix{--bg:...;--ink:...;--accent:...}` / `.ln-ch{...}` en la maqueta APROBADA
+// (`.scratch/lanzamiento/maqueta-compra/compra.html`, el `<style>` inline — grepeable con
+// `grep -n '.ln-onix{' .scratch/lanzamiento/maqueta-compra/compra.html`). NO son los colores reales
+// de las tiendas en producción (esos viven en SU base, que este arnés nunca toca) — son los de la
+// maqueta que este slice existe para reproducir, así que son el estándar correcto para ESTA
+// verificación: una captura que combine la paleta de la maqueta con el tratamiento de la maqueta es
+// la comparación más fiel posible sin leer la base de un tenant real.
+//
+// `fuentePar`/`forma` quedan `null` (fábrica): la maqueta no declara una tipografía ni una forma de
+// esquinas fuera de lo que el storefront ya trae por defecto — su `--serif`/`--sans` son genéricos
+// del sistema operativo/Google Fonts, no un par curado de `lib/config/fuentes.ts`.
+async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
+  console.log(`▸ --sembrar-compra ${tienda}: paleta + content.compra + vendedor + 1 producto + método efectivo…`);
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+
+  const PALETA: Record<"onix" | "chamisas", { fondo: string; tinta: string; acento: string }> = {
+    // .ln-onix{--bg:#FDFBF7;--ink:#102407;...;--accent:#A70004;...}
+    onix: { fondo: "#FDFBF7", tinta: "#102407", acento: "#A70004" },
+    // .ln-ch{--bg:#FAF4EB;--ink:#2A2522;...;--accent:#2A2522;...}
+    chamisas: { fondo: "#FAF4EB", tinta: "#2A2522", acento: "#2A2522" },
+  };
+  const COMPRA: Record<"onix" | "chamisas", { cajon: string; confirmacion: string; seguimiento: string }> = {
+    onix: { cajon: "creditos", confirmacion: "boleto", seguimiento: "escaleta" },
+    chamisas: { cajon: "album", confirmacion: "lamina", seguimiento: "album" },
+  };
+  const VENDEDOR: Record<"onix" | "chamisas", { nombreCompleto: string; ciudad: string }> = {
+    onix: { nombreCompleto: "Café Onix", ciudad: "Pitalito, Huila" },
+    chamisas: { nombreCompleto: "Las Chamisas", ciudad: "San Adolfo, Huila" },
+  };
+
+  const paleta = PALETA[tienda];
+  await guardarTemaBorrador({ fondo: paleta.fondo, tinta: paleta.tinta, acento: paleta.acento, fuentePar: null, forma: null });
+  await publicarSeccion("tema");
+
+  const compra = COMPRA[tienda];
+  const vendedor = VENDEDOR[tienda];
+  await guardarBorrador({
+    compra: { cajon: compra.cajon, confirmacion: compra.confirmacion, seguimiento: compra.seguimiento },
+    vendedor: {
+      visible: true,
+      nombreCompleto: vendedor.nombreCompleto,
+      tipoPersona: "natural",
+      documentoTipo: "cc",
+      documentoNumero: "0000000000",
+      nombreComercial: "",
+      direccion: "Calle Falsa 123",
+      ciudad: vendedor.ciudad,
+      correo: "contacto@ejemplo.com",
+      telefono: "+573000000000",
+      horarioAtencion: "",
+      municipioDespacho: "",
+      transportadoras: "",
+      diasPreparacionHabiles: "2 a 3",
+      ventanaCambiosDias: "5",
+    },
+  });
+  await publicarSeccion("compra");
+  await publicarSeccion("vendedor");
+
+  // UN producto SIN `moliendasOpciones` (array vacío → `decidirMolienda` da `modo:'ninguna'` →
+  // `agregaDirecto=true`, § `ProductCard.tsx`): "Agregar al carrito" lo agrega en UN click, sin
+  // abrir el modal de molienda — lo que `ejecutarAccionPrevia('abrir-carrito')`, abajo, necesita
+  // para no depender de un flujo de selección que varía por producto. `stock` POSITIVO es
+  // OBLIGATORIO — `Product.stock` nace en `0` (`@default(0)`, schema.prisma), y con `0` la card
+  // se pinta "Agotado" y NO renderiza "Agregar al carrito" (medido: la PRIMERA corrida de este
+  // arnés falló acá — `locator.waitFor` agotó sus 10s porque el botón nunca existió).
+  const SLUG_PRODUCTO = `arnes-compra-${tienda}`;
+  await prisma.product.upsert({
+    where: { slug: SLUG_PRODUCTO },
+    update: { activo: true, stock: 42, moliendasOpciones: [] as unknown as Prisma.InputJsonValue },
+    create: {
+      slug: SLUG_PRODUCTO,
+      nombre: "Café de muestra",
+      descripcion: "Café de muestra para verificar el camino de compra.",
+      categoria: "Café en Grano",
+      activo: true,
+      stock: 42,
+      precio: 35000,
+      costo: 18000,
+      peso_gramos: 250,
+      imagen: "/images/cafe-nayoli-250g-molido.webp",
+      moliendasOpciones: [] as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  // `efectivo` es el ÚNICO método que el checkout puede ofrecer sin credenciales de pasarela
+  // (§ el docstring de arriba) — y sólo se OFRECE en Bogotá D.C. (`isBogota`, § metodos-pago.ts),
+  // así que `ejecutarAccionPrevia('checkout-pago')` elige ese departamento a propósito. `nombre`/
+  // `tagline` reemplazan el placeholder neutro de la migración ("Configura tu tienda", § CLAUDE.md
+  // "El código compartido no NACE siendo Nayoli") — sin esto el nav/footer/pestaña seguirían
+  // diciendo el placeholder bajo la paleta de la tienda, una mezcla que no está en ninguna captura
+  // de la maqueta.
+  await prisma.siteSetting.update({
+    where: { id: "default" },
+    data: {
+      nombre: vendedor.nombreCompleto,
+      tagline: "San Adolfo · Huila",
+      whatsapp: "+573160498092",
+      metodosPago: [{ tipo: "efectivo", datos: {} }] as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  console.log(`✔ Compra sembrada (${tienda}): paleta + content.compra + vendedor + producto + efectivo.`);
+}
+
+// ─── ACCIONES PREVIAS A LA CAPTURA (§ COMPRA-LINEAS-FIDELIDAD-1) ─────────────────────────────────
+//
+// NOMBRES FIJOS, no un DSL de clicks genérico: un DSL (una secuencia arbitraria de selectores +
+// acciones pasada por CLI) es más flexible pero también MÁS CÓDIGO DE LO QUE ESTE SLICE NECESITA —
+// el spec pide interacciones CONCRETAS ("abrir el cajón, avanzar al paso 2"), no un lenguaje de
+// automatización general. Si un slice futuro necesita una interacción más, agregarla acá cuesta una
+// función más; construir el DSL ahora sería infraestructura por adelantado para los casos de hoy.
+//
+// TODAS COMPARTEN EL MISMO `BrowserContext` (la variable `page` de `main`, abajo): el carrito que
+// `abrir-carrito` arma con `localStorage` sobrevive a la navegación SIGUIENTE (`checkout-pago`/
+// `completar-pedido` navegan a `/checkout` con el MISMO `page`), y la orden que `completar-pedido`
+// crea sobrevive en `window.name` hasta `rastrear-resultado` (§ más abajo) — así que una corrida con
+// las rutas `[/tienda, /checkout, /checkout, /rastrear-pedido]` y las acciones `[abrir-carrito,
+// checkout-pago, completar-pedido, rastrear-resultado]` recorre el camino de compra entero con el
+// MISMO carrito y la MISMA orden, sin re-sembrar nada entre pasos.
+async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promise<void> {
+  if (accion === "abrir-carrito") {
+    console.log("  ▸ accion-previa abrir-carrito: agregando el primer producto (el cajón se abre solo)…");
+    // `title="Agregar al carrito"` es EXACTO para un producto `agregaDirecto` (§ el docstring de
+    // `sembrarCompra` — el producto sembrado no tiene moliendas). `addItem` llama `setIsOpen(true)`
+    // incondicionalmente (`lib/cartStore.tsx`), así que un solo click agrega Y abre el cajón — no
+    // hace falta un segundo click sobre el ícono de la bolsa.
+    const agregar = page.locator('button[title="Agregar al carrito"]').first();
+    await agregar.waitFor({ timeout: 10_000 });
+    await agregar.click();
+    // 4.5s: la animación de entrada del cajón asienta en <1s, pero el toast de confirmación
+    // ("… agregado al carrito", `position:'top-right'`, `ProductCard.tsx`) se queda encima del
+    // encabezado del cajón hasta que `sonner` lo descarta solo (duración por defecto ~4s) — medido
+    // en la primera corrida de este arnés: sin esperar, "TU PEDIDO (1)" queda tapado por el toast.
+    await page.waitForTimeout(4500);
+    return;
+  }
+
+  if (accion === "checkout-pago" || accion === "completar-pedido") {
+    console.log(`  ▸ accion-previa ${accion}: completando el paso 1 y avanzando al paso 2…`);
+    await llenarPaso1Checkout(page);
+    await page.waitForTimeout(500);
+
+    if (accion === "completar-pedido") {
+      // § COMPRA-LINEAS-FIDELIDAD-1 — acepta términos y confirma: EL ÚNICO camino, en este arnés,
+      // a una confirmación REAL (`estado:'manual'`, § `EstadoPedido.tsx`) y a una orden real que
+      // `rastrear-pedido` pueda ENCONTRAR (§ la acción `rastrear-resultado`, abajo). `efectivo` es
+      // el único método sembrado (§ `sembrarCompra`), así que el checkout ya lo preselecciona sin
+      // que haga falta clickear un radio.
+      //
+      // `page.locator(...).click()`, NO `page.evaluate(...).click()` — medido: el evaluate dispara
+      // un click SINTÉTICO que no pasa por las comprobaciones de "actionability" de Playwright
+      // (visible, no cubierto, asentado tras la transición de paso), y la primera corrida de esta
+      // acción clickeó la casilla ANTES de que el paso 2 terminara de montar — la casilla quedaba
+      // sin marcar y "Confirmar pedido" nunca llegaba a disparar `handleOrder`. El `.waitFor()` de
+      // cada locator es lo que falta para esperar el montaje real del paso 2.
+      // `#casilla-terminos` es el DIV que ENVUELVE la casilla y su párrafo de dos enlaces
+      // (`app/(storefront)/checkout/page.tsx`) — NO el `<input>`. Medido: clickear el DIV cae en
+      // el CENTRO de su caja, que es el párrafo de texto, no el checkbox — la primera corrida de
+      // esta acción navegó a "/legal/tratamiento-de-datos" en vez de marcar la casilla. El
+      // `<input type="checkbox">` real está DENTRO, sin id propio.
+      const casilla = page.locator('#casilla-terminos input[type="checkbox"]');
+      await casilla.waitFor({ timeout: 10_000 });
+      await casilla.click();
+      await page.waitForTimeout(200);
+      await page.evaluate<void, undefined>(() => {
+        const btns = Array.from(document.querySelectorAll("button"));
+        const confirmar = btns.find((b) => b.textContent?.trim() === "Confirmar pedido");
+        confirmar?.click();
+      }, undefined);
+      // La creación de la orden es un POST real (§ `app/api/checkout/route.ts`, fuera de
+      // `touches:` — este arnés sólo LO LLAMA, no lo edita) — un margen más largo que el resto de
+      // las esperas de este archivo, para la respuesta del servidor + el render de la confirmación.
+      await page.waitForTimeout(2500);
+      // `window.name` SOBREVIVE a un `page.goto` en la MISMA pestaña (a diferencia de cualquier
+      // variable de JS) — es el único canal para que `rastrear-resultado` (abajo), en un ÍNDICE
+      // posterior de la MISMA corrida, sepa el número real que el servidor acaba de asignar (nunca
+      // se conoce de antemano: lo decide `app/api/checkout/route.ts`). El número vive junto al
+      // botón "Copiar número de orden" (`EstadoPedido.tsx`, hermano anterior en el mismo `div`).
+      await page.evaluate<void, undefined>(() => {
+        const copiar = document.querySelector('[aria-label="Copiar número de orden"]');
+        const numero = copiar?.previousElementSibling?.textContent?.trim();
+        if (numero) window.name = numero;
+      }, undefined);
+    }
+    return;
+  }
+
+  if (accion === "rastrear-noencontrado" || accion === "rastrear-resultado") {
+    console.log(`  ▸ accion-previa ${accion}: buscando un pedido en /rastrear-pedido…`);
+    const datos =
+      accion === "rastrear-noencontrado"
+        ? { orden: "CN-000000", email: "nadie@ejemplo.com" }
+        // El MISMO correo que `completar-pedido` usa para crear la orden (§ arriba) — el número
+        // de orden lo decide el servidor, así que esta acción sólo puede usarse DESPUÉS de una
+        // `completar-pedido` en un índice anterior Y con el número real pasado por `--dato-previo`
+        // (§ `main`, abajo, lo lee de `registro` y lo sustituye acá vía `window.name` — el único
+        // canal que sobrevive a un `page.goto` sin reinyectar un script).
+        : { orden: "__ORDEN__", email: "compradora@ejemplo.com" };
+    // SIN una función anidada con NOMBRE (§ el hallazgo: esbuild/tsx inyecta una llamada a
+    // `__name(...)` para nombrar funciones con fines de depuración, y ese helper SÓLO existe en el
+    // contexto de Node — `page.evaluate` serializa el cuerpo y lo corre en el navegador, donde
+    // `__name` no está definido, y la corrida entera fallaba con `ReferenceError: __name is not
+    // defined`). Un ARRAY de pares + un `for` inline evita por completo declarar una función.
+    await page.evaluate<void, { orden: string; email: string }>((d) => {
+      const pares: [string, string][] = [
+        ["track-orden", d.orden === "__ORDEN__" ? window.name || "" : d.orden],
+        ["track-email", d.email],
+      ];
+      for (const [id, valor] of pares) {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (!el) continue;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+        setter?.call(el, valor);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }, datos);
+    await page.evaluate<void, undefined>(() => {
+      const btns = Array.from(document.querySelectorAll("button"));
+      const buscar = btns.find((b) => b.textContent?.trim().startsWith("Buscar"));
+      buscar?.click();
+    }, undefined);
+    await page.waitForTimeout(1200); // la búsqueda es un fetch — margen para la respuesta + el render
+    return;
+  }
+
+  throw new Error(
+    `Acción previa desconocida: «${accion}» (sólo "abrir-carrito"/"checkout-pago"/"completar-pedido"/"rastrear-noencontrado"/"rastrear-resultado").`,
+  );
+}
+
+// Factoreado de "checkout-pago"/"completar-pedido" (§ arriba): las dos empiezan llenando el mismo
+// paso 1 — sólo "completar-pedido" sigue hasta el submit final.
+async function llenarPaso1Checkout(page: PlaywrightPage): Promise<void> {
+  // SIN función anidada con NOMBRE (§ el hallazgo documentado en "rastrear-noencontrado"/
+  // "rastrear-resultado", arriba) — el mismo patrón de array + `for` inline.
+  await page.evaluate<void, { email: string; tel: string; nombre: string; apellido: string; direccion: string; ciudad: string }>(
+    (datos) => {
+      const pares: [string, string][] = [
+        ["campo-email", datos.email],
+        ["campo-telefono", datos.tel],
+        ["campo-nombre", datos.nombre],
+        ["campo-apellido", datos.apellido],
+        ["campo-ciudad", datos.ciudad],
+        ["campo-direccion", datos.direccion],
+      ];
+      for (const [id, valor] of pares) {
+        const el = document.getElementById(id) as HTMLInputElement | HTMLSelectElement | null;
+        if (!el) continue;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+        setter?.call(el, valor);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    },
+    { email: "compradora@ejemplo.com", tel: "3001234567", nombre: "Nombre", apellido: "Ejemplo", direccion: "Calle Falsa 123", ciudad: "Bogotá" },
+  );
+  // El `<select>` de departamento necesita su propio evento de React (controlado) — "Bogotá D.C."
+  // además de llenar el campo, habilita `efectivo` (§ el docstring de `sembrarCompra`: sólo se
+  // ofrece con `isBogota`).
+  await page.evaluate<void, undefined>(() => {
+    const sel = document.getElementById("campo-departamento") as HTMLSelectElement | null;
+    if (!sel) return;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+    setter?.call(sel, "Bogotá D.C."); // EXACTO — `BOGOTA_DC` (`packages/core/src/colombia-departments.ts`), sin coma
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }, undefined);
+  await page.waitForTimeout(300); // la franja horaria (Bogotá) aparece condicional al departamento
+  // `<input type="radio" name="slot">`, no un `<button>` (§ medido contra el markup real —
+  // `app/(storefront)/checkout/page.tsx`: la franja es un radio dentro de un `<label>`).
+  await page.evaluate<void, undefined>(() => {
+    const franja = document.querySelector('#campo-franja input[type="radio"]') as HTMLInputElement | null;
+    franja?.click();
+  }, undefined);
+  await page.waitForTimeout(200);
+  await page.evaluate<void, undefined>(() => {
+    const btns = Array.from(document.querySelectorAll("button"));
+    const continuar = btns.find((b) => b.textContent?.trim() === "Continuar al pago");
+    continuar?.click();
+  }, undefined);
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
   console.log(BANNER);
@@ -848,6 +1225,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarOrigen) {
       await sembrarOrigen();
+    }
+
+    if (opciones.sembrarCompra) {
+      await sembrarCompra(opciones.sembrarCompra);
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {
@@ -917,6 +1298,15 @@ async function main(): Promise<void> {
           verificarSinProteccion(respuestaApp, urlApp);
         }
         await page.waitForTimeout(300); // margen corto para animaciones de entrada / fuentes
+
+        // § COMPRA-LINEAS-FIDELIDAD-1 — la interacción (si la hay) corre DESPUÉS de que la ruta
+        // asentó y ANTES de capturar: lo que esta ruta muestra depende de lo que la acción acaba
+        // de hacer (abrir el cajón, avanzar al paso 2).
+        const accionPrevia = opciones.accionesPrevias[i];
+        if (accionPrevia) {
+          await ejecutarAccionPrevia(page, accionPrevia);
+        }
+
         if (scrollPx !== undefined) {
           await page.evaluate((y: number) => window.scrollTo(0, y), scrollPx);
           await page.waitForTimeout(300); // margen para que el chrome fijo-por-scroll reaccione
@@ -944,26 +1334,33 @@ async function main(): Promise<void> {
         console.log(`  valores computados de :root (${ruta}):`, valores);
         if (estiloElementoApp) console.log(`  estilo computado del nodo (${selectorApp}):`, estiloElementoApp);
 
-        console.log(`▸ [${i}] prototipo ${prototipo}${selectorProto ? ` (${selectorProto})` : " (página completa)"}`);
-        await page.goto(`http://127.0.0.1:${servidorProto.puerto}/${prototipo}`, { waitUntil: "networkidle", timeout: 30_000 });
-        await page.waitForTimeout(300);
-        if (scrollPx !== undefined) {
-          await page.evaluate((y: number) => window.scrollTo(0, y), scrollPx);
-          await page.waitForTimeout(300);
-        }
-
-        const protoPng = join(salidaDir, `prototipo-${i}.png`);
+        // § COMPRA-LINEAS-FIDELIDAD-1 — con `--sin-prototipo`, `prototipo`/`selectorProto` son
+        // siempre `""`/`undefined` (§ `parseCli`: `prototipos` queda `[]`), así que esta mitad se
+        // salta entera — el par se arma a mano contra una captura YA EXISTENTE de la maqueta
+        // (§ el docstring de `ejecutarAccionPrevia`), no contra una nueva captura del prototipo.
+        let protoPng: string | null = null;
         let estiloElementoProto: Record<string, string> | null = null;
-        if (selectorProto) {
-          const loc = page.locator(selectorProto);
-          await loc.waitFor({ timeout: 10_000 });
-          await esperarAsentamiento(page, selectorProto);
-          estiloElementoProto = await leerEstiloElemento(page, selectorProto, opciones.estiloElementoExtra);
-          await loc.screenshot({ path: protoPng });
-        } else {
-          await page.screenshot({ path: protoPng, fullPage: true });
+        if (!opciones.sinPrototipo) {
+          console.log(`▸ [${i}] prototipo ${prototipo}${selectorProto ? ` (${selectorProto})` : " (página completa)"}`);
+          await page.goto(`http://127.0.0.1:${servidorProto.puerto}/${prototipo}`, { waitUntil: "networkidle", timeout: 30_000 });
+          await page.waitForTimeout(300);
+          if (scrollPx !== undefined) {
+            await page.evaluate((y: number) => window.scrollTo(0, y), scrollPx);
+            await page.waitForTimeout(300);
+          }
+
+          protoPng = join(salidaDir, `prototipo-${i}.png`);
+          if (selectorProto) {
+            const loc = page.locator(selectorProto);
+            await loc.waitFor({ timeout: 10_000 });
+            await esperarAsentamiento(page, selectorProto);
+            estiloElementoProto = await leerEstiloElemento(page, selectorProto, opciones.estiloElementoExtra);
+            await loc.screenshot({ path: protoPng });
+          } else {
+            await page.screenshot({ path: protoPng, fullPage: true });
+          }
+          if (estiloElementoProto) console.log(`  estilo computado del nodo (${selectorProto}):`, estiloElementoProto);
         }
-        if (estiloElementoProto) console.log(`  estilo computado del nodo (${selectorProto}):`, estiloElementoProto);
 
         (registro.capturas as unknown[]).push({
           indice: i,
@@ -971,7 +1368,7 @@ async function main(): Promise<void> {
           selectorApp: selectorApp ?? null,
           appPng,
           estiloElementoApp,
-          prototipo,
+          prototipo: opciones.sinPrototipo ? null : prototipo,
           selectorPrototipo: selectorProto ?? null,
           protoPng,
           estiloElementoPrototipo: estiloElementoProto,
@@ -997,9 +1394,11 @@ async function main(): Promise<void> {
     "",
     ...(registro.capturas as Array<Record<string, unknown>>).map(
       (c) =>
-        `[${c.indice}] app-${c.indice}.png (${c.ruta}${c.selectorApp ? `, ${c.selectorApp}` : ""}) ` +
-        `↔ prototipo-${c.indice}.png (${c.prototipo}${c.selectorPrototipo ? `, ${c.selectorPrototipo}` : ""})\n` +
-        `    valores :root: ${JSON.stringify(c.valoresComputados)}` +
+        `[${c.indice}] app-${c.indice}.png (${c.ruta}${c.selectorApp ? `, ${c.selectorApp}` : ""})` +
+        (c.prototipo
+          ? ` ↔ prototipo-${c.indice}.png (${c.prototipo}${c.selectorPrototipo ? `, ${c.selectorPrototipo}` : ""})`
+          : " (--sin-prototipo: sin captura del prototipo — emparejar a mano contra la referencia)") +
+        `\n    valores :root: ${JSON.stringify(c.valoresComputados)}` +
         (c.estiloElementoApp ? `\n    estilo nodo app: ${JSON.stringify(c.estiloElementoApp)}` : "") +
         (c.estiloElementoPrototipo ? `\n    estilo nodo prototipo: ${JSON.stringify(c.estiloElementoPrototipo)}` : ""),
     ),

@@ -158,14 +158,28 @@ export default function EstadoPedido({ estado, metodo, numeroOrden, correo, nomb
           {correo && (
             <p className="text-xs opacity-80 text-center mb-2">Te enviamos copia a {correo}.</p>
           )}
-          <div className="mt-3 pt-3 border-t border-dashed border-current/30 space-y-1 text-xs">
-            <div className="flex justify-between"><span className="opacity-80">Fecha</span><span>{formatFecha(new Date())}</span></div>
-            <div className="flex justify-between"><span className="opacity-80">Método</span><span>{etiquetaMetodoPedido(metodo)}</span></div>
+          {/* COMPRA-LINEAS-FIDELIDAD-1 — la grilla 2×2 (§ la maqueta: FECHA·MÉTODO / ENVÍO A·TOTAL,
+              etiqueta diminuta sobre el valor), en vez de las cuatro filas apiladas de antes. */}
+          <div className="mt-3 pt-3 border-t border-dashed border-current/30 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+            <div>
+              <p className="opacity-70 uppercase tracking-wider text-[0.6rem]">Fecha</p>
+              <p className="font-medium">{formatFecha(new Date())}</p>
+            </div>
+            <div>
+              <p className="opacity-70 uppercase tracking-wider text-[0.6rem]">Método</p>
+              <p className="font-medium">{etiquetaMetodoPedido(metodo)}</p>
+            </div>
             {resumen?.metodoEnvioLabel && (
-              <div className="flex justify-between"><span className="opacity-80">Envío a</span><span className="text-right">{resumen.metodoEnvioLabel}</span></div>
+              <div>
+                <p className="opacity-70 uppercase tracking-wider text-[0.6rem]">Envío a</p>
+                <p className="font-medium">{resumen.metodoEnvioLabel}</p>
+              </div>
             )}
             {resumen && (
-              <div className="flex justify-between font-semibold"><span>Total</span><span>{formatCOP(resumen.total)}</span></div>
+              <div>
+                <p className="opacity-70 uppercase tracking-wider text-[0.6rem]">Total</p>
+                <p className="font-semibold">{formatCOP(resumen.total)}</p>
+              </div>
             )}
           </div>
           {/* En PENDIENTE, un filete que se llena en bucle lento (§ el spec, "Movimiento"). */}

@@ -58,6 +58,134 @@ function computeStep(estado: string, shippingEstado: string | null): number {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 
+// COMPRA-LINEAS-FIDELIDAD-1 — `SeguimientoTimeline` es la línea de tiempo SOLA, extraída de
+// `OrderTrackingInner` por la MISMA razón que `CajonPanel` salió de `CartDrawer.tsx`: no depende de
+// `useSiteContent`/`useSiteSettings`/`useSearchParams` (recibe `seguimiento` YA resuelto por
+// `composicionSeguimiento`, y `fechaPedido` como STRING, no como `order.createdAt` del Context) —
+// así que el editor admin (§ `CompraSeccion.tsx`, el preview de «Camino de compra») la puede montar
+// con un `currentStep` y una fecha de muestra, sin armar una orden real. Los branches CANCELADO/
+// FALLIDO de `OrderTrackingInner` se QUEDAN ahí: son del ESTADO de la orden, no de la composición
+// del camino de compra, y el preview sólo necesita "un resultado" (§ el spec), no los cinco.
+export interface SeguimientoTimelineProps {
+  seguimiento: ReturnType<typeof composicionSeguimiento>;
+  currentStep: number;
+  /** ISO — `order.createdAt`. Sólo lo usa «Escaleta», en el paso ACTIVO (§ abajo). */
+  fechaPedido: string;
+}
+
+export function SeguimientoTimeline({ seguimiento, currentStep, fechaPedido }: SeguimientoTimelineProps) {
+  const esEscaleta = seguimiento === 'escaleta';
+  const esAlbumSeguimiento = seguimiento === 'album';
+
+  if (esEscaleta) {
+    // COMPRA-LINEAS-ONIX-CHAMISAS-1 — «Escaleta» (Onix, § refero-compra.md §4): filete
+    // vertical FINO (en vez del círculo grueso + barra), estado en MAYÚSCULAS, y la
+    // fecha (la única que el seguimiento conoce — `fechaPedido`, nunca una fecha
+    // inventada por paso) con cifras TABULARES a la derecha, sólo en el paso ACTIVO.
+    return (
+      <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+        <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
+        <div className="space-y-0">
+          {TIMELINE.map((step, i) => {
+            const done = i <= currentStep;
+            const active = i === currentStep;
+            return (
+              <div key={step.estado} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className={`h-2 w-2 rounded-full shrink-0 ${done ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                  {i < TIMELINE.length - 1 && (
+                    <div className={`w-px flex-1 min-h-10 mt-1 ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                  )}
+                </div>
+                <div className={`flex items-baseline justify-between gap-3 pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
+                  <div>
+                    <p className={`text-sm font-semibold uppercase tracking-wide ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                    <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
+                  </div>
+                  {active && (
+                    <span className="shrink-0 text-xs text-[var(--sf-texto-suave)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatFecha(fechaPedido)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (esAlbumSeguimiento) {
+    // «Álbum» (Las Chamisas, § refero-compra.md §4): los estados CUMPLIDOS como
+    // sticker pegado (relleno, inclinado); los PENDIENTES como casilla punteada vacía.
+    return (
+      <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+        <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
+        <div className="space-y-0">
+          {TIMELINE.map((step, i) => {
+            const done = i <= currentStep;
+            const active = i === currentStep;
+            const Icon = step.icon;
+            return (
+              <div key={step.estado} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={done
+                      ? `w-9 h-9 rounded-full flex items-center justify-center shrink-0 -rotate-6 shadow-sm ${active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]'}`
+                      : 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-dashed border-[var(--sf-linea)]'}
+                  >
+                    <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
+                  </div>
+                  {i < TIMELINE.length - 1 && (
+                    <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                  )}
+                </div>
+                <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
+                  <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                  <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+      <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
+      <div className="space-y-0">
+        {TIMELINE.map((step, i) => {
+          const done = i <= currentStep;
+          const active = i === currentStep;
+          const Icon = step.icon;
+          return (
+            <div key={step.estado} className="flex gap-4">
+              <div className="flex flex-col items-center">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${done ? active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-superficie)]'}`}>
+                  {/* `done` → el ícono va sobre el círculo de acento (que el cliente
+                      puede elegir claro): `acento-txt` (auto-flip). Sin done → sobre
+                      superficie clara, con tostado-2 (decorativo). */}
+                  <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
+                </div>
+                {i < TIMELINE.length - 1 && (
+                  <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
+                )}
+              </div>
+              <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
+                <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
+                <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // CHECKOUT-LISTO-PARA-VENDER-1 — ejemplo con el prefijo REAL de la tienda, no el de Café
 // Nayoli a secas (§ `paginas-pendientes.md` §2.3: "El placeholder «Ej: CN-000041» trae el
 // prefijo de Café Nayoli, no el de esta tienda"). `TENANT_ORDER_PREFIX` es la MISMA constante
@@ -77,9 +205,9 @@ function OrderTrackingInner() {
 
   // COMPRA-LINEAS-ONIX-CHAMISAS-1 — el seguimiento gana una composición ELEGIBLE por tienda.
   // `'comun'` (AUSENTE, el default) rinde EXACTAMENTE la línea de tiempo de siempre, byte-idéntico.
+  // COMPRA-LINEAS-FIDELIDAD-1 — el `if esEscaleta`/`esAlbumSeguimiento` que decidía el branch ahora
+  // vive DENTRO de `SeguimientoTimeline` (§ arriba); acá sólo hace falta `seguimiento`, para pasarlo.
   const seguimiento = composicionSeguimiento(compra.seguimiento);
-  const esEscaleta = seguimiento === 'escaleta';
-  const esAlbumSeguimiento = seguimiento === 'album';
 
   const [query, setQuery] = useState(searchParams.get('orden') || '');
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -301,104 +429,10 @@ function OrderTrackingInner() {
                     </div>
                   </div>
                 </div>
-              ) : esEscaleta ? (
-                // COMPRA-LINEAS-ONIX-CHAMISAS-1 — «Escaleta» (Onix, § refero-compra.md §4): filete
-                // vertical FINO (en vez del círculo grueso + barra), estado en MAYÚSCULAS, y la
-                // fecha (la única que el seguimiento conoce — `order.createdAt` — nunca una fecha
-                // inventada por paso) con cifras TABULARES a la derecha, sólo en el paso ACTIVO.
-                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
-                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
-                  <div className="space-y-0">
-                    {TIMELINE.map((step, i) => {
-                      const done = i <= currentStep;
-                      const active = i === currentStep;
-                      return (
-                        <div key={step.estado} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className={`h-2 w-2 rounded-full shrink-0 ${done ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
-                            {i < TIMELINE.length - 1 && (
-                              <div className={`w-px flex-1 min-h-10 mt-1 ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
-                            )}
-                          </div>
-                          <div className={`flex items-baseline justify-between gap-3 pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
-                            <div>
-                              <p className={`text-sm font-semibold uppercase tracking-wide ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
-                              <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
-                            </div>
-                            {active && (
-                              <span className="shrink-0 text-xs text-[var(--sf-texto-suave)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                                {formatFecha(order.createdAt)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : esAlbumSeguimiento ? (
-                // «Álbum» (Las Chamisas, § refero-compra.md §4): los estados CUMPLIDOS como
-                // sticker pegado (relleno, inclinado); los PENDIENTES como casilla punteada vacía.
-                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
-                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
-                  <div className="space-y-0">
-                    {TIMELINE.map((step, i) => {
-                      const done = i <= currentStep;
-                      const active = i === currentStep;
-                      const Icon = step.icon;
-                      return (
-                        <div key={step.estado} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div
-                              className={done
-                                ? `w-9 h-9 rounded-full flex items-center justify-center shrink-0 -rotate-6 shadow-sm ${active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]'}`
-                                : 'w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 border-dashed border-[var(--sf-linea)]'}
-                            >
-                              <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
-                            </div>
-                            {i < TIMELINE.length - 1 && (
-                              <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
-                            )}
-                          </div>
-                          <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
-                            <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
-                            <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               ) : (
-                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
-                  <h3 className="font-semibold text-[var(--sf-tinta)] mb-6">Estado del pedido</h3>
-                  <div className="space-y-0">
-                    {TIMELINE.map((step, i) => {
-                      const done = i <= currentStep;
-                      const active = i === currentStep;
-                      const Icon = step.icon;
-                      return (
-                        <div key={step.estado} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${done ? active ? 'bg-[var(--sf-acento)] ring-4 ring-[var(--sf-acento)]/20' : 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-superficie)]'}`}>
-                              {/* `done` → el ícono va sobre el círculo de acento (que el cliente
-                                  puede elegir claro): `acento-txt` (auto-flip). Sin done → sobre
-                                  superficie clara, con tostado-2 (decorativo). */}
-                              <Icon aria-hidden="true" className={`w-4 h-4 ${done ? 'text-[var(--sf-acento-txt)]' : 'text-[var(--sf-tostado-2)]'}`} />
-                            </div>
-                            {i < TIMELINE.length - 1 && (
-                              <div className={`w-0.5 h-10 mt-1 rounded-full transition-all ${i < currentStep ? 'bg-[var(--sf-acento)]' : 'bg-[var(--sf-linea)]'}`} />
-                            )}
-                          </div>
-                          <div className={`pb-6 ${i === TIMELINE.length - 1 ? 'pb-0' : ''}`}>
-                            <p className={`text-sm font-semibold ${done ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-tostado-3)]'}`}>{step.label}</p>
-                            <p className={`text-xs mt-0.5 ${done ? 'text-[var(--sf-texto)]' : 'text-[var(--sf-tostado-2)]'}`}>{step.desc}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                // COMPRA-LINEAS-FIDELIDAD-1 — la línea de tiempo vive en `SeguimientoTimeline`
+                // (§ arriba), compartida con el preview del editor admin.
+                <SeguimientoTimeline seguimiento={seguimiento} currentStep={currentStep} fechaPedido={order.createdAt} />
               )}
 
               {/* Items */}
