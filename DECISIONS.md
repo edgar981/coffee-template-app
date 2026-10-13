@@ -63930,3 +63930,244 @@ contenido nuevo vive en `SiteContent`) ni contrato cruzado de repositorio.
 test` 4741/4741, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` reproduce EXACTO
 el diff ya documentado como heredado por `COMPRA-LINEAS-FIDELIDAD-1` — cero píxeles nuevos para Nayoli.
 No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — CHAMISAS-NOSOTROS-ALBUM-1: /nosotros gana el tratamiento «Álbum de finca» de Las
+Chamisas (apertura, sinopsis, ficha, interludio y cierre con trato Chamisas) y la composición nueva
+«Láminas»
+
+**Pedido del owner** (2026-10-12, sobre la maqueta `.scratch/chamisas-paginas/nosotros-suscripciones.html`,
+la propuesta "Álbum de finca" del discovery con Refero, § `refero-chamisas.md` §3/§5): *"Liked the mockup,
+go ahead with it."* Mismo `approval-reason` que cita `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` — la aprobación
+autoriza la ESCRITURA, nunca el merge.
+
+### El modelo — SEIS secciones ganan una SEGUNDA (o TERCERA) composición, ninguna sección nueva
+
+A diferencia de `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` (que creó UNA composición nueva sobre UNA sección),
+este slice extiende las SEIS secciones que YA existen en /nosotros (de `ONIX-NOSOTROS-APERTURA-SINOPSIS-1`/
+`ONIX-NOSOTROS-ESCENAS-FICHA-1`/`ONIX-NOSOTROS-INTERLUDIO-CIERRE-1`) con el trato Chamisas —
+`refero-chamisas.md` §5: "Reuso con trato Chamisas — De Onix: Apertura con foto, Sinopsis partida,
+Ficha de origen en filas, Interludio, Cierre «frase y botón»"—, cada una **reusando campos existentes,
+sin duplicar componentes**:
+
+- **`nosotrosApertura` gana «album»** (`variantes.claves: ['apertura','album']`): eyebrow (REUSA
+  `rotuloIzquierda`) + H1 (REUSA `titulo`) + bajada (`bajada`, NUEVO) + foto en ARCO 4:5 (el mismo
+  patrón `rounded-t-full rounded-b-[20px]` que «Láminas» de /tienda, § TIENDA-CHAMISAS-ALBUM-1) con
+  sticker de esquina (`sticker`, NUEVO) y franja de tejido al pie en celular (`franjaTejido`, NUEVO).
+  `rotuloDerecha` queda SIN EFECTO bajo «album» (sigue editable, por si el dueño vuelve a «apertura»).
+- **`nosotrosHistoria` gana «partida»** (TERCERA composición, junto a «relato»/«sinopsis» de Onix):
+  CERO campos nuevos — reusa `titulo` (la frase grande en serif) + `parrafo1`/`parrafo2` (los dos
+  párrafos cortos), separados por un filete punteado (`divide-dashed`, horizontal en celular/vertical
+  en escritorio). `parrafo3`/`imagen`/`retratoNombre` quedan sin efecto.
+- **`nosotrosEscenas` gana «album»** (la composición «Láminas»): repeater 3-6 (tope sube de 4 a 6,
+  nunca rompe a «saintLaurent»), carrusel con scroll-snap en celular (84% de ancho, contador "02/05"
+  vía UN `IntersectionObserver`), doble página de álbum con lomo punteado en escritorio (reparto 3+2
+  vía `repartoPaginasLaminas`). Gana `pie` (ítem, NUEVO — la leyenda "Imagen ilustrativa") y
+  `esquineros` (booleano de sección, NUEVO — los esquineros de álbum en `--sf-acento`, nunca un hex de
+  terracota fijo). La lógica pura (cuántas, contador, reparto) vive en `lib/storefront/laminas.ts` —
+  DISTINTO de `lib/tienda/laminas.ts` (el color por café de /tienda, un nombre compartido por
+  coincidencia de la maqueta, no por el mismo concepto).
+- **`nosotrosFicha` gana «etiqueta»**: retícula de dos columnas con un ícono de línea decorativo
+  (`lucide-react` `Minus`, NEUTRO — no hay dato de "ícono por fila" en el modelo), borde punteado y un
+  sello rotado (`sello`, NUEVO). LEE `tiendaCreditos.items` igual que «tinta» —CERO duplicación—; las
+  tres cifras quedan sin efecto.
+- **`nosotrosInterludio` gana «stickers»**: la franja de tejido a sangre con los cafés del catálogo
+  como stickers de color (vía `colorDeLamina`, `lib/tienda/laminas.ts` — el MISMO mapa que «Láminas»
+  de /tienda y las Casillas de frecuencia, nunca un segundo sistema de color), cada uno enlazando a su
+  ficha (`/tienda/[slug]`). `imagen` SE REUSA como la franja de tejido (CERO campos nuevos); `pie`
+  queda sin efecto.
+- **`nosotrosCierre` gana «costura»** (TERCERA composición, junto a «linea»/«fraseYBoton»): la pieza
+  COMPARTIDA `CierreCostura` (§ `CHAMISAS-SUSCRIPCIONES-CASILLAS-1`), que GANA un prop opcional nuevo
+  —`ctaSecundario`/`campoCtaSecundario`— para el enlace secundario del spec ("Botón tinta + enlace
+  secundario"), BYTE-IDÉNTICO para `TiendaCierre`/`SuscripcionCierre` (los dos consumidores de hoy,
+  ninguno lo pasa — ausente no renderiza nada). Dos campos nuevos: `franjaTejido` (ya existía el
+  patrón en `tiendaCierre`/`suscripcionCierre`) y el par `ctaSecundarioLabel`/`ctaSecundarioDestino`
+  (mismo patrón que `subscriptionCTA.ctaSecundarioLabel`, del SET CERRADO `MENU_CTA_DESTINOS`).
+
+### Movimiento — framer-motion `whileInView`, el mecanismo que YA usa /nosotros
+
+El spec pide "sólo los stickers se pegan, una vez, al entrar en pantalla: rotación de −8° a −3° y
+escala de 1,06 a 1, en 200 ms". Se usó framer-motion (`whileInView`/`viewport:{once:true}`), el MISMO
+mecanismo que `NosotrosEscenas.tsx` ya usa para sus escenas — NO `lib/movimiento/` (el motor GSAP de
+secciones completas, shaped para pin+scrub narrativo) ni un `@keyframes` propio: los dos stickers del
+slice (el de la Apertura y los del Interludio) son micro-interacciones puntuales sobre un elemento
+chico, el mismo caso que `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` ya resolvió con el patrón CSS liviano
+para sus propios stickers — acá se usó la variante framer-motion porque YA estaba en el archivo
+(`NosotrosEscenas.tsx` la trae) y evita un SEGUNDO mecanismo de animación dentro del mismo árbol de
+componentes. `components/storefront/movimiento/` y `lib/movimiento/` quedan SIN TOCAR.
+
+### El panel — `huecosDelPanel()` exigió registrar CADA campo nuevo, sin exenciones
+
+Los campos nuevos de las seis secciones (`nosotrosApertura.variante/bajada/sticker/franjaTejido`,
+`nosotrosEscenas.variante/esquineros/items.pie`, `nosotrosFicha.variante/sello`,
+`nosotrosInterludio.variante`, `nosotrosCierre.franjaTejido/ctaSecundarioLabel/ctaSecundarioDestino`)
+se registraron en `components/admin/tienda-secciones.ts` con sus `composiciones`/zonas, incluido el
+tope del repeater de Escenas (4→6). **Medido, no asumido**: `panel-controles.test.ts` pasa con CERO
+entradas nuevas en `PENDIENTE_PANEL` — el trinquete (≤7) no se movió. Dos límites del mecanismo,
+documentados en el código: `CampoImagen`/`CampoItem` no admiten `hint`/`composiciones` respectivamente
+(se usó el `label` para decir la condición en el primer caso, y el hint del campo-ítem en el segundo).
+
+### Byte-identidad — verificada por EJECUCIÓN
+
+`npm test` 4767/4767 — incluye los 15 tests de `lib/storefront/laminas.test.ts` (NUEVO, puro: filtro
+por foto + tope, el contador "02/05", el reparto 3+2/2+2/2+1/1+0 en páginas), 1 test nuevo de
+calibración en `panel-controles.test.ts`, y las re-mediciones de 4 tests YA EXISTENTES que mi cambio
+vuelve stale a propósito (`REGISTRY.nosotrosHistoria/Apertura/Cierre/Interludio` declaraban el set de
+`variantes`/`imagenes` de ANTES de este slice — re-medidos contra el set que sigue vivo, no contra el
+viejo, mismo criterio que la doctrina ya aplica en cada slice de variantes) y 1 test de
+`lib/admin/editor-paginas-onix.test.ts` (nosotrosFicha pasó de 4 a 5 bloques al sumar el bloque "sello"
+de «etiqueta» — re-medido, no borrado). `npm run test:integracion` 409/409 (sin cambio: este slice no
+toca schema ni ninguna cadena del motor). `npx tsc --noEmit`: 0 errores.
+
+**DEVIACIÓN MEDIDA — el `npm test` de este slice (4767) no reconcilia limpio contra el 4741 citado por
+`CHAMISAS-SUSCRIPCIONES-CASILLAS-1`** (el commit inmediatamente anterior en esta rama, `ac4cd1c`). Este
+diff agrega NETO 16 tests contados uno por uno contra el diff real (15 en `laminas.test.ts` + 1 en
+`panel-controles.test.ts`; los otros tres archivos de test modificados —`nosotros-escenas.test.ts`,
+`site-content-defaults.test.ts`, `editor-paginas-onix.test.ts`— sólo RE-ESCRIBEN aserciones de tests ya
+existentes, cero `test(` nuevos), así que el piso esperado sería 4741+16=4757, no 4767 — una diferencia
+de 10 que este diff NO explica. Medido, no asumido: `npm run typecheck` y `npm test` corridos LIMPIOS
+sobre el árbol final (`git status --short` verificado antes y después, ningún archivo fuera de
+`touches:` tocado). No se investigó más allá —mismo criterio que `ONIX-NOSOTROS-INTERLUDIO-CIERRE-1`
+ya documentó para un gap análogo (7 tests): el protocolo pide reportar el drift, no perseguirlo. El
+número que importa para este diff es el propio: 4767/4767 VERDE, medido en el árbol final, cero fallos.
+
+### `verificar:nayoli` / `verificar:nayoli:visual` — RED los dos, CERO atribuible a este diff
+
+- **`verificar:nayoli`** (HTML+CSS de `/`, `/tienda`, `/tienda/<slug>`, `/checkout` — NINGUNA de las
+  cuatro es `/nosotros`): las CUATRO difieren, en el MISMO eje ya documentado por slices anteriores de
+  esta rama (`<html lang="en">` main vs `<html lang="es">` rama, el comentario `/* ARCHIVO: … */` del
+  CSS). Ninguna de las cuatro rutas toca `/nosotros` ni ningún archivo de `touches:` de este slice.
+- **`verificar:nayoli:visual`** (píxeles de las SEIS rutas): las seis DIFIEREN, y **los SEIS números
+  coinciden EXACTO, byte a byte, con los que `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` ya midió un commit
+  antes** — home 165052/4608000 px (AA) · 174711 crudo; tienda 209/2433280 · 407; producto TAMAÑOS
+  DISTINTOS 1280×1981 (main) vs 1280×1917 (rama); checkout 163/1152000 · 361; **nosotros 224/1152000 ·
+  422, caja [445,45]–[828,726]** — el MISMO conteo que viene midiéndose IDÉNTICO desde
+  `ONIX-NOSOTROS-APERTURA-SINOPSIS-1`; suscripciones 258/2144000 · 456; los dos hovers IDÉNTICOS (0 px).
+  Prueba por medición, no por argumento, de que esta tanda no mueve un solo píxel de ninguna ruta para
+  Nayoli: las seis secciones nuevas nacen en su composición CANÓNICA (`apertura`/`relato`/
+  `saintLaurent`/`tinta`/`plano`/`linea`), byte a byte el render de siempre.
+
+### Verificado en navegador real — el arnés `--sembrar-album-nosotros` (NUEVO), dos anchos
+
+`scripts/capturar-seccion.ts` gana `sembrarAlbumNosotros()` (paleta/tipografía/forma MEDIDAS de Las
+Chamisas, idénticas a las que `sembrarCasillas` ya midió contra el despliegue real — fondo #FAF4EB,
+tinta #2A2522, acento #B8461A, par "prensa", forma "recta" — + 3 productos + las SEIS secciones
+publicadas con su composición Chamisas) y la acción `--sembrar-album-nosotros`, mismo patrón de CLI
+que `--sembrar-casillas`. `next build` + `next start` reales, Postgres efímero, Chromium headless —
+NUNCA `next dev` (§ CROMO-DEV-HIDRATACION-SPA-1).
+
+- **1440px** (`.capturas/chamisas-album-nosotros-1440/`): valores computados de `:root` confirman el
+  tema (`--sf-fondo:#FAF4EB`, `--sf-tinta:#2A2522`, `--sf-acento:#B8461A`). Apertura (eyebrow+H1+
+  bajada+arco+sticker), Historia (frase+2 párrafos+filete vertical), Escenas (doble página 3+2 con
+  lomo punteado, esquineros visibles), Ficha (retícula 2 cols+borde punteado+sello) renderizan
+  correctamente SIN scroll.
+- **HALLAZGO DE MÉTODO, no de producto — `whileInView` necesita scroll REAL para disparar en una
+  captura `fullPage`**: con la captura SIN `--scroll`, el Interludio «Stickers» y el Cierre «Costura»
+  (los DOS únicos elementos de este slice animados con `viewport:{once:true}`) quedaban en
+  `opacity:0` — el `fullPage` de Playwright captura el layout completo sin recorrer el scroll real, así
+  que el `IntersectionObserver` de framer-motion nunca ve esos elementos cruzar el viewport. Confirmado
+  por MEDICIÓN, no supuesto: re-capturado con `--scroll 3600`
+  (`.capturas/chamisas-album-nosotros-1440-scroll/`), los TRES stickers de color del Interludio y la
+  banda «Tres cafés, una finca. / Ver los tres cafés / Recibirlo cada mes» del Cierre aparecen
+  COMPLETOS — mismos componentes, mismo HTML, sólo cambia si el scroll real pasó por ahí antes de la
+  captura. **No es una deuda de este diff**: es una propiedad de CÓMO se captura, no de qué se
+  renderiza — ambas piezas quedan con su `viewport:{once:true}` intacto, que es el comportamiento
+  correcto para un visitante real que SÍ scrollea.
+- **390px** (`.capturas/chamisas-album-nosotros-390/`): Apertura con foto en arco + sticker, Historia
+  apilada con filete horizontal, el carrusel de Láminas con scroll-snap (84% de ancho, la siguiente se
+  asoma, contador "01/05" correcto en la carga inicial), esquineros visibles, Ficha en una sola columna
+  con el sello. **Ajuste medido en esta misma verificación**: el sticker de la Apertura ("Cosecha
+  2026") se recortaba contra el borde SEMICIRCULAR del arco a `top-3` — el texto largo no cabe tan
+  arriba, donde el arco todavía es angosto. Se bajó a `top-8` + `whitespace-nowrap`
+  (`NosotrosAperturaAlbum.tsx`); re-capturado (`chamisas-album-nosotros-390-fix/`), mejora pero el
+  recorte NO desaparece del todo con un sticker de este largo — **deviación ACEPTADA y declarada**,
+  anotada como open follow-up (abajo): es un ajuste de PIXELES sobre contenido de ejemplo de este
+  arnés, no un defecto estructural, y el gate visual del owner es quien decide si hace falta acortar el
+  sticker o mover el ajuste más.
+- **Comparadas a mano contra** `.scratch/chamisas-paginas/capturas/v-d-nosotros.jpg`/
+  `v-m-nosotros.jpg`/`v-m-nosotros-laminas.jpg` (las capturas de la maqueta aprobada): estructura,
+  agrupación y composición coinciden — portada con arco+sticker, sinopsis a dos columnas con filete,
+  láminas en carrusel/doble página, ficha como etiqueta de bolsa, interludio con stickers de color,
+  cierre con banda punteada y el enlace secundario.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `NosotrosApertura`/`NosotrosHistoria`/`NosotrosEscenas`/`NosotrosFicha`/
+`NosotrosInterludio`/`NosotrosCierre` (y sus cinco componentes Album/Partida/Etiqueta/Stickers nuevos),
+`CierreCostura`, `nosotrosApertura`/`nosotrosHistoria`/`nosotrosEscenas`/`nosotrosFicha`/
+`nosotrosInterludio`/`nosotrosCierre`, `site-content-defaults.ts`, `site-content-schema.ts`,
+`tienda-secciones.ts`, `SECCIONES_TIENDA`, `panel-controles`, `lib/storefront/laminas.ts`,
+`capturar-seccion.ts`. Grepeados contra `CLAUDE.md`:
+
+- **`CLAUDE.md:39`** (la lista Tier 1) nombra `lib/config/site-content-schema.ts`/
+  `lib/config/site-content-defaults.ts` como superficies medidas — SIGUE CIERTO: son justamente las dos
+  que este slice edita, bajo la segunda etapa que la doctrina exige (`approved: yes`, el go explícito
+  del owner citado arriba). No queda falsa, confirma el proceso seguido.
+- **`CLAUDE.md:1919`** cita `` `lib/config/site-content-defaults.ts:411` `` para "hoy `hero.titulo` es
+  'Productos que cuentan'". **YA ESTABA FALSA ANTES de este diff** — medido contra `HEAD^` (antes de
+  este slice, `ac4cd1c`): la línea vivía en **2510**, no 411. Mi diff la corre de 2510 a **2569**. La
+  afirmación en sí (que `hero.titulo` es "Productos que cuentan") sigue siendo cierta; sólo el número
+  de línea envejeció, y venía envejecido de antes (mismo patrón que `CLAUDE-MD-LINEA-66-RANCIA-1`,
+  § `AVISOS-PRESENTACIONES-RIEL-1`). No se corrige acá — fuera de `touches:` de este slice (corregir una
+  cita de línea en otra sección de CLAUDE.md no es parte del spec). Anotado como follow-up abajo.
+- Las demás apariciones (`site-content-defaults.ts` genérico en §2256/2379/2397,
+  `nosotrosHistoria`/`SECCIONES_TIENDA` en §2868/2902, `site-content-schema.ts` en §1928) son
+  descripciones GENÉRICAS del mecanismo que mi diff no contradice — el mecanismo no cambió, sólo
+  crecieron sus datos. **Ninguna otra sentencia de CLAUDE.md queda falsa por este diff.**
+
+### Lo que el spec pedía y este slice NO construyó, o resolvió distinto — deviations medidas
+
+- **El sticker de la Apertura se recorta levemente contra el arco con texto largo** (§ arriba) — ajuste
+  parcial aplicado, recorte no eliminado del todo. Declarado, no escondido.
+- **"Esquineros de álbum en terracota" usa `--sf-acento`, no un hex de terracota fijo** — correcto por
+  doctrina (§ El código compartido no NACE siendo Nayoli/demo), y para Las Chamisas el acento YA
+  deriva a terracota (`#B8461A`, medido), así que el resultado visual coincide con el spec sin
+  hornear el cliente.
+- **El "ícono de línea" de la Ficha «Etiqueta» es UN ícono neutro repetido** (`lucide-react` `Minus`),
+  no un ícono por etiqueta — el modelo no tiene un campo "ícono por fila" y agregarlo sería una
+  capacidad nueva que el spec no pide con la fuerza de los otros campos (mismo criterio que
+  `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` con las "marcas" de café en punto de color, no sticker recortado).
+- **Dentro de cada página del álbum (escritorio), las láminas se apilan en una columna** — la lectura
+  MÁS simple de "página de álbum" sin inventar una grilla que ninguna captura de la maqueta confirma
+  (`.scratch/chamisas-paginas/capturas/v-d-nosotros*.jpg` no muestra el detalle de Láminas en
+  escritorio con suficiente resolución para una grilla distinta).
+- **El contenido real de Las Chamisas (textos, fotos de la finca) NO se escribió en código ni en
+  base** — vive en `.scratch/chamisas-paginas/contenido-nosotros-para-el-panel.md` (NUEVO, no
+  commiteado — `.scratch/` está gitignorado, mismo patrón que el resto de esa carpeta), con la lista de
+  fotos a pedir a la finca y los campos marcados `[ejemplo]`.
+
+### Open follow-ups
+
+- **`CHAMISAS-STICKER-APERTURA-RECORTE-1`** (nuevo): el sticker de esquina de la Apertura «album» se
+  recorta contra el borde semicircular del arco cuando el texto es largo (medido con "Cosecha 2026",
+  § arriba). *Por qué no ahora:* es un ajuste de pixel sobre contenido de ejemplo de este arnés —el
+  contenido REAL de Las Chamisas puede resultar más corto—, y el gate visual del owner es quien decide
+  si hace falta acortar el texto o mover el sticker más adentro.
+- **`CLAUDE-MD-LINEA-411-RANCIA-1`** (nuevo): `CLAUDE.md:1919` cita
+  `lib/config/site-content-defaults.ts:411` para la definición de `hero.titulo`; ya estaba rancia antes
+  de este slice (la línea vivía en 2510) y este diff la corre más lejos (ahora 2569). La afirmación
+  sigue siendo cierta — sólo el número envejeció, y venía envejecido de antes. *Por qué no ahora:*
+  fuera de `touches:` de este slice.
+- **`CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1`** (ya abierto por `CHAMISAS-SUSCRIPCIONES-CASILLAS-1`) se
+  extiende: los stickers del Interludio de /nosotros son el MISMO punto de color que las Casillas de
+  frecuencia, no una foto de bolsa recortada — mismo límite, mismo motivo (sin capacidad de
+  sticker-por-producto hoy).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner aprobó la maqueta el 2026-10-12 —
+*"Liked the mockup, go ahead with it."*). Entra por `app/(storefront)/`/`components/storefront/`
+(bytes del visitante — seis componentes de `/nosotros` editados, cinco nuevos, `CierreCostura.tsx`
+editado) y por `components/admin/` (el registro del panel). El diff cambia bytes que un visitante de
+Las Chamisas (y de cualquier tienda que elija estas composiciones) lee, alcanzables sin otro deploy —
+`customer_bytes.changed=true`. Sin cambio de schema/migración (cero `packages/core/prisma/`, el
+contenido nuevo vive en `SiteContent`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio, `npm
+test` 4767/4767, `npm run test:integracion` 409/409. `verificar:nayoli`/`verificar:nayoli:visual`
+corridos los dos, RED los dos, los seis números de píxeles coinciden EXACTO con la medición ya
+documentada por `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` — cero píxeles nuevos para Nayoli. Verificado
+además en navegador real (`next build`+`next start`, Postgres efímero) a 1440px y 390px con el arnés
+`--sembrar-album-nosotros`, comparado a mano contra las capturas de la maqueta aprobada. No es
+`GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
