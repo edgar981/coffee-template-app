@@ -930,7 +930,7 @@ async function sembrarOrigen(): Promise<void> {
   console.log("✔ Origen sembrado (content.origen publicado con los datos/contadores del prototipo).");
 }
 
-// ─── SEMBRAR COMPRA (§ COMPRA-LINEAS-FIDELIDAD-1) ────────────────────────────────────────────────
+// ─── SEMBRAR COMPRA (§ COMPRA-LINEAS-FIDELIDAD-1, re-medido en § COMPRA-LINEAS-FIDELIDAD-2) ──────
 //
 // SIN esto, activar el cajón «Créditos»/«Álbum» (§ `compra.cajon`) en un navegador real exige: (a)
 // una paleta que de verdad diferencie la tienda del Nayoli de fábrica (si no, "se ve igual" sería
@@ -942,29 +942,35 @@ async function sembrarOrigen(): Promise<void> {
 // memoria... el dato llega; el tratamiento no está" — llegaba el DATO (`compra.cajon`), pero sin (a)/
 // (c)/(d) nunca había nada que ver.
 //
-// LA PALETA ESTÁ MEDIDA, NO INVENTADA: los hex de `fondo`/`tinta`/`acento` son los de
-// `.ln-onix{--bg:...;--ink:...;--accent:...}` / `.ln-ch{...}` en la maqueta APROBADA
-// (`.scratch/lanzamiento/maqueta-compra/compra.html`, el `<style>` inline — grepeable con
-// `grep -n '.ln-onix{' .scratch/lanzamiento/maqueta-compra/compra.html`). NO son los colores reales
-// de las tiendas en producción (esos viven en SU base, que este arnés nunca toca) — son los de la
-// maqueta que este slice existe para reproducir, así que son el estándar correcto para ESTA
-// verificación: una captura que combine la paleta de la maqueta con el tratamiento de la maqueta es
-// la comparación más fiel posible sin leer la base de un tenant real.
-//
-// `fuentePar`/`forma` quedan `null` (fábrica): la maqueta no declara una tipografía ni una forma de
-// esquinas fuera de lo que el storefront ya trae por defecto — su `--serif`/`--sans` son genéricos
-// del sistema operativo/Google Fonts, no un par curado de `lib/config/fuentes.ts`.
+// EL TEMA (paleta + tipografía + forma) ES EL REAL, MEDIDO POR EJECUCIÓN CONTRA EL MUESTRARIO YA
+// DESPLEGADO — § COMPRA-LINEAS-FIDELIDAD-2, que reemplazó la versión anterior de este comentario.
+// Hasta ese slice, `fondo`/`tinta`/`acento` salían a mano de `.ln-onix`/`.ln-ch` en la maqueta
+// APROBADA (`.scratch/lanzamiento/maqueta-compra/compra.html`) y `fuentePar`/`forma` quedaban
+// `null` (fábrica) — el orquestador midió la consecuencia: la tipografía salía Playfair/Inter
+// cuando las DOS tiendas reales corren 'prensa' (Roboto Serif/Figtree), y Las Chamisas perdía su
+// acento real (`#B8461A`) por el `acento: tinta` que la maqueta usa de mockup. `medirTemaReal`
+// (`scripts/capturar-compra.ts`) lee el `:root{...}` que el storefront YA inyecta por request
+// (`force-dynamic`) contra `https://cafe-onix.vercel.app` / `https://coffee-template-app-
+// las-chamisas.vercel.app` — el MISMO mecanismo que ya validó `sembrarCasillas`/
+// `sembrarAlbumNosotros` (abajo) con un `fetch()` suelto, ahora reusable y re-corrido en cada
+// invocación (así una próxima deriva del tema real en producción se refleja sola, sin que alguien
+// tenga que volver a medir a mano).
 async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
-  console.log(`▸ --sembrar-compra ${tienda}: paleta + content.compra + vendedor + 1 producto + método efectivo…`);
+  console.log(`▸ --sembrar-compra ${tienda}: tema real (medido) + content.compra + vendedor + 1 producto + método efectivo…`);
   const { default: prisma } = await import("@duna/core");
   const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+  const { medirTemaReal } = await import("./capturar-compra");
 
-  const PALETA: Record<"onix" | "chamisas", { fondo: string; tinta: string; acento: string }> = {
-    // .ln-onix{--bg:#FDFBF7;--ink:#102407;...;--accent:#A70004;...}
-    onix: { fondo: "#FDFBF7", tinta: "#102407", acento: "#A70004" },
-    // .ln-ch{--bg:#FAF4EB;--ink:#2A2522;...;--accent:#2A2522;...}
-    chamisas: { fondo: "#FAF4EB", tinta: "#2A2522", acento: "#2A2522" },
+  const URL_MUESTRARIO: Record<"onix" | "chamisas", string> = {
+    onix: "https://cafe-onix.vercel.app/",
+    chamisas: "https://coffee-template-app-las-chamisas.vercel.app/",
   };
+  const tema = await medirTemaReal(URL_MUESTRARIO[tienda]);
+  console.log(
+    `  tema medido: fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento} ` +
+      `fuentePar=${tema.fuentePar ?? "(fábrica)"} forma=${tema.forma ?? "(fábrica)"}`,
+  );
+
   const COMPRA: Record<"onix" | "chamisas", { cajon: string; confirmacion: string; seguimiento: string }> = {
     onix: { cajon: "creditos", confirmacion: "boleto", seguimiento: "escaleta" },
     chamisas: { cajon: "album", confirmacion: "lamina", seguimiento: "album" },
@@ -974,8 +980,7 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
     chamisas: { nombreCompleto: "Las Chamisas", ciudad: "San Adolfo, Huila" },
   };
 
-  const paleta = PALETA[tienda];
-  await guardarTemaBorrador({ fondo: paleta.fondo, tinta: paleta.tinta, acento: paleta.acento, fuentePar: null, forma: null });
+  await guardarTemaBorrador({ fondo: tema.fondo, tinta: tema.tinta, acento: tema.acento, fuentePar: tema.fuentePar, forma: tema.forma });
   await publicarSeccion("tema");
 
   const compra = COMPRA[tienda];

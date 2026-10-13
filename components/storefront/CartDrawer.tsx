@@ -13,6 +13,7 @@ import {
   Minus,
   Trash2,
   ArrowRight,
+  Truck,
 } from "lucide-react";
 
 import { useCartStore } from "@/lib/cartStore";
@@ -125,9 +126,26 @@ export function FraseEnvioGratis({ belowFreeShipping, threshold }: { belowFreeSh
 // relleno liso -- un patrón de rayas diagonales en el MISMO token de acento, sin color nuevo. La
 // transición de ancho de hoy (`transition-all duration-500`) ya ES el "tejido avanza al subir el
 // subtotal" del spec; esto sólo cambia el PATRÓN, nunca el mecanismo de movimiento.
-export function BarraEnvioGratis({ subtotal, threshold, tejido = false }: { subtotal: number; threshold: number | null; tejido?: boolean }) {
+// COMPRA-LINEAS-FIDELIDAD-2 — `fino` (OPCIONAL, default `false`, byte-idéntico sin él): la
+// composición «Créditos» (Onix) usa un FILETE de 2px (§ la maqueta, `.free .rule{height:2px}` +
+// `.rule i{background:var(--ink)}`), no la barra gruesa de 6px que `tejido=false` ya rendía — esa
+// barra gruesa es la de 'comun'/'flotante', y quedarse con ella bajo «Créditos» es EXACTAMENTE el
+// defecto que el owner reportó ("barra roja gruesa en vez del filete fino de la maqueta"). `fino` y
+// `tejido` son mutuamente excluyentes por construcción del llamador (`CajonPanel` pasa
+// `tejido={esAlbum}` y `fino={esCreditos}`, y las dos nunca son `true` a la vez).
+export function BarraEnvioGratis({ subtotal, threshold, tejido = false, fino = false }: { subtotal: number; threshold: number | null; tejido?: boolean; fino?: boolean }) {
   const progreso = progresoEnvioGratis(subtotal, threshold);
   if (!progreso) return null;
+  if (fino) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-xs text-[var(--sf-texto-suave)]">{progreso.mensaje}</p>
+        <div className="h-0.5 w-full bg-[var(--sf-linea)]">
+          <div className="h-full bg-[var(--sf-tinta)] transition-all duration-500" style={{ width: `${progreso.pct}%` }} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1.5">
       <p className="text-xs text-[var(--sf-texto-suave)]">{progreso.mensaje}</p>
@@ -220,6 +238,11 @@ export interface CajonPanelItem {
   precio: number;
   quantity: number;
   options?: Record<string, string | boolean>;
+  /** COMPRA-LINEAS-FIDELIDAD-2 — OPCIONAL: `CartItem extends Product` (§ `lib/cartStore.tsx`), así
+   *  que el peso YA viaja en cada ítem real del carrito sin tocar ese archivo (fuera de
+   *  `touches:`); acá sólo se DECLARA para poder leerlo. Ausente = se omite la ` · N g` de abajo,
+   *  byte-idéntico a como se veía la fila antes de este campo. */
+  peso_gramos?: number;
 }
 
 export interface CajonPanelProps {
@@ -366,7 +389,7 @@ export function CajonPanel({
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {carritoEnvio.visible && (
                 <div className="mb-4">
-                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} tejido={esAlbum} />
+                  <BarraEnvioGratis subtotal={subtotal} threshold={freeShippingThreshold} tejido={esAlbum} fino={esCreditos} />
                 </div>
               )}
 
@@ -445,8 +468,11 @@ export function CajonPanel({
                           esCreditos ? (
                             // «Créditos» (Onix): la fila al estilo Taquilla (§ el spec: "EN GRANO ·
                             // 500 G") -- mayúscula espaciada, sin el prefijo "Molienda:".
+                            // COMPRA-LINEAS-FIDELIDAD-2 -- el PESO se suma a la MISMA línea (§ la
+                            // maqueta, `it.p.v`: "En grano · 500 g", un solo string -- no una
+                            // segunda fila): ausente, se omite y la línea queda igual que antes.
                             <p className="mt-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-[var(--sf-tostado-3)]">
-                              {item.options.molienda}
+                              {item.options.molienda}{typeof item.peso_gramos === 'number' ? ` · ${item.peso_gramos} g` : ''}
                             </p>
                           ) : esAlbum ? (
                             // COMPRA-LINEAS-FIDELIDAD-1 -- «Álbum» (Las Chamisas): el mismo dato,
@@ -454,7 +480,7 @@ export function CajonPanel({
                             // maqueta, `.ln-ch .rw .vr{text-transform:none}` (a diferencia de
                             // «Créditos», que lo lleva en mayúscula espaciada).
                             <p className="mt-0.5 text-xs text-[var(--sf-texto)]">
-                              {item.options.molienda}
+                              {item.options.molienda}{typeof item.peso_gramos === 'number' ? ` · ${item.peso_gramos} g` : ''}
                             </p>
                           ) : (
                             <p className="mt-0.5 text-xs text-[var(--sf-tostado-3)]">
@@ -593,23 +619,56 @@ export function CajonPanel({
                       comprador puede elegir ACÁ mismo. Con un departamento ya elegido se
                       muestra el costo REAL (`shippingCostCajon`); sin elegir, el selector pide
                       el dato con la MISMA etiqueta ("Envío a…") para que el comprador entienda
-                      qué decide. El valor viaja al checkout vía el CartContext (persistido). */}
-                  <div className="flex items-center justify-between gap-3 text-[var(--sf-texto)]">
-                    <label htmlFor="carrito-departamento" className="shrink-0">
-                      Envío{departamento ? ` a ${departamento}` : ''}
-                    </label>
-                    <select
-                      id="carrito-departamento"
-                      value={departamento ?? ''}
-                      onChange={(e) => onDepartamentoChange(e.target.value || null)}
-                      className="min-w-0 max-w-[60%] truncate rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-2 py-1.5 text-xs text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
-                    >
-                      <option value="">Selecciona departamento</option>
-                      {COLOMBIA_DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
+                      qué decide. El valor viaja al checkout vía el CartContext (persistido).
+                      COMPRA-LINEAS-FIDELIDAD-2 -- bajo «Créditos»/«Álbum» este selector INLINE se
+                      reemplaza por el bloque propio de abajo (§ la maqueta, `.shipsel`): el mismo
+                      <select>, apilado bajo su etiqueta a TODO el ancho, con la línea de costo/plazo
+                      debajo -- no un select chico a la derecha. 'comun'/'flotante' lo conservan
+                      byte-idéntico. */}
+                  {!esCreditos && !esAlbum && (
+                    <div className="flex items-center justify-between gap-3 text-[var(--sf-texto)]">
+                      <label htmlFor="carrito-departamento" className="shrink-0">
+                        Envío{departamento ? ` a ${departamento}` : ''}
+                      </label>
+                      <select
+                        id="carrito-departamento"
+                        value={departamento ?? ''}
+                        onChange={(e) => onDepartamentoChange(e.target.value || null)}
+                        className="min-w-0 max-w-[60%] truncate rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-2 py-1.5 text-xs text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
+                      >
+                        <option value="">Selecciona departamento</option>
+                        {COLOMBIA_DEPARTMENTS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {(esCreditos || esAlbum) && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="carrito-departamento" className="block text-[var(--sf-texto)]">
+                        Envío a
+                      </label>
+                      <select
+                        id="carrito-departamento"
+                        value={departamento ?? ''}
+                        onChange={(e) => onDepartamentoChange(e.target.value || null)}
+                        className="w-full rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-3 py-2 text-sm text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]"
+                      >
+                        <option value="">Selecciona departamento</option>
+                        {COLOMBIA_DEPARTMENTS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                      {shippingMethodCajon ? (
+                        <p className="flex items-center gap-1.5 text-xs text-[var(--sf-texto-suave)]">
+                          <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          {shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)} · {shippingMethodCajon.label}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[var(--sf-texto-suave)]">Elige tu departamento para ver el envío exacto.</p>
+                      )}
+                    </div>
+                  )}
                   {/* COMPRA-LINEAS-ONIX-CHAMISAS-1 -- bajo «Créditos»/«Álbum» el envío ya se
                       repite como fila del pie (abajo); mostrarlo también acá sería la misma línea
                       dos veces. */}
@@ -641,12 +700,13 @@ export function CajonPanel({
                         <span>Subtotal</span>
                         <span>{formatCOP(subtotal)}</span>
                       </div>
-                      {shippingMethodCajon && (
-                        <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
-                          <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
-                          <span>{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
-                        </div>
-                      )}
+                      {/* COMPRA-LINEAS-FIDELIDAD-2 -- la fila ENVÍO ya NO desaparece sin
+                          departamento (§ la maqueta, `crRows`: las TRES filas siempre están, con
+                          "según departamento" de placeholder en vez de omitir la fila entera). */}
+                      <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-[var(--sf-texto)]">
+                        <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
+                        <span>{shippingMethodCajon ? (shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)) : 'según departamento'}</span>
+                      </div>
                       <div className="flex justify-between sf-divisor-t border-[var(--sf-linea)] pt-1.5 text-sm text-[var(--sf-acento-texto)]">
                         <span>Total</span>
                         <span className="font-playfair normal-case tracking-normal">{formatCOP(totalCajon)}</span>
@@ -662,12 +722,12 @@ export function CajonPanel({
                         <span>Subtotal</span>
                         <span className="font-semibold">{formatCOP(subtotal)}</span>
                       </div>
-                      {shippingMethodCajon && (
-                        <div className="flex justify-between text-[var(--sf-texto)]">
-                          <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
-                          <span className="font-semibold">{shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)}</span>
-                        </div>
-                      )}
+                      {/* COMPRA-LINEAS-FIDELIDAD-2 -- misma regla que «Créditos», arriba: la fila
+                          ENVÍO siempre está. */}
+                      <div className="flex justify-between text-[var(--sf-texto)]">
+                        <span>Envío{departamento ? ` a ${departamento}` : ''}</span>
+                        <span className="font-semibold">{shippingMethodCajon ? (shippingCostCajon === 0 ? 'Gratis' : formatCOP(shippingCostCajon!)) : 'según departamento'}</span>
+                      </div>
                       <div className="flex justify-between pt-1 text-[var(--sf-tinta)]">
                         <span>Total</span>
                         <span className="font-playfair text-xl font-normal">{formatCOP(totalCajon)}</span>
