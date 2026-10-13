@@ -63093,3 +63093,190 @@ contrato cruzado de repositorio.
 `npm test` 4671/4671, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
 solo píxel nuevo para Nayoli (las seis cifras idénticas al piso de `COMPRA-LINEAS-ONIX-CHAMISAS-1`).
 No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-12 — ONIX-CIERRE-Y-CURSOR-1: el cierre «¿Solo una bolsa?» recupera su banda papel, y el
+storefront recupera la mano del cursor que el preflight de Tailwind v4 le había quitado
+
+Spec validado CLEAR, continúa `slice/editor-secciones-1` tras `EDITOR-ORDEN-Y-LIENZO-1`. Dispara la
+revisión del owner del 2026-10-12 sobre lo construido: *"The '+' symbol at questions doesn't look
+like it works, don't have cursor. The 'Solo Una Bolsa?' In the document proposed by you had a
+different color."* `observed-report: ONIX-PAGINAS-FIDELIDAD-1`.
+
+### Item 1 — la banda `--sf-papel` del cierre compartido, OPT-IN por prop
+
+**Lo medido por el orquestador** (Playwright contra `cafe-onix.vercel.app/suscripciones`): el cierre
+no tenía fondo propio (`rgba(0,0,0,0)` sobre la crema de la página); la maqueta aprobada
+(`.scratch/onix-paginas/onix-suscripciones-nosotros.html`, regla `.cierre`) pinta una banda
+`--papel` (`#F8F7F6`) con el titular en `clamp(28px,3.4cqi,44px)`, el botón con `min-height:46px` y
+el bloque centrado con `padding-block:clamp(48px,5cqi,64px)`.
+
+**El conflicto que cerró la forma:** `CierreFraseYBoton.tsx` es una pieza COMPARTIDA
+(§ ONIX-PAGINAS-PIEZAS-COMPARTIDAS-1) montada por TRES composiciones — `TiendaCierre.tsx`
+(«Frase y botón»), `SuscripcionCierre.tsx` (su ÚNICA composición) y `NosotrosCierre.tsx`
+(«Frase y botón»). La maqueta de /suscripciones+/nosotros pide la banda `--papel`; la referencia de
+/tienda (`.scratch/refero-paginas/r2-onix-tienda.md`, "5 · Cierre: banda CREMA, como el contraste de
+A24") pide el fondo de la página, SIN tinte propio — dos maquetas, dos colores, para el MISMO hueco
+del MISMO componente. Se resolvió con un prop opt-in, `bandaPapel?: boolean` (default sin pasar =
+sin banda): `SuscripcionCierre.tsx` y `NosotrosCierre.tsx` (ambos en `touches:`) lo pasan;
+`TiendaCierre.tsx` —fuera de `touches:` de este slice, no se editó— sigue sin pasarlo, así que su
+render NO cambió.
+
+**El token `--sf-papel`, derivado, no literal** (`app/globals.css`, familia FONDO): `color-mix(in
+oklab, var(--sf-fondo) 98.5%, var(--sf-tinta) 1.5%)` — la MISMA técnica que `--sf-velo` ya usa
+(mezclar sobre raíces YA por-tenant, así que cualquier cliente deriva SU papel sin tocar
+`lib/config/palette-derive.ts`, fuera de `touches:`). **Nunca hacia `--sf-acento`**: `--sf-superficie`
+(la RECETA del motor) se mezcla hacia el acento, y el acento de Onix/CORTE es un rojo de acción puro
+(`#a70004`) — mezclarlo ahí daría un tinte rosado, no el gris neutro de la maqueta. El PESO (1.5%) se
+calibró barriendo 0–10% en pasos de 0.1pp, mezclando en OKLab (la misma interpolación que
+`color-mix(in oklab,…)` hace) sobre las raíces de CORTE (`fondo:#fdfbf7`, `tinta:#102407`): 1.5% da
+`#f9f7f3`, a ΔOKLab≈0.004 de `#f8f7f6` de la maqueta — imperceptible, y NO el 4.5% de `PESO_NEUTRO`
+de `palette-derive.ts` (calibrado contra OTRO objetivo, el `--surface-page-cool` de un prototipo
+distinto, § el comentario de ese archivo). Para NAYOLI el resultado es casi idéntico a `--sf-fondo` —
+inofensivo, porque Nayoli nunca llega a montar la banda (ver el gate, abajo: el piso de píxeles
+heredado no se movió).
+
+**Las medidas, aplicadas a los TRES consumidores por igual** (no dependen de `bandaPapel`):
+- `py-16` → `py-12 sm:py-16` en el `motion.section` — sustituto por breakpoint de `padding-block:
+  clamp(48px,5cqi,64px)` de la maqueta, mismo criterio ya usado para el tamaño de la frase
+  (`text-[28px] sm:text-[44px]`): este storefront no tiene container queries armadas
+  (`container-type`), § el comentario ya escrito de `Apertura.tsx`.
+- El botón pasa de `px-6 py-3` (24px horizontal correcto; 12px vertical que no garantizaba los 46px
+  de alto en ningún tamaño de letra) a `inline-flex min-h-[46px] items-center justify-center px-6` —
+  igual que `.btn-borde` de la maqueta (`display:inline-flex;align-items:center;min-height:46px;
+  padding:0 24px`).
+
+### Item 2 — la regla global del cursor, espejo exacto de la del admin
+
+**Lo medido:** los botones de las preguntas (`PreguntasFrecuentes.tsx`, variante «Letra pequeña»)
+tenían `cursor:default` — el preflight de Tailwind v4, que nunca le da `cursor:pointer` a un
+`<button>` (eso es convención del sitio, no del navegador; a diferencia de `<a>`, que sí lo trae de
+fábrica). `app/globals.css` YA tenía la regla espejo para el admin (`html.admin button:not(:disabled),
+html.admin [role="button"]:not(:disabled) { cursor: pointer; }`), con un comentario que decía
+TEXTUALMENTE que el storefront quedaba "en los defaults del preflight" — una posposición, no una
+decisión de que no lo necesitara.
+
+**El espejo:** `html:not(.admin) button:not(:disabled), html:not(.admin) summary, html:not(.admin)
+[role="button"]:not(:disabled) { cursor: pointer; }`. `html:not(.admin)` es el COMPLEMENTO exacto de
+`html.admin`, así que cubre el storefront de CUALQUIER tienda sin alcanzar el pre-auth: login,
+aceptar-invitación y recuperar-clave viven bajo el grupo de rutas `(admin)`
+(`app/(admin)/login`/`/aceptar-invitacion`/`/recuperar-clave`), así que YA llevan `html.admin` y la
+regla de arriba — no hay una franja intermedia sin cubrir. Se suma `summary`: el storefront no monta
+ningún `<details>/<summary>` hoy (grep: cero, en `components/storefront/` y `app/(storefront)`), pero
+a diferencia de `button` el navegador NUNCA le da `cursor:pointer` a `<summary>` por defecto, así que
+un "resumen plegable" futuro nacería mudo si la regla no lo nombrara de antemano — el spec lo pide
+explícito ("resúmenes plegables"). `[role="button"]` espeja al bloque del admin, por si algún control
+no-nativo lo necesita; hoy tampoco hay ninguno en el storefront.
+
+**El comentario viejo de la regla del admin se corrigió** (una frase, dentro de `touches:`
+`app/globals.css`): decía que el storefront "is left on the preflight defaults" — ya no lo está, y
+dejar la frase tal cual habría sido la misma familia de doctrina vencida que CLAUDE.md ya documenta
+para frases prospectivas.
+
+### Las pruebas
+
+Render en memoria (`lib/storefront/onix-paginas-fidelidad.test.ts`, +8 tests):
+- `CierreFraseYBoton`: `bandaPapel` pinta `bg-[var(--sf-papel)]`; sin la prop, no — y las medidas
+  (`py-12 sm:py-16`) son independientes de la banda.
+- `BotonCierre`: `min-h-[46px]` + `inline-flex items-center justify-center` + `px-6`, nunca `py-3`.
+- `SuscripcionCierre` y `NosotrosCierre` (variante «fraseYBoton») con contenido de Onix: pasan
+  `bandaPapel`.
+- `TiendaCierre` (variante «fraseYBoton») con contenido de Onix: NO lleva `--sf-papel` (su propia
+  maqueta), pero SÍ lleva las medidas uniformes.
+- Las canónicas de Nayoli («Línea»/«Costura»): siguen sin `bg-[var(--sf-papel)]`/`min-h-[46px]` — no
+  montan `CierreFraseYBoton`. (Gemelo del bloque `MARCAS_DE_LA_TANDA` ya existente en este archivo;
+  no se ensanchó esa constante con marcas de ESTA tanda para no mezclar la procedencia de dos
+  tandas distintas en un solo nombre.)
+- Dos tests de FUENTE sobre `app/globals.css` (mismo método que `lib/config/corte-marquesina-
+  velo.test.ts` usa para `--sf-velo`, repetido acá porque ese archivo no está en `touches:`):
+  `--sf-papel` existe, deriva por `color-mix` hacia `--sf-tinta` y NUNCA hacia `--sf-acento`; la
+  regla del cursor del storefront está, con `summary` y `[role="button"]`.
+
+`lib/tienda/piezas-compartidas.test.ts`: los DOS fixtures `cierreFraseYBotonSinWhatsapp`/
+`cierreFraseYBotonConWhatsapp` (el "ANTES" congelado de `TiendaCierre` en «Frase y botón») se
+actualizaron — `py-16`→`py-12 sm:py-16` y el botón sin `py-3`, con `min-h-[46px]`/`inline-flex`/
+`items-center`/`justify-center` — con el comentario que dice CUÁL slice y QUÉ cambió, sin tocar el
+layout congelado por `ONIX-PAGINAS-FIDELIDAD-ASSERTS-1`. Ninguna otra clave del `ANTES` se tocó.
+
+### El gate
+
+- **`npx tsc --noEmit`**: 0 errores, en el árbol final.
+- **`npm test`**: **4679/4679** (antes de este slice: 4671/4671, § `EDITOR-ORDEN-Y-LIENZO-1`). +8
+  tests nuevos, todos en `lib/storefront/onix-paginas-fidelidad.test.ts`.
+- **`npm run test:integracion`**: **409/409** — sin cambio (este slice no toca schema ni ninguna
+  cadena del motor; CSS + presentación de componentes del storefront, sin red ni base).
+- **`npm run verificar:nayoli:visual`** (worktree + Postgres efímeros propios), diff contra `main`:
+
+  | ruta | resultado | comparación contra el piso heredado (`TIENDA-LEGAL-1`/`COMPRA-LINEAS-ONIX-CHAMISAS-1`) |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo | **IDÉNTICO** |
+  | `/tienda` | 209/2433280 · 407 | **IDÉNTICO** |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px, heredado de `TIENDA-LEGAL-1`) | **IDÉNTICO** |
+  | `/checkout` | 163/1152000 · 361 | **IDÉNTICO** |
+  | `/nosotros` | 224/1152000 · 422 | **IDÉNTICO** |
+  | `/suscripciones` | 258/2144000 · 456 | **IDÉNTICO** |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **Las SEIS cifras son idénticas, dígito a dígito, al piso heredado** — la prueba por EJECUCIÓN de
+  que `bandaPapel` nunca llega a Nayoli: **`prisma/seed.ts` (el seed que este arnés corre, § el
+  método de cabecera) no escribe ninguna fila de `SiteContent`** (`grep -n "SiteContent" prisma/
+  seed.ts` da cero) — sin fila, el loader SOFT (§ CLAUDE.md, "Config del contenido") resuelve
+  `DEFAULTS` entero, donde `suscripcionCierre.frase`/`nosotrosCierre.titulo` están vacíos. Las dos
+  secciones vuelven `null` por el gate de `frase.trim()===''`/`titulo.trim()===''` que YA existía
+  (`SuscripcionCierre.tsx`/`NosotrosCierre.tsx`, sin tocar en este slice) ANTES de llegar a montar
+  `CierreFraseYBoton` — así que la prop `bandaPapel` no alcanza a evaluarse para Nayoli, y la captura
+  de /suscripciones lo confirma visualmente (`.scratch/verificar-nayoli-visual/capturas/{main,rama}/
+  ruta-suscripciones.png`): ninguna banda «Frase y botón» aparece entre "¿Cómo funciona?" y el pie, en
+  NINGUNO de los dos árboles. Las diferencias que SÍ sobreviven en `/nosotros`/`/suscripciones`
+  (224/1152000 y 258/2144000 px respectivamente, idénticas a la tabla de arriba) son el nav activo
+  más el crédito "Hecho por Duna" del pie — dos defectos heredados, ajenos a este slice, ya
+  nombrados en `NAYOLI-HOME-DRIFT-RAMA-PREEXISTENTE-1`/`PIE-HECHO-POR-DUNA-1` — y no se movieron un
+  solo píxel. `exit 1` esperado — el mismo piso heredado, no un hallazgo nuevo.
+
+### Deviations (fuera de `touches:`, medidas y necesarias)
+
+- Ninguna. Los seis archivos tocados —`CierreFraseYBoton.tsx`, `SuscripcionCierre.tsx`,
+  `NosotrosCierre.tsx`, `app/globals.css`, `lib/storefront/onix-paginas-fidelidad.test.ts`,
+  `lib/tienda/piezas-compartidas.test.ts`— están todos dentro de `touches:`. `TiendaCierre.tsx` se
+  REVISÓ (su propia maqueta, `r2-onix-tienda.md`) y se dejó sin tocar, como pedía el spec.
+
+### Open follow-ups
+
+Ninguno nuevo.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos nuevos o cambiados: `CierreFraseYBoton.tsx` (prop `bandaPapel`), `--sf-papel`
+(`app/globals.css`), la regla `html:not(.admin) button:not(:disabled), html:not(.admin) summary,
+html:not(.admin) [role="button"]:not(:disabled)`, `SuscripcionCierre.tsx`, `NosotrosCierre.tsx`.
+
+- `grep -n "CierreFraseYBoton\|SuscripcionCierre\|NosotrosCierre\|sf-papel\|py-16\|46px\|min-height"
+  CLAUDE.md`: **CERO coincidencias** sobre los símbolos de este slice — ninguno de estos nombres vive
+  en CLAUDE.md (el mecanismo de `CierreFraseYBoton`/sus llamadores vive en `docs/editor-tienda/` y en
+  este ledger, no promovido a la doctrina curada, igual que ya lo nota `EDITOR-ORDEN-Y-LIENZO-1`
+  arriba).
+- `grep -n "html.admin\|cursor: default\|Tailwind v4 preflight" CLAUDE.md`: dos coincidencias
+  (líneas 901, 4671, 4673 de CLAUDE.md), las dos sobre el puente de tipografía/tooltip del admin —
+  NINGUNA sobre la regla del cursor (esa doctrina vive sólo en el comentario de `app/globals.css`,
+  nunca se promovió a CLAUDE.md). Ninguna de las dos se vuelve falsa: no tocamos el puente de
+  fuentes ni `.admin-tooltip`.
+- Sin otras coincidencias.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner revisó lo construido el 2026-10-12 y
+señaló los dos defectos que este slice cierra). Entra por `components/storefront/` (bytes del
+visitante — `CierreFraseYBoton.tsx`, `SuscripcionCierre.tsx`, `NosotrosCierre.tsx` tocados) y por el
+criterio del segundo eje (ningún schema, ninguna migración: `app/globals.css` es CSS de presentación,
+no un contrato cruzado de repositorio). El diff SÍ cambia bytes que un visitante de Onix lee —el
+color de la banda del cierre y la mano del cursor en sus botones— así que falla la condición
+`customer-bytes` de merge policy A, pese a que Nayoli queda pixel-idéntico (medido, arriba): el
+criterio de la política es "¿cambia algún byte que un cliente, operador o dueño lee?" de la RAMA
+contra su base, no "¿cambia para ESTE tenant en particular?" — y para Onix, cambia.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4679/4679, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` sin un
+solo píxel nuevo para Nayoli (las seis cifras idénticas al piso heredado de `TIENDA-LEGAL-1`/
+`COMPRA-LINEAS-ONIX-CHAMISAS-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

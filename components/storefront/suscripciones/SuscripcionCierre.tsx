@@ -32,6 +32,9 @@ export default function SuscripcionCierre() {
       anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
       campoFrase="suscripcionCierre.frase"
       campoBoton="suscripcionCierre.ctaLabel"
+      // § ONIX-CIERRE-Y-CURSOR-1 — la maqueta aprobada de /suscripciones pinta este cierre con la
+      // banda `--sf-papel`, distinta del fondo de la página (ver el docstring de la prop).
+      bandaPapel
     />
   );
 }

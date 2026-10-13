@@ -68,6 +68,9 @@ export default function NosotrosCierre({ style }: { style?: React.CSSProperties 
         anchoClase={contenedorAnchoClase(navTratamiento.posicion)}
         campoFrase="nosotrosCierre.titulo"
         campoBoton="nosotrosCierre.ctaLabel"
+        // § ONIX-CIERRE-Y-CURSOR-1 — la maqueta aprobada de /nosotros pinta este cierre con la
+        // banda `--sf-papel`, distinta del fondo de la página (ver el docstring de la prop).
+        bandaPapel
       />
     );
   }

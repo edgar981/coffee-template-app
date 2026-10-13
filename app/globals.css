@@ -126,6 +126,28 @@
   --sf-linea:        #e8ddd0;   /* borde / hairline */
   --sf-superficie-2: #e4d3c0;   /* crema más honda (1 uso) */
 
+  /* --sf-papel (§ ONIX-CIERRE-Y-CURSOR-1) — el gris cálido, levemente distinto de `--sf-fondo`, que
+     separa una banda de cierre del resto de la página sin que se lea como un corte de color. Nace
+     de la maqueta aprobada de /suscripciones y /nosotros (`.scratch/onix-paginas/
+     onix-suscripciones-nosotros.html`, `--papel:#F8F7F6` contra `--crema:#FDFBF7` — la MISMA
+     distinción). `--sf-superficie` (arriba) NO sirve para esto: se mezcla hacia el ACENTO (RECETA,
+     `lib/config/palette-derive.ts:231`), y el acento de Onix/CORTE es un rojo de acción puro
+     (`#a70004`) — mezclarlo daría un tinte rosado, no el gris neutro de la maqueta. En vez de un
+     literal (que fijaría el gris a Onix) o de tocar el motor de `palette-derive.ts` (fuera de
+     `touches:` de este slice), es `color-mix(in oklab, ...)` sobre DOS raíces que YA son por-tenant
+     —`--sf-fondo`/`--sf-tinta`—, la misma técnica que `--sf-velo` ya usa abajo: cualquier cliente
+     obtiene SU propio papel sin que el motor tenga que declararlo.
+     EL PESO (1.5%) está CALIBRADO contra ESE objetivo con las raíces de CORTE/Onix (fondo:#fdfbf7,
+     tinta:#102407): mezclando en OKLab (la misma interpolación que hace `color-mix(in oklab,…)`),
+     1.5% da `#f9f7f3`, a ΔOKLab≈0.004 de `#f8f7f6` — imperceptible (medido barriendo 0–10% en pasos
+     de 0.1pp; el óptimo cae en 1.5%, no en el 4.5% de `PESO_NEUTRO` de `palette-derive.ts`, que está
+     calibrado contra OTRO objetivo, el `--surface-page-cool` de un prototipo distinto).
+     Para NAYOLI (tinta `#1a0f08` sobre fondo `#faf7f4`) el resultado es casi idéntico a `--sf-fondo`
+     — inofensivo: Nayoli nunca monta la pieza que lo consume (`CierreFraseYBoton`, prop
+     `bandaPapel`, § el docstring de esa prop) — su canónica es `tiendaCierre.variante==='costura'`/
+     `nosotrosCierre.variante==='linea'`, nunca `'fraseYBoton'`. */
+  --sf-papel: color-mix(in oklab, var(--sf-fondo) 98.5%, var(--sf-tinta) 1.5%);
+
   /* TINTA family — near-negros */
   --sf-tinta:        #1a0f08;   /* texto principal + fondos oscuros + gradientes (+#1e150e) */
   --sf-tinta-2:      #2d1a0e;   /* near-negro cálido (gradiente) */
@@ -537,10 +559,30 @@ html {
   /* Tailwind v4 preflight sets <button> to `cursor: default`, so admin buttons
      (unlike links) showed the arrow cursor. Restore the pointer for interactive
      controls at the root cause. Scoped to `html.admin` — which lives on <html>,
-     so body-portaled UI (dropdowns, dialogs, the ⌘K palette) inherits it — and
-     the storefront route group is left on the preflight defaults. */
+     so body-portaled UI (dropdowns, dialogs, the ⌘K palette) inherits it. The
+     storefront route group gets its own mirror below (§ ONIX-CIERRE-Y-CURSOR-1)
+     — it used to be left on the preflight defaults; it no longer is. */
   html.admin button:not(:disabled),
   html.admin [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* EL MISMO DEFECTO, DEL LADO DEL STOREFRONT (§ ONIX-CIERRE-Y-CURSOR-1) — el bloque de arriba
+     dejó "el storefront en los defaults del preflight" como una posposición, no como una decisión
+     de que el storefront no lo necesita. El owner lo encontró en el «+» de las preguntas de
+     /suscripciones (botones sin mano) — el MISMO preflight que ya se cerró para el admin.
+     `html:not(.admin)` es el COMPLEMENTO exacto de `html.admin`, así que cubre el storefront de
+     CUALQUIER tienda (Nayoli, Onix, la que siga) sin alcanzar el pre-auth: login, aceptar-
+     invitación y recuperar-clave viven bajo el grupo de rutas `(admin)` (`app/(admin)/login`, …),
+     así que YA llevan `html.admin` y el bloque de arriba — no hay una franja intermedia sin cubrir.
+     Se suma `summary`: el storefront no monta ningún `<details>/<summary>` hoy (grep: cero), pero
+     el elemento SÍ necesita la regla — a diferencia de `button`, el navegador nunca le da
+     `cursor:pointer` por defecto, así que un `<summary>` futuro (un "resumen plegable") nacería
+     mudo si esta regla no lo nombrara de antemano. `[role="button"]` espeja al bloque de arriba,
+     por si algún control del storefront se construye sobre un elemento no-nativo. */
+  html:not(.admin) button:not(:disabled),
+  html:not(.admin) summary,
+  html:not(.admin) [role="button"]:not(:disabled) {
     cursor: pointer;
   }
 }

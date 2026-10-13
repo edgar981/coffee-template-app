@@ -36,15 +36,28 @@ export interface CierreFraseYBotonProps {
    *  (ninguno de los dos callers de hoy lo omite, pero queda opcional por si una futura composición
    *  deriva el label de otro lado). */
   campoBoton?: string;
+  /** LA BANDA PAPEL (§ ONIX-CIERRE-Y-CURSOR-1) — OPT-IN, no el default: la maqueta aprobada de
+   *  /suscripciones y /nosotros (`.scratch/onix-paginas/onix-suscripciones-nosotros.html`, regla
+   *  `.cierre{background:var(--papel)}`) pinta este cierre con un gris cálido DISTINTO del fondo de
+   *  la página (`--sf-papel`, nuevo en `globals.css`), pero la referencia de /tienda
+   *  (`.scratch/refero-paginas/r2-onix-tienda.md`, "5 · Cierre: banda CREMA, como el contraste de
+   *  A24") pide la MISMA crema de la página — es decir, SIN tinte propio. Dos maquetas, dos colores
+   *  para el mismo hueco del mismo componente compartido; `TiendaCierre.tsx` (fuera de `touches:` de
+   *  este slice) sigue sin pasar esta prop, así que su render NO cambia. */
+  bandaPapel?: boolean;
 }
 
-export default function CierreFraseYBoton({ frase, cta, preview, anchoClase, campoFrase, campoBoton }: CierreFraseYBotonProps) {
+export default function CierreFraseYBoton({ frase, cta, preview, anchoClase, campoFrase, campoBoton, bandaPapel }: CierreFraseYBotonProps) {
   return (
     <motion.section
       initial={preview ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="py-16"
+      // 48/64px (§ ONIX-CIERRE-Y-CURSOR-1, el spec, "la banda con sus medidas") — la maqueta mide
+      // `padding-block: clamp(48px, 5cqi, 64px)`; este storefront no tiene container queries
+      // armadas (§ el comentario de `Apertura.tsx`), así que el sustituto es el mismo swap por
+      // breakpoint que ya usa el tamaño de la frase (28px base / 44px `sm:`), no un `vw`.
+      className={`py-12 sm:py-16${bandaPapel ? ' bg-[var(--sf-papel)]' : ''}`}
     >
       <div className={`${anchoClase} mx-auto`}>
         {/* CENTRADO, no `justify-between` (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 7) — la
@@ -73,7 +86,11 @@ export default function CierreFraseYBoton({ frase, cta, preview, anchoClase, cam
  *  maqueta de Onix es de esquina RECTA en todo su chrome de botón, nunca píldora). */
 function BotonCierre({ cta, preview, campoBoton }: { cta: CierreFraseYBotonCta | null; preview: boolean; campoBoton?: string }) {
   if (!cta) return null;
-  const clase = 'shrink-0 cursor-pointer rounded-[2px] px-6 py-3 text-[13px] font-semibold uppercase tracking-[0.06em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
+  // MIN-HEIGHT 46px, CENTRADO POR FLEX, NO POR `py-*` (§ ONIX-CIERRE-Y-CURSOR-1, el spec, "la banda
+  // con sus medidas") — la maqueta: `display:inline-flex;align-items:center;min-height:46px;
+  // padding:0 24px`. Antes era `px-6 py-3` (24px horizontal, correcto; 12px vertical, que no
+  // garantiza los 46px de alto de la maqueta en ningún tamaño de letra).
+  const clase = 'inline-flex min-h-[46px] shrink-0 cursor-pointer items-center justify-center rounded-[2px] px-6 text-[13px] font-semibold uppercase tracking-[0.06em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-tinta)] border border-[var(--sf-tinta)] text-[var(--sf-tinta)] hover:bg-[var(--sf-tinta)] hover:text-[var(--sf-fondo)]';
   const label = campoBoton ? <CampoEditable campo={campoBoton}>{cta.label}</CampoEditable> : cta.label;
   if (cta.href.startsWith('/')) {
     return <Link href={cta.href} className={clase}>{label}</Link>;
