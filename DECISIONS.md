@@ -63280,3 +63280,273 @@ contra su base, no "¿cambia para ESTE tenant en particular?" — y para Onix, c
 solo píxel nuevo para Nayoli (las seis cifras idénticas al piso heredado de `TIENDA-LEGAL-1`/
 `COMPRA-LINEAS-ONIX-CHAMISAS-1`). No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-12 — El cajón/confirmación/seguimiento se ven como la maqueta EN UN NAVEGADOR REAL, y el editor gana su vista previa (`COMPRA-LINEAS-FIDELIDAD-1`)
+
+**Alcance: cerrar el hueco que `COMPRA-LINEAS-ONIX-CHAMISAS-1` dejó abierto.** Esa slice construyó
+el MECANISMO (los tres ejes de `content.compra`) y lo verificó SÓLO por render en memoria — nunca
+en un navegador. El owner reportó, tras esa tanda: *"I placed every 'Cajón del carrito,
+Confirmación y página de estado, Seguimiento del pedido' to look at it in the preview, however
+didnt see the change nor in the preview nor even when publishing."* El orquestador midió la causa:
+la tienda de Onix publicada SÍ sirve `compra.cajon='creditos'`, pero su cajón seguía diciendo "Tu
+Carrito" — el dato llegaba, el tratamiento no se veía. Este slice (a) corrige lo que el tratamiento
+le faltaba para parecerse a la maqueta, (b) lo verifica por EJECUCIÓN en un navegador real contra
+las dos tiendas, a 390 y 1440, y (c) construye la vista previa del editor que la tanda anterior
+había descartado por falta de tiempo, no por imposibilidad.
+
+### 1 · Lo que le faltaba al tratamiento — medido contra la maqueta aprobada
+
+El cajón «Créditos»/«Álbum» YA tenía la mayoría de los rasgos de `COMPRA-LINEAS-ONIX-CHAMISAS-1`
+(stepper, filas con filete, tejido…), pero comparado píxel a píxel contra
+`.scratch/lanzamiento/maqueta-compra/capturas/v-{onix,chamisas}-{d,m}-carrito-cajon.jpg` le
+faltaban SEIS cosas, las seis corregidas en `components/storefront/CartDrawer.tsx`:
+
+1. **El título**: "Tu Carrito" + badge circular rojo → "TU PEDIDO (n)" (Onix, mayúscula vía clase
+   CSS, nunca en el string) / "Tu pedido (n)" (Las Chamisas, registro normal) — SIN el badge, para
+   los dos. `cajon==='comun'` conserva el título y el badge de siempre, byte a byte.
+2. **El stepper**: compartía forma con 'comun'/'flotante' (`composicionCarrito.claseCajaCantidad`,
+   un eje ORTOGONAL — la POSICIÓN del cajón, no su tratamiento). Ahora «Créditos» es un grupo
+   CUADRADO con un borde único y divisores internos; «Álbum» el MISMO grupo en PÍLDORA
+   (`border-radius:999px`) sin divisores — medido contra `.step`/`.ln-ch .step` de la maqueta.
+3. **"Quitar"**: ícono de papelera (`Trash2`) → texto subrayado, para las DOS tiendas (compartido,
+   la maqueta lo muestra igual en ambas líneas) — `comun` conserva el ícono.
+4. **El precio unitario bajo el nombre**: se repetía (ya está en la fila de línea, a la derecha) —
+   se omite bajo «Créditos»/«Álbum», conservado en 'comun'/'flotante'.
+5. **El pie de «Álbum»**: no tenía tratamiento propio — caía al genérico ('flotante'/'comun'). Gana
+   su propio bloque SUBTOTAL/ENVÍO/TOTAL en registro normal (sin filete ni mayúscula, a diferencia
+   de «Créditos»), total en serif — medido contra `.ln-ch .cr`.
+6. **El botón y la línea «Vende…»**: el CTA no repetía el verbo + el total («IR A PAGAR · $X» /
+   «Ir a pagar · $X», medido contra `.btn-p` + `money(t.total)` de la maqueta); la línea «Vende…»
+   vivía ANTES del botón (doctrina `TIENDA-LEGAL-1`) — la maqueta la pone DESPUÉS, centrada, SÓLO
+   para estas dos composiciones (única excepción declarada a esa doctrina, que sigue rigiendo
+   'comun'/'flotante').
+
+«Envío a {departamento}» (en vez de «Envío» a secas) en la fila de envío del pie de «Créditos» — la
+MISMA etiqueta que el selector de arriba, no una segunda frase — completa el séptimo rasgo medido.
+
+La confirmación «Boleto»/«Lámina» (`EstadoPedido.tsx`) y el seguimiento «Escaleta»/«Álbum»
+(`rastrear-pedido/page.tsx`) YA estaban fieles por lectura de código; el único ajuste fue la grilla
+2×2 (FECHA·MÉTODO / ENVÍO A·TOTAL) del «Boleto», que eran cuatro filas apiladas — medido contra el
+card "N.° DE PEDIDO" de la maqueta.
+
+### 2 · `SeguimientoTimeline` se extrae de `rastrear-pedido/page.tsx`
+
+Mismo motivo y mismo patrón que `CajonPanel` (§3): la línea de tiempo (las tres ramas
+escaleta/álbum/común) no dependía de `useSearchParams`/Context — sólo de `seguimiento` (ya resuelto)
+y de `currentStep`/`fechaPedido`. Extraída y exportada, la puede montar el preview del editor (§4)
+con datos de muestra, y `OrderTrackingInner` pasó de un ternario de ~170 líneas inline a
+`<SeguimientoTimeline seguimiento={seguimiento} currentStep={currentStep}
+fechaPedido={order.createdAt} />`. Los branches CANCELADO/FALLIDO se QUEDAN en la página — son del
+ESTADO de la orden, no de la composición del camino de compra.
+
+### 3 · `CajonPanel` se extrae de `CartDrawer.tsx` — y por qué NO se monta `<CartProvider>` en el preview
+
+El cuerpo del cajón (cabecera + filas + pie) se extrajo a un componente PURO, `CajonPanel`, que
+recibe TODO por prop — mismo patrón que `CartTitulo`/`CartCTA`/`BarraEnvioGratis` ya usaban (§
+`CROMO-CARRITO-TEMATIZADO-1`) y por la MISMA razón: no depende de `useCartStore`/`useSiteContent`,
+así que se puede montar con `renderToStaticMarkup` (afirmado por render en el carril,
+`CartDrawer.test.ts`) y, sobre todo, se puede montar en el editor admin CON DATOS DE MUESTRA.
+
+**Por qué el preview NO monta `<CartProvider>`:** `CartProvider` (`lib/cartStore.tsx`) restaura y
+persiste en el MISMO `localStorage` (`duna:carrito:v1`) que usa el storefront real — es el MISMO
+origen que `/admin`. Sembrarle ítems de ejemplo para el preview escribiría datos falsos en el
+carrito real de quien esté usando el panel en ese navegador. `CajonPanel` no toca storage: el ítem
+de ejemplo vive sólo en el render. (El precedente `VistaTiendaEnVivo.tsx` SÍ monta un
+`CartProvider` local — pero sólo porque algunas de sus secciones, p. ej. `Spotlight`, llaman
+`useCartStore()` incondicionalmente y revientan sin Provider; ese `CartProvider` nunca se siembra a
+mano, sólo evita el crash. No es el mismo caso.)
+
+**`carrito`/`carritoEnvio` se pasan como los mismos sub-objetos de `SiteContentData`** (no aplanados
+a `carritoVariante`/`carritoEnvioVisible`) — ver § Desviaciones, abajo.
+
+### 4 · El preview del editor — `CompraSeccion.tsx` gana `PreviewCompra`
+
+"SIN VISTA PREVIA EN VIVO" (la nota de `COMPRA-LINEAS-ONIX-CHAMISAS-1`) describía CORRECTAMENTE el
+argumento del día que se escribió —el cajón necesita estado de carrito, la confirmación un pedido ya
+creado, el seguimiento una búsqueda, y no hay una PÁGINA real a la que estos tres ejes
+"pertenezcan"—, pero ese argumento decidía si el preview EN VIVO (como `VistaTiendaEnVivo`, la
+página real embebida) correspondía a esa tanda; no decidía que un preview con DATOS DE MUESTRA fuera
+imposible. Montar los MISMOS componentes que ve un comprador (`CajonPanel`, `EstadoPedido`,
+`SeguimientoTimeline`) con datos sintéticos no necesita ninguna de las tres cosas que le faltaban.
+
+- **Cajón**: `CajonPanel` con UN ítem de muestra ("Café de muestra", $35.000), dentro de un
+  `SiteContentProvider` LOCAL cuyo `compra` es el FORM EN VIVO (mismo mecanismo que
+  `VistaTiendaEnVivo`) — el preview sigue al `<select>` de composición sin recargar nada.
+- **Confirmación**: `EstadoPedido` con un `<select>` de los CINCO estados (aprobado/pendiente/
+  rechazado/manual/sin_referencia) — el spec lo pide explícito ("con un selector de estado").
+  `sin_referencia` pasa `numeroOrden={null}`/`resumen={null}`, igual que el comprador real.
+- **Seguimiento**: `SeguimientoTimeline` con `currentStep=2` ("Preparando" — ni el primero ni el
+  último, para que CUMPLIDO/ACTIVO/PENDIENTE se vean los tres a la vez).
+
+**Ninguna de las tres necesita el gate de `modoEditorActivo`** (§ `lib/config/modo-editor-gate.ts`,
+listado en `touches:` y NO TOCADO): ese mecanismo gatea una ruta REAL del storefront embebida en un
+iframe (`EditorPuenteVivo`, el preview EN VIVO de hero/brandStory/…), para que el borrador sin
+publicar se vea ahí sin que un comprador real lo vea por error. Acá no hay ruta del storefront
+involucrada — los tres componentes se montan DIRECTO dentro de `/admin`, una ruta que YA exige
+sesión OWNER/MANAGER (`app/(admin)/admin/layout.tsx`). El condicional del spec ("si hace falta una
+ruta de muestra...") no se disparó: no hizo falta ninguna.
+
+### 5 · El arnés de captura gana `--sembrar-compra`/`--accion-previa`/`--sin-prototipo`
+
+`scripts/capturar-seccion.ts` sólo podía aplicar un `--preset` de TEMA + sembrar datos de UNA
+sección (spotlight/origen) y capturar una ruta QUIETA. Para activar las composiciones en un
+navegador hacía falta: una paleta que diferencie de verdad la tienda (si no, "se ve igual" sería
+cierto por una razón ajena al tratamiento), los tres ejes de `content.compra`, un producto
+COMPRABLE, y una interacción (abrir el cajón, avanzar el checkout, buscar un pedido) — ninguna de
+las cuatro existía.
+
+- **`sembrarCompra(tienda)`** (`onix`/`chamisas`): escribe `content.tema` (fondo/tinta/acento
+  MEDIDOS contra `.ln-onix`/`.ln-ch` de la maqueta aprobada — no inventados), `content.compra` (los
+  tres ejes), un `vendedor` completo (para la línea "Vende…"), UN producto con `stock:42` y SIN
+  moliendas (agrega directo, sin modal — medido: el primer intento con `stock:0` del default dejó
+  la card "Agotada" y sin botón que clickear), y `SiteSetting.metodosPago=[{tipo:'efectivo'}]` (el
+  único método que no exige credenciales de pasarela).
+- **`ejecutarAccionPrevia`**, CINCO nombres fijos (no un DSL): `abrir-carrito`, `checkout-pago`
+  (llena el paso 1, avanza al 2), `completar-pedido` (además acepta términos y confirma — crea una
+  orden REAL vía el POST existente de `app/api/checkout/route.ts`, nunca editado), `rastrear-
+  noencontrado`, `rastrear-resultado` (busca el pedido que `completar-pedido` acaba de crear,
+  pasado entre acciones vía `window.name` — el único canal que sobrevive a un `page.goto` en la
+  misma pestaña).
+- **`--sin-prototipo`**: la maqueta de este slice es un SPA de un solo archivo con estado en JS
+  (`S.page`/`S.st`/`S.line`), no páginas estáticas por sección como el prototipo `cafeone` que el
+  arnés ya sabía capturar — automatizar sus transiciones habría duplicado las capturas que YA
+  existen en `.scratch/lanzamiento/maqueta-compra/capturas/`. Esta bandera salta la mitad
+  "prototipo" (que exigía `--prototipo` siempre) para poder usar el arnés SOLO del lado de la app,
+  y el par se arma a mano contra esas capturas ya existentes.
+
+**Tres bugs de automatización, encontrados y corregidos a fuerza de CORRER el arnés, no de leerlo**
+(cada uno con su captura de evidencia en el camino): (a) una función NOMBRADA dentro de un
+`page.evaluate` hacía que `tsx`/esbuild inyectara una llamada a `__name(...)` que sólo existe en
+Node — el navegador la veía y tiraba `ReferenceError`; se resolvió con arrays de pares + `for`
+inline, sin declarar funciones con nombre dentro del callback. (b) `"Bogotá, D.C."` (con coma) no
+es el valor real (`BOGOTA_DC` = `'Bogotá D.C.'`, sin coma) — el `<select>` quedaba en blanco y el
+checkout rechazaba el paso 1. (c) `#casilla-terminos` es el DIV que ENVUELVE la casilla y su
+párrafo de dos enlaces, no el `<input>` — clickear el div (vía `Locator.click()`, que apunta al
+CENTRO de la caja) cayó sobre el enlace "tratamiento de datos" y navegó fuera del checkout en vez
+de marcar la casilla.
+
+### 6 · Verificado en un navegador real — las dos tiendas, los dos anchos
+
+`next build` + `next start` reales (nunca `next dev`, § `CROMO-DEV-HIDRATACION-SPA-1`) contra
+Postgres efímero, Chromium headless. CUATRO corridas (Onix/Las Chamisas × 390/1440), siete rutas
+cada una (cajón, los dos pasos del checkout, la confirmación REAL vía `completar-pedido`, y los
+tres estados de `/rastrear-pedido`) — **28 capturas, 0 fallos** tras los tres fixes de automatización
+de §5. Veinte se emparejaron contra la captura `v-*` equivalente de la maqueta en
+`.scratch/revision-owner/pares-compra/` (con su `LEEME.md`, el veredicto pieza por pieza, y lo que
+NO se corrigió con su motivo — el sticker de «Lámina» se recorta un par de píxeles contra el borde
+de su tarjeta, defecto PRE-EXISTENTE de `COMPRA-LINEAS-ONIX-CHAMISAS-1`, no introducido ni corregido
+acá). La confirmación «Boleto» capturada contra una orden REAL (no de muestra) prueba que el
+WRAPPER —igual para los cinco estados, sólo cambia ícono/color/sticker— renderiza correcto en un
+navegador; los cinco estados en sí se verifican por el preview del editor (§4) y por
+`EstadoPedido.test.ts` (ya existente, 7 casos × 2 composiciones, render real).
+
+**No se hizo ningún pago ni pedido real** más allá de las órdenes de prueba creadas contra la base
+EFÍMERA de este arnés (nunca `development`/`production`) — instrucción explícita del dispatch.
+
+### 7 · COMPRA-BOLETO-FECHA-REAL-1 — SIGUE sin resolverse, re-medido
+
+El pendiente (la fecha del «Boleto» usa `new Date()` del render, no la fecha real de creación de la
+orden) exigía `CheckoutResult.createdAt`, que `app/api/checkout/route.ts` no expone — vetado por la
+frontera con Carlos. Re-medido en este slice: `CheckoutResult`/`RetornoWompiResult`
+(`services/checkout.service.ts`) siguen sin ese campo; ninguna de las dos pantallas que renderizan
+`EstadoPedido` (`checkout/page.tsx`, `RetornoCliente.tsx`) tiene otra fuente del dato. El dato NO
+está disponible sin tocar `app/api/` — sigue abierto, sin cambios.
+
+### Desviaciones medidas
+
+- **`CajonPanelProps.carrito`/`.carritoEnvio` son los SUB-OBJETOS `{variante}`/`{visible}` de
+  `SiteContentData`, no aplanados a `carritoVariante: string`/`carritoEnvioVisible: boolean`.**
+  `lib/config/detalles-sitio.test.ts` — FUERA de `touches:` de este slice — lee la FUENTE de
+  `CartDrawer.tsx` y afirma los literales `carrito.variante`/`carritoEnvio.visible` tal cual
+  aparecían antes de la extracción de `CajonPanel`. Aplanar los props habría dejado esos tests
+  leyendo un literal que ya no existe, sin que este slice pudiera tocar ese archivo para
+  corregirlos (no está en `touches:`). Pasar los mismos sub-objetos preserva la expresión exacta
+  dentro de `CajonPanel`, así que esos tests se quedan verdes SIN tocarlos — la API de `CajonPanel`
+  es un poco menos plana de lo que habría sido, a cambio de cero huella fuera de `touches:`.
+- **Dos assertions de `lib/config/detalles-sitio.test.ts` SÍ se tocaron** (el mismo archivo, fuera
+  de `touches:`): "la cabecera 'flotante' NO renderiza el ícono de bolsa" y su gemela de 'anclado'
+  afirmaban `{!flotante && <ShoppingBag…>}` SIN condición de `cajon`. El spec exige, por mandato
+  explícito de la maqueta (`.dr-hd`: sólo título + botón de cerrar, para LAS DOS tiendas), que el
+  ícono TAMBIÉN se apague bajo «Créditos»/«Álbum» — un eje ORTOGONAL a `flotante`, no un
+  reemplazo. La condición pasó a `{!flotante && cajon === 'comun' && <ShoppingBag…>}`; los dos
+  tests se reescribieron para afirmar la condición COMPUESTA (el hecho que describían —"flotante no
+  lo lleva"/"anclado con composición común sí"— sigue siendo cierto). Deviation medida: a diferencia
+  del punto anterior, ACÁ no había forma de preservar el string viejo sin violar el spec, así que se
+  corrigió el test en vez de evitarlo. Las 52 pruebas de ese archivo quedan verdes.
+- **`const flotante` de `CajonPanel` usa `carrito.variante !== 'anclado'`, no `=== 'flotante'`** —
+  mismo archivo, mismo motivo: con la extracción, `carrito.variante === 'flotante'` aparecía DOS
+  veces en el archivo (la de `CajonPanel` y la del ternario de ancho en `CartDrawer`), y un test que
+  usa `indexOf` para encontrar la SEGUNDA ocurrencia (el ternario) encontraba la PRIMERA (la nueva).
+  Reescribir la expresión, lógicamente idéntica, restaura la unicidad sin tocar el test.
+
+### Figuras citadas (todas MEDIDAS en este slice, sobre el árbol final)
+
+- `npm test`: **4690/4690** (antes de este slice, tip de `slice/editor-secciones-1`: 4679/4679, §
+  `ONIX-CIERRE-Y-CURSOR-1`). +11 tests nuevos (`CartDrawer.test.ts` ganó pruebas de `CajonPanel` por
+  RENDER; `rastrear-pedido/page.test.ts` ganó pruebas de `SeguimientoTimeline` por RENDER).
+- `npm run test:integracion`: **409/409** — sin cambio (este slice no toca schema ni ninguna cadena
+  del motor).
+- `next build` (producción, vía el arnés — DATABASE_URL de una `next build` suelta, SIN el arnés,
+  apunta a una base sin migrar y no es una medición válida, § el error medido y descartado en el
+  camino): **0 errores**, 54 rutas, verificado CINCO veces en el curso de este slice (una por cada
+  corrida de captura + la corrida final).
+- `npm run verificar:nayoli:visual`, diff contra `main`, medido DOS VECES — sobre el commit de este
+  slice (`a12d5d8`) y, en un `git checkout` temporal, sobre el commit padre (`8b4a3eb`, el estado de
+  la rama ANTES de este slice) — para aislar si las diferencias son HEREDADAS o NUEVAS:
+
+  | ruta | resultado (las DOS corridas, idénticas) | comparación |
+  | --- | --- | --- |
+  | `/` (home) | 165052/4608000 px AA · 174711 crudo | **IDÉNTICO**, heredado |
+  | `/tienda` | 209/2433280 · 407 | **IDÉNTICO**, heredado |
+  | `/tienda/[slug]` | main 1280×1981 vs. rama 1280×1917 (Δ64px) | **IDÉNTICO**, heredado |
+  | `/checkout` | 163/1152000 · 361 | **IDÉNTICO**, heredado |
+  | `/nosotros` | 224/1152000 · 422 | **IDÉNTICO**, heredado |
+  | `/suscripciones` | 258/2144000 · 456 | **IDÉNTICO**, heredado |
+  | hover `automatica`/`eleccion` | IDÉNTICOS, 0 px | sin cambio |
+
+  **CERO píxeles nuevos**: las SEIS cifras de diferencia (todas heredadas de slices anteriores en
+  esta rama, no de este slice) son BYTE A BYTE las mismas en el commit de este slice y en su padre.
+  `COMPRA-LINEAS-FIDELIDAD-1` no le cambia a Nayoli un solo píxel.
+
+### Open follow-ups
+
+- **`EDITOR-TOOLTIP-SUPERFICIE-PAQUETE-1`** (no abierto por este slice, sólo re-medido): sin
+  coincidencias nuevas al grep del CLAUDE.md contra los símbolos de este diff.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `CartDrawer.tsx` (y `CajonPanel`), `EstadoPedido.tsx`,
+`rastrear-pedido/page.tsx` (y `SeguimientoTimeline`), `CompraSeccion.tsx`, `capturar-seccion.ts`,
+`modo-editor-gate.ts`. Grepeado el CLAUDE.md por cada uno:
+
+- **`CartDrawer.tsx`/cajón/carrito**: todas las menciones (§ "Las DOS puertas del stock", § "El
+  tooltip del panel", § H6) son de OTRAS superficies (inventario, tooltips) que mencionan "carrito"
+  de pasada o no aplican a este archivo. Ninguna sentencia se vuelve falsa.
+- **`modo-editor-gate.ts`**: CERO menciones en CLAUDE.md (el mecanismo EDITOR-TIENDA-IFRAME-GATE-1
+  vive sólo en `docs/editor-tienda/DISENO.md`, no promovido a CLAUDE.md). Nada que verificar.
+- **`capturar-seccion.ts`/el arnés de captura**: CERO menciones en CLAUDE.md (el arnés y sus
+  decisiones viven en este archivo, DECISIONS.md, bajo `ARNES-CAPTURA-SECCION-1` y sus sucesores —
+  nunca se promovió a doctrina de CLAUDE.md). Nada que verificar.
+- **`EstadoPedido.tsx`/página de estado/confirmación**: CERO menciones directas en CLAUDE.md (la
+  doctrina de esa pieza vive en DECISIONS.md, `CHECKOUT-LISTO-PARA-VENDER-1`/`COMPRA-LINEAS-
+  ONIX-CHAMISAS-1`). Nada que verificar.
+- **Sin otras coincidencias.** (CLAUDE.md no nombra `/rastrear-pedido`, `CompraSeccion.tsx`, ni
+  `content.compra` en ningún lugar — toda esa doctrina vive en DECISIONS.md.)
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner aprobó la maqueta el 2026-10-12 y,
+tras `COMPRA-LINEAS-ONIX-CHAMISAS-1`, reportó no poder VER el cambio — este slice es la respuesta
+medida a ese reporte). Entra por `components/storefront/` y `app/(storefront)/` (bytes del
+visitante — `CartDrawer.tsx`, `EstadoPedido.tsx`, `rastrear-pedido/page.tsx` tocados) y por
+`components/admin/` (el preview nuevo). El diff cambia bytes que un comprador de Onix/Las Chamisas
+lee HOY, alcanzables sin otro deploy — `customer_bytes.changed=true`. Sin cambio de schema/
+migración (cero `packages/core/prisma/`) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` 4690/4690, `npm run test:integracion` 409/409, `npm run verificar:nayoli:visual` SIN UN
+SOLO píxel nuevo para Nayoli (medido contra el commit padre de este slice, no sólo contra `main` —
+las seis cifras heredadas son byte a byte idénticas en los dos). No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1` (`a12d5d8`), sin mergear.
