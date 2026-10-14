@@ -238,6 +238,8 @@ interface Opciones {
   sembrarCasillas: boolean;
   // CHAMISAS-NOSOTROS-ALBUM-1 — ver el docstring de `sembrarAlbumNosotros`, abajo.
   sembrarAlbumNosotros: boolean;
+  // ONIX-TAQUILLA-FILETES-1 — ver el docstring de `sembrarTaquillaOnix`, abajo.
+  sembrarTaquillaOnix: boolean;
 }
 
 function ayuda(): string {
@@ -350,6 +352,15 @@ nosotrosEscenas.variante:'album' con 5 láminas, nosotrosFicha.variante:
 'etiqueta', nosotrosInterludio.variante:'stickers', nosotrosCierre.variante:
 'costura') + SiteSetting.nombre/whatsapp. SÓLO válido en modo base fresca
 (mismo motivo que --sembrar-spotlight).
+--sembrar-taquilla-onix (§ ONIX-TAQUILLA-FILETES-1) siembra, sobre la base
+efímera: el tema real de Onix (medido con el mismo medirTemaReal que
+--sembrar-compra), un catálogo 2×2 (Café en Grano/Café Molido × 250/500 g, SIN
+moliendas — la selección default queda sin fila de molienda, así que la fila de
+frecuencia "Cada" es la ÚLTIMA, el caso que reportó el owner) y
+suscripcionPlanes.variante:'taquilla' (las 3 frecuencias ya son el default de
+DEFAULTS.suscripcionPlanes) + SiteSetting.nombre/whatsapp. MUTUAMENTE
+EXCLUYENTE con --sembrar-compra (catálogos distintos que romperían la matriz
+2×2 si convivieran) y con --url (mismo motivo que --sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -391,6 +402,11 @@ Ejemplo (--sembrar-album-nosotros + --sin-prototipo, § CHAMISAS-NOSOTROS-ALBUM-
   node --import tsx scripts/capturar-seccion.ts --sembrar-album-nosotros --sin-prototipo \\
     --ruta /nosotros \\
     --nombre chamisas-album-nosotros
+
+Ejemplo (--sembrar-taquilla-onix + --sin-prototipo, § ONIX-TAQUILLA-FILETES-1):
+  node --import tsx scripts/capturar-seccion.ts --sembrar-taquilla-onix --sin-prototipo \\
+    --ruta /suscripciones \\
+    --nombre onix-taquilla-filetes
 `.trim();
 }
 
@@ -418,6 +434,7 @@ function parseCli(argv: string[]): Opciones {
       "sin-prototipo": { type: "boolean" },
       "sembrar-casillas": { type: "boolean" },
       "sembrar-album-nosotros": { type: "boolean" },
+      "sembrar-taquilla-onix": { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -475,6 +492,20 @@ function parseCli(argv: string[]): Opciones {
     throw new Error(
       `--sembrar-album-nosotros y --url son mutuamente excluyentes: no hay base local que sembrar ` +
         `contra una URL ya desplegada (§ CHAMISAS-NOSOTROS-ALBUM-1).\n\n${ayuda()}`,
+    );
+  }
+  const sembrarTaquillaOnix = values["sembrar-taquilla-onix"] === true;
+  if (sembrarTaquillaOnix && url) {
+    throw new Error(
+      `--sembrar-taquilla-onix y --url son mutuamente excluyentes: no hay base local que sembrar ` +
+        `contra una URL ya desplegada (§ ONIX-TAQUILLA-FILETES-1).\n\n${ayuda()}`,
+    );
+  }
+  if (sembrarTaquillaOnix && sembrarCompra) {
+    throw new Error(
+      `--sembrar-taquilla-onix y --sembrar-compra son mutuamente excluyentes: los dos catálogos no ` +
+        `comparten productos y mezclarlos rompería la validez de la matriz 2×2 de la Taquilla ` +
+        `(§ el docstring de sembrarTaquillaOnix).\n\n${ayuda()}`,
     );
   }
 
@@ -543,6 +574,7 @@ function parseCli(argv: string[]): Opciones {
     sembrarOrigen,
     sembrarCasillas,
     sembrarAlbumNosotros,
+    sembrarTaquillaOnix,
   };
 }
 
@@ -1054,6 +1086,71 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
   console.log(`✔ Compra sembrada (${tienda}): paleta + content.compra + vendedor + producto + efectivo.`);
 }
 
+// ─── SEMBRAR LA TAQUILLA DE SUSCRIPCIÓN DE ONIX (§ ONIX-TAQUILLA-FILETES-1) ──────────────────────
+//
+// `--sembrar-compra onix` (arriba) ya mide el tema real de Onix y siembra UN producto SIN
+// moliendas — para el camino de COMPRA, no para la Taquilla (`derivarMatrizTaquilla` exige que la
+// matriz fila×columna quede COMPLETA, y ese único producto no la cierra). Esta siembra es
+// INDEPENDIENTE —no compone con `--sembrar-compra`— porque los dos necesitan catálogos distintos y
+// mezclarlos rompería la validez de la matriz (un producto de más, en una categoría o peso que no
+// cierra el 2×2, hace que `derivarMatrizTaquilla` devuelva `null` y la sección caiga entera a
+// «Tarjetas»).
+//
+// EL CATÁLOGO: 2 categorías (Café en Grano/Café Molido) × 2 pesos (250/500 g) — el MISMO fixture
+// de forma que `catalogoOnix2x2` en `lib/storefront/suscripcion-taquilla.test.ts` (2 categorías ×
+// 2 pesos, matriz completa), SIN moliendas en ningún producto: la selección default (última fila ×
+// primera columna, § el docstring de `SuscripcionTaquilla.tsx`) es "Café Molido" × 250 g, y sin
+// moliendas ahí `decidirMolienda` da modo 'ninguna' → la fila de frecuencia ("Cada") queda como la
+// ÚLTIMA fila — el caso EXACTO que el owner reportó (la última fila no cerraba abajo).
+//
+// TRES FRECUENCIAS (§ el spec de este slice: "al menos tres"): `suscripcionPlanes.variante:
+// 'taquilla'` basta — `frecuencia1/2/3` ya son "15 días"/"Mes"/"2 meses" en `DEFAULTS`
+// (`lib/config/site-content-defaults.ts`), así que no hace falta declararlas de nuevo acá; una
+// segunda copia del mismo valor es cómo dos fuentes divergen el día que alguien edite sólo una.
+async function sembrarTaquillaOnix(): Promise<void> {
+  console.log("▸ --sembrar-taquilla-onix: tema real de Onix (medido) + catálogo 2×2 + suscripcionPlanes.variante:'taquilla'…");
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+  const { medirTemaReal } = await import("./capturar-compra");
+
+  const tema = await medirTemaReal("https://cafe-onix.vercel.app/");
+  console.log(
+    `  tema medido: fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento} ` +
+      `fuentePar=${tema.fuentePar ?? "(fábrica)"} forma=${tema.forma ?? "(fábrica)"}`,
+  );
+  await guardarTemaBorrador({ fondo: tema.fondo, tinta: tema.tinta, acento: tema.acento, fuentePar: tema.fuentePar, forma: tema.forma });
+  await publicarSeccion("tema");
+
+  const PRODUCTOS_TAQUILLA = [
+    { slug: "arnes-taquilla-onix-grano-250", nombre: "Café Onix — En grano 250 g", categoria: "Café en Grano", peso: 250, precio: 20000 },
+    { slug: "arnes-taquilla-onix-grano-500", nombre: "Café Onix — En grano 500 g", categoria: "Café en Grano", peso: 500, precio: 35000 },
+    { slug: "arnes-taquilla-onix-molido-250", nombre: "Café Onix — Molido 250 g", categoria: "Café Molido", peso: 250, precio: 20000 },
+    { slug: "arnes-taquilla-onix-molido-500", nombre: "Café Onix — Molido 500 g", categoria: "Café Molido", peso: 500, precio: 35000 },
+  ];
+  for (const p of PRODUCTOS_TAQUILLA) {
+    await prisma.product.upsert({
+      where: { slug: p.slug },
+      update: { activo: true, stock: 42, categoria: p.categoria, peso_gramos: p.peso, precio: p.precio, moliendasOpciones: [] as unknown as Prisma.InputJsonValue },
+      create: {
+        slug: p.slug, nombre: p.nombre, descripcion: "Café de muestra para la Taquilla de suscripción.",
+        categoria: p.categoria, activo: true, stock: 42, precio: p.precio, costo: Math.round(p.precio * 0.55),
+        peso_gramos: p.peso, moliendasOpciones: [] as unknown as Prisma.InputJsonValue,
+        imagen: "/images/cafe-nayoli-250g-molido.webp",
+      },
+    });
+  }
+
+  await guardarBorrador({ suscripcionPlanes: { variante: "taquilla" } });
+  await publicarSeccion("suscripcionPlanes");
+
+  await prisma.siteSetting.update({
+    where: { id: "default" },
+    data: { nombre: "Café Onix", tagline: "Pitalito · Huila", whatsapp: "+573000000000" },
+  });
+
+  console.log("✔ Taquilla de Onix sembrada: tema + catálogo 2×2 (sin moliendas) + variante publicada.");
+}
+
 // ─── SEMBRAR CASILLAS (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) ──────────────────────────────────────
 //
 // La paleta/tipografía/forma vienen MEDIDAS contra el muestrario REAL de Las Chamisas —no contra
@@ -1561,6 +1658,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarAlbumNosotros) {
       await sembrarAlbumNosotros();
+    }
+
+    if (opciones.sembrarTaquillaOnix) {
+      await sembrarTaquillaOnix();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

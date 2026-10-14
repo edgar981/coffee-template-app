@@ -385,6 +385,22 @@ const GRID_TAQUILLA: Record<number, string> = {
 //   `.fila .opciones .celda{font-family:f-ui;font-size:13px;font-weight:700;letter-spacing:.12em;
 //   text-transform:uppercase}`) — antes las dos compartían `text-sm font-medium`, sin serif ni
 //   mayúscula.
+//
+// § ONIX-TAQUILLA-FILETES-1 — LA REGLA DE BORDES, NO UN PARCHE PARA LA FILA CADA (el owner: la
+// última fila no cerraba abajo y «15 DÍAS» no tenía línea izquierda). La maqueta encierra TODA
+// celda (`.taquilla>*`/`.fila>*` dan border-right+border-bottom a cada hijo DIRECTO, incluida la
+// etiqueta); acá se replica esa regla por CELDA, no por fila:
+// - **CADA celda (etiqueta Y cada opción/precio) lleva su PROPIO `border-b`** — antes el `border-t`
+//   vivía en el WRAPPER de cada fila (una línea arriba de la fila), así que la ÚLTIMA fila nunca
+//   tenía una fila siguiente que le prestara su `border-t` y quedaba sin cerrar abajo. Con
+//   `border-b` por celda, la fila N cierra SU PROPIO fondo (= la línea entre N y N+1, o el cierre
+//   de la tabla si N es la última) — funciona para CUALQUIER número de filas, sin casos especiales.
+//   El único `border-t` que sigue en pie es el del CONTENEDOR (`GRID_TAQUILLA`, en
+//   `SuscripcionTaquilla`): cierra el techo, una vez.
+// - **`border-l` ya no se salta la PRIMERA celda de cada fila** — antes esa celda (precio, bolsas,
+//   frecuencia) no llevaba línea izquierda, así que el límite etiqueta|datos no existía (el caso
+//   reportado, «15 DÍAS», es sólo el ejemplo más visible: TODAS las primeras celdas lo tenían). Con
+//   `border-l` siempre presente, esa línea aparece en toda fila, no sólo en la que el owner miró.
 function FilaTaquilla({
   etiqueta, celdas, activa, elegidaCategoria, onElegir, encabezado = false, tipo = 'opcion',
 }: {
@@ -401,23 +417,19 @@ function FilaTaquilla({
     tipo === 'precio'
       ? 'font-playfair text-xl'
       : 'font-sans text-[13px] font-bold uppercase tracking-[0.12em]';
-  // SIN `border-t`/`mt-[22px]` propios — eso es ahora del CONTENEDOR compartido (§ el `<div>` que
-  // monta `GRID_TAQUILLA`, en `SuscripcionTaquilla`), una vez para toda la tabla. Antes vivía acá,
-  // condicional a `encabezado`, porque cada fila era su PROPIO grid sin padre que lo diera.
   return (
     <div className="col-span-2 grid grid-cols-subgrid">
-      <div className={`flex min-h-[54px] items-center border-t ${filete} px-3 py-2 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}>
+      <div className={`flex min-h-[54px] items-center border-b ${filete} px-3 py-2 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}>
         {etiqueta}
       </div>
-      <div className={`grid border-t ${filete}`} style={{ gridTemplateColumns: `repeat(${celdas.length}, minmax(0,1fr))` }}>
-        {celdas.map((celda, i) => {
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${celdas.length}, minmax(0,1fr))` }}>
+        {celdas.map((celda) => {
           const elegida = !encabezado && activa === celda.valor && elegidaCategoria !== false;
-          const bordeIzq = i === 0 ? '' : `border-l ${filete}`;
           if (encabezado) {
             return (
               <div
                 key={celda.valor}
-                className={`flex min-h-[54px] items-center justify-center ${bordeIzq} px-3 py-2 text-center text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}
+                className={`flex min-h-[54px] items-center justify-center border-b border-l ${filete} px-3 py-2 text-center text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--sf-tinta)]`}
               >
                 {celda.label}
               </div>
@@ -430,7 +442,7 @@ function FilaTaquilla({
               disabled={celda.agotada}
               onClick={() => onElegir?.(celda.valor)}
               aria-pressed={elegida}
-              className={`relative flex min-h-[54px] cursor-pointer flex-col items-center justify-center ${bordeIzq} px-2 py-2 text-center tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-acento)] ${celdaTipografia} ${
+              className={`relative flex min-h-[54px] cursor-pointer flex-col items-center justify-center border-b border-l ${filete} px-2 py-2 text-center tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--sf-acento)] ${celdaTipografia} ${
                 celda.agotada
                   ? 'cursor-not-allowed text-[var(--sf-tinta)]/65 line-through opacity-50'
                   : elegida

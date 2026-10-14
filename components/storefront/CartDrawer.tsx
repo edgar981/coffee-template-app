@@ -644,7 +644,14 @@ export function CajonPanel({
                     </div>
                   )}
                   {(esCreditos || esAlbum) && (
-                    <div className="space-y-1.5">
+                    // § ONIX-TAQUILLA-FILETES-1 — el filete superior de `.shipsel` de Onix
+                    // (`.scratch/lanzamiento/maqueta-compra/compra.html:231`, "margin:16px 0 8px;
+                    // padding:14px 0;border-top:1px solid var(--line)") — abría `COMPRA-ENVIO-CAJA-
+                    // PUNTEADA-1` (§ DECISIONS.md, `COMPRA-LINEAS-FIDELIDAD-2`): el bloque era
+                    // inline, sin el contorno de la maqueta. SÓLO bajo `esCreditos` (Onix): Las
+                    // Chamisas (`esAlbum`) usa `.ln-ch .shipsel` — una CAJA PUNTEADA distinta, no
+                    // este filete — y sigue sin ese tratamiento (open follow-up, no de este slice).
+                    <div className={esCreditos ? 'mt-4 mb-2 space-y-1.5 sf-divisor-t border-[var(--sf-linea)] pt-3.5' : 'space-y-1.5'}>
                       <label htmlFor="carrito-departamento" className="block text-[var(--sf-texto)]">
                         Envío a
                       </label>

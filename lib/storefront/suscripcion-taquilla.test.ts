@@ -469,3 +469,87 @@ test('TiendaCierre: la extracción a CierreCostura no cambió su composición "c
   assert.ok(html.includes('border-dashed'));
   assert.ok(!html.includes('--sf-papel'));
 });
+
+// ─── § ONIX-TAQUILLA-FILETES-1 — los filetes de la tabla, LA REGLA no un parche de la fila CADA ───
+//
+// El owner reportó dos defectos puntuales (la última fila no cerraba abajo; «15 DÍAS» no tenía
+// línea izquierda), pero el fix es de la CELDA, no de esas dos filas (§ el docstring de
+// `FilaTaquilla`, SuscripcionTaquilla.tsx): cada celda —etiqueta y dato— lleva su propio
+// `border-b`, y cada celda de dato lleva `border-l` SIEMPRE (ya no se salta la primera). Estas dos
+// pruebas lo afirman con DOS matrices distintas —una donde la última fila es «Cada» (sin
+// moliendas, el caso que el owner miró) y otra donde la última fila es «Molienda» (un producto con
+// `moliendasOpciones`)— para que la regla quede probada como regla, no como coincidencia de una
+// sola fila.
+
+function catalogoOnix2x2(conMolienda: boolean): Product[] {
+  const base = { costo: 0, sku: null, stock: 10, activo: true, disponible: true, descripcion: '', imagen: '', notas: [] as string[] };
+  const moliendasMolido250 = conMolienda
+    ? [{ metodo: '', nombre: 'Media', disponible: true }, { metodo: '', nombre: 'Fina', disponible: true }]
+    : [];
+  return [
+    { ...base, id: 'p1', nombre: 'Onix grano 250', slug: 'onix-grano-250', categoria: 'Café en Grano', precio: 20000, peso_gramos: 250, moliendasOpciones: [] },
+    { ...base, id: 'p2', nombre: 'Onix grano 500', slug: 'onix-grano-500', categoria: 'Café en Grano', precio: 35000, peso_gramos: 500, moliendasOpciones: [] },
+    { ...base, id: 'p3', nombre: 'Onix molido 250', slug: 'onix-molido-250', categoria: 'Café Molido', precio: 20000, peso_gramos: 250, moliendasOpciones: moliendasMolido250 },
+    { ...base, id: 'p4', nombre: 'Onix molido 500', slug: 'onix-molido-500', categoria: 'Café Molido', precio: 35000, peso_gramos: 500, moliendasOpciones: [] },
+  ] as Product[];
+}
+
+// Tres frecuencias (§ el spec de este slice: "al menos tres"), las mismas que `DEFAULTS` ya trae.
+const PLANES_TRES_FRECUENCIAS: SuscripcionPlanesContent = {
+  ...DEFAULTS.suscripcionPlanes,
+  frecuencia1: '15 días', frecuencia2: 'Mes', frecuencia3: '2 meses', frecuencia4: '',
+};
+
+test('FilaTaquilla: la ÚLTIMA fila cierra con su línea inferior — cuando es "Cada" (sin moliendas) Y cuando es "Molienda" (con moliendas), no sólo en la que el owner miró', () => {
+  // Sin moliendas en "Café Molido 250" (la celda default: última fila × primera columna):
+  // decidirMolienda da modo 'ninguna' -> NO hay fila de molienda -> la última fila es "Cada".
+  const htmlSinMolienda = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: catalogoOnix2x2(false), whatsapp: '573000000000', suscripcionPlanes: PLANES_TRES_FRECUENCIAS }),
+  );
+  const inicioFilaCada = htmlSinMolienda.lastIndexOf('<div class="flex min-h-[54px] items-center border-b', htmlSinMolienda.indexOf('>Cada<'));
+  const filaCada = htmlSinMolienda.slice(inicioFilaCada);
+  // La etiqueta "Cada" + sus 3 opciones (15 días/Mes/2 meses) = 4 celdas, las 4 con `border-b`.
+  assert.equal((filaCada.match(/>15 días<\/button>|>Mes<\/button>|>2 meses<\/button>/g) ?? []).length, 3, 'las 3 opciones de frecuencia deben estar en el tramo medido');
+  assert.equal((filaCada.match(/border-b/g) ?? []).length, 4, 'la etiqueta "Cada" + sus 3 opciones deben llevar border-b cada una (4 en total)');
+  assert.ok(!htmlSinMolienda.includes('>Molienda<'), 'sin moliendas en el producto elegido, no debe existir una fila "Molienda"');
+
+  // Con moliendas en "Café Molido 250": decidirMolienda da modo 'eleccion' -> SÍ hay fila de
+  // molienda, que pasa a ser la ÚLTIMA. Debe cerrar igual, SIN tocar código: misma regla por celda.
+  const htmlConMolienda = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: catalogoOnix2x2(true), whatsapp: '573000000000', suscripcionPlanes: PLANES_TRES_FRECUENCIAS }),
+  );
+  assert.ok(htmlConMolienda.includes('>Molienda<'), 'con moliendas en el producto elegido, debe existir la fila "Molienda"');
+  const inicioFilaMolienda = htmlConMolienda.lastIndexOf('<div class="flex min-h-[54px] items-center border-b', htmlConMolienda.indexOf('>Molienda<'));
+  const filaMolienda = htmlConMolienda.slice(inicioFilaMolienda);
+  assert.equal((filaMolienda.match(/>Media<\/button>|>Fina<\/button>/g) ?? []).length, 2, 'las 2 opciones de molienda deben estar en el tramo medido');
+  assert.equal((filaMolienda.match(/border-b/g) ?? []).length, 3, 'la etiqueta "Molienda" + sus 2 opciones deben llevar border-b cada una (3 en total) — la ÚLTIMA fila cierra, sea "Cada" o "Molienda"');
+
+  // El CONTENEDOR nunca duplica el cierre: su único filete horizontal propio es el `border-t` del
+  // techo (cada celda cierra su propio fondo, así que un `border-b` de contenedor sería redundante).
+  const contenedor = htmlSinMolienda.slice(htmlSinMolienda.indexOf('grid mt-[22px]'), htmlSinMolienda.indexOf('grid mt-[22px]') + 120);
+  assert.ok(contenedor.includes('border-t'), 'el contenedor debe seguir dando el techo (border-t), una vez');
+});
+
+test('FilaTaquilla: TODA primera celda de fila lleva su línea izquierda — "15 DÍAS" es el ejemplo reportado, no el único caso', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SuscripcionTaquilla, { catalog: catalogoOnix2x2(false), whatsapp: '573000000000', suscripcionPlanes: PLANES_TRES_FRECUENCIAS }),
+  );
+  // 2 (header: 250g/500g) + 2+2 (precio × 2 categorías) + 3 (bolsas) + 3 (frecuencia) = 12 celdas de
+  // dato, TODAS con `border-l` ahora (antes la primera de cada fila se saltaba) + 1 del contenedor.
+  assert.equal((html.match(/border-l/g) ?? []).length, 13, '12 celdas de dato + 1 del contenedor — ninguna primera celda debe quedar sin su línea izquierda');
+
+  // La celda REPORTADA, "15 DÍAS" (primera opción de la fila "Cada"): su propio <button> debe
+  // llevar `border-l`, no sólo una celda vecina.
+  const idxBoton15Dias = html.indexOf('>15 días</button>');
+  const inicioBoton = html.lastIndexOf('<button', idxBoton15Dias);
+  const boton15Dias = html.slice(inicioBoton, idxBoton15Dias);
+  assert.ok(boton15Dias.includes('border-l'), 'el <button> de "15 DÍAS" debe llevar border-l en su propia clase — no en un vecino');
+
+  // Y la PRIMERA celda de una fila de PRECIO (no reportada por el owner, pero la misma regla):
+  // "Café en Grano" × 250 g = "$ 20.000", primer botón de esa fila.
+  const idxGrano = html.indexOf('>Café en Grano<');
+  const idxPrimerPrecio = html.indexOf('<button', idxGrano);
+  const idxCierrePrimerPrecio = html.indexOf('>', html.indexOf('"', idxPrimerPrecio));
+  const primerPrecio = html.slice(idxPrimerPrecio, idxCierrePrimerPrecio);
+  assert.ok(primerPrecio.includes('border-l'), 'la primera celda de precio ("Café en Grano" × 250 g) también debe llevar border-l — la regla es de la celda, no de la fila "Cada"');
+});

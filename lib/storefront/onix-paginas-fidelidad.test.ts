@@ -19,8 +19,9 @@ import NosotrosApertura from '@/components/storefront/nosotros/NosotrosApertura'
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
 import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
 import { CreditosFilas } from '@/components/storefront/tienda/TiendaCreditos';
+import { CajonPanel, type CajonPanelProps } from '@/components/storefront/CartDrawer';
 import type { Product } from '@/types/product';
-import type { SuscripcionPlanesContent } from '../config/site-content-defaults';
+import type { SuscripcionPlanesContent, VendedorContent } from '../config/site-content-defaults';
 
 // § ONIX-PAGINAS-FIDELIDAD-1 — render EN MEMORIA (`renderToStaticMarkup`, sin red, sin DOM) con
 // contenido de Onix pasado A MANO (nunca `.env`/una base). Dos preguntas:
@@ -400,4 +401,65 @@ test('app/globals.css: la regla del cursor del storefront es el COMPLEMENTO exac
   assert.ok(css.includes('html:not(.admin) button:not(:disabled)'), 'el storefront necesita su espejo — su ausencia era "a propósito pospuesta", no decidida');
   assert.ok(css.includes('html:not(.admin) summary'), 'los resúmenes plegables entran también, aunque el storefront no monte ninguno todavía');
   assert.ok(css.includes('html:not(.admin) [role="button"]:not(:disabled)'));
+});
+
+// ─── § ONIX-TAQUILLA-FILETES-1 — el bloque «Envío a» del cajón «Créditos» lleva el filete superior
+// de `.shipsel` (`.scratch/lanzamiento/maqueta-compra/compra.html:231`) ──────────────────────────
+//
+// Abría `COMPRA-ENVIO-CAJA-PUNTEADA-1` (§ DECISIONS.md, `COMPRA-LINEAS-FIDELIDAD-2`): el bloque
+// nacía SIN el contorno de la maqueta. El fix es SÓLO para `esCreditos` (Onix) — Las Chamisas
+// (`esAlbum`) usa `.ln-ch .shipsel`, una caja PUNTEADA distinta, que sigue abierta como su propio
+// follow-up (no de este slice): la segunda mitad del test lo afirma, para que nadie le ponga este
+// mismo filete a Chamisas por accidente.
+
+const VENDEDOR_VACIO: VendedorContent = {
+  visible: true, nombreCompleto: '', tipoPersona: '', documentoTipo: '', documentoNumero: '',
+  nombreComercial: '', direccion: '', ciudad: '', correo: '', telefono: '', horarioAtencion: '',
+  municipioDespacho: '', transportadoras: '', diasPreparacionHabiles: '', ventanaCambiosDias: '',
+};
+
+const ITEM_MUESTRA_ENVIO: CajonPanelProps['items'][number] = {
+  key: 'muestra-1', id: 'prod-1', nombre: 'Café de muestra', imagen: '', precio: 35_000, quantity: 1,
+};
+
+function propsCajon(cajon: CajonPanelProps['cajon']): CajonPanelProps {
+  return {
+    cajon,
+    carrito: { variante: 'anclado' },
+    items: [ITEM_MUESTRA_ENVIO],
+    departamento: null,
+    carritoEnvio: { visible: false },
+    coloresPorProducto: {},
+    vendedor: VENDEDOR_VACIO,
+    onClose: () => {},
+    onUpdateQuantity: () => {},
+    onRemoveItem: () => {},
+    onDepartamentoChange: () => {},
+  };
+}
+
+function bloqueEnvioA(html: string): string {
+  const inicio = html.indexOf('Envío a');
+  const inicioDiv = html.lastIndexOf('<div', inicio);
+  const finDiv = html.indexOf('</select>', inicio);
+  return html.slice(inicioDiv, finDiv);
+}
+
+test('CajonPanel, cajon="creditos" (Onix): el bloque "Envío a" lleva el filete superior de `.shipsel` — margen 16px/8px, padding 14px, border-top en --sf-linea', () => {
+  const html = renderToStaticMarkup(React.createElement(CajonPanel, propsCajon('creditos')));
+  const bloque = bloqueEnvioA(html);
+  assert.ok(bloque.includes('Envío a'), 'el bloque "Envío a" debe existir bajo Créditos');
+  assert.ok(bloque.includes('mt-4'), 'margin-top 16px (`.shipsel{margin:16px …}`)');
+  assert.ok(bloque.includes('mb-2'), 'margin-bottom 8px (`.shipsel{margin:… 0 8px}`)');
+  assert.ok(bloque.includes('pt-3.5'), 'padding-top 14px (`.shipsel{padding:14px 0}`)');
+  assert.ok(bloque.includes('sf-divisor-t'), 'el filete usa la utilidad compartida de border-top, no un literal Tailwind');
+  assert.ok(bloque.includes('border-[var(--sf-linea)]'), 'el color del filete es --sf-linea, como `.shipsel{border-top:1px solid var(--line)}`');
+});
+
+test('CajonPanel, cajon="album" (Las Chamisas): el bloque "Envío a" NO lleva este filete — su caja punteada (`.ln-ch .shipsel`) sigue como follow-up aparte', () => {
+  const html = renderToStaticMarkup(React.createElement(CajonPanel, propsCajon('album')));
+  const bloque = bloqueEnvioA(html);
+  assert.ok(bloque.includes('Envío a'), 'el bloque "Envío a" también existe bajo Álbum');
+  assert.ok(!bloque.includes('mt-4'), 'Las Chamisas no debe heredar el margen de Onix');
+  assert.ok(!bloque.includes('sf-divisor-t'), 'Las Chamisas no debe heredar el filete de línea — necesita la caja punteada, no este fix');
 });

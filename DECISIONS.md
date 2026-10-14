@@ -64688,3 +64688,133 @@ cruzado de repositorio.
 `/nosotros` 224/1152000·422, `/suscripciones` 258/2144000·456 — IDÉNTICAS, byte a byte, al piso que
 `COMPRA-LINEAS-FIDELIDAD-1` ya midió y documentó como heredado). No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — La tabla de la Taquilla cierra, y el filete superior de «Envío a» llega a Onix (`ONIX-TAQUILLA-FILETES-1`)
+
+**Alcance:** el owner, tras el reporte del orquestador sobre `/suscripciones` de Onix: "dispatch the
+small fixes you mentioned about Onix's page" (2026-10-14). Dos defectos puntuales, medidos contra la
+maqueta aprobada (`.scratch/onix-paginas/onix-suscripciones-nosotros.html`, reglas `.taquilla`/`.fila`)
+y `.scratch/lanzamiento/maqueta-compra/compra.html` (`.shipsel`): (1) en la tabla de la Taquilla, la
+última fila no cerraba con línea inferior y la primera celda de cada fila (el ejemplo reportado,
+«15 DÍAS») no tenía línea izquierda; (2) el bloque «Envío a» del cajón «Créditos» (Onix) no llevaba el
+filete superior de `.shipsel` — el `COMPRA-ENVIO-CAJA-PUNTEADA-1` abierto por `COMPRA-LINEAS-
+FIDELIDAD-2`.
+
+### 1 · La regla de bordes, no un parche de la fila CADA
+
+`FilaTaquilla` (`components/storefront/suscripciones/SuscripcionTaquilla.tsx`) replicaba el modelo de
+bordes de la maqueta a MEDIAS: cada fila tenía `border-t` en su WRAPPER (una línea arriba), así que la
+ÚLTIMA fila nunca tenía una fila siguiente que le prestara su `border-t` y quedaba sin cerrar abajo; y
+el primer botón/celda de cada fila (`i===0`) se saltaba el `border-l`, así que el límite etiqueta|datos
+no existía en NINGUNA fila — «15 DÍAS» era sólo el ejemplo más visible del owner (la fila que más
+atención recibía, por estar también afectada por el otro defecto).
+
+El fix, medido contra `.taquilla>*`/`.fila>*` de la maqueta (border-right+border-bottom a cada hijo
+DIRECTO, incluida la etiqueta):
+
+- **Cada celda —etiqueta Y cada opción/precio— lleva su PROPIO `border-b`.** La fila N cierra SU
+  PROPIO fondo (= la línea entre N y N+1, o el cierre de la tabla si N es la última): funciona para
+  CUALQUIER número de filas, sin casos especiales. El único `border-t` que sigue en pie es el del
+  CONTENEDOR compartido (`GRID_TAQUILLA`, en `SuscripcionTaquilla`), que cierra el techo una sola vez.
+- **`border-l` ya no se salta la primera celda de cada fila.** Antes `bordeIzq = i===0 ? '' : 'border-l
+  …'`; ahora `border-l` va siempre.
+
+**Verificado que es la REGLA y no un parche de "CADA"**: con un producto que declara moliendas, la
+última fila pasa a ser "Molienda" (no "Cada") y cierra igual — afirmado en memoria
+(`lib/storefront/suscripcion-taquilla.test.ts`) y en navegador real (dos matrices, 390/1440px,
+§ Figuras).
+
+### 2 · El filete de `.shipsel`, sólo bajo «Créditos» (Onix)
+
+`CajonPanel` (`components/storefront/CartDrawer.tsx`): el bloque «Envío a» bajo `esCreditos ||
+esAlbum` era `<div className="space-y-1.5">`, sin el contorno de `.shipsel{margin:16px 0 8px;
+padding:14px 0;border-top:1px solid var(--line)}`. Se agregó, **SÓLO bajo `esCreditos`**:
+`mt-4 mb-2 space-y-1.5 sf-divisor-t border-[var(--sf-linea)] pt-3.5` (`sf-divisor-t`, la utilidad
+compartida del repo para filetes finos, no un `border-t` de Tailwind suelto — consistente con el resto
+del archivo).
+
+**Las Chamisas (`esAlbum`) NO lo recibe** — queda exactamente como estaba: `.ln-ch .shipsel` es una
+CAJA PUNTEADA distinta (`border:2px dashed #D9C3A8;border-radius:16px;padding:14px 14px 4px`), no este
+filete. Sigue siendo un follow-up aparte (`COMPRA-ENVIO-CAJA-PUNTEADA-1`, mitad Chamisas), no de este
+slice.
+
+### 3 · Figuras — medidas en navegador real (Chromium headless, `next build`+`next start`, Postgres
+efímero)
+
+Tema de Onix medido por ejecución (`medirTemaReal` contra `cafe-onix.vercel.app`): fondo `#fdfbf7` ·
+tinta `#102407` · acento `#a70004` · fuentePar `prensa` · forma `recta` — idéntico al medido por
+`COMPRA-LINEAS-FIDELIDAD-2` el día anterior.
+
+**`scripts/capturar-seccion.ts` ganó `--sembrar-taquilla-onix`** (nueva función
+`sembrarTaquillaOnix`): tema real + catálogo 2×2 (Café en Grano/Café Molido × 250/500 g, SIN
+moliendas — así la selección default queda sin fila de molienda y "Cada" es la última fila, el caso
+exacto que el owner vio) + `suscripcionPlanes.variante:'taquilla'` (las 3 frecuencias ya son el default
+de `DEFAULTS.suscripcionPlanes`: "15 días"/"Mes"/"2 meses"). MUTUAMENTE EXCLUYENTE con
+`--sembrar-compra` (catálogos que no pueden convivir sin romper la validez 2×2 de la matriz) y con
+`--url`.
+
+| medición | selector | resultado |
+| --- | --- | --- |
+| Taquilla, contenedor (390 y 1440px) | `div[class*='mt-[22px]']` | `border-left-width:1px` (borde izq. del conjunto) · `border-bottom-width:0px` (el contenedor no cierra — cada celda cierra la suya) |
+| Taquilla, celda «15 días» (la reportada) | `.col-span-2.grid-cols-subgrid:nth-of-type(5) button:first-of-type` | `border-left-width:1px` · `border-bottom-width:1px` |
+| Taquilla, última celda («2 meses») | `.col-span-2.grid-cols-subgrid:last-of-type button:last-of-type` | `border-left-width:1px` · `border-bottom-width:1px` |
+| Cajón, bloque «Envío a» (390 y 1440px) | `div[class*='mt-4'][class*='mb-2'][class*='sf-divisor-t']` | `margin-top:16px` · `margin-bottom:8px` · `padding-top:14px` · `border-top-width:1px` — EXACTO contra `.shipsel` |
+
+Capturas y JSON completos en `.scratch/revision-owner/pares-taquilla-filetes/` (`LEEME.md` con el
+detalle); el `ANTES` es la captura real de producción que mandó el owner
+(`.scratch/revision-owner/onix-taquilla-owner.png`, 2026-10-12).
+
+### 4 · Tests — 4 nuevos, ninguno borrado
+
+- `lib/storefront/suscripcion-taquilla.test.ts` (+2): la última fila cierra con las dos matrices
+  (sin moliendas → "Cada" última; con moliendas → "Molienda" última, que pasa a ser la última fila);
+  toda primera celda de fila lleva `border-l` (conteo exacto: 12 celdas de dato + 1 del contenedor =
+  13 en el catálogo de prueba), con el <button> de «15 días» y el primer botón de la fila de precio
+  afirmados por separado.
+- `lib/storefront/onix-paginas-fidelidad.test.ts` (+2): `CajonPanel` con `cajon="creditos"` lleva el
+  filete (`mt-4`/`mb-2`/`pt-3.5`/`sf-divisor-t`/`border-[var(--sf-linea)]`); con `cajon="album"` NO lo
+  lleva (afirma que Chamisas queda fuera, a propósito).
+
+### 5 · Nayoli — cero píxeles nuevos
+
+`npm run verificar:nayoli:visual` (main `9a7ab97e` — el merge-base medido de esta rama — contra el
+working tree): las seis cifras —home 165052/4608000·174711 crudo caja `[105,862]–[1183,3581]`,
+`/tienda` 209/2433280·407 caja `[445,45]–[608,1882]`, `/tienda/[slug]` main 1280×1981 vs rama
+1280×1917, `/checkout` 163/1152000·361 caja `[445,774]–[541,784]`, `/nosotros` 224/1152000·422 caja
+`[445,45]–[828,726]`, `/suscripciones` 258/2144000·456 caja `[445,45]–[735,1656]`, hover
+`automatica`/`eleccion` IDÉNTICOS— son, dígito a dígito, las MISMAS que `COMPRA-LINEAS-FIDELIDAD-2` ya
+midió y documentó como heredado. **CERO píxeles nuevos**: `SuscripcionTaquilla.tsx` sólo se monta bajo
+`suscripcionPlanes.variante==='taquilla'` (Nayoli nace `'tarjetas'`) y el filete de «Envío a» sólo
+aplica bajo `esCreditos`/`esAlbum` (Nayoli es `cajon:'comun'`).
+
+**Desviación medida:** la primera corrida de `verificar:nayoli:visual` se lanzó EN PARALELO con la
+captura `onix-cajon-envio-1440` sobre el MISMO checkout — ambas corren `next build` sobre el mismo
+`.next/`, y la segunda build chocó ("Another next build process is already running"), consistente con
+la precondición ya escrita en la cabecera de ambos scripts ("ningún otro `next build`/`next dev` sobre
+el mismo checkout a la vez"). Se re-corrió SECUENCIAL, después de que la captura terminara; sin
+residuo (worktree temporal limpio, `git worktree list`/`git status` verificados).
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `SuscripcionTaquilla.tsx` (`FilaTaquilla`), `CartDrawer.tsx`
+(`CajonPanel`, el bloque «Envío a»), `capturar-seccion.ts` (`sembrarTaquillaOnix`),
+`onix-paginas-fidelidad.test.ts`, `suscripcion-taquilla.test.ts`.
+
+`grep -n "SuscripcionTaquilla\|FilaTaquilla\|CartDrawer\|CajonPanel\|capturar-seccion\|shipsel\|Envío a\|suscripcion-taquilla\|onix-paginas-fidelidad\|taquilla" CLAUDE.md`: **CERO coincidencias** —
+ninguno de estos símbolos, ni la palabra "taquilla" en minúscula, vive en CLAUDE.md. La doctrina del
+camino de Onix sigue entera en este archivo (`ONIX-TAQUILLA-SOLO-TABLA-1`, `ONIX-PAGINAS-FIDELIDAD-1`,
+`COMPRA-LINEAS-FIDELIDAD-1/2`), nunca promovida a CLAUDE.md — nada que grepear se vuelve falso.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner, 2026-10-14, "dispatch the small
+fixes you mentioned about Onix's page", tras el reporte del orquestador que nombró exactamente estos
+dos defectos). Entra por `components/storefront/` (bytes del visitante — `SuscripcionTaquilla.tsx`,
+`CartDrawer.tsx`). Sin cambio de schema/migración, sin contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final: `tsc --noEmit` limpio,
+`npm test` **4797/4797**, `npm run test:integracion` **409/409**, `npm run verificar:nayoli:visual`
+**sin un solo píxel nuevo para Nayoli** (§ arriba). No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1`, sin mergear.
