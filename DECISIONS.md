@@ -65543,3 +65543,144 @@ sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el ár
 para Nayoli). Verificado además en navegador real a 1440px y 390px, sin `--scroll` manual,
 comparado a mano contra la maqueta aprobada. No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1: la cúpula gana aire bajo el encabezado fijo, y el Interludio pasa de círculos de color a tarjetas con foto + nombre + notas
+
+**Pedido del owner** (2026-10-14, sobre el reporte del orquestador tras `CHAMISAS-NOSOTROS-ARCO-Y-
+FICHA-1`): el arco de la Apertura ya se veía en curva completa, pero su cúpula seguía debajo del
+encabezado fijo (sólo los "hombros"), y el Interludio mostraba tres círculos de color en vez de las
+bolsas con nombre y notas que pide la maqueta. El owner respondió *"Queue the fixes as well"*.
+`observed-report: CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1`. La aprobación autoriza la ESCRITURA, nunca el
+merge.
+
+### Defecto 1 — el arco: `pt-7 lg:pt-10` era MENOR que el alto real del header fijo
+
+**MEDIDO por color de píxel sobre capturas reales** (`next build`+`next start`, Postgres efímero,
+`sharp` leyendo una columna vertical del PNG), no supuesto — `scripts/capturar-seccion.ts` no
+expone `getBoundingClientRect` (sólo `getComputedStyle` vía `--estilo-elemento`, que no da la
+POSICIÓN de un nodo), así que la medida de posición se tomó del color de los píxeles ya capturados,
+la misma evidencia que un `getBoundingClientRect` daría:
+
+| | borde inferior del `<header>` | tope de la foto del arco | aire |
+| --- | --- | --- | --- |
+| ANTES, 1440px, x=1055 | y≈71/72 | y≈72 | **0px** |
+| DESPUÉS, 1440px, x=1055 | y≈72 (sin cambio) | y≈112 | **40px** |
+
+`/nosotros/page.tsx` (fuera de `touches:` de este slice) sólo reserva el alto del header con
+`navOffsetClase` cuando `content.navTratamiento.posicion` es `true` (el tratamiento tipo CORTE) —
+Las Chamisas no lo activa, así que esta sección responde SOLA por su propio espacio bajo el
+`<header>` `fixed` (`StoreNav.tsx`, `h-16 lg:h-18` = 64px/72px). `pt-7 lg:pt-10` (28px/40px) eran
+MENORES que esos 64px/72px, así que el `<header>` cubría literalmente los primeros ~32-36px del
+contenido de la sección: en 1440px eso tapaba la mitad superior del arco (la cúpula, "sólo los
+hombros"); en 390px tapaba el RÓTULO completo ("NOSOTROS · SAN ADOLFO, HUILA") — confirmado
+visualmente en `app-ANTES-390.png`: el `<h1>` aparece pegado al borde del header, sin una sola
+letra del rótulo visible antes, porque `pt-7` (28px) cae DENTRO de la banda 0-64px que el header
+cubre.
+
+**Fix: `pt-24 lg:pt-28`** (96px/112px). `lg:pt-28` sobre un header de 72px da 40px de aire —
+medido igual contra la maqueta aprobada (`.scratch/chamisas-paginas/capturas/v-d-nosotros.jpg`,
+columna x=1050: borde del header en y≈87, cúpula en y≈128, ≈41px de un mockup a ~1408px de ancho).
+`pt-24` sobre el header de 64px de celular da 32px, mismo criterio en el breakpoint chico. **Sigue
+sin `min-h`**: es sólo padding-top, el ajuste 1 de `CHAMISAS-APERTURA-ALBUM-AJUSTES-1` (sin altura
+mínima forzada, para no reintroducir la banda vacía) no se reabre — afirmado con un test dedicado
+en `lib/storefront/nosotros-apertura-album.test.ts`.
+
+### Defecto 2 — el Interludio: tarjeta con foto + nombre + notas, no un círculo de color
+
+La lógica de "qué se muestra por café" se extrajo a `stickersDeCatalogo`
+(`lib/storefront/interludio-stickers.ts`, PURA, con 11 tests propios en
+`interludio-stickers.test.ts`): por cada producto del catálogo, `{ id, slug, nombre, color, imagen,
+notas }`, donde `color` sale de `colorDeLamina` (el MISMO mapa que «Láminas» de /tienda y las
+Casillas de frecuencia — sin cambio de sistema de color), `imagen` es `null` si el producto no
+tiene foto (string vacía o ausente, nunca un `<img src="">` roto), y `notas` es `null` si el
+producto no tiene notas (nunca una línea vacía) o el join con `' · '` de las que tenga — el MISMO
+formato de tag corto que ya usan `TiendaLaminas.tsx`/`TiendaEncabezado.tsx`/`TiendaTaquilla.tsx`/
+`SuscripcionCasillas.tsx` (CUATRO superficies), deliberadamente NO `fraseNotas`
+(`lib/tienda/producto-lamina.ts`), que arma una oración ("Floral, Frutos rojos y Dulce.") para OTRA
+composición (la Lámina abierta de la página de producto) con otro propósito.
+
+`NosotrosInterludioStickers.tsx` sólo RENDERIZA lo que `stickersDeCatalogo` ya resolvió: una
+tarjeta redondeada (`rounded-[22px]`, color de fondo = `sticker.color`) con padding (`p-4`) que dejo
+el color visible como margen alrededor de un contenedor interior (`rounded-[14px]`) con la foto
+(`object-cover`, sólo si `sticker.imagen` no es `null`); debajo de la tarjeta —no adentro, sobre la
+franja— el nombre en `font-playfair` y, si hay, las notas en texto más chico y atenuado. Cada
+tarjeta es un `<Link href="/tienda/[slug]">`. El movimiento de "pegarse" (`whileInView`, rotate
+−8°→−3°, scale 1.06→1, 200ms) no cambió — sigue siendo framer-motion, el mismo mecanismo del resto
+de /nosotros.
+
+**Por qué el contenedor interior, y no `fill` directo sobre la tarjeta con padding:** `Image fill`
+resuelve `inset:0` contra el BORDE del ancestro posicionado, ignorando el `padding` — el mismo
+mecanismo que el Defecto 1 de `CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1` ya documentó para el arco. Un
+contenedor interior propio (`relative h-full w-full`) es el que resuelve la caja de contención, no
+la tarjeta exterior con padding.
+
+**Los colores de Las Chamisas (acento `#B8461A`, derivados) dan naranja/tan/marrón-oscuro, NO el
+rosa/verde/amarillo pastel de la maqueta** — la maqueta es un mockup estático con su propia paleta
+de ejemplo; el spec pide literal "el mismo mapa que hoy" (`colorDeLamina`/`coloresPorProducto`),
+no igualar el hex de la maqueta. La ESTRUCTURA (tarjeta+foto, nombre+notas debajo, sobre la franja)
+coincide con la maqueta; el HEX no, por diseño — medido y documentado, no un defecto pendiente.
+
+### Verificado
+
+- `npx tsc --noEmit`: limpio.
+- `npm test`: **4918/4918** (+13 sobre el piso de 4905 heredado de esta rama: 2 en
+  `nosotros-apertura-album.test.ts` — el `pt-24 lg:pt-28` y la ausencia de `min-h` —, 11 en
+  `interludio-stickers.test.ts` — el color/imagen-o-null/notas-o-null/orden/catálogo vacío).
+- `npm run test:integracion`: **409/409**, sin cambio (este slice no toca `packages/core/`, schema,
+  ni ninguna cadena del motor).
+- `npm run verificar:nayoli:visual`: **RED, con las MISMAS seis cifras, dígito a dígito**, que
+  `CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1` y `CHAMISAS-APERTURA-ALBUM-AJUSTES-1` ya documentaron como
+  heredadas (home 165052/4608000·174711 crudo; `/tienda` 209/2433280·407; `/tienda/[slug]` TAMAÑOS
+  DISTINTOS 1280×1981 vs 1280×1917; `/checkout` 163/1152000·361; `/nosotros` 224/1152000·422, caja
+  [445,45]–[828,726]; `/suscripciones` 258/2144000·456; los dos hovers IDÉNTICOS) — cero píxeles
+  nuevos para Nayoli. Verificado además por INSPECCIÓN de la imagen de diff de `/nosotros`
+  (`.scratch/verificar-nayoli-visual/diffs/ruta-nosotros.png`): la ÚNICA región resaltada es la
+  línea de crédito del pie ("Hecho por Duna"), fuera de la Apertura/Historia/Interludio que
+  describe el dominio de este diff — consistente con que Nayoli nace en las composiciones
+  canónicas («apertura»/«plano»), nunca «album»/«stickers», así que `NosotrosAperturaAlbum.tsx`/
+  `NosotrosInterludioStickers.tsx` no se montan para Nayoli en absoluto.
+- **Capturado en navegador real** (`next build`+`next start`, Postgres efímero,
+  `--sembrar-album-nosotros`) a 1440px y 390px: el arco se ve completo con aire bajo el encabezado
+  en las dos anchuras, el rótulo "NOSOTROS · SAN ADOLFO, HUILA" ya no queda tapado en 390px, y el
+  Interludio muestra las tres tarjetas (foto + color + nombre + notas) sobre la franja —
+  `.scratch/revision-owner/pares-nosotros-arco-interludio/README.md`, que documenta las dos causas
+  con sus capturas ANTES/DESPUÉS y contra la maqueta aprobada.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `NosotrosAperturaAlbum`, `NosotrosInterludioStickers`, `NosotrosInterludio`,
+`interludio-stickers`, `stickersDeCatalogo`, `nosotros-apertura-album.test.ts`, `colorDeLamina`,
+`coloresPorProducto`, `navOffsetClase`, `navTratamiento.posicion`, `pt-7`/`pt-24`/`pt-28`.
+Grepeados contra `CLAUDE.md`: **CERO apariciones para cada uno** — ninguna sección de esa doctrina
+nombra este árbol de componentes ni el mecanismo de offset del header. (`/nosotros`, en términos
+generales, aparece 24 veces en `CLAUDE.md`, pero describe la arquitectura ANTERIOR —de una sola
+página con historia/galería/testimonios, sin el sistema de "composiciones" `album`/`stickers`/
+`etiqueta`/`costura` que este árbol de componentes implementa— y ninguna de esas 24 líneas nombra
+un símbolo de este diff ni una regla que este cambio contradiga.) Ninguna sentencia de CLAUDE.md
+queda falsa por este diff.
+
+### Open follow-ups
+
+Ninguno nuevo. `CHAMISAS-CIERRE-FRANJA-TEJIDO-FALTANTE-1` (abierto por
+`CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1`) sigue abierto — fuera del alcance de este slice (Cierre, no
+tocado).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `writes: yes`, `approved: yes` (el owner aprobó la maqueta el 2026-10-12 y reafirmó
+"Queue the fixes as well" el 2026-10-14 sobre el reporte del orquestador). Entra a Tier 1 por
+`components/storefront/` (los dos componentes editados son bytes del visitante de cualquier tienda
+que elija estas composiciones). **`customer_bytes.changed = true`**: el diff cambia bytes de
+layout (el espacio bajo el header, la forma del Interludio) que un visitante de Las Chamisas lee
+hoy mismo, sobre un deploy que sigue siendo preview. Sin cambio de schema/migración ni contrato
+cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch de este slice pidió explícitamente parar acá
+sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el árbol final: `tsc
+--noEmit` limpio, `npm test` **4918/4918**, `npm run test:integracion` **409/409**,
+`npm run verificar:nayoli:visual` RED con las mismas seis cifras heredadas (cero píxeles nuevos
+para Nayoli, confirmado también por inspección visual del diff de `/nosotros`). Verificado además
+en navegador real a 1440px y 390px, comparado a mano contra la maqueta aprobada. No es `GATE_RED`.
+Commiteado en `slice/editor-secciones-1`, sin mergear.
