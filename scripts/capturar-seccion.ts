@@ -1780,6 +1780,35 @@ async function main(): Promise<void> {
           estiloElementoApp = await leerEstiloElemento(page, selectorApp, opciones.estiloElementoExtra);
           await loc.screenshot({ path: appPng });
         } else {
+          // § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1 — UN `fullPage: true` SIN HABER SCROLLEADO DEJA
+          // INVISIBLE TODO `whileInView`/`viewport:{once:true}` (framer-motion) MÁS ALLÁ DEL ALTO
+          // INICIAL DEL VIEWPORT. Medido con el caso real: `NosotrosCierre`/`NosotrosInterludio
+          // Stickers` (de /nosotros, composiciones «costura»/«stickers») tienen el DATO y el HTML
+          // correctos (confirmado con `renderToStaticMarkup` contra el mismo contenido) pero la
+          // captura los mostraba EN BLANCO — opacity:0 congelado, porque el `IntersectionObserver`
+          // de cada sección sólo dispara cuando el VIEWPORT REAL del navegador llega a
+          // intersectarla, y un `fullPage` COMPONE el documento entero sin que el navegador haya
+          // scrolleado nunca. Esto NO es exclusivo de esta página: cualquier sección con animación
+          // de entrada por scroll, en cualquier ruta, bajo el alto inicial del viewport, cae en el
+          // mismo hueco.
+          //
+          // EL FIX: si el documento es más alto que el viewport Y nadie pidió `--scroll` explícito
+          // (ese flag tiene su propio propósito —revelar chrome fijo-por-scroll en la posición QUE
+          // SE PIDIÓ, § arriba—, y pisarlo volvería a esta sección dueña de dos comportamientos a la
+          // vez), se scrollea al FONDO del documento una vez —un salto, no scroll incremental:
+          // `IntersectionObserver` recalcula contra la posición FINAL, no contra los pasos
+          // intermedios, así que un solo salto dispara TODAS las secciones que haya de paso— se
+          // espera a que asienten las transiciones, y se vuelve al tope ANTES de capturar, para no
+          // alterar qué chrome fijo-por-scroll muestra el PNG final.
+          if (scrollPx === undefined) {
+            const altoDocumento = await page.evaluate<number, undefined>(() => document.documentElement.scrollHeight, undefined);
+            if (altoDocumento > opciones.altoPx) {
+              await page.evaluate((y: number) => window.scrollTo(0, y), altoDocumento);
+              await page.waitForTimeout(500);
+              await page.evaluate<void, undefined>(() => window.scrollTo(0, 0), undefined);
+              await page.waitForTimeout(100);
+            }
+          }
           await page.screenshot({ path: appPng, fullPage: true });
         }
 

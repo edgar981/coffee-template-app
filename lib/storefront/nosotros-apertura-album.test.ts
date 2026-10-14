@@ -85,6 +85,21 @@ describe('NosotrosAperturaAlbum — el ajuste 2 del spec: el sticker sale de la 
   });
 });
 
+describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: la caja que recorta la foto lleva SU PROPIO `relative`', () => {
+  test('la caja `overflow-hidden rounded-t-full` declara `relative` — sin él, el `<Image fill>` resuelve su caja de contención contra el wrapper exterior y el recorte/radio queda sin efecto visual (medido: `position: static` + sin curva en un build real)', () => {
+    const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(
+      html.includes('relative aspect-[4/5] max-h-[55vh] overflow-hidden rounded-t-full'),
+      'la caja que recorta la foto al arco debe llevar `relative` junto a `overflow-hidden rounded-t-full` — el mismo patrón que `InterludioRetrato` (piezas-compartidas.test.ts)',
+    );
+  });
+
+  test('el wrapper EXTERIOR del sticker sigue llevando su propio `relative` (el ajuste 2 no se revierte)', () => {
+    const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('class="relative w-[78%] lg:w-[72%]"'), 'el wrapper que separa la caja recortada del sticker debe seguir siendo `relative`');
+  });
+});
+
 describe('NosotrosAperturaAlbum — sin sticker, sin imagen: no revienta, no deja residuos', () => {
   test('sticker vacío → no se monta ningún nodo con el texto del sticker', () => {
     const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, { ...PROPS_BASE, sticker: '' }));

@@ -35,11 +35,32 @@
 // 4. SIN FILAS COMPLETAS, LA TARJETA SIGUE RENDERIZANDO — con una grilla vacía, nunca un bloque en
 //    blanco: el gate real (`creditosVisibles`) vive en `NosotrosFicha.tsx`, ANTES de llegar acá
 //    (§ ese dispatcher); si esta pieza se alcanza a renderizar, SIEMPRE hay ≥3 filas.
+//
+// § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1 — CADA FILA LLEVA SU PROPIO ÍCONO, no el mismo `Minus`
+// repetido (refero-chamisas.md §3 punto 4: "retícula... con iconos de línea"). `fichaIcono`
+// (`lib/storefront/ficha-iconos.ts`, puro, capa 1) deriva la clave de la ETIQUETA de la fila —no un
+// campo nuevo del modelo (§ el párrafo de arriba, "no hay un dato de ícono por etiqueta... una
+// capacidad de selección que nadie pidió" sigue en pie: esto no la contradice, sólo reemplaza el
+// ícono NEUTRO único por un ícono NEUTRO-POR-DATO, derivado, nunca elegido a mano)—; `ICONOS_FICHA`
+// es el ÚNICO lugar que traduce esa clave a un componente de lucide-react.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
-import { Minus } from 'lucide-react';
+import { MapPin, Mountain, Sprout, Droplet, Calendar, Users, Coffee, Package, Minus, type LucideIcon } from 'lucide-react';
 import { filasCompletas } from '@/lib/tienda/creditos';
+import { fichaIcono } from '@/lib/storefront/ficha-iconos';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable from '@/components/storefront/CampoEditable';
+
+const ICONOS_FICHA: Record<ReturnType<typeof fichaIcono>, LucideIcon> = {
+  origen: MapPin,
+  altitud: Mountain,
+  variedades: Sprout,
+  proceso: Droplet,
+  cosecha: Calendar,
+  familias: Users,
+  tostion: Coffee,
+  presentacion: Package,
+  neutro: Minus,
+};
 
 export default function NosotrosFichaEtiqueta() {
   const { nosotrosFicha, tiendaCreditos, navTratamiento } = useSiteContent();
@@ -84,18 +105,21 @@ export default function NosotrosFichaEtiqueta() {
             </h3>
           )}
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2">
-            {filas.map((fila, i) => (
+            {filas.map((fila, i) => {
+              const Icono = ICONOS_FICHA[fichaIcono(fila.etiqueta)];
+              return (
               <div
                 key={`${fila.etiqueta}-${i}`}
                 className="flex items-start gap-2.5 border-t border-dashed border-[var(--sf-tinta)]/25 py-3 sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(odd)]:pr-5 sm:[&:nth-child(even)]:pl-5"
               >
-                <Minus aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--sf-tinta)]" />
+                <Icono aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--sf-tinta)]" />
                 <div>
                   <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--sf-tinta)]/70">{fila.etiqueta}</p>
                   <p className="font-playfair text-[15px] text-[var(--sf-tinta)] lg:text-[17px]">{fila.valor}</p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           {notaPie.trim() !== '' && (
             <p className="mt-2.5 text-[13px] text-[var(--sf-tinta)]/60">

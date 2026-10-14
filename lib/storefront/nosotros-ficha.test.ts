@@ -100,6 +100,61 @@ describe('NosotrosFichaEtiqueta — el ajuste 3: el sello no se recorta contra l
   });
 });
 
+describe('NosotrosFichaEtiqueta — § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: cada fila lleva SU PROPIO ícono', () => {
+  test('el defecto medido ya no reproduce: las seis filas de Las Chamisas NO llevan todas el mismo `lucide-minus`', () => {
+    const content = contenidoEtiqueta();
+    const html = render(content, React.createElement(NosotrosFicha));
+    const apariciones = (html.match(/lucide-minus/g) ?? []).length;
+    assert.ok(apariciones < 3, `sólo las filas SIN ícono reconocido deben caer a "minus" (encontradas ${apariciones} veces, de 3 filas)`);
+  });
+
+  test('Finca → pin (lucide-map-pin), Altitud → montaña (lucide-mountain), Variedades → brote (lucide-sprout)', () => {
+    const content = contenidoEtiqueta();
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('lucide-map-pin'), 'la fila "Finca" debe llevar el ícono de pin');
+    assert.ok(html.includes('lucide-mountain'), 'la fila "Altitud" debe llevar el ícono de montaña');
+    assert.ok(html.includes('lucide-sprout'), 'la fila "Variedades" debe llevar el ícono de brote');
+  });
+
+  test('Proceso → gota (lucide-droplet), Cosecha → calendario (lucide-calendar), Familias → personas (lucide-users)', () => {
+    const content: SiteContentData = {
+      ...DEFAULTS,
+      nosotrosFicha: { ...DEFAULTS.nosotrosFicha, visible: true, variante: 'etiqueta' },
+      tiendaCreditos: {
+        visible: true,
+        items: [
+          { etiqueta: 'Proceso', valor: 'Lavado' },
+          { etiqueta: 'Cosecha principal', valor: 'Marzo – junio' },
+          { etiqueta: 'Familias', valor: '12 familias' },
+        ],
+      },
+    };
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('lucide-droplet'), 'la fila "Proceso" debe llevar el ícono de gota');
+    assert.ok(html.includes('lucide-calendar'), 'la fila "Cosecha principal" debe llevar el ícono de calendario');
+    assert.ok(html.includes('lucide-users'), 'la fila "Familias" debe llevar el ícono de personas');
+  });
+
+  test('Tostión → grano (lucide-coffee), Presentación → bolsa (lucide-package), y una etiqueta desconocida cae a NEUTRO (lucide-minus), nunca rompe', () => {
+    const content: SiteContentData = {
+      ...DEFAULTS,
+      nosotrosFicha: { ...DEFAULTS.nosotrosFicha, visible: true, variante: 'etiqueta' },
+      tiendaCreditos: {
+        visible: true,
+        items: [
+          { etiqueta: 'Tostión', valor: 'Media' },
+          { etiqueta: 'Presentación', valor: '340 g' },
+          { etiqueta: 'Un dato cualquiera', valor: 'Sin ícono reconocido' },
+        ],
+      },
+    };
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('lucide-coffee'), 'la fila "Tostión" debe llevar el ícono de grano');
+    assert.ok(html.includes('lucide-package'), 'la fila "Presentación" debe llevar el ícono de bolsa');
+    assert.ok(html.includes('lucide-minus'), 'una etiqueta sin ícono reconocido cae al ícono neutro, no revienta');
+  });
+});
+
 describe('NosotrosFichaEtiqueta — sigue gateada por el piso de tiendaCreditos (sin cambio de regla)', () => {
   test('con menos de 3 filas completas, toda la pieza —incluidos los campos nuevos— sigue oculta', () => {
     const content: SiteContentData = {

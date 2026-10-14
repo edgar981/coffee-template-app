@@ -38,6 +38,22 @@
 //    celular"/"arriba en celular") pero las clases `order-1`/`order-2` estaban INVERTIDAS respecto
 //    del comentario — el arco quedaba primero. Se corrige el `order` para que coincida con lo que el
 //    comentario siempre dijo.
+//
+// § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1 — EL ARCO SE VEÍA RECTANGULAR, SIN CURVA: medido con
+// `getComputedStyle` sobre `.rounded-t-full` en un build real (`position: 'static'`, `overflow:
+// 'hidden'`, `border-top-left-radius: '3.35544e+07px'` — el radio SÍ estaba, lo que faltaba era el
+// contexto de posicionamiento). El ajuste 2 (arriba) movió `relative` al wrapper EXTERIOR para sacar
+// al sticker de la caja que recorta — correcto para el sticker, pero dejó la caja `overflow-hidden
+// rounded-t-full` SIN su propio `relative`. El `<Image fill>` de adentro (`position:absolute;
+// inset:0`) resuelve su caja de contención contra el ancestro posicionado más cercano — que pasó a
+// ser el wrapper exterior, no esta caja —, y una caja sin su propio `position:relative` no recorta
+// de forma confiable a un descendiente posicionado contra OTRO ancestro: el radio quedaba declarado
+// pero sin efecto visual, la foto se veía como un rectángulo a filo con el encabezado. El patrón
+// gemelo que SÍ funciona (`InterludioRetrato`/`piezas-compartidas.test.ts`) pone `relative` en la
+// MISMA caja que `overflow-hidden rounded-t-full` — se replica acá: esta caja gana su propio
+// `relative`, sin tocar el wrapper exterior (que lo sigue necesitando para el sticker). Confirmado
+// por captura real (`.scratch/revision-owner/pares-nosotros-arco-ficha/README.md`): el arco pasó de
+// un borde recto a la curva completa, con el mismo `border-radius` computado de antes.
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
@@ -85,7 +101,7 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
               caja que recorta la foto, nunca su hijo, para no caer dentro de esa máscara. */}
           <div className="relative w-[78%] lg:w-[72%]">
             <div
-              className="aspect-[4/5] max-h-[55vh] overflow-hidden rounded-t-full rounded-b-[20px] bg-[var(--sf-tinta)] lg:max-h-[600px]"
+              className="relative aspect-[4/5] max-h-[55vh] overflow-hidden rounded-t-full rounded-b-[20px] bg-[var(--sf-tinta)] lg:max-h-[600px]"
             >
               {tieneImagen ? (
                 <CampoEditable campo="nosotrosApertura.imagen" tipo="imagen">
