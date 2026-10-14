@@ -1089,11 +1089,20 @@ export interface NosotrosEscenaItem {
 // los esquineros de álbum en terracota de la maqueta, OPCIONALES por diseño (refero-chamisas.md §5:
 // "esquineros opcionales") — nacen `true` (Chamisas los quiere de arranque) y sólo tienen efecto
 // bajo «album»; «saintLaurent» los ignora.
+// `eyebrow`/`titulo` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el ENCABEZADO de la sección —"Álbum de
+// finca" / "Cinco láminas, de la montaña a la bolsa" en la maqueta de Las Chamisas—. El docstring de
+// arriba decía "la maqueta no dibuja un encabezado sobre las escenas": eso era cierto para
+// «saintLaurent» (Onix, el still+créditos SIN encabezado), no para «album» — medido contra
+// `.scratch/chamisas-paginas/nosotros-suscripciones.html`, `.lams-hd`. Los DOS campos son OPCIONALES
+// y SIN EFECTO bajo «saintLaurent» (ese render headless no los lee) — vacíos, ningún tenant que no
+// edite ve nada nuevo.
 export interface NosotrosEscenasContent {
   visible: boolean;
   items: NosotrosEscenaItem[];
   variante: string;
   esquineros: boolean;
+  eyebrow: string;
+  titulo: string;
 }
 
 // LA «FICHA» de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1): el capítulo verde de la maqueta, cifras
@@ -1119,6 +1128,17 @@ export interface NosotrosEscenasContent {
 // quedan SIN EFECTO bajo esa composición (siguen editables, por si el dueño vuelve a «tinta»). `sello`
 // es el ÚNICO campo nuevo: el texto de la estampilla (p. ej. el nombre de la finca) — OPCIONAL, vacío
 // = sin sello (nunca un claim fabricado, § el invariante #44).
+// `titulo`/`bajada`/`tituloTarjeta`/`notaPie` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): CUATRO campos
+// nuevos, SOLO con efecto bajo «etiqueta» — el defecto medido que los exige: el dueño escribió la
+// bajada ("Los mismos datos de la etiqueta de la bolsa...") DENTRO de `sello`, porque no había dónde
+// más ponerla. `titulo` es el H2 de la columna de texto ("De dónde viene cada bolsa"); `bajada` es el
+// párrafo debajo; `tituloTarjeta` es el encabezado DENTRO de la tarjeta punteada ("Café {negocio} ·
+// origen" en la maqueta — texto libre del dueño, no derivado de `SiteSetting.nombre`: este componente
+// no tiene acceso a esa fuente sin forzar `useSiteSettings()` fuera de su provider, § CLAUDE.md "El
+// {negocio} del fallback llega por PROP"); `notaPie` es la frase de cierre bajo la retícula ("Café de
+// origen · 100 % colombiano." en la maqueta — un CLAIM que no se fabrica por tenant, § el invariante
+// #44, así que nace vacío y sólo aparece si el dueño lo escribe). Los CUATRO opcionales, vacío = no
+// se muestra esa línea.
 export interface NosotrosFichaContent {
   visible: boolean;
   eyebrow: string;
@@ -1130,6 +1150,10 @@ export interface NosotrosFichaContent {
   cifra3Rotulo: string;
   variante: string;
   sello: string;
+  titulo: string;
+  bajada: string;
+  tituloTarjeta: string;
+  notaPie: string;
 }
 
 // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, sobre ONIX-PAGINAS-
@@ -2907,6 +2931,10 @@ export const DEFAULTS: SiteContentData = {
     items: [],
     variante: 'saintLaurent',
     esquineros: true,
+    // `eyebrow`/`titulo` vacíos (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): sin efecto bajo «saintLaurent»,
+    // y bajo «album» sin fila el ítem queda vacío de todos modos (hide-on-empty ya oculta la sección).
+    eyebrow: '',
+    titulo: '',
   },
   // LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). NACE VACÍA — las tres cifras y el rótulo
   // son dato de la finca, no copy de template (ningún número de hectáreas/msnm/años se inventa). El
@@ -2921,6 +2949,12 @@ export const DEFAULTS: SiteContentData = {
     cifra3Numero: '', cifra3Rotulo: '',
     variante: 'tinta',
     sello: '',
+    // `titulo`/`bajada`/`tituloTarjeta`/`notaPie` vacíos (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): sin
+    // efecto bajo «tinta»; bajo «etiqueta» cada uno se omite si está vacío (§ el docstring de arriba).
+    titulo: '',
+    bajada: '',
+    tituloTarjeta: '',
+    notaPie: '',
   },
   // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1). `imagen`/`pie` VACÍOS a
   // propósito —«SAN ADOLFO, HUILA · 1.600 MSNM» es el ejemplo de la maqueta, no un dato de negocio a
@@ -3976,8 +4010,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // LAS ESCENAS de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). `ocultable: true` + hide-on-empty del
   // propio repeater (array vacío). `imagenes: ['foto']` nombra el campo-BLOB dentro de cada ítem —
   // mismo mecanismo que `nosotrosGaleria.imagenes` arriba, repeater-aware: `imagenesDe` itera los
-  // items y junta cada `item.foto`. Sección SIN campos planos (no lleva eyebrow/titulo propio, § el
-  // docstring de `NosotrosEscenasContent` — la maqueta no dibuja un encabezado sobre las escenas).
+  // items y junta cada `item.foto`. `eyebrow`/`titulo` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el
+  // encabezado de sección, SIN EFECTO bajo «saintLaurent» (el docstring viejo de
+  // `NosotrosEscenasContent` decía "la maqueta no dibuja un encabezado" — cierto sólo para esa
+  // composición; «album» SÍ lo pinta, § NosotrosEscenasAlbum.tsx).
   // `variantes`/`booleanos` (§ CHAMISAS-NOSOTROS-ALBUM-1): «saintLaurent» (canónica) | «album» (la
   // composición «Láminas», § NosotrosEscenasAlbum.tsx); `esquineros` SÓLO tiene efecto bajo «album».
   nosotrosEscenas: {
@@ -3986,7 +4022,7 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     variantes: { claves: ['saintLaurent', 'album'], canonica: 'saintLaurent' },
     booleanos: ['esquineros'],
     imagenes: ['foto'],
-    campos: {},
+    campos: { eyebrow: 'opcional', titulo: 'opcional' },
     repeater: {
       itemsKey: 'items',
       campos: {
@@ -4007,8 +4043,9 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // consigo misma. Sin `repeater`: las tres cifras son slots FIJOS (número + rótulo), todos opcionales
   // (vacío → esa cifra no se muestra, § el criterio de `subscriptionCTA.bullet1..4`).
   // `variantes` (§ CHAMISAS-NOSOTROS-ALBUM-1): «tinta» (canónica) | «etiqueta» (el trato Chamisas —
-  // ficha de origen como etiqueta de bolsa, § NosotrosFichaEtiqueta.tsx); `sello` SÓLO tiene efecto
-  // bajo «etiqueta».
+  // ficha de origen como etiqueta de bolsa, § NosotrosFichaEtiqueta.tsx); `sello` y los CUATRO campos
+  // nuevos (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — `titulo`/`bajada`/`tituloTarjeta`/`notaPie`, ver el
+  // docstring de `NosotrosFichaContent`) SÓLO tienen efecto bajo «etiqueta».
   nosotrosFicha: {
     label: 'Ficha de la finca',
     ocultable: true,
@@ -4020,6 +4057,10 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       cifra2Numero: 'opcional', cifra2Rotulo: 'opcional',
       cifra3Numero: 'opcional', cifra3Rotulo: 'opcional',
       sello: 'opcional',
+      titulo: 'opcional',
+      bajada: 'opcional',
+      tituloTarjeta: 'opcional',
+      notaPie: 'opcional',
     },
   },
   // EL INTERLUDIO de /nosotros (§ ONIX-NOSOTROS-INTERLUDIO-CIERRE-1, ver el docstring de

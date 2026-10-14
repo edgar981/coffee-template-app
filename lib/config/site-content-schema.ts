@@ -416,18 +416,24 @@ const nosotrosEscenaItemSchema = z.object({
 });
 // `variante`/`esquineros` (§ CHAMISAS-NOSOTROS-ALBUM-1): `variante` SOBREVIVE al parse como string,
 // SOFT; `esquineros` es un BOOLEANO de sección, mismo criterio que `tiendaCatalogo.barraFijaMovil`.
+// `eyebrow`/`titulo` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el encabezado de sección, SOLO con efecto
+// bajo «album» — ver el docstring de `NosotrosEscenasContent`.
 const nosotrosEscenasEditableSchema = z.object({
   visible: z.boolean().optional(),
   items: z.array(nosotrosEscenaItemSchema).optional(),
   variante: z.string().optional(),
   esquineros: z.boolean().optional(),
+  eyebrow: z.string().optional(),
+  titulo: z.string().optional(),
 });
 
 // /nosotros — la FICHA (§ ONIX-NOSOTROS-ESCENAS-FICHA-1). Tres cifras FIJAS (número + rótulo), todas
 // string opcional/SOFT — un `numero` vacío omite esa cifra en el render (§ NosotrosFicha.tsx), el
 // schema no lo exige. Sin `items`: no es un repeater (§ el docstring de `NosotrosFichaContent`).
 // `variante`/`sello` (§ CHAMISAS-NOSOTROS-ALBUM-1): `variante` SOFT; `sello` SOLO tiene efecto bajo
-// «etiqueta».
+// «etiqueta». `titulo`/`bajada`/`tituloTarjeta`/`notaPie` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1):
+// CUATRO campos nuevos, también SOLO con efecto bajo «etiqueta» — ver el docstring de
+// `NosotrosFichaContent`.
 const nosotrosFichaEditableSchema = z.object({
   visible: z.boolean().optional(),
   eyebrow: z.string().optional(),
@@ -439,6 +445,10 @@ const nosotrosFichaEditableSchema = z.object({
   cifra3Rotulo: z.string().optional(),
   variante: z.string().optional(),
   sello: z.string().optional(),
+  titulo: z.string().optional(),
+  bajada: z.string().optional(),
+  tituloTarjeta: z.string().optional(),
+  notaPie: z.string().optional(),
 });
 
 // /nosotros — el CTA de cierre (§ NOSOTROS-COMPOSICION-1). Todo opcional/SOFT, como el resto: el

@@ -1340,6 +1340,10 @@ async function sembrarAlbumNosotros(): Promise<void> {
       visible: true,
       variante: "album",
       esquineros: true,
+      // `eyebrow`/`titulo` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el encabezado de la maqueta
+      // ("Álbum de finca" / "Cinco láminas, de la montaña a la bolsa", refero-chamisas.md §3).
+      eyebrow: "Álbum de finca",
+      titulo: "Cinco láminas, de la montaña a la bolsa",
       items: [
         { foto: "/images/historia-1-v1.jpg", titulo: "El territorio", descripcion: "San Adolfo, Huila: ladera, niebla y sombra, 1.600–2.000 m s.n.m.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "Imagen ilustrativa" },
         { foto: "/images/historia-2-v1.jpg", titulo: "La cosecha", descripcion: "Grano por grano, a mano, sólo la cereza madura.", credito1Etiqueta: "", credito1Valor: "", credito2Etiqueta: "", credito2Valor: "", pie: "Imagen ilustrativa" },
@@ -1351,7 +1355,14 @@ async function sembrarAlbumNosotros(): Promise<void> {
     nosotrosFicha: {
       visible: true,
       variante: "etiqueta",
-      eyebrow: "La finca en cifras",
+      eyebrow: "Ficha de origen",
+      // `titulo`/`bajada`/`tituloTarjeta`/`notaPie` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): los
+      // cuatro campos nuevos que cierran el defecto medido (el dueño escribía la bajada dentro de
+      // `sello`) — contenido verbatim de la maqueta (refero-chamisas.md §3 punto 4).
+      titulo: "De dónde viene cada bolsa",
+      bajada: "Los mismos datos de la etiqueta de la bolsa, en grande y con sello.",
+      tituloTarjeta: "Café Las Chamisas · origen",
+      notaPie: "Café de origen · 100 % colombiano.",
       sello: "San Adolfo",
     },
     nosotrosInterludio: {

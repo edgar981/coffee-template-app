@@ -35,6 +35,8 @@ test('NosotrosEscenas: una escena SIN foto no se muestra, aunque tenga título y
       visible: true,
       variante: 'saintLaurent',
       esquineros: true,
+      eyebrow: '',
+      titulo: '',
       items: [
         { foto: '', titulo: 'Secado fantasma', descripcion: 'No debería aparecer.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
@@ -51,6 +53,8 @@ test('NosotrosEscenas: de dos escenas, la que SÍ tiene foto se muestra y la que
       visible: true,
       variante: 'saintLaurent',
       esquineros: true,
+      eyebrow: '',
+      titulo: '',
       items: [
         { foto: '', titulo: 'Secado fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
         { foto: '/tostion.jpg', titulo: 'Tostión', descripcion: 'Lotes pequeños.', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
@@ -69,6 +73,8 @@ test('NosotrosEscenas: el número visible sigue a la POSICIÓN ENTRE LAS VISIBLE
       visible: true,
       variante: 'saintLaurent',
       esquineros: true,
+      eyebrow: '',
+      titulo: '',
       items: [
         { foto: '', titulo: 'Cosecha fantasma', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
         { foto: '/secado.jpg', titulo: 'Secado', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
@@ -87,6 +93,8 @@ test('NosotrosEscenas: sin descripción no se muestra ningún párrafo extra, y 
       visible: true,
       variante: 'saintLaurent',
       esquineros: true,
+      eyebrow: '',
+      titulo: '',
       items: [
         { foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: 'Cuándo', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' },
       ],
@@ -104,6 +112,8 @@ test('NosotrosEscenas: con toggle `visible:false` devuelve null aunque haya esce
       visible: false,
       variante: 'saintLaurent',
       esquineros: true,
+      eyebrow: '',
+      titulo: '',
       items: [{ foto: '/cosecha.jpg', titulo: 'Cosecha', descripcion: '', credito1Etiqueta: '', credito1Valor: '', credito2Etiqueta: '', credito2Valor: '', pie: '' }],
     },
   };
@@ -129,6 +139,10 @@ test('NosotrosFicha: con tiendaCreditos bajo el piso (2 filas completas) sigue o
       cifra3Numero: '52', cifra3Rotulo: 'años',
       variante: 'tinta',
       sello: '',
+      titulo: '',
+      bajada: '',
+      tituloTarjeta: '',
+      notaPie: '',
     },
     tiendaCreditos: {
       visible: true,
@@ -170,6 +184,10 @@ test('NosotrosFicha: con tiendaCreditos en el piso (3 filas completas), SÍ rend
       cifra3Numero: '52', cifra3Rotulo: 'años',
       variante: 'tinta',
       sello: '',
+      titulo: '',
+      bajada: '',
+      tituloTarjeta: '',
+      notaPie: '',
     },
     tiendaCreditos: {
       visible: true,
@@ -198,6 +216,10 @@ test('NosotrosFicha: una cifra con `numero` vacío se omite (slot sobrevive al f
       cifra3Numero: '52', cifra3Rotulo: 'años',
       variante: 'tinta',
       sello: '',
+      titulo: '',
+      bajada: '',
+      tituloTarjeta: '',
+      notaPie: '',
     },
     tiendaCreditos: {
       visible: true,

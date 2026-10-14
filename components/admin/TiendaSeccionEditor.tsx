@@ -41,7 +41,8 @@ import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
 import { derivarCasillasCafes } from '@/lib/storefront/casillas-cafes';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
-import { condicionCampoInactiva, resumenBloqueTarjeta, vaciosDeBloqueTarjeta, tiendaCreditosPisoIncompleto } from '@/lib/admin/editor-orden-y-lienzo';
+import { condicionCampoInactiva, resumenBloqueTarjeta, vaciosDeBloqueTarjeta } from '@/lib/admin/editor-orden-y-lienzo';
+import { filaSeccionEstado } from '@/lib/admin/fila-seccion-estado';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
 import type { CreditoItem } from '@/lib/tienda/creditos';
 import { opcionesDestaque } from '@/lib/storefront/planes-suscripcion';
@@ -1332,35 +1333,46 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
   // `oculta` = el TOGGLE apagado (para el badge "Oculta"). `repeaterVacio` = una lista sin ítems, que
   // también hace que la sección no se renderice (hide-on-empty). `noSeMuestra` cubre las dos para el
   // placeholder de la vista/tarjeta: sin él, un repeater vacío deja la vista en BLANCO, que se lee como
-  // roto. El mensaje distingue el porqué (toggle vs lista vacía).
-  const oculta = config.ocultable && form.visible === false;
+  // roto. El mensaje distingue el porqué (toggle vs lista vacía / piso incompleto, propio o cruzado).
+  //
+  // § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — EXTRAÍDO a `filaSeccionEstado` (§ lib/admin/fila-seccion-
+  // estado.ts) para poder afirmarlo en un test — este componente no se puede montar (el repo no usa
+  // React Testing Library para render con interacción). Generaliza al PISO CRUZADO
+  // (`config.pisoCruzado`, hoy sólo `nosotrosFicha` → `tiendaCreditos`): antes el piso de
+  // `tiendaCreditos` («menos de 3 filas completas», § `creditosVisibles`, lib/tienda/creditos.ts)
+  // sólo se evaluaba para la fila de `tiendaCreditos` consigo misma, así que "Ficha de la finca"
+  // podía no mostrarse sin que su propia fila lo dijera.
   const items = config.repeater ? form[config.repeater.itemsKey] : undefined;
-  const repeaterVacio = !!config.repeater && !(Array.isArray(items) && items.length > 0);
-  // § EDITOR-COMPOSICION-CAMPOS-1 (item 4, SC3 de la auditoría) — el AUTO-GATE declarado
-  // (`config.seMuestraSiCampo`): la sección se auto-oculta aunque el interruptor esté encendido si
-  // ese campo está vacío (sin foto/sin frase/sin titular). `campoGateVacio` es el valor vacío en SÍ
-  // —se reusa para el motivo en la fila colapsada, abajo— y `noSeMuestra` lo suma a las dos causas
-  // que ya cubría.
-  const campoGateVacio = !!config.seMuestraSiCampo && String(form[config.seMuestraSiCampo] ?? '').trim() === '';
-  // § EDITOR-ORDEN-Y-LIENZO-2, item 5 — el PISO de `tiendaCreditos` («menos de 3 filas completas»,
-  // § `creditosVisibles`/`MIN_FILAS_CREDITOS`, lib/tienda/creditos.ts) es un CUARTO motivo de
-  // `noSeMuestra` que `repeaterVacio` no cubre: una lista con 4 ítems y sólo 2 completos NO está
-  // vacía (`items.length > 0`), así que la tarjeta se veía "visible" aunque la tienda real
-  // (`TiendaCreditos.tsx`/`NosotrosFicha.tsx`) la oculte — el defecto que esta sección existe para
-  // avisar en las OTRAS secciones (`seMuestraSiCampo`/repeater vacío), pero no en la suya propia.
-  // Específico de `tiendaCreditos` a propósito: es la ÚNICA sección con este piso de COMPLETITUD (no
-  // sólo de cardinalidad) — generalizarlo a un campo de `SeccionConfig` sería infraestructura para
-  // un solo consumidor. EXTRAÍDO a `tiendaCreditosPisoIncompleto` (§ lib/admin/editor-orden-y-
-  // lienzo.ts) para poder afirmarlo en un test — este componente no se puede montar (el repo no usa
-  // React Testing Library para render con interacción).
-  const creditosPisoIncompleto = tiendaCreditosPisoIncompleto(config.seccion, repeaterVacio, (items as CreditoItem[] | undefined) ?? []);
-  const noSeMuestra = oculta || repeaterVacio || campoGateVacio || creditosPisoIncompleto;
+  const pisoCruzadoItems = config.pisoCruzado
+    ? (valoresCruzados?.[config.pisoCruzado]?.items as CreditoItem[] | undefined) ?? []
+    : undefined;
+  const estadoFila = filaSeccionEstado({
+    ocultable: config.ocultable,
+    formVisible: form.visible,
+    esTiendaCreditos: config.seccion === 'tiendaCreditos',
+    repeaterItemsKey: config.repeater?.itemsKey,
+    items,
+    seMuestraSiCampo: config.seMuestraSiCampo,
+    valorCampoGate: config.seMuestraSiCampo ? form[config.seMuestraSiCampo] : undefined,
+    pisoCruzadoItems,
+  });
+  const { oculta, repeaterVacio, campoGateVacio, creditosPisoIncompleto, noSeMuestra } = estadoFila;
+  // El PISO CRUZADO necesita decir DÓNDE se cargan las filas que faltan — a diferencia de
+  // `tiendaCreditos` consigo misma (que ya está parada ahí), `nosotrosFicha` vive en OTRA página.
+  // `?seccion=<SeccionVista>` es el MISMO deep-link del aviso de configuración del Dashboard
+  // (§ EditorTiendaPantallaCompleta.tsx: resuelve la página objetivo vía `SECCIONES_TIENDA.find`, y
+  // abre/resalta esa fila) — no un `?pagina=` que esta ruta no lee.
+  const enlacePisoCruzado = config.pisoCruzado
+    ? { href: `/admin/tienda?seccion=${config.pisoCruzado}`, etiqueta: `Ir a «${SECCIONES_TIENDA.find((c) => c.seccion === config.pisoCruzado)?.titulo ?? config.pisoCruzado}»` }
+    : undefined;
   const avisoNoSeMuestra = oculta
     ? 'Actívala con el interruptor para verla aquí.'
     : repeaterVacio
       ? 'La lista está vacía — agrega el primero para verla aquí.'
       : creditosPisoIncompleto
-        ? 'Tiene menos de 3 filas completas (rótulo y valor) — agrega al menos una más para verla aquí. Tampoco se muestra «Ficha de la finca» en /nosotros, que mira estas mismas filas.'
+        ? (config.seccion === 'tiendaCreditos'
+          ? 'Tiene menos de 3 filas completas (rótulo y valor) — agrega al menos una más para verla aquí. Tampoco se muestra «Ficha de la finca» en /nosotros, que mira estas mismas filas.'
+          : 'Tiene menos de 3 filas completas en «Créditos: ficha de origen» (página Tienda) — agrega al menos una más para verla aquí.')
         : `Falta «${config.campos.find((c) => c.name === config.seMuestraSiCampo)?.label ?? config.imagenes.find((i) => i.name === config.seMuestraSiCampo)?.label ?? config.seMuestraSiCampo}» — complétalo para verla aquí.`;
   // En EDICIÓN se muestra siempre (incluido "Guardado", que confirma que no hay nada pendiente); en
   // la TARJETA sólo cuando hay algo que decir (`estado !== 'guardado'` o una subida en curso).
@@ -2602,7 +2614,15 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
             {noSeMuestra && (
               <div className="duna-card duna-card__pad" style={{ marginBottom: 'var(--duna-space-4)' }}>
                 <p className="duna-title" style={{ margin: 0 }}>No se muestra en la tienda</p>
-                <p className="duna-sub" style={{ marginTop: '4px' }}>{avisoNoSeMuestra}</p>
+                <p className="duna-sub" style={{ marginTop: '4px' }}>
+                  {avisoNoSeMuestra}
+                  {/* § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — el PISO CRUZADO "lleva a donde se cargan"
+                      (el spec): un enlace a la sección de la que depende, no sólo el texto. Sólo cuando
+                      ESA es la causa — un toggle apagado no necesita ir a ningún lado más. */}
+                  {creditosPisoIncompleto && enlacePisoCruzado && (
+                    <> <Link href={enlacePisoCruzado.href} className="duna-link">{enlacePisoCruzado.etiqueta}</Link></>
+                  )}
+                </p>
               </div>
             )}
             {/* El PANEL RECESADO (--duna-bg) que CONTIENE las piezas; cada bloque es una PIEZA elevada

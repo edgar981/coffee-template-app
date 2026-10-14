@@ -15,6 +15,26 @@
 // en el modelo (serían N campos nuevos por una fila de la que no hay garantía de cardinalidad fija),
 // así que una marca de línea NEUTRA (no un ícono de café) cumple "iconos de línea" sin inventar una
 // capacidad de selección que nadie pidió.
+//
+// § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — CUATRO AJUSTES medidos contra la maqueta
+// (`.scratch/chamisas-paginas/nosotros-suscripciones.html`, `.fic`/`.fic-g`/`.fic-tx`/`.fic-card`):
+//
+// 1. COLUMNA DE TEXTO a la izquierda (`titulo`/`bajada`, § `NosotrosFichaContent`) — ESTE era el
+//    hueco que el defecto medía: sin estos dos campos el dueño escribió la bajada DENTRO de `sello`,
+//    porque no había otro campo libre bajo esta composición. `eyebrow` se REUSA (mismo campo que
+//    «tinta»); `titulo`/`bajada` son NUEVOS, sólo con efecto acá.
+// 2. LA TARJETA gana `tituloTarjeta` (el h3 "Café {negocio} · origen" de la maqueta — texto LIBRE del
+//    dueño, nunca derivado de `SiteSetting.nombre`: este componente no tiene el `negocio` por prop,
+//    § CLAUDE.md "El {negocio} del fallback llega por PROP" — y `notaPie` (la frase de cierre bajo la
+//    retícula). Los DOS opcionales, § el invariante #44 — ningún claim de origen/país se fabrica.
+// 3. EL SELLO se reposiciona (`top:-30px`/`right:12px`, rotado -12°, como `.fic-seal` de la maqueta —
+//    ANTES vivía a `-top-4 right-6 rotate-[-6deg]`, ni la posición ni el ángulo correctos) y la grilla
+//    de créditos pasa a DOS COLUMNAS CON FILETE PUNTEADO superior (`border-t border-dashed`, como
+//    `.fc{border-top:1px dashed var(--field)}`), no `border-b` sólido — el filete PUNTEADO es el
+//    lenguaje visual de toda la pieza (el borde de la tarjeta, el lomo del álbum vecino).
+// 4. SIN FILAS COMPLETAS, LA TARJETA SIGUE RENDERIZANDO — con una grilla vacía, nunca un bloque en
+//    blanco: el gate real (`creditosVisibles`) vive en `NosotrosFicha.tsx`, ANTES de llegar acá
+//    (§ ese dispatcher); si esta pieza se alcanza a renderizar, SIEMPRE hay ≥3 filas.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { Minus } from 'lucide-react';
 import { filasCompletas } from '@/lib/tienda/creditos';
@@ -25,39 +45,69 @@ export default function NosotrosFichaEtiqueta() {
   const { nosotrosFicha, tiendaCreditos, navTratamiento } = useSiteContent();
   const filas = filasCompletas(tiendaCreditos.items);
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  const { eyebrow, titulo, bajada, tituloTarjeta, sello, notaPie } = nosotrosFicha;
 
   return (
-    <section className="bg-[var(--sf-fondo)] py-20">
-      <div className={`${contenedorClase} mx-auto`}>
-        <div
-          className="relative overflow-hidden rounded-[24px] border-2 border-dashed border-[var(--sf-tinta)] p-8 sm:p-12"
-          style={{ backgroundColor: 'var(--sf-superficie)' }}
-        >
-          {nosotrosFicha.eyebrow.trim() !== '' && (
-            <p className="mb-8 text-xs font-medium uppercase tracking-[0.2em] text-[var(--sf-tinta)]/70">
-              <CampoEditable campo="nosotrosFicha.eyebrow">{nosotrosFicha.eyebrow}</CampoEditable>
+    <section className="bg-[var(--sf-fondo)] pt-[72px] lg:pt-[104px]">
+      <div className={`${contenedorClase} mx-auto grid gap-[22px] lg:grid-cols-[4fr_7fr] lg:items-start lg:gap-16`}>
+        {/* LA COLUMNA DE TEXTO (§ el ajuste 1, arriba). */}
+        <div>
+          {eyebrow.trim() !== '' && (
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-tinta)]">
+              <CampoEditable campo="nosotrosFicha.eyebrow">{eyebrow}</CampoEditable>
             </p>
           )}
-          <div className="grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
+          {titulo.trim() !== '' && (
+            <h2 className="mt-1.5 font-playfair text-[28px] leading-[1.15] text-[var(--sf-tinta)] lg:text-[32px]">
+              <CampoEditable campo="nosotrosFicha.titulo">{titulo}</CampoEditable>
+            </h2>
+          )}
+          {bajada.trim() !== '' && (
+            <p className="mt-2.5 max-w-[40ch] text-[16px] text-[var(--sf-tinta)]">
+              <CampoEditable campo="nosotrosFicha.bajada" multilinea>{bajada}</CampoEditable>
+            </p>
+          )}
+        </div>
+
+        {/* LA TARJETA PUNTEADA. SIN `overflow-hidden` a propósito (§ el mismo defecto que la Apertura
+            «Álbum», § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — el sello cuelga de un borde NEGATIVO
+            (`-top-[30px]`): recortarlo lo habría cortado contra la propia tarjeta, igual que el
+            sticker se cortaba contra el arco. No hace falta para redondear: no hay una imagen a
+            sangre adentro que necesite máscara, sólo texto con relleno. */}
+        <div
+          className="relative rounded-[24px] border-2 border-dashed border-[var(--sf-tinta)] p-5 pt-5 pb-[14px] lg:p-7 lg:pb-[18px]"
+          style={{ backgroundColor: 'var(--sf-superficie)' }}
+        >
+          {tituloTarjeta.trim() !== '' && (
+            <h3 className="pr-24 font-playfair text-xl text-[var(--sf-tinta)] lg:text-2xl">
+              <CampoEditable campo="nosotrosFicha.tituloTarjeta">{tituloTarjeta}</CampoEditable>
+            </h3>
+          )}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2">
             {filas.map((fila, i) => (
               <div
                 key={`${fila.etiqueta}-${i}`}
-                className="flex items-start gap-3 border-b border-[var(--sf-tinta)]/15 pb-4"
+                className="flex items-start gap-2.5 border-t border-dashed border-[var(--sf-tinta)]/25 py-3 sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(odd)]:pr-5 sm:[&:nth-child(even)]:pl-5"
               >
-                <Minus aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-[var(--sf-tinta)]/50" />
+                <Minus aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--sf-tinta)]" />
                 <div>
-                  <p className="text-[11.5px] font-bold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/70">{fila.etiqueta}</p>
-                  <p className="text-[15px] text-[var(--sf-tinta)]">{fila.valor}</p>
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--sf-tinta)]/70">{fila.etiqueta}</p>
+                  <p className="font-playfair text-[15px] text-[var(--sf-tinta)] lg:text-[17px]">{fila.valor}</p>
                 </div>
               </div>
             ))}
           </div>
-          {nosotrosFicha.sello.trim() !== '' && (
+          {notaPie.trim() !== '' && (
+            <p className="mt-2.5 text-[13px] text-[var(--sf-tinta)]/60">
+              <CampoEditable campo="nosotrosFicha.notaPie">{notaPie}</CampoEditable>
+            </p>
+          )}
+          {sello.trim() !== '' && (
             <span
-              className="absolute -top-4 right-6 rotate-[-6deg] rounded-full border-2 border-[var(--sf-tinta)] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--sf-tinta)]"
+              className="sf-pildora absolute -top-[30px] right-3 -rotate-12 whitespace-nowrap border-2 border-[var(--sf-tinta)] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--sf-tinta)] lg:-top-10 lg:right-6"
               style={{ backgroundColor: 'var(--sf-fondo)' }}
             >
-              <CampoEditable campo="nosotrosFicha.sello">{nosotrosFicha.sello}</CampoEditable>
+              <CampoEditable campo="nosotrosFicha.sello">{sello}</CampoEditable>
             </span>
           )}
         </div>

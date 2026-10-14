@@ -1,6 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { LAMINAS_MAX, laminasVisibles, contadorLamina, repartoPaginasLaminas } from './laminas';
+import {
+  LAMINAS_MAX, laminasVisibles, contadorLamina, repartoPaginasLaminas, esLaminaAncha, tituloLamina,
+} from './laminas';
 
 interface LaminaFake {
   foto: string;
@@ -96,5 +98,62 @@ describe('repartoPaginasLaminas', () => {
     const { izquierda, derecha } = repartoPaginasLaminas(['única']);
     assert.deepEqual(izquierda, ['única']);
     assert.deepEqual(derecha, []);
+  });
+});
+
+describe('esLaminaAncha', () => {
+  test('el ejemplo de la maqueta: página de 3 → ancha, angosta, angosta', () => {
+    assert.equal(esLaminaAncha(0, 3), true);
+    assert.equal(esLaminaAncha(1, 3), false);
+    assert.equal(esLaminaAncha(2, 3), false);
+  });
+
+  test('el ejemplo de la maqueta: página de 2 → ancha, ancha (la sobrante no queda sola a media fila)', () => {
+    assert.equal(esLaminaAncha(0, 2), true);
+    assert.equal(esLaminaAncha(1, 2), true);
+  });
+
+  test('página de 1 → la única va ancha', () => {
+    assert.equal(esLaminaAncha(0, 1), true);
+  });
+
+  test('página de 4 → ancha, angosta, angosta, ancha — de las 3 que quedan tras la primera, 2 emparejan y la última sobrante va ancha', () => {
+    assert.equal(esLaminaAncha(0, 4), true);
+    assert.equal(esLaminaAncha(1, 4), false);
+    assert.equal(esLaminaAncha(2, 4), false);
+    assert.equal(esLaminaAncha(3, 4), true);
+  });
+
+  test('página de 5 → ancha, angosta×2, angosta×2 — las 4 que quedan emparejan sin sobrante', () => {
+    assert.equal(esLaminaAncha(0, 5), true);
+    assert.equal(esLaminaAncha(1, 5), false);
+    assert.equal(esLaminaAncha(2, 5), false);
+    assert.equal(esLaminaAncha(3, 5), false);
+    assert.equal(esLaminaAncha(4, 5), false);
+  });
+});
+
+describe('tituloLamina', () => {
+  test('título SIN el prefijo "Lámina" → se antepone "Lámina NN · "', () => {
+    assert.equal(tituloLamina('El territorio', 1), 'Lámina 01 · El territorio');
+  });
+
+  test('el dueño YA escribió "Lámina 01 · " — no se duplica (el defecto medido)', () => {
+    assert.equal(tituloLamina('Lámina 01 · El territorio', 1), 'Lámina 01 · El territorio');
+  });
+
+  test('el prefijo se detecta sin importar mayúsculas ni el separador', () => {
+    assert.equal(tituloLamina('LAMINA 02: La cosecha', 2), 'LAMINA 02: La cosecha');
+    assert.equal(tituloLamina('lámina 3 - Las manos', 3), 'lámina 3 - Las manos');
+    assert.equal(tituloLamina('Lámina 4 Secado', 4), 'Lámina 4 Secado');
+  });
+
+  test('título vacío → sólo el número, sin separador colgando', () => {
+    assert.equal(tituloLamina('', 5), 'Lámina 05');
+    assert.equal(tituloLamina('   ', 5), 'Lámina 05');
+  });
+
+  test('espacios sobrantes se recortan', () => {
+    assert.equal(tituloLamina('  El territorio  ', 1), 'Lámina 01 · El territorio');
   });
 });

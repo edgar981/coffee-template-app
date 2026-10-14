@@ -68,9 +68,14 @@ import {
 // (§ `CampoTexto.seccionCruzada`, tienda-secciones.ts) — hoy sólo `marquesina` (sus campos `texto`/
 // `productoSlug` se muestran en la tarjeta del hero). Derivado de `SECCIONES_TIENDA`, no una lista a
 // mano: una sección cruzada nueva entra sola, sin tocar este archivo salvo por el cómputo de abajo.
-const SECCIONES_CON_CAMPOS_CRUZADOS = new Set<SeccionVista>(
-  SECCIONES_TIENDA.flatMap((c) => c.campos.filter((f) => f.seccionCruzada).map((f) => f.seccionCruzada!)),
-);
+// § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — suma el PISO CRUZADO (`SeccionConfig.pisoCruzado`, hoy sólo
+// `nosotrosFicha` → `tiendaCreditos`): sin esto, `valoresCruzados.tiendaCreditos` quedaría `undefined`
+// mientras se edita /nosotros y el banner "No se muestra en la tienda" de la Ficha no podría leer los
+// ítems REALES de Créditos (viviendo en la página Tienda) para avisar cuántas filas le faltan.
+const SECCIONES_CON_CAMPOS_CRUZADOS = new Set<SeccionVista>([
+  ...SECCIONES_TIENDA.flatMap((c) => c.campos.filter((f) => f.seccionCruzada).map((f) => f.seccionCruzada!)),
+  ...SECCIONES_TIENDA.filter((c) => c.pisoCruzado).map((c) => c.pisoCruzado!),
+]);
 
 // § EDITOR-TIENDA-CROMO-1 — el ENCABEZADO, el MENÚ y el PIE entran a «Secciones» como tres filas
 // MÁS, store-wide (se ven igual en cualquier página del selector) — nunca como `SeccionVista`:

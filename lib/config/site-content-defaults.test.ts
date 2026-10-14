@@ -779,6 +779,16 @@ test('REGISTRY.nosotrosEscenas.imagenes = [foto] y foto/titulo son requeridos (t
   assert.equal(REGISTRY.nosotrosEscenas.repeater!.campos.titulo, 'requerido');
 });
 
+test('nosotrosEscenas.eyebrow/titulo (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): nacen vacíos, un valor guardado sobrevive, opcionales — nunca un default fabricado', () => {
+  assert.equal(DEFAULTS.nosotrosEscenas.eyebrow, '');
+  assert.equal(DEFAULTS.nosotrosEscenas.titulo, '');
+  const r = resolverSiteContent({
+    nosotrosEscenas: { eyebrow: 'Álbum de finca', titulo: 'Cinco láminas, de la montaña a la bolsa' },
+  });
+  assert.equal(r.nosotrosEscenas.eyebrow, 'Álbum de finca');
+  assert.equal(r.nosotrosEscenas.titulo, 'Cinco láminas, de la montaña a la bolsa');
+});
+
 // ── LA FICHA de /nosotros (§ ONIX-NOSOTROS-ESCENAS-FICHA-1) — tres cifras FIJAS, nace VACÍA ─────
 
 test('nosotrosFicha: sin nada guardado → TODO vacío (ningún número de finca vive en el código)', () => {
@@ -812,6 +822,27 @@ test('nosotrosFicha: `ocultable: true`, sin repeater (slots FIJOS, no una lista)
   assert.equal(def.repeater, undefined);
   assert.equal(seccionEsVisible(def, { visible: true }), true);
   assert.equal(seccionEsVisible(def, { visible: false }), false);
+});
+
+test('nosotrosFicha.titulo/bajada/tituloTarjeta/notaPie (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): nacen vacíos, cada uno sobrevive por separado — el defecto que cierran es que la bajada dejó de necesitar el campo `sello`', () => {
+  assert.equal(DEFAULTS.nosotrosFicha.titulo, '');
+  assert.equal(DEFAULTS.nosotrosFicha.bajada, '');
+  assert.equal(DEFAULTS.nosotrosFicha.tituloTarjeta, '');
+  assert.equal(DEFAULTS.nosotrosFicha.notaPie, '');
+  const r = resolverSiteContent({
+    nosotrosFicha: {
+      titulo: 'De dónde viene cada bolsa',
+      bajada: 'Los mismos datos de la etiqueta de la bolsa, en grande y con sello.',
+      tituloTarjeta: 'Café Las Chamisas · origen',
+      notaPie: 'Café de origen · 100 % colombiano.',
+      sello: 'San Adolfo',
+    },
+  });
+  assert.equal(r.nosotrosFicha.titulo, 'De dónde viene cada bolsa');
+  assert.equal(r.nosotrosFicha.bajada, 'Los mismos datos de la etiqueta de la bolsa, en grande y con sello.');
+  assert.equal(r.nosotrosFicha.tituloTarjeta, 'Café Las Chamisas · origen');
+  assert.equal(r.nosotrosFicha.notaPie, 'Café de origen · 100 % colombiano.');
+  assert.equal(r.nosotrosFicha.sello, 'San Adolfo');
 });
 
 // ── El CTA DE CIERRE de /nosotros (§ NOSOTROS-COMPOSICION-1) — nace VACÍO, TODO opcional ─────────

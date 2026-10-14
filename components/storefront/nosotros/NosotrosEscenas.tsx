@@ -50,7 +50,14 @@ export default function NosotrosEscenas() {
   // LA COMPOSICIÓN «ÁLBUM» (§ CHAMISAS-NOSOTROS-ALBUM-1): su propio hide-on-empty (sin láminas con
   // foto) vive DENTRO de `NosotrosEscenasAlbum` (devuelve `null`), igual que el resto de este archivo.
   if (nosotrosEscenas.variante === "album") {
-    return <NosotrosEscenasAlbum items={nosotrosEscenas.items} esquineros={nosotrosEscenas.esquineros} />;
+    return (
+      <NosotrosEscenasAlbum
+        items={nosotrosEscenas.items}
+        esquineros={nosotrosEscenas.esquineros}
+        eyebrow={nosotrosEscenas.eyebrow}
+        titulo={nosotrosEscenas.titulo}
+      />
+    );
   }
 
   const escenas = nosotrosEscenas.items

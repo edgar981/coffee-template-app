@@ -420,6 +420,17 @@ export interface SeccionConfig {
    *  secciones, y los casos más finos — el piso de 3 filas de `tiendaCreditos`/`nosotrosFicha`, que
    *  depende de OTRA sección — siguen cubiertos sólo por su `notaVisibilidad`, no por este campo). */
   seMuestraSiCampo?: string;
+  /** § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — EL PISO CRUZADO: cuando esta sección se oculta porque
+   *  OTRA (`tiendaCreditos`) tiene menos de 3 filas completas (§ `creditosVisibles`, lib/tienda/
+   *  creditos.ts) — hoy sólo `nosotrosFicha` lo declara, el caso que `seMuestraSiCampo` de arriba
+   *  deja explícitamente sin cubrir ("los casos más finos... que dependen de OTRA sección siguen
+   *  cubiertos sólo por su `notaVisibilidad`"). Nombra la `SeccionVista` de la que depende —mismo
+   *  patrón SERIALIZABLE que `seMuestraSiCampo`/`seccionCruzada`—; `TiendaPaginas.tsx` la suma a
+   *  `SECCIONES_CRUZADAS_DESTINO` para que `valoresCruzados` traiga sus `items` reales, y
+   *  `fila-seccion-estado.ts` (lib/admin/) la consulta junto al piso de la propia `tiendaCreditos`
+   *  para decidir `noSeMuestra`/el aviso DINÁMICO de la fila — ya no sólo el texto estático de
+   *  `notaVisibilidad`. Ausente = sin piso cruzado declarado (todas las demás secciones). */
+  pisoCruzado?: SeccionVista;
   /** Los INTERRUPTORES (switches) de sección — capacidades que se prenden/apagan, aparte del toggle
    *  de visibilidad de TODA la sección (`ocultable`). Ausente = sin interruptores (la mayoría de las
    *  secciones hoy). § `CampoBooleano` para el mecanismo de atenuación que cada uno puede activar. */
@@ -1458,7 +1469,16 @@ const NOSOTROS_ESCENAS: SeccionConfig = {
     { name: 'esquineros', label: 'Esquineros de álbum', hint: 'Sólo con la composición "Láminas". Las esquinas decorativas en terracota de cada lámina.' },
   ],
   imagenes: [],
-  campos: [],
+  // `eyebrow`/`titulo` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el encabezado de sección, SOLO con
+  // efecto bajo «Láminas» — la maqueta de Onix («Escenas») no dibuja un encabezado acá, la de Las
+  // Chamisas («Láminas») sí ("Álbum de finca" / "Cinco láminas, de la montaña a la bolsa").
+  campos: [
+    { name: 'eyebrow', label: 'Línea superior', opcional: true, composiciones: ['album'], hint: 'Sólo con la composición "Láminas". Ej. "Álbum de finca". Vacío: no se muestra.' },
+    { name: 'titulo', label: 'Título', opcional: true, composiciones: ['album'], hint: 'Sólo con la composición "Láminas". Ej. "Cinco láminas, de la montaña a la bolsa". Vacío: no se muestra.' },
+  ],
+  bloques: [
+    { tipo: 'seccion', campos: ['eyebrow', 'titulo'], composiciones: ['album'] },
+  ],
   repeater: {
     itemsKey: 'items',
     itemLabel: 'Escena',
@@ -1514,23 +1534,38 @@ const NOSOTROS_FICHA: SeccionConfig = {
   // /tienda no apaga ésta si las filas siguen completas.
   notaVisibilidad: 'Con menos de 3 filas completas en "Créditos: ficha de origen" (página Tienda), esta sección no se muestra aunque el interruptor de abajo esté encendido. Mira el CONTENIDO de esas filas, no su propio interruptor: apagarlas allá no apaga ésta si las filas siguen completas.',
   composiciones: OPCIONES_COMPOSICION_NOSOTROS_FICHA,
+  // § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — declara el piso cruzado para que el AVISO dinámico de la
+  // fila (no sólo `notaVisibilidad`, el texto estático de arriba) diga CUÁNTAS filas le faltan HOY,
+  // con el mismo mecanismo que ya usa `tiendaCreditos` consigo misma (§ `fila-seccion-estado.ts`).
+  pisoCruzado: 'tiendaCreditos',
   imagenes: [],
   campos: [
     { name: 'eyebrow', label: 'Línea superior', opcional: true, hint: 'Ej. "La finca en cifras". Vacío: no se muestra.' },
+    // § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — `titulo`/`bajada`: el defecto medido que los exige — sin
+    // ellos el dueño escribió la bajada DENTRO de `sello`, porque no había otro campo libre bajo
+    // «Etiqueta de bolsa».
+    { name: 'titulo', label: 'Título', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. "De dónde viene cada bolsa". Vacío: no se muestra.' },
+    { name: 'bajada', label: 'Bajada', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". La frase bajo el título. Vacío: no se muestra.' },
     { name: 'cifra1Numero', label: 'Cifra 1 · Número', opcional: true, composiciones: ['tinta'], hint: 'Sólo con la composición "Cifras". Ej. "1.600". Vacío: no se muestra esta cifra.' },
     { name: 'cifra1Rotulo', label: 'Cifra 1 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "msnm".' },
     { name: 'cifra2Numero', label: 'Cifra 2 · Número', opcional: true, composiciones: ['tinta'], hint: 'Vacío: no se muestra esta cifra.' },
     { name: 'cifra2Rotulo', label: 'Cifra 2 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "hectáreas".' },
     { name: 'cifra3Numero', label: 'Cifra 3 · Número', opcional: true, composiciones: ['tinta'], hint: 'Vacío: no se muestra esta cifra.' },
     { name: 'cifra3Rotulo', label: 'Cifra 3 · Rótulo', opcional: true, composiciones: ['tinta'], hint: 'Ej. "años".' },
-    { name: 'sello', label: 'Texto del sello', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. el nombre de la finca, como estampilla. Vacío: sin sello.' },
+    { name: 'sello', label: 'Texto del sello', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. el nombre de la finca, como estampilla rotada. Vacío: sin sello.' },
+    // `tituloTarjeta`/`notaPie` (§ CHAMISAS-APERTURA-ALBUM-AJUSTES-1): el encabezado DENTRO de la
+    // tarjeta punteada ("Café {negocio} · origen" en la maqueta) y la frase de cierre bajo la
+    // retícula — texto libre del dueño, nunca derivado ni fabricado (§ el invariante #44).
+    { name: 'tituloTarjeta', label: 'Título de la tarjeta', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. "Café {tu negocio} · origen". Vacío: no se muestra.' },
+    { name: 'notaPie', label: 'Nota al pie de la tarjeta', opcional: true, composiciones: ['etiqueta'], hint: 'Sólo con la composición "Etiqueta de bolsa". Ej. "Café de origen · 100 % colombiano." Vacío: no se muestra.' },
   ],
   bloques: [
     { tipo: 'seccion', campos: ['eyebrow'] },
+    { tipo: 'seccion', campos: ['titulo', 'bajada'], composiciones: ['etiqueta'] },
     { tipo: 'tarjeta', slot: 1, titulo: 'Cifra 1', campos: ['cifra1Numero', 'cifra1Rotulo'], composiciones: ['tinta'] },
     { tipo: 'tarjeta', slot: 2, titulo: 'Cifra 2', campos: ['cifra2Numero', 'cifra2Rotulo'], composiciones: ['tinta'] },
     { tipo: 'tarjeta', slot: 3, titulo: 'Cifra 3', campos: ['cifra3Numero', 'cifra3Rotulo'], composiciones: ['tinta'] },
-    { tipo: 'seccion', campos: ['sello'], composiciones: ['etiqueta'] },
+    { tipo: 'seccion', campos: ['tituloTarjeta', 'sello', 'notaPie'], composiciones: ['etiqueta'] },
   ],
 };
 

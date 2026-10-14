@@ -718,3 +718,29 @@ test('CHAMISAS-NOSOTROS-ALBUM-1: los campos nuevos de nosotrosApertura/Historia/
   }
   assert.equal(PENDIENTE_PANEL.length <= 7, true, 'el techo-trinquete no se mueve por este slice');
 });
+
+// § CHAMISAS-APERTURA-ALBUM-AJUSTES-1 — los SEIS campos nuevos de este slice (el encabezado de
+// «Láminas» + las cuatro líneas de «Etiqueta de bolsa» que separan la bajada del sello) tienen
+// control DE ENTRADA, mismo criterio que CHAMISAS-NOSOTROS-ALBUM-1 arriba. El trinquete sigue sin
+// moverse: ninguna exención nueva.
+test('CHAMISAS-APERTURA-ALBUM-AJUSTES-1: nosotrosEscenas.eyebrow/titulo y nosotrosFicha.titulo/bajada/tituloTarjeta/notaPie están LEÍDOS y CONTROLADOS, sin exención nueva', () => {
+  const leidos = camposLeidosPorTienda();
+  const controlados = camposControladosPorPanel();
+  const pendientes = new Set(PENDIENTE_PANEL.map((e) => e.campo));
+
+  const rutas = [
+    'nosotrosEscenas.eyebrow', 'nosotrosEscenas.titulo',
+    'nosotrosFicha.titulo', 'nosotrosFicha.bajada', 'nosotrosFicha.tituloTarjeta', 'nosotrosFicha.notaPie',
+  ];
+  for (const ruta of rutas) {
+    assert.ok(leidos.includes(ruta), `${ruta} debería estar en camposLeidosPorTienda()`);
+    assert.ok(controlados.includes(ruta), `${ruta} debería estar en camposControladosPorPanel()`);
+    assert.ok(!pendientes.has(ruta), `${ruta} no debería estar en PENDIENTE_PANEL`);
+  }
+
+  const huecos = huecosDelPanel({ conExenciones: false });
+  for (const ruta of rutas) {
+    assert.ok(!huecos.includes(ruta), `${ruta} no debería ser un hueco`);
+  }
+  assert.equal(PENDIENTE_PANEL.length <= 7, true, 'el techo-trinquete no se mueve por este slice');
+});

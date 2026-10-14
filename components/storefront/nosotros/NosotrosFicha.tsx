@@ -38,6 +38,8 @@ export default function NosotrosFicha() {
   // sigue gateando — la etiqueta de bolsa tampoco tiene nada que mostrar con menos de 3 filas.
   if (nosotrosFicha.variante === "etiqueta") {
     return <NosotrosFichaEtiqueta />;
+    // ↑ NosotrosFichaEtiqueta lee `nosotrosFicha`/`tiendaCreditos` DIRECTO por `useSiteContent()`
+    //   (igual que esta pieza), no por props — no hace falta threadear nada acá.
   }
 
   const cifras = [
