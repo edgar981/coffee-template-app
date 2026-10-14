@@ -64818,3 +64818,148 @@ dos defectos). Entra por `components/storefront/` (bytes del visitante — `Susc
 `npm test` **4797/4797**, `npm run test:integracion` **409/409**, `npm run verificar:nayoli:visual`
 **sin un solo píxel nuevo para Nayoli** (§ arriba). No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — «Casillas» deja de reusar la matriz de Taquilla: la fila es el CAFÉ, no la categoría (`CHAMISAS-CASILLAS-POR-CAFE-1`)
+
+**Alcance:** el owner, el mismo día que publicó «Casillas» en el panel de Las Chamisas: *"The preview
+of the /suscripciones planes doesn't show up in the page. I did the changes at las chamisas and it's
+still looking the same."* El orquestador midió el catálogo público real de Las Chamisas
+(`GET /api/catalog` de ese despliegue, el 2026-10-14) y encontró la causa: los tres cafés (Bourbon
+Rosado, Pacamara, Papayo) viven bajo la MISMA `categoria` («Café de especialidad») y el MISMO
+`peso_gramos` (340 g).
+
+### El defecto — Casillas le pidió prestado el eje equivocado a Taquilla
+
+`SuscripcionCasillas.tsx` (§ `CHAMISAS-SUSCRIPCIONES-CASILLAS-1`, 2026-10-12) nació reusando
+`derivarMatrizTaquilla`/`celdaDe` (`lib/tienda/taquilla.ts`) — la MISMA derivación de «Taquilla», donde
+la FILA es la `categoria` del producto y la COLUMNA el `peso_gramos`. Esa matriz es BINARIA: exige una
+celda por cada combinación fila×columna, y cae ENTERA a `null` si dos productos reclaman la misma
+celda (§ el docstring de `derivarMatrizTaquilla`, "LA VALIDEZ ES BINARIA"). Con los tres cafés de Las
+Chamisas compartiendo categoría y peso, los TRES reclaman la celda `("Café de especialidad", 340)` —
+`derivarMatrizTaquilla` devuelve `null`, y `SuscripcionPlanes.tsx` cae en silencio a «Tarjetas»,
+exactamente como si no hubiera catálogo, aunque el owner hubiera elegido y publicado «Casillas».
+
+No era un catálogo con huecos: era que `categoria` nunca fue el eje que distingue un café de otro —
+eso lo hace el NOMBRE del producto. La maqueta aprobada (`.scratch/chamisas-paginas/nosotros-
+suscripciones.html`) ya lo modelaba así: UNA FILA POR CAFÉ, no por categoría.
+
+### El fix — `derivarCasillasCafes`, una pieza PROPIA, sparse por tamaño de bolsa
+
+**`lib/storefront/casillas-cafes.ts`** (nueva, pura, capa 1): deriva la fila por `nombreBaseProducto`
+(`lib/tienda/taquilla.ts` — el MISMO recorte que ya usa Taquilla para el nombre antes de " — "; sin
+separador, el nombre completo ES el café, el caso real de Las Chamisas) y la columna por
+`peso_gramos`, SPARSE — a diferencia de la matriz de Taquilla, un café sin producto para un tamaño
+dado queda DESHABILITADO en su fila, no invalida la composición entera. El único umbral de invalidez
+es CERO cafés con al menos un producto con peso declarado (`cafes.length === 0`); un producto sin
+`peso_gramos` se omite, nunca invalida.
+
+- `derivarCasillasCafes(catalogo)` → `MatrizCasillasCafes | null` (`{ cafes, pesos, celdas }`).
+- `casillasCafesActivo(catalogo)` — la misma pregunta, nombrada (§ CLAUDE.md #39, dos voces del mismo
+  umbral), consumida por `SuscripcionPlanes.tsx` y el aviso del editor.
+- `productoDelCafe(matriz, cafe, pesoPreferido)` — el representativo de un café (color/imagen/notas):
+  el del peso preferido si existe, si no el de MENOR peso disponible para ese café.
+- `productoDePeso(matriz, peso)` — el primer producto (en orden de catálogo) que tenga ese peso, para
+  la miniatura del selector de tamaño.
+
+**`lib/storefront/suscripcion-taquilla.ts`** — `ItemCasilla.categoria` → `ItemCasilla.cafe`;
+`itemsCasillas` deja de asumir que toda fila tiene celda (ya no hace `.get(...)!`): filtra los cafés
+sin producto al peso elegido, y conserva la cantidad en `cantidades` por si el comprador vuelve a su
+tamaño anterior.
+
+**`SuscripcionCasillas.tsx`** — `matriz.filas`/`matriz.columnas` → `matriz.cafes`/`matriz.pesos`; cada
+tarjeta de café ahora puede estar DESHABILITADA (sin producto al peso activo): opacidad reducida,
+"No disponible en esta bolsa" en vez del precio, botones +/− deshabilitados. El selector de tamaño de
+bolsa (paso 2) SÓLO se muestra con `pesos.length > 1` — con uno solo (el caso real de Las Chamisas) no
+hay nada que elegir, y un botón solitario sería ceremonia sin decisión (§ el spec, item 1).
+
+**`SuscripcionPlanes.tsx`** — el gate que decide si se monta «Taquilla» o «Casillas» consultaba un
+ÚNICO chequeo compartido (`derivarMatrizTaquilla`) antes de mirar la variante elegida; ahora cada
+composición consulta SU PROPIO umbral: 'taquilla' sigue con `derivarMatrizTaquilla` (binaria, SIN
+CAMBIO — ver abajo), 'casillas' con `casillasCafesActivo` (sparse). Antes del fix, un catálogo válido
+para Casillas pero inválido para la matriz de Taquilla (como el de Las Chamisas) nunca llegaba a
+montar `SuscripcionCasillas`, sin importar qué variante tuviera elegida el owner.
+
+**`TiendaSeccionEditor.tsx`** (el panel) — gana el aviso gemelo del que ya existía para «Taquilla»
+(§ `EDITOR-COMPOSICION-CAMPOS-1`): bajo variante «Casillas» sin ningún café activo en el catálogo
+activo, el editor lo DICE ("la tienda está mostrando «Tarjetas» en su lugar, aunque acá diga
+«Casillas»") en vez de dejar que el select siga diciendo "Casillas" en silencio.
+
+### Taquilla (Onix) — SIN CAMBIO, demostrado por su propio test intacto
+
+`lib/tienda/taquilla.ts`/`lib/tienda/taquilla.test.ts` **no se tocaron**: ningún símbolo, ninguna
+línea. `derivarMatrizTaquilla` sigue siendo la derivación de «Taquilla», fila=categoría/columna=peso,
+binaria. Se demuestra por abstención, no por un test nuevo: el archivo completo quedó igual y su suite
+(11 tests) sigue verde sin modificación.
+
+### Figuras — medidas por ejecución
+
+- **El defecto, reproducido antes de arreglarlo**: `derivarMatrizTaquilla` sobre el catálogo real de
+  Las Chamisas (3 productos, misma `categoria`, mismo `peso_gramos: 340`) devuelve `null`
+  (`lib/storefront/casillas-cafes.test.ts`, el primer test del archivo). El MISMO catálogo, bajo
+  `derivarCasillasCafes`, da una matriz válida: `cafes: ['Bourbon Rosado', 'Pacamara', 'Papayo']`,
+  `pesos: [340]`.
+- **13 tests nuevos** en `lib/storefront/casillas-cafes.test.ts`: el defecto reproducido, el fix,
+  sparse (un café con 2 tamaños + dos con 1 → 4 celdas de 6 posibles), el umbral (vacío → null; TODO
+  sin peso → null; UN SOLO café activo → válido, el piso es 1 no 2), identificación por
+  `nombreBaseProducto` (no por `categoria` — dos cafés con la misma categoría siguen siendo dos
+  filas), `productoDelCafe`/`productoDePeso`.
+- **`lib/storefront/suscripcion-taquilla.test.ts`: 45 tests** (antes 42; +3: un café con cantidad>0
+  sin producto al peso elegido se omite; el render con UN solo producto ahora SÍ monta —el piso bajó
+  de "matriz completa" a "un café activo"—; el render de punta a punta con el catálogo REAL de Las
+  Chamisas —misma categoría, mismo peso— confirma que `SuscripcionPlanes` monta `SuscripcionCasillas`
+  con los tres cafés, y que el selector de bolsa queda fuera por haber un solo peso).
+- **Capturas en navegador real** (Chromium headless, `next build`+`next start`, Postgres efímero,
+  `npm run capturar:seccion --sembrar-casillas --sin-prototipo --ruta /suscripciones --accion-previa
+  casillas-dos-cafes`), con la siembra de `sembrarCasillas` CORREGIDA para reproducir la forma real
+  del catálogo (categoría ÚNICA «Café de especialidad» para los tres, en vez de una categoría por
+  café que evitaba el defecto por accidente): a **1440×1000** y **390×844**, los tres cafés se
+  muestran como filas independientes, sin selector de bolsa, con la Nota de pedido poblada
+  (Bourbon Rosado + Pacamara elegidos). Pares con la maqueta aprobada en
+  `.scratch/revision-owner/pares-casillas-por-cafe/` (`README.md` con el detalle).
+
+### Nayoli — cero píxeles nuevos, dígito a dígito contra el piso ya heredado
+
+`npm run verificar:nayoli:visual` (main vs. la punta de esta rama): las seis cifras —home
+165052/4608000·174711 crudo, `/tienda` 209/2433280·407, `/tienda/[slug]` main 1280×1981 vs rama
+1280×1917, `/checkout` 163/1152000·361, `/nosotros` 224/1152000·422, `/suscripciones`
+258/2144000·456, hover `automatica`/`eleccion` IDÉNTICOS— son, dígito a dígito, las MISMAS que
+`ONIX-TAQUILLA-FILETES-1` (el commit inmediatamente anterior en esta rama) ya midió y documentó como
+heredadas de slices previos. **CERO píxeles nuevos de este slice**: `SuscripcionCasillas.tsx` sólo se
+monta bajo `suscripcionPlanes.variante==='casillas'` (Nayoli nace `'tarjetas'`), y la captura de
+`/suscripciones` muestra la variante «Tarjetas» intacta. Verificado además por grep: ningún archivo
+fuera de `components/storefront/suscripciones/`, `lib/storefront/`, `components/admin/` y
+`scripts/` importa un símbolo que este slice tocó.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `SuscripcionCasillas.tsx`, `SuscripcionPlanes.tsx`,
+`TiendaSeccionEditor.tsx`, `lib/storefront/casillas-cafes.ts`, `lib/storefront/suscripcion-
+taquilla.ts` (`ItemCasilla`, `itemsCasillas`), `derivarMatrizTaquilla`, `capturar-seccion.ts`.
+
+`grep` de esos nombres contra `CLAUDE.md`: seis coincidencias, TODAS sobre `TiendaSeccionEditor` en
+general (su contrato de borrador, el editor por bloques, el uploader compartido, `categoriasListas`
+como prop) — NINGUNA describe el mecanismo de validez de Taquilla/Casillas ni ningún símbolo propio de
+este diff. Ninguna sentencia de CLAUDE.md se vuelve falsa.
+
+**Lo que SÍ queda desactualizado, y vive en este ledger, no en CLAUDE.md**: la entrada
+`CHAMISAS-SUSCRIPCIONES-CASILLAS-1` (2026-10-12, arriba) afirma que `SuscripcionCasillas.tsx` deriva
+"con la MISMA `derivarMatrizTaquilla`/`celdaDe` que ya usa «Taquilla»" y que `derivarMatrizTaquilla`
+es la razón de que "precio por confirmar" no exista. Las dos frases describían correctamente lo
+construido EN ESE MOMENTO; esta entrada las SUPERSEDE — no se edita la entrada vieja (ledger
+append-only), se deja este párrafo como puntero.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `approved: yes` (`approval-reason` del spec: el owner aprobó la maqueta el 2026-10-12, y
+el 2026-10-14 reportó que el cambio publicado "sigue viéndose igual" — la aprobación de la maqueta
+autoriza la escritura de este fix, nunca el merge). Entra por `components/storefront/` (bytes del
+visitante — `SuscripcionCasillas.tsx`, `SuscripcionPlanes.tsx`) y por nueva lógica de producto en
+`lib/storefront/`. Sin cambio de schema/migración, sin contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes`). Gate corrido en el árbol final (commit `749d1499`, tree
+`b529d6b5`): `tsc --noEmit` limpio, `npm test` **4813/4813**, `npm run test:integracion` **409/409**,
+`npm run verificar:nayoli:visual` **sin un solo píxel nuevo para Nayoli** (§ arriba, cifras idénticas
+al piso heredado de `ONIX-TAQUILLA-FILETES-1`). No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1`, sin mergear.
