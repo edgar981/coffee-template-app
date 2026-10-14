@@ -64963,3 +64963,151 @@ visitante — `SuscripcionCasillas.tsx`, `SuscripcionPlanes.tsx`) y por nueva l�
 `npm run verificar:nayoli:visual` **sin un solo píxel nuevo para Nayoli** (§ arriba, cifras idénticas
 al piso heredado de `ONIX-TAQUILLA-FILETES-1`). No es `GATE_RED`. Commiteado en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — El editor pedía `/api/site-content` SEIS veces al abrir; ahora una (`EDITOR-CARGA-RAPIDA-1`)
+
+### El defecto, medido antes de tocar nada
+
+El owner, abriendo el editor de Las Chamisas: *"it feels really lagged... It took like some time to
+really load without feeling lagged."* Con un arnés propio (`.scratch/medir-editor.mjs` — Postgres
+efímero + `npm run db:seed` + `next build`/`next start`, nunca `next dev`, sesión OWNER sembrada,
+Chromium vía Playwright, contando pedidos de red por ruta) se reprodujo exacto lo que la Performance
+API del owner ya había mostrado: al abrir `/editor/tienda` (Inicio), **`/api/site-content` se pedía
+SEIS veces**, todas en el mismo instante.
+
+Las seis venían de SEIS componentes AUTÓNOMOS que montan siempre juntos en el panel «Secciones» —
+`TiendaPaginas` (el doc compartido de las secciones de página) + `EncabezadoSeccion` + `MenuSeccion`
++ `FooterSeccion` + `VendedorSeccion` + `CompraSeccion` (los cuatro últimos: cromo store-wide +
+Identidad del vendedor + Camino de compra, cada uno con su PROPIO `cargar()` que hacía
+`fetch('/api/site-content')` completo por su cuenta, sin compartir nada entre sí). **No es la misma
+duplicación que ya cerró `§ La CASCADA de /admin/tienda` (CLAUDE.md, "el fetch 5→1")** — esa tanda
+consolidó el fetch de los editores de SECCIÓN DE PÁGINA (`TiendaSeccionEditor`, vía la prop `carga`
+que `TiendaPaginas` ya les baja) y dejó, a propósito, a `PaletaSeccion` con su GET propio ("Neto en
+la home: 6→2"). Los SEIS componentes de este slice nacieron DESPUÉS de esa tanda (`EDITOR-TIENDA-
+CROMO-1`, `PANEL-DETALLES-SITIO-1`, `TIENDA-LEGAL-1`, `COMPRA-LINEAS-ONIX-CHAMISAS-1`), cada uno
+reinventando un fetch propio sin que nadie notara que volvía a ser el mismo problema — la cuenta real
+en el mount pasó de "6→2" a 6 (ó 7 contando `PaletaSeccion`), sin que `CLAUDE.md` se actualizara.
+
+### El fix — `lib/editor/site-content-compartido.ts`, el MISMO patrón que ya existía en el archivo vecino
+
+`TiendaSeccionEditor.tsx` YA tenía la solución para este tipo de problema, sin que este slice la
+inventara: `cargarCatalogoReal`/`cargarRaicesTemaReal`, una promesa a nivel de MÓDULO que N instancias
+comparten, nunca un fetch por instancia. Este slice aplica el MISMO patrón al GET que faltaba:
+
+- **`obtenerSiteContentCompartido()`** — si ya hay una lectura en curso o resuelta, la REUSA. Seis
+  llamadores concurrentes al montar comparten UNA sola petición de red.
+- **`refrescarSiteContentCompartido()`** — SIEMPRE dispara una lectura nueva del servidor, y deja ese
+  resultado como la caché compartida. Existe porque servir la caché tras un "Descartar" mostraría el
+  estado de ANTES de la propia escritura — el bug que esto NO podía permitirse introducir.
+
+Los seis call sites (`TiendaPaginas.recargarDoc`, y el `cargar(inicial)` de los otros cinco) se
+editaron para usar `obtenerSiteContentCompartido()` en el MOUNT y `refrescarSiteContentCompartido()`
+en todo lo demás (page-switch, tras publicar/descartar) — la MISMA distinción `inicial`/no-`inicial`
+que el código ya tenía, sin inventar un concepto nuevo. `TiendaPaginas` necesitó un `montadoRef`
+propio porque su `recargarDoc()` corre tanto al MONTAR (puede compartir) como al CAMBIAR de página o
+tras una escritura (debe forzar fresco, § G1 de `EDITOR-ESTADO-PAGINAS-1`, sin tocar esa garantía).
+
+**`PaletaSeccion.tsx` y `TogglePagina.tsx` se dejaron SIN TOCAR, a propósito:**
+- `PaletaSeccion` sólo monta en modo `'tema'`, nunca en el mount de `'paginas'` que mostraba la
+  duplicación — no es parte de ESTE defecto medido. Tocarlo además exigiría razonar si su patrón de
+  remonte (`key={temaReloadKey}`) sigue sincronizado con la caché compartida; fuera del presupuesto
+  de este slice.
+- `TogglePagina` sólo monta en páginas apagables (Nosotros/Suscripciones, no Inicio): agrega UN fetch
+  de más en esos dos cambios de página (confirmado por la medición: `/api/site-content` = 2 en esas
+  dos fases, antes Y después — sin cambio, porque no se tocó). Es una duplicación mucho menor (1, no
+  6) y queda como follow-up (`EDITOR-CARGA-RAPIDA-TOGGLEPAGINA-1`, abajo).
+
+### Medido con el arnés — antes/después
+
+Tabla completa en `.scratch/revision-owner/editor-carga/TABLA.md` (no comiteada — `.scratch/` está
+gitignoreado; el detalle crudo vive en `antes.json`/`despues.json` del mismo directorio).
+
+| fase | `/api/site-content` antes → después | total pedidos antes → después |
+| --- | --- | --- |
+| abrir el editor (Inicio) | **6 → 1** | 115 → 110 |
+| cambiar a Suscripciones | 2 → 2 (sin cambio, § arriba) | 41 → 41 |
+| cambiar a Nosotros | 2 → 2 (sin cambio, § arriba) | 41 → 41 |
+
+**tPanelUsable/tVistaPrevia NO se movieron de forma medible en localhost** (288→295 ms, 481→474 ms
+en la fase de mount; diferencias de ±10-30 ms, ruido de una sola corrida sin latencia de red real).
+Es el resultado ESPERADO, no una señal de que el fix no sirve: el owner midió 1,8–3,7 **segundos**
+por cada petición duplicada contra el deploy real (Performance API, navegador real); en ese entorno
+cinco peticiones menos no son cinco peticiones más rápidas, son cinco peticiones que YA NO EXISTEN —
+el ahorro se mide en la RED que el owner usa, no en un servidor en el mismo proceso que el browser.
+
+### Tests — `lib/editor/site-content-compartido.test.ts`, 4 casos, colindante al módulo
+
+N llamadores concurrentes comparten un fetch (con la caché ya resuelta, y desde cero); `refrescar`
+siempre pega al servidor y dicho resultado queda como la caché nueva; un fetch fallido NO envenena la
+caché (el próximo llamador reintenta, no hereda el rechazo para siempre). Los cuatro corren bajo
+`node --test` (capa 1, sin base), reemplazando `globalThis.fetch` por un contador — el módulo no sabe
+ni le importa si corre en el navegador.
+
+### Lo que QUEDA para el servidor (fuera de `app/api/`, por la frontera de este slice)
+
+- **`TogglePagina.tsx` sigue con su GET independiente** (§ arriba) — follow-up menor,
+  `EDITOR-CARGA-RAPIDA-TOGGLEPAGINA-1`.
+- **El costo DOMINANTE del cambio de página no es `/api/site-content`, es el `<iframe
+  key={pagina}>` de `VistaTiendaIframe.tsx`.** Cada cambio de página fuerza un browsing-context
+  NUEVO para el storefront dentro del iframe, y la página que carga ahí dispara el PREFETCH
+  automático de Next.js de las rutas hermanas desde la nav propia del storefront — medido: cambiar a
+  "Nosotros" pide también `/suscripciones`×2, `/tienda`×2 y `/`×2, además de `/nosotros`×3. La causa
+  real (el prefetch) vive en los componentes de navegación del storefront
+  (`components/storefront/`), **fuera de `touches:` de este slice** — no se puede apagar
+  `prefetch={false}` en esos `<Link>` sin tocar ese árbol. Se evaluó remover el `key={pagina}` del
+  iframe (dejar que React actualice el `src` del MISMO elemento, reusando el mecanismo que el propio
+  "vigía de ruta" ya usa con `win.location.replace`) — es mecánicamente plausible (el `cargando`/
+  `onLoad` de `VistaTiendaIframe.tsx` ya NO dependen de la identidad del nodo, según su propio código)
+  pero se decidió NO tocarlo en este slice: son 715 líneas con razonamiento extenso y entrelazado
+  sobre remontes/carreras (scroll, vigía de ruta, token de restauración), y el ahorro real de quitar
+  SÓLO el remonte del elemento —sin tocar el prefetch, que es el costo mayor— es marginal frente al
+  riesgo de tocar esa pieza sin su propio presupuesto. Queda nombrado como
+  `EDITOR-CARGA-RAPIDA-IFRAME-REMONTE-1` para quien lo retome, con la medición de arriba como punto
+  de partida.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `TiendaPaginas.tsx` (`recargarDoc`), `EncabezadoSeccion.tsx`,
+`MenuSeccion.tsx`, `FooterSeccion.tsx`, `VendedorSeccion.tsx`, `CompraSeccion.tsx` (los seis
+`cargar`/`recargarDoc`), `lib/editor/site-content-compartido.ts` (nuevo).
+
+`grep` de esos nombres contra `CLAUDE.md`: **`TiendaPaginas` aparece en § "La CASCADA de /admin/
+tienda — LAZY-MOUNT de las previews, y el fetch 5→1"** (el punto [3] y [4], sobre todo). Ninguna
+frase de esa sección se vuelve FALSA por este diff — describen la consolidación de los editores de
+SECCIÓN DE PÁGINA (`TiendaSeccionEditor`, vía `carga` por props) y de `PaletaSeccion`, que este slice
+no tocó. **Pero la cifra "Neto en la home: 6→2" YA ESTABA desactualizada ANTES de este slice**, por
+un subsistema DISTINTO: los seis componentes de este diff (Encabezado/Menú/Pie/Vendedor/Compra +
+`TiendaPaginas`) nacieron en tandas posteriores a esa sección (`EDITOR-TIENDA-CROMO-1` y sucesoras,
+ninguna en `touches:` de este slice) y reintrodujeron fetches propios sin que esa cifra se
+actualizara — el conteo real en el mount, antes de hoy, era 6 (no 2). No se edita esa sección de
+CLAUDE.md acá (está fuera de `touches:` de este slice, y la deriva la causaron OTROS slices, no
+éste); se deja nombrada como `CLAUDE-MD-CASCADA-CIFRA-VENCIDA-1` en los open follow-ups. La sección
+entera, además, sigue describiendo la ruta vieja `/admin/tienda` como "el editor" — hoy esa ruta es
+sólo la portada (`TiendaPortada.tsx`) que reenvía a `/editor/tienda`; otra deriva de otro slice, no
+de éste, y tampoco se toca acá.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `writes: yes`, `approved: yes` (el owner reportó la lentitud del editor el 2026-10-14;
+la aprobación autoriza la escritura, nunca el merge). Entra a Tier 1 por tocar `components/admin/`
+dentro del árbol del editor de la tienda. El diff medido no toca schema/migración, no cambia un solo
+byte que un cliente/operador/dueño lea (los seis archivos tocados son TODOS admin-only —
+`EncabezadoSeccion`/`MenuSeccion`/`FooterSeccion`/`VendedorSeccion`/`CompraSeccion`/`TiendaPaginas` no
+se importan desde ninguna ruta de `app/(storefront)/`, verificado por `git status --short`: el diff
+completo vive en `components/admin/` + `lib/editor/`, ningún archivo de `components/storefront/` ni
+`app/(storefront)/`), y no cambia un contrato cruzado de repositorio. `npm run verificar:nayoli:visual`
+corrido sobre este árbol dio las MISMAS seis cifras, dígito a dígito, que `CHAMISAS-CASILLAS-POR-
+CAFE-1` ya documentó como heredadas de slices anteriores (home 165052/4608000·174711 crudo, `/tienda`
+209/2433280·407, `/tienda/[slug]` main 1280×1981 vs rama 1280×1917, `/checkout` 163/1152000·361,
+`/nosotros` 224/1152000·422, `/suscripciones` 258/2144000·456, hover `automatica`/`eleccion`
+IDÉNTICOS) — confirmación independiente de que este slice agrega CERO píxeles nuevos.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`owner-gate-requested` — el diff no falla ninguna de las tres condiciones de
+la política A, medido arriba; el dispatch de este slice pidió explícitamente parar en
+`AWAITING_APPROVAL` sin mergear, consistente con el resto de los slices de esta rama). Gate corrido
+en el árbol final (commit `46e427e6`, tree `fd501aae`): `tsc --noEmit` limpio, `npm test`
+**4817/4817** (+4 de este slice), `npm run test:integracion` **409/409**,
+`npm run verificar:nayoli:visual` **mismas seis cifras que el piso heredado** (§ arriba). No es
+`GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
