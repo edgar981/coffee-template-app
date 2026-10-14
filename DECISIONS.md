@@ -65111,3 +65111,254 @@ en el árbol final (commit `46e427e6`, tree `fd501aae`): `tsc --noEmit` limpio, 
 **4817/4817** (+4 de este slice), `npm run test:integracion` **409/409**,
 `npm run verificar:nayoli:visual` **mismas seis cifras que el piso heredado** (§ arriba). No es
 `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — CHAMISAS-APERTURA-ALBUM-AJUSTES-1: los cinco defectos que el owner midió sobre la
+Apertura/Escenas/Ficha de Las Chamisas — alto y sticker de la Apertura, panel de Láminas, Ficha
+invisible, y la fila "Apertura" marcada oculta en el editor
+
+**Pedido del owner** (2026-10-14, sobre `CHAMISAS-NOSOTROS-ALBUM-1` — publicada hace dos días, nunca
+mergeada, `slice/editor-secciones-1`): *"I applied the changes at /nosotros apertura and also
+nothing"*, seguido —tras el reporte del orquestador de tres defectos visibles— de *"yes queue it"*, y
+después: *"The editor doesn't show the preview for ficha de la finca either. The composition images
+at escenas don't match with the mockup. The sticker 'Cosecha 2026' over the image is cut. ficha de
+la finca doesn't show at all."* `observed-report: CHAMISAS-NOSOTROS-ALBUM-1`. La aprobación autoriza
+la ESCRITURA, nunca el merge.
+
+### Defecto 1 y 2 — la Apertura «Álbum»: banda vacía sobre el rótulo, sticker recortado
+
+**MEDIDO contra el CSS de la maqueta** (`.scratch/chamisas-paginas/nosotros-suscripciones.html`,
+`.cov`/`.cov-g`/`.arch-w`/`.stk`), no supuesto: `.cov{padding:28px 0 0}` — la maqueta NO fija un alto
+mínimo de sección, el alto lo da el contenido. `NosotrosAperturaAlbum.tsx` tenía
+`lg:min-h-[640px]` sobre el grid de dos columnas, y el arco (su contenido más alto) topa en
+`lg:max-h-[600px]` — 40px menos que el mínimo forzado. Con `lg:items-end` (correcto, coincide con
+`.cov-g{align-items:end}` de la maqueta), ese sobrante de 40px+ se repartía como banda vacía ARRIBA de
+las dos columnas, antes del rótulo — exactamente el defecto reportado. **Se quitó el `min-h`**; el
+`items-end` se conserva, ahora sin altura de más que repartir.
+
+**El sticker** vivía DENTRO del mismo `<div>` que `overflow-hidden rounded-t-full` recorta la foto al
+semicírculo — cualquier posición cerca del borde curvo se cortaba contra esa máscara (el follow-up ya
+abierto, `CHAMISAS-STICKER-APERTURA-RECORTE-1`, lo medía con "Cosecha 2026" y lo dejó como deviation
+aceptada). La maqueta (`.arch-w`) monta el sticker como HERMANO del arco, no hijo: se separó en un
+wrapper `relative` (sin `overflow-hidden`) que envuelve a la caja recortada Y al sticker, replicando
+`top:12%` (relativo al alto del arco) / `right:-8px`/`-14px` (cuelga del borde) de `.arch-w .stk`.
+**Cierra `CHAMISAS-STICKER-APERTURA-RECORTE-1`.**
+
+**Tercer ajuste, no reportado por el owner pero medido al comparar contra la maqueta móvil
+(`v-m-nosotros.jpg`):** en celular, el comentario del propio archivo decía "TEXTO — arriba del arco en
+celular" / "EL ARCO — arriba en celular", pero las clases `order-1`/`order-2` estaban invertidas
+respecto de ese comentario — el arco quedaba PRIMERO. Se corrigieron para que coincidan (texto
+`order-1`, arco `order-2`), afirmado con un test de ORDEN DOM (`lib/storefront/nosotros-apertura-
+album.test.ts`, compara `html.indexOf(titulo)` contra `html.indexOf('<img')`).
+
+### Defecto 4 — Escenas «Láminas»: de columna vertical apilada a la doble página de la maqueta
+
+**La causa de los ~2100px de alto** (medido en el reporte del orquestador): `Lamina` forzaba
+`aspect-[4/5]` (portrait) en TODAS las láminas, y el desktop apilaba cada página en `flex flex-col
+gap-10` — una columna, no una grilla. La maqueta (`.track`/`.pg`/`.lam .ph{height:300px}` a
+`≥960px`) es un PANEL recesado (`background:var(--surface);border-radius:24px;padding:28px`) con
+lomo punteado centrado, y cada página es un GRID de 2 columnas donde las láminas "anchas" ocupan la
+fila entera y las angostas se emparejan de a dos.
+
+**La regla ancha/angosta** (`esLaminaAncha`, `lib/storefront/laminas.ts`) sale de la POSICIÓN dentro
+de la página, no de un dato nuevo por ítem — el modelo no tiene (ni se le agrega) un campo de
+"orientación" por lámina; agregarlo habría sido una capacidad nueva que el spec no pide con la fuerza
+de los demás campos. Medida contra el ÚNICO ejemplo real (la maqueta, 5 láminas → páginas de 3 y 2):
+la PRIMERA lámina de cada página es siempre ancha; de las que quedan, se emparejan de a dos — y si
+sobra una suelta (cantidad impar de "las que quedan"), ésa TAMBIÉN va ancha en vez de sola a media
+fila. Reproduce exacto 01-ancha/02-angosta/03-angosta (página de 3) y 04-ancha/05-ancha (página de 2,
+el caso "1 sobrante" — confirmado contra la captura real, § abajo). Generaliza a cualquier reparto
+3-6, no sólo al caso de 5.
+
+**El encabezado** ("Álbum de finca" / "Cinco láminas, de la montaña a la bolsa") era un hueco real del
+modelo, no sólo de presentación: `nosotrosEscenas` no tenía campos `eyebrow`/`titulo` — el docstring
+original decía "la maqueta no dibuja un encabezado sobre las escenas", cierto SÓLO para la composición
+canónica «saintLaurent» (Onix), falso para «album». Dos campos NUEVOS, opcionales, sin efecto bajo
+«saintLaurent» — el patrón ya establecido para campos de composición única. El CONTADOR ("02/05") se
+movió del pie del carrusel al encabezado (como `.lams-hd` de la maqueta), con el `actual` del
+`IntersectionObserver` LEVANTADO al padre (antes vivía dentro de `Carrusel`) para que las dos UI
+—encabezado y carrusel— no puedan desincronizarse mostrando dos números distintos.
+
+**El número no se duplica** (`tituloLamina`, `lib/storefront/laminas.ts`): el defecto exacto que
+reportó el owner — "Lámina 01 · Lámina 01 · El territorio" — porque el dueño ya había escrito el
+prefijo en su propio título y el componente lo anteponía igual. Detecta el patrón `/^l[áa]mina\s*
+\d+\s*[·:.\-–]?\s*/i` al inicio (case-insensitive, separador flexible) y respeta el título del dueño
+tal cual si ya lo trae.
+
+### Defecto 5 — Ficha «Etiqueta de bolsa»: por qué no se mostraba, y los cuatro campos que faltaban
+
+**Dos causas distintas, confirmadas por separado — ninguna "arreglada" adivinando:**
+
+1. **En la tienda real:** `NosotrosFicha.tsx` gatea con `creditosVisibles(tiendaCreditos.items)`
+   —≥3 filas con etiqueta+valor— ANTES de llegar a la rama «etiqueta» (por diseño, documentado y sin
+   cambios en este slice). Si el dueño nunca cargó "Créditos: ficha de origen" en /tienda (y no hay
+   campo de créditos DENTRO del editor de la Ficha — se lee de otra sección a propósito, para no
+   duplicar el dato), la pieza entera queda invisible sin que su propia fila lo explique.
+2. **En el editor (panel):** la fila de "Ficha de la finca" no tenía forma de saber que dependía de
+   OTRA sección. `creditosPisoIncompleto` (el piso de completitud de `tiendaCreditos`) sólo se evaluaba
+   para la fila de `tiendaCreditos` CONSIGO MISMA (§ `EDITOR-ORDEN-Y-LIENZO-2`); `nosotrosFicha` nunca
+   lo consultaba cruzado.
+
+**La confusión del dueño** ("puso la bajada en «Texto del sello»") delató la causa de PRODUCTO: no
+había campo para la bajada bajo «Etiqueta de bolsa», así que usó el único campo libre que encontró
+(`sello`, pensado para la estampilla). **Cuatro campos nuevos** en `NosotrosFichaContent`
+(`titulo`/`bajada`/`tituloTarjeta`/`notaPie`), todos opcionales, sin efecto bajo «tinta»:
+`titulo`/`bajada` arman la columna de texto a la izquierda ("De dónde viene cada bolsa" / "Los mismos
+datos..."); `tituloTarjeta` es el encabezado DENTRO de la tarjeta ("Café {negocio} · origen" en la
+maqueta — texto LIBRE del dueño, nunca derivado de `SiteSetting.nombre`: el componente no recibe
+`negocio` por prop y `app/(storefront)/nosotros/page.tsx` está fuera de `touches:`); `notaPie` es la
+frase de cierre bajo la retícula — nunca fabricada (§ el invariante #44, "100 % colombiano" es un
+claim que no se inventa por tenant).
+
+**Tercer ajuste de layout, medido al construir:** el sello se posicionaba con `rotate-[-6deg]` y
+`-top-4 right-6` — ni el ángulo (la maqueta pide -12°) ni la posición (`top:-30px`/`right:12px`)
+correctos, y ADEMÁS la tarjeta llevaba `overflow-hidden`, que habría recortado un sello con `top`
+negativo contra su propio borde — el MISMO defecto de clase que el sticker de la Apertura (§ arriba).
+Se quitó el `overflow-hidden` (no hace falta: no hay una foto a sangre adentro que necesite máscara,
+sólo texto con relleno) y se corrigió ángulo+posición.
+
+### El defecto #3 (la fila "Apertura" marcada oculta) — EXTRAÍDO y GENERALIZADO, causa NO reproducida
+
+**Medición honesta, no una causa inventada.** Se extrajo el cálculo completo de `oculta`/
+`repeaterVacio`/`campoGateVacio`/`creditosPisoIncompleto`/`noSeMuestra` de `TiendaSeccionEditor.tsx` a
+`lib/admin/fila-seccion-estado.ts` (pura, con 21 tests) para poder afirmarlo — el componente no se
+puede montar (el repo no tiene React Testing Library). Con la lógica extraída y los CUATRO tests que
+cubren exactamente el caso reportado (`visible:true`, composición "album", sin repeater, sin
+`seMuestraSiCampo`, sin `pisoCruzado`): **ninguna de las cuatro condiciones da `true`** — el resultado
+es `noSeMuestra: false`, es decir, la fila NO debería atenuarse con los datos que el owner describió
+(`visible:true`, publicada). `NOSOTROS_APERTURA` (tienda-secciones.ts) no declara `seMuestraSiCampo`
+ni `repeater`; su único gate posible es el toggle, y con `visible:true` ese gate no aplica.
+
+**No se encontró, por lectura exhaustiva del código cliente** (`TiendaSeccionEditor.tsx`,
+`TiendaPaginas.tsx`, `site-content-defaults.ts` resolver, el merge de borrador/publicado), una
+condición que con `visible:true` hubiera dado `noSeMuestra: true` para esta sección. Se descartaron,
+cada una verificada contra el código real: lectura de la variante vieja (no existe tal lectura;
+`activaComposicion` usa `form.variante` correctamente), un campo que «Álbum» no usa como
+`rotuloDerecha` (no hay `seMuestraSiCampo` declarado en absoluto para esta sección), la imagen (sin
+auto-gate por imagen; el docstring de `NosotrosApertura.tsx` confirma "HIDE-ON-OFF, no hide-on-empty
+— el gate es el TOGGLE, nunca ¿hay imagen?"). **No se reprodujo el caso; queda como UNKNOWN en el
+reporte del slice**, no como un defecto cerrado por adivinanza.
+
+**Lo que SÍ era una regla incompleta, y se cerró:** `creditosPisoIncompleto` sólo se evaluaba para la
+fila de `tiendaCreditos` consigo misma — `nosotrosFicha` (que depende del MISMO piso) nunca lo sabía.
+`SeccionConfig` gana `pisoCruzado?: SeccionVista` (declarado sólo en `NOSOTROS_FICHA` →
+`'tiendaCreditos'`); `TiendaPaginas.tsx` suma los destinos de `pisoCruzado` a
+`SECCIONES_CON_CAMPOS_CRUZADOS` (el mismo mecanismo que ya alimentaba `valoresCruzados` para
+`marquesina`←→`hero`) para que `valoresCruzados.tiendaCreditos` llegue con los ítems REALES aunque se
+esté editando /nosotros (página distinta de donde vive `tiendaCreditos`); `fila-seccion-estado.ts`
+aplica el MISMO `creditosVisibles` sobre esos ítems cruzados. El aviso dinámico de "No se muestra en
+la tienda" para `nosotrosFicha` ahora dice CUÁNTAS filas faltan y lleva un enlace
+(`/admin/tienda?seccion=tiendaCreditos` — el MISMO deep-link que ya usa el aviso de configuración del
+Dashboard, resuelto por `EditorTiendaPantallaCompleta.tsx` vía `SECCIONES_TIENDA.find`) a donde se
+cargan. Esto cierra la MITAD del defecto 5 que es responsabilidad del editor — la causa 2, arriba.
+
+### Deviaciones medidas
+
+- **Sin captura "ANTES"**: las dos causas de los defectos 1 y 2 se confirmaron por LECTURA del CSS de
+  la maqueta contra el código (no por una segunda sesión de build+capturar del árbol viejo) — el
+  tiempo se priorizó en el fix y en verificar el resultado. `.scratch/revision-owner/pares-apertura-
+  album/README.md` documenta esta deviación y apunta a las capturas DESPUÉS
+  (`.capturas/chamisas-ajustes-1440-v2/app-0.png`, `.capturas/chamisas-ajustes-390/app-0.png`)
+  comparadas a mano contra `.scratch/chamisas-paginas/capturas/v-d-nosotros.jpg`/`v-m-nosotros.jpg`.
+  El sandbox del dispatch bloqueó `cp`/`mkdir` vía Bash hacia esa carpeta sin aprobación interactiva
+  (no disponible en esta sesión) — el README quedó como ÍNDICE a las rutas reales, no como copia.
+- **Dos archivos de test FUERA de `touches:` se editaron** — `lib/admin/editor-paginas-onix.test.ts`
+  (el conteo hardcodeado de bloques de `nosotrosFicha`, 5→6, tras sumar el bloque `titulo`/`bajada`) y
+  `lib/config/nosotros-escenas.test.ts` (fixtures literales de `NosotrosEscenasContent`/
+  `NosotrosFichaContent` que dejaron de compilar al sumar campos requeridos por el tipo). Las DOS son
+  consecuencia DIRECTA y mecánica de cambios legítimamente en `touches:`
+  (`components/admin/tienda-secciones.ts`, `lib/config/site-content-defaults.ts`) — sin el fix,
+  `tsc`/`npm test` quedaban en rojo por un desajuste de fixture, no por un defecto real. Se midió
+  (`npx tsc --noEmit`) antes de tocar nada: 9 errores, los 9 en esos dos archivos, los 9 del mismo
+  patrón (tipo faltante/conteo hardcodeado). El fix es puramente de SINCRONIZACIÓN —ningún assert de
+  comportamiento cambiado, sólo datos de fixture y un número— y se documenta acá en vez de dejarse
+  sin decir.
+- **El spec nombraba `lib/storefront/nosotros-escenas.test.ts`/`nosotros-ficha.test.ts` como si no
+  existiera cobertura previa**; la cobertura REAL de visibilidad/piso ya vivía en
+  `lib/config/nosotros-escenas.test.ts` (creado por `CHAMISAS-NOSOTROS-ALBUM-1`). Se crearon los DOS
+  archivos nuevos en `lib/storefront/` con alcance COMPLEMENTARIO (lo específico de las composiciones
+  «album»/«etiqueta»: encabezado, dedup del número, reparto ancho/angosto, los 4 campos nuevos de la
+  Ficha) en vez de duplicar las pruebas de piso/visibilidad que ya existían — y se arregló el archivo
+  viejo (arriba) para que siguiera compilando.
+- **`app/(storefront)/nosotros/page.tsx` está fuera de `touches:`** — por eso `tituloTarjeta` (texto
+  libre) reemplaza a derivar `{negocio}` por prop para el h3 de la tarjeta de la Ficha: threadear un
+  prop nuevo por esa página habría exigido tocar un archivo fuera de alcance.
+
+### Verificado
+
+- `npx tsc --noEmit`: limpio.
+- `npm test`: **4875/4875** (+58 sobre el piso de 4817 que citó `EDITOR-CARGA-RAPIDA-1` dos commits
+  antes en esta misma rama — 21 en `fila-seccion-estado.test.ts`, 8 en `nosotros-apertura-
+  album.test.ts`, 7 en `nosotros-escenas.test.ts` (storefront), 9 en `nosotros-ficha.test.ts`
+  (storefront), 6 nuevos en `laminas.test.ts`, 2 en `site-content-defaults.test.ts`, 1 en
+  `panel-controles.test.ts`; el resto son re-mediciones de tests ya existentes, no tests nuevos).
+- `npm run test:integracion`: **409/409**, sin cambio (este slice no toca `packages/core/`, schema,
+  ni ninguna cadena del motor).
+- `npm run verificar:nayoli:visual`: **RED, con las MISMAS seis cifras, dígito a dígito**, que
+  `CHAMISAS-NOSOTROS-ALBUM-1` ya documentó como heredadas (home 165052/4608000·174711 crudo; `/tienda`
+  209/2433280·407; `/tienda/[slug]` TAMAÑOS DISTINTOS 1280×1981 vs 1280×1917; `/checkout`
+  163/1152000·361; `/nosotros` 224/1152000·422, caja [445,45]–[828,726]; `/suscripciones`
+  258/2144000·456; los dos hovers IDÉNTICOS) — cero píxeles nuevos para Nayoli, confirmado por
+  ejecución, no por argumento: Nayoli nunca usa las composiciones «album»/«etiqueta» (nace en
+  «apertura»/«saintLaurent»/«tinta»).
+- **Capturado en navegador real** (`next build`+`next start`, Postgres efímero, `--sembrar-album-
+  nosotros` — se le sumaron a la siembra los SEIS campos nuevos: `nosotrosEscenas.eyebrow/titulo`,
+  `nosotrosFicha.titulo/bajada/tituloTarjeta/notaPie`, con el contenido verbatim de
+  refero-chamisas.md §3), a 1440px y 390px. Comparado a mano contra `.scratch/chamisas-paginas/
+  capturas/v-d-nosotros.jpg`/`v-m-nosotros.jpg`: la banda vacía sobre el rótulo desaparece, el sticker
+  se ve entero en las dos anchuras, Láminas arma la doble página con panel punteado y el reparto
+  ancho/angosto correcto para 5 ítems (3+2), el encabezado "Álbum de finca" aparece, el número no se
+  duplica, y la Ficha muestra su columna de texto + la tarjeta con título/nota de pie — visible donde
+  antes no aparecía nada.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `NosotrosAperturaAlbum`/`NosotrosEscenasAlbum`/`NosotrosFichaEtiqueta`,
+`lib/storefront/laminas.ts`, `NosotrosEscenasContent`/`NosotrosFichaContent`,
+`tiendaCreditosPisoIncompleto`/`creditosPisoIncompleto`/`seMuestraSiCampo`/`pisoCruzado`,
+`fila-seccion-estado.ts`, `capturar-seccion.ts`, `tienda-secciones.ts`, `TiendaSeccionEditor.tsx`,
+`TiendaPaginas.tsx`, `nosotrosFicha`/`nosotrosEscenas`/`nosotrosApertura`. **Grepeados contra
+CLAUDE.md: CERO apariciones, para cada uno de los símbolos y rutas de arriba** — ninguna sección de
+CLAUDE.md nombra este árbol de componentes ni este mecanismo del editor; el nivel de detalle que
+cambia este slice vive por debajo de lo que esa doctrina trackea. Ninguna sentencia de CLAUDE.md
+queda falsa por este diff.
+
+### Open follow-ups
+
+- **`CHAMISAS-APERTURA-OCULTA-CAUSA-NO-REPRODUCIDA-1`** (nuevo): la fila "Apertura" del editor
+  marcada oculta con `visible:true` publicada (el defecto #3 del spec) no se reprodujo contra el
+  código cliente — las cuatro condiciones de `noSeMuestra` dan `false` para ese estado, medido con
+  `fila-seccion-estado.ts`. *Por qué no ahora:* sin reproducción no hay causa que arreglar; o fue
+  transitorio (un borrador desincronizado de un ciclo de edición anterior, una caché de
+  `site-content-compartido.ts` servida antes de que el publish del owner completara) o vive en una
+  capa fuera de `touches:` de este slice (`app/api/site-content/route.ts`, el merge de borrador en el
+  servidor). Si vuelve a reportarse, el primer paso es capturar el `form.visible` real en el momento
+  del reporte (no asumirlo desde la descripción del owner).
+- **`CHAMISAS-EDITOR-FICHA-REPEATER-CRUZADO-1`** (nuevo, el "mejor aún, si es simple" del spec, NO
+  construido): el spec sugería que el editor de "Ficha de la finca" pudiera cargar las filas de
+  "Créditos: ficha de origen" directo, sin salir de la sección. El mecanismo existente
+  (`seccionCruzada`) es por CAMPO DE TEXTO escalar, no por REPEATER — embeber un `RepeaterEditor` que
+  lea/escriba el array de OTRA sección es una pieza nueva, no una reutilización. *Por qué no ahora:*
+  el spec lo marcó condicional ("si es simple") y no lo es; el enlace al deep-link (construido) cubre
+  el requisito real ("lleva a donde se cargan").
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `writes: yes`, `approved: yes` (el owner aprobó la escritura sobre la maqueta el
+2026-10-12, reafirmó encolar los tres defectos visibles el 2026-10-14 con "yes queue it", y sumó los
+otros dos el mismo día). Entra a Tier 1 por `components/storefront/` (los tres componentes editados
+son bytes del visitante de cualquier tienda que elija estas composiciones) y por `components/admin/`
+(el registro del panel + el editor). **`customer_bytes.changed = true`**: el diff cambia bytes de
+layout/texto que un visitante de Las Chamisas lee hoy mismo (el deploy de `slice/editor-secciones-1`
+sigue siendo un preview, no requiere otro deploy para alcanzarlo). Sin cambio de schema/migración
+(cero `packages/core/prisma/`, los 6 campos nuevos viven en `SiteContent.content`, un JSON sin forma
+fija en la base) ni contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch de este slice pidió explícitamente parar acá
+sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el árbol final: `tsc
+--noEmit` limpio, `npm test` **4875/4875**, `npm run test:integracion` **409/409**,
+`npm run verificar:nayoli:visual` RED con las mismas seis cifras heredadas (cero píxeles nuevos para
+Nayoli). Verificado además en navegador real (`next build`+`next start`, Postgres efímero) a 1440px y
+390px con el arnés `--sembrar-album-nosotros` actualizado, comparado a mano contra las capturas de la
+maqueta aprobada. No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
