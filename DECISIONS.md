@@ -65362,3 +65362,184 @@ sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el ár
 Nayoli). Verificado además en navegador real (`next build`+`next start`, Postgres efímero) a 1440px y
 390px con el arnés `--sembrar-album-nosotros` actualizado, comparado a mano contra las capturas de la
 maqueta aprobada. No es `GATE_RED`. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-14 — CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: el arco de la Apertura, los íconos de la Ficha, y
+por qué Interludio/Cierre se veían vacíos — las tres causas MEDIDAS, ninguna adivinada
+
+**Pedido del owner** (2026-10-14, sobre el reporte del orquestador tras `CHAMISAS-APERTURA-ALBUM-
+AJUSTES-1`): el orquestador reportó que la foto de la Apertura perdió el arco (se ve como un
+rectángulo pegado al encabezado), que las filas de la Ficha llevan un guion en vez de íconos, y que
+el Interludio y el Cierre no se vieron en la captura. El owner respondió *"queue it"*.
+`observed-report: CHAMISAS-APERTURA-ALBUM-AJUSTES-1`. La aprobación autoriza la ESCRITURA, nunca el
+merge.
+
+### Defecto 1 — el arco: `position: 'static'` donde hacía falta `relative`
+
+**MEDIDO, no supuesto**, con `npm run capturar:seccion -- --sembrar-album-nosotros --sin-prototipo
+--ruta /nosotros --selector-app ".rounded-t-full" --estilo-elemento overflow --estilo-elemento
+border-top-left-radius --estilo-elemento position` contra el árbol ANTES de este fix:
+
+```
+overflow: 'hidden'
+border-top-left-radius: '3.35544e+07px'
+position: 'static'
+width: '351.359px'  height: '439.188px'
+```
+
+`overflow:hidden` y el radio de borde estaban declarados y con el valor correcto — el radio no
+era el defecto. Lo que faltaba era `position: relative` en ESA MISMA caja. `CHAMISAS-APERTURA-
+ALBUM-AJUSTES-1` (el slice anterior) movió `relative` al WRAPPER EXTERIOR para sacar al sticker de
+la caja que recorta la foto (el fix correcto para el defecto del sticker) — pero dejó la caja
+`overflow-hidden rounded-t-full rounded-b-[20px]` SIN su propio `relative`. El `<Image fill>` de
+adentro (`position:absolute; inset:0`) resuelve su caja de contención contra el ANCESTRO
+POSICIONADO más cercano, que pasó a ser el wrapper exterior — y el recorte/border-radius de ESTA
+caja, sin ser ella misma el contexto de posicionamiento de lo que tiene que recortar, queda
+declarado pero sin efecto visual sobre esa foto: se ve como un rectángulo a filo con el encabezado,
+exactamente lo reportado.
+
+El patrón gemelo que SÍ funciona (`InterludioRetrato`, congelado byte a byte en
+`lib/tienda/piezas-compartidas.test.ts`: `<div class="relative w-[70%] overflow-hidden
+rounded-t-full rounded-b-[20px]" style="aspect-ratio:4 / 5"><img/></div>`) pone `relative` en la
+MISMA caja que `overflow-hidden rounded-t-full`. Se replica ese patrón: `relative` vuelve a la caja
+que recorta, SIN tocar el wrapper exterior (que lo sigue necesitando para el sticker — el fix del
+slice anterior no se revierte, los dos `relative` conviven en niveles distintos). Confirmado por
+captura real a 390px y 1440px: el arco pasa de un borde recto a la curva completa, con el mismo
+`border-radius` computado de antes (`§ CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1` en el código,
+`NosotrosAperturaAlbum.tsx`).
+
+### Defecto 2 — la Ficha: un ícono por etiqueta, derivado, no elegido a mano
+
+`NosotrosFichaEtiqueta.tsx` pintaba `<Minus>` (un guion) en TODAS las filas, fuera del `.map` —
+decorativo, sin relación con el dato (la decisión original de "un ícono neutro único" seguía
+siendo correcta para una fila que el modelo NO declara con ícono propio; lo que faltaba era
+DERIVAR uno de la etiqueta, no agregar un campo nuevo). `fichaIcono` (`lib/storefront/
+ficha-iconos.ts`, puro, capa 1) normaliza la etiqueta (sin acentos, sin mayúsculas, mismo patrón
+que `lib/admin/ayuda-editor.ts#normalizar`) y la compara por PALABRA CLAVE (substring, no igualdad
+exacta: "Cosecha principal" matchea igual que "Cosecha") contra las ocho claves del spec: pin
+(origen/finca), montaña (altitud), brote (variedades), gota (proceso), calendario (cosecha),
+personas (familias), grano (tostión), bolsa (presentación) — y una NEUTRA (el `Minus` de antes)
+para cualquier etiqueta que ninguna regla reconozca, nunca revienta. `NosotrosFichaEtiqueta.tsx`
+mapea la clave a su ícono de `lucide-react` (`MapPin`/`Mountain`/`Sprout`/`Droplet`/`Calendar`/
+`Users`/`Coffee`/`Package`/`Minus`) en un único `Record`, y NO cambia el modelo (`CreditoItem` sigue
+sin un campo de ícono) — ni la decisión de modelo original, que sigue en el docstring del
+componente.
+
+### Defecto 3 — Interludio y Cierre: no era la siembra ni el componente, era el ARNÉS
+
+**Dos causas candidatas a descartar por separado, cada una medida, ninguna "arreglada" adivinando**
+(§ el spec: "Averiguá si es la siembra del arnés... o un defecto de render").
+
+1. **¿El dato publicado estaba mal?** NO. Query directa a la base efímera mientras el build corría
+   (`SELECT content->'nosotrosCierre' FROM "SiteContent" WHERE id='default'`) devuelve
+   `{titulo:"Tres cafés, una finca.", visible:true, variante:"costura", ctaLabel:"Ver los tres
+   cafés", ctaDestino:"/tienda", ctaSecundarioLabel:"Recibirlo cada mes",
+   ctaSecundarioDestino:"/suscripciones"}` — exactamente lo que `--sembrar-album-nosotros` ya
+   publicaba. `nosotrosInterludio` igual: `visible:true`, `variante:"stickers"`, `imagen` seteada.
+2. **¿El componente estaba roto?** NO. `renderToStaticMarkup` del MISMO contenido
+   (`React.createElement(SiteContentProvider, {value, children: <NosotrosCierre/>})`) produce el
+   árbol HTML completo — la tarjeta punteada, la frase, los dos botones — byte a byte correcto.
+
+Con las dos primeras descartadas por medición, la causa real estaba en el ARNÉS: tanto cada
+sticker del Interludio (`motion.div` con `whileInView`/`viewport:{once:true}`, framer-motion) como
+el Cierre entero (`motion.section`, mismo patrón) sólo disparan su `IntersectionObserver` cuando el
+VIEWPORT REAL del navegador llega a intersectarlos. `page.screenshot({fullPage:true})` sin
+`--selector-app` COMPONE el documento entero sin que Playwright haya scrolleado nunca — así que
+toda sección con animación de entrada por scroll, más allá del alto inicial del viewport (900px en
+la captura de referencia), queda congelada en su `initial` (`opacity:0`) para siempre, aunque el
+dato y el HTML sean perfectos. Pixel-sampleado sobre el PNG completo (`.capturas/chamisas-nosotros-
+baseline-1440/app-0.png`, 1440×3220): la banda del Cierre (y≈2652–2922) no tiene UN SOLO píxel que
+no sea el fondo `--sf-fondo` — ni rastro de la tarjeta punteada.
+
+Confirmado forzando el scroll manual (`--scroll 3200`) ANTES de tocar el arnés: con el viewport
+realmente posicionado sobre esas secciones, las tres bolitas de color y la tarjeta del Cierre
+aparecen — el MISMO contenido, sólo que esta vez el `IntersectionObserver` sí disparó.
+
+**EL FIX VA EN EL ARNÉS, NO EN EL COMPONENTE NI EN LA SIEMBRA** (`scripts/capturar-seccion.ts`):
+antes de un screenshot `fullPage` sin `--selector-app` Y sin `--scroll` explícito (ese flag tiene
+su propio propósito —revelar chrome fijo-por-scroll en la posición QUE SE PIDIÓ— y pisarlo le daría
+a esta rama dos comportamientos a la vez), el arnés scrollea al FONDO del documento una vez (un
+salto, no scroll incremental: `IntersectionObserver` recalcula contra la posición FINAL, no contra
+los pasos intermedios, así que un solo salto dispara TODAS las secciones que haya de paso), espera
+a que asienten las transiciones, y vuelve al tope antes de capturar — para no alterar qué chrome
+fijo-por-scroll muestra el PNG final. **Esto NO es exclusivo de /nosotros**: cualquier ruta con una
+sección `whileInView` más allá del alto inicial del viewport, capturada con `--sin-prototipo`/sin
+selector, caía en el mismo hueco — el fix cierra la clase, no sólo el caso de hoy.
+
+### Lo que el mockup pide y este slice NO construye
+
+La maqueta aprobada (`.scratch/chamisas-paginas/capturas/v-d-nosotros.jpg`) muestra una franja de
+TEJIDO (patrón de colores) arriba de la tarjeta del Cierre «Costura». `CierreCostura.tsx` ya
+soporta ese campo (`franjaTejido`, `{franjaTejido && (...)}` — sin imagen, no se imita con CSS, el
+criterio de siempre), pero `--sembrar-album-nosotros` nunca lo asigna para `nosotrosCierre`, y no
+hay ningún asset real de esa textura en `public/images/`. **No se fabricó un path a una imagen
+inexistente** — eso habría sido inventar un dato para un hueco que el spec no pidió cerrar. Queda
+como follow-up (`CHAMISAS-CIERRE-FRANJA-TEJIDO-FALTANTE-1`), no construido en este slice.
+
+### Deviaciones medidas
+
+- **`scripts/capturar-seccion.ts` se tocó más allá del caso de /nosotros**: el fix del scroll-antes-
+  de-fullPage es GENERAL (cualquier ruta, no sólo ésta), porque la causa medida es general. Está en
+  `touches:` del spec, así que no es una ampliación de alcance — es la forma correcta de cerrar la
+  causa real en vez de un parche puntual para esta página.
+- **No se agregó `franjaTejido` al seed de `nosotrosCierre`** (§ arriba) — sin asset real, habría
+  sido inventar un dato falso; se registra como follow-up en vez de construirse.
+
+### Verificado
+
+- `npx tsc --noEmit`: limpio.
+- `npm test`: **4892/4892** (+17 sobre el piso de 4875 citado por `CHAMISAS-APERTURA-ALBUM-
+  AJUSTES-1`: 2 en `nosotros-apertura-album.test.ts` —el `relative` de la caja que recorta—, 11 en
+  `ficha-iconos.test.ts` —las ocho claves + case/acentos + fallback—, 4 en `nosotros-ficha.test.ts`
+  —el ícono por fila, las seis claves verificadas por el `lucide-{nombre}` que `createLucideIcon`
+  agrega a la clase—).
+- `npm run test:integracion`: **409/409**, sin cambio (este slice no toca `packages/core/`, schema,
+  ni ninguna cadena del motor).
+- `npm run verificar:nayoli:visual`: **RED, con las MISMAS seis cifras, dígito a dígito**, que
+  `CHAMISAS-APERTURA-ALBUM-AJUSTES-1` ya documentó como heredadas (home 165052/4608000·174711
+  crudo; `/tienda` 209/2433280·407; `/tienda/[slug]` TAMAÑOS DISTINTOS 1280×1981 vs 1280×1917;
+  `/checkout` 163/1152000·361; `/nosotros` 224/1152000·422, caja [445,45]–[828,726];
+  `/suscripciones` 258/2144000·456; los dos hovers IDÉNTICOS) — cero píxeles nuevos para Nayoli:
+  Nayoli nunca usa las composiciones «album»/«etiqueta»/«stickers»/«costura» (nace en
+  «apertura»/«saintLaurent»/«tinta»/«plano»), y el fix de `capturar-seccion.ts` sólo toca el ARNÉS
+  de captura, no el storefront servido.
+- **Capturado en navegador real** (`next build`+`next start`, Postgres efímero,
+  `--sembrar-album-nosotros`) a 1440px y 390px, SIN `--scroll` manual (el fix del arnés hace el
+  scroll solo): el arco se ve completo en las dos anchuras, cada fila de la Ficha lleva su ícono, y
+  el Interludio + el Cierre se ven con su contenido completo en la MISMA corrida que captura la
+  página entera de una vez — comparado a mano contra la maqueta aprobada
+  (`.scratch/revision-owner/pares-nosotros-arco-ficha/README.md`, que documenta las tres causas con
+  sus capturas ANTES/DESPUÉS).
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `NosotrosAperturaAlbum`, `NosotrosFichaEtiqueta`, `ficha-iconos`,
+`fichaIcono`, `capturar-seccion.ts`, `piezas-compartidas.test.ts`. Grepeados contra CLAUDE.md:
+CERO apariciones para cada uno — ninguna sección de esa doctrina nombra este árbol de componentes
+ni el arnés de captura. Ninguna sentencia de CLAUDE.md queda falsa por este diff.
+
+### Open follow-ups
+
+- **`CHAMISAS-CIERRE-FRANJA-TEJIDO-FALTANTE-1`** (nuevo): la maqueta pide una franja de tejido
+  arriba de la tarjeta del Cierre «Costura»; `--sembrar-album-nosotros` no la asigna porque no hay
+  asset real en `public/images/`. *Por qué no ahora:* fabricar un path a una imagen inexistente
+  sería peor que dejarla sin textura; falta el asset, no el código.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1`, `writes: yes`, `approved: yes` (el owner aprobó la escritura el 2026-10-12 y reafirmó
+"queue it" el 2026-10-14 sobre el reporte de estos tres defectos). Entra a Tier 1 por
+`components/storefront/` (los dos componentes editados son bytes del visitante de cualquier tienda
+que elija estas composiciones). **`customer_bytes.changed = true`**: el diff cambia bytes de
+layout (el arco, los íconos) que un visitante de Las Chamisas lee hoy mismo, sobre un deploy que
+sigue siendo preview. Sin cambio de schema/migración ni contrato cruzado de repositorio. El cambio
+en `scripts/capturar-seccion.ts` no es customer-facing (es tooling de verificación interno).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch de este slice pidió explícitamente parar acá
+sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el árbol final: `tsc
+--noEmit` limpio, `npm test` **4892/4892**, `npm run test:integracion` **409/409**,
+`npm run verificar:nayoli:visual` RED con las mismas seis cifras heredadas (cero píxeles nuevos
+para Nayoli). Verificado además en navegador real a 1440px y 390px, sin `--scroll` manual,
+comparado a mano contra la maqueta aprobada. No es `GATE_RED`. Commiteado en
+`slice/editor-secciones-1`, sin mergear.
