@@ -18,6 +18,7 @@ import { MuestraColor } from '@/components/admin/editor/MuestraColor';
 import { EleccionVisual, type OpcionEleccionVisual } from '@/components/admin/editor/EleccionVisual';
 import { MostrarOcultar } from '@/components/admin/editor/MostrarOcultar';
 import { RAICES_DEFECTO } from '@/lib/config/palette-derive';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 
 // § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle`. Sin `escribirCampo`: el Encabezado no
 // gana marcadores `CampoEditable` en esta tanda (§ el asiento de este slice en DECISIONS.md — la
@@ -510,11 +511,14 @@ const EncabezadoSeccion = forwardRef<EncabezadoSeccionHandle, EncabezadoSeccionP
   // Carga el encabezado draft-merged (GET /api/site-content → `contenido.{cromo,navWordmark,
   // navTratamiento,logo}` + `sinPublicar.encabezado`) — el mismo endpoint que lee cada sección;
   // sólo se toma la rebanada de estas CUATRO metas/secciones.
+  //
+  // § EDITOR-CARGA-RAPIDA-1 — `inicial` (el mount) COMPARTE el pedido con los otros cinco
+  // componentes autónomos que leen este mismo endpoint (`lib/editor/site-content-compartido.ts`);
+  // el "Descartar" (`inicial=false`, más abajo) sigue forzando una lectura fresca del servidor —
+  // sin eso, descartar mostraría la caché de ANTES de la propia escritura.
   const cargar = useCallback(async (inicial = false) => {
     try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await (inicial ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido());
       const contenido = (d.contenido ?? {}) as ContenidoEncabezado;
       const estado = estadoDesdeContenido(contenido);
       setForm(estado.form);

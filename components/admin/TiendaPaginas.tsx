@@ -45,6 +45,7 @@ import { crearHistorialEditor, sonIguales, type HistorialEditor, type PasoHistor
 import { resumenCambios, type CambioResumen } from '@/lib/admin/resumen-cambios';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import { getSiteContentPublicado } from '@/lib/api/site-content';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 import type { SiteContentData, PaginasContent } from '@/lib/config/site-content-defaults';
 import { debeMostrarControlesHome, nombreNivelInicio, paginaEstaApagada } from '@/lib/admin/editor-estado-paginas';
 // § EDITOR-AGREGAR-SECCION-1 — EL CATÁLOGO CURADO Y SU MECANISMO (§ lib/config/secciones-instancias.ts,
@@ -633,11 +634,21 @@ const TiendaPaginas = forwardRef<TiendaPaginasHandle, TiendaPaginasProps>(functi
       return null;
     }
   }, []);
+  // § EDITOR-CARGA-RAPIDA-1 — EL MONTAJE comparte el pedido con los otros cinco componentes autónomos
+  // (Encabezado/Menú/Pie/Vendedor/Compra, § `lib/editor/site-content-compartido.ts`): medido que los
+  // seis pedían `/api/site-content` por su cuenta, en el MISMO instante. `montadoRef` distingue el
+  // PRIMER `recargarDoc()` (el del mount, que puede compartir caché con ellos) de los que siguen
+  // (cambio de página, tras publicar/descartar) — ÉSOS siguen forzando una lectura fresca del
+  // servidor, la garantía de G1 (abajo) que este slice no toca.
+  const montadoRef = useRef(false);
   const recargarDoc = useCallback(async () => {
-    const [r] = await Promise.all([fetch('/api/site-content'), recargarPublicado()]);
-    if (!r.ok) throw new Error();
-    const d = await r.json();
-    setDoc({ contenido: d.contenido ?? {}, sinPublicar: d.sinPublicar ?? {} });
+    const esPrimeraVez = !montadoRef.current;
+    montadoRef.current = true;
+    const [d] = await Promise.all([
+      esPrimeraVez ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido(),
+      recargarPublicado(),
+    ]);
+    setDoc({ contenido: d.contenido, sinPublicar: d.sinPublicar });
     return d as { contenido?: Record<string, unknown>; sinPublicar?: Record<string, boolean> };
   }, [recargarPublicado]);
   // § EDITOR-ESTADO-PAGINAS-1 — G1: refetch también al CAMBIAR de página, no sólo al montar. Cada

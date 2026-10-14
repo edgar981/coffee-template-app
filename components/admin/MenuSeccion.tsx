@@ -17,6 +17,7 @@ import { CAMPO_LABEL_MENU, etiquetaOpcionMenu, intercambiarPosicionMenu, parAMed
 import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 
 // § EDITOR-TIENDA-CROMO-1 — el contrato que `TiendaPaginas.tsx` necesita para montar este editor
 // dentro del PANEL CON NIVELES (como «Menú» de «Secciones»), gemelo de `TiendaSeccionEditorHandle`
@@ -153,11 +154,13 @@ const MenuSeccion = forwardRef<MenuSeccionHandle, MenuSeccionProps>(function Men
 
   // Carga el menú draft-merged (GET /api/site-content → `contenido.menu` + `sinPublicar.menu`) —
   // el mismo endpoint que lee cada sección; sólo se toma la rebanada de esta.
+  //
+  // § EDITOR-CARGA-RAPIDA-1 — `inicial` (el mount) COMPARTE el pedido con los otros cinco
+  // componentes autónomos (`lib/editor/site-content-compartido.ts`); "Descartar" (`inicial=false`,
+  // más abajo) sigue forzando una lectura fresca del servidor.
   const cargar = useCallback(async (inicial = false) => {
     try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await (inicial ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido());
       setForm(d.contenido.menu as Form);
       setHayBorrador(!!d.sinPublicar?.menu);
       if (inicial) setCargando(false);

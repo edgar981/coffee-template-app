@@ -8,6 +8,7 @@ import { FilaSeccion } from '@/components/admin/editor/FilaSeccion';
 import { IconoFila } from '@/components/admin/editor/IconoFila';
 import type { VendedorContent } from '@/lib/config/site-content-defaults';
 import { camposVendedorFaltantes, lineaVendedor } from '@/lib/legal/plantillas';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 
 // ─── Bloque IDENTIDAD DEL VENDEDOR — vive en el editor, junto a Detalles del sitio ────────────────
 //
@@ -90,11 +91,13 @@ export default function VendedorSeccion() {
 
   // Carga el draft-merged (GET /api/site-content → `contenido.vendedor` + `sinPublicar.vendedor`) —
   // el mismo endpoint que lee cada sección; sólo se toma la rebanada de ésta.
+  //
+  // § EDITOR-CARGA-RAPIDA-1 — `inicial` (el mount) COMPARTE el pedido con los otros cinco
+  // componentes autónomos (`lib/editor/site-content-compartido.ts`); "Descartar" (`inicial=false`,
+  // más abajo) sigue forzando una lectura fresca del servidor.
   const cargar = useCallback(async (inicial = false) => {
     try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await (inicial ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido());
       setForm(d.contenido.vendedor as Form);
       setHayBorrador(!!d.sinPublicar?.vendedor);
       if (inicial) setCargando(false);

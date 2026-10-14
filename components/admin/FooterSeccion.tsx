@@ -18,6 +18,7 @@ import { MAX_SUBIDA_DIRECTA_MB, ACCEPT_IMAGENES } from '@/constants/upload';
 import { sonIguales, type PasoHistorial } from '@/lib/admin/historial-editor';
 import type { EstadoAutoguardado } from '@/lib/autoguardado';
 import { fusionCampoEditable } from '@/lib/storefront/campo-editable';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 
 // § EDITOR-TIENDA-CROMO-1 — gemelo de `MenuSeccionHandle` (mismo contrato). `escribirCampo` es
 // EXTRA sobre `MenuSeccionHandle`: el Pie es el único de los tres cromo que gana marcadores
@@ -104,11 +105,13 @@ const FooterSeccion = forwardRef<FooterSeccionHandle, FooterSeccionProps>(functi
   const auto = useAutoguardado(guardarFooter);
 
   // Carga el pie draft-merged (GET /api/site-content → `contenido.footer` + `sinPublicar.footer`).
+  //
+  // § EDITOR-CARGA-RAPIDA-1 — `inicial` (el mount) COMPARTE el pedido con los otros cinco
+  // componentes autónomos (`lib/editor/site-content-compartido.ts`); "Descartar" (`inicial=false`,
+  // más abajo) sigue forzando una lectura fresca del servidor.
   const cargar = useCallback(async (inicial = false) => {
     try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await (inicial ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido());
       setForm(d.contenido.footer as Form);
       setHayBorrador(!!d.sinPublicar?.footer);
       if (inicial) setCargando(false);

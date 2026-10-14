@@ -13,6 +13,7 @@ import EstadoPedido, { type ResumenEstadoPedido } from '@/components/storefront/
 import { SeguimientoTimeline } from '@/app/(storefront)/rastrear-pedido/page';
 import type { EstadoPedidoPagina } from '@/lib/checkout/estado-pedido';
 import { TENANT_ORDER_PREFIX } from '@duna/core/metrics/order-stat-filters';
+import { obtenerSiteContentCompartido, refrescarSiteContentCompartido } from '@/lib/editor/site-content-compartido';
 
 // ─── Bloque CAMINO DE COMPRA — vive en el editor, junto a Identidad del vendedor ──────────────────
 //
@@ -226,11 +227,13 @@ export default function CompraSeccion() {
   const auto = useAutoguardado(guardarCompra);
 
   // Carga el draft-merged (GET /api/site-content → `contenido.compra` + `sinPublicar.compra`).
+  //
+  // § EDITOR-CARGA-RAPIDA-1 — `inicial` (el mount) COMPARTE el pedido con los otros cinco
+  // componentes autónomos (`lib/editor/site-content-compartido.ts`); "Descartar" (`inicial=false`,
+  // más abajo) sigue forzando una lectura fresca del servidor.
   const cargar = useCallback(async (inicial = false) => {
     try {
-      const r = await fetch('/api/site-content');
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      const d = await (inicial ? obtenerSiteContentCompartido() : refrescarSiteContentCompartido());
       setForm(d.contenido.compra as Form);
       setHayBorrador(!!d.sinPublicar?.compra);
       if (inicial) setCargando(false);
