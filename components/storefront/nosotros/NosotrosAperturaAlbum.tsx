@@ -54,6 +54,26 @@
 // `relative`, sin tocar el wrapper exterior (que lo sigue necesitando para el sticker). Confirmado
 // por captura real (`.scratch/revision-owner/pares-nosotros-arco-ficha/README.md`): el arco pasó de
 // un borde recto a la curva completa, con el mismo `border-radius` computado de antes.
+//
+// § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1 — CON LA CURVA YA VISIBLE, LA CÚPULA SEGUÍA DEBAJO DEL
+// ENCABEZADO FIJO: medido por color de píxel sobre capturas reales (`next build`+`next start`),
+// nunca supuesto. `/nosotros` NO reserva alto de encabezado para esta composición —
+// `app/(storefront)/nosotros/page.tsx` sólo envuelve con `navOffsetClase` cuando
+// `content.navTratamiento.posicion` es `true` (el tratamiento tipo CORTE); Las Chamisas no lo
+// activa, así que esta sección responde SOLA por su propio espacio bajo el `<header>` `fixed`
+// (`StoreNav.tsx`, `h-16 lg:h-18` = 64px/72px). Contra `pt-7 lg:pt-10` (28px/40px, ambos MENORES
+// que el alto real del header) el color de la foto empezaba exactamente en el borde inferior del
+// header, sin un solo píxel de por medio (1440px, columna x=1055: blanco 255,254,254 hasta y=71,
+// verde oscuro de la foto desde y=72 — CERO aire) — y en 390px el título arrancaba inmediatamente
+// tras el header (y=65) SIN que el rótulo "Nosotros · San Adolfo, Huila" llegara a verse: con
+// `pt-7` (28px) < 64px de header, el rótulo nacía DENTRO de la banda que el header tapa y quedaba
+// invisible, no sólo recortado. `pt-24 lg:pt-28` (96px/112px) deja el aire medido contra la
+// maqueta aprobada (`.scratch/chamisas-paginas/capturas/v-d-nosotros.jpg`, columna x=1050: borde
+// del encabezado en y≈87, cúpula en y≈128 → ~41px de aire) — `lg:pt-28` (112px) sobre un header de
+// 72px da exactamente 40px, el mismo aire; `pt-24` (96px) sobre el header de 64px de celular da
+// 32px, el mismo criterio aplicado al breakpoint chico. NO es un `min-h`: sigue siendo SÓLO
+// padding-top sobre el contenido (§ el ajuste 1, arriba, que esta tanda no reabre) — más alto que
+// antes, nunca una altura mínima forzada que vuelva a dejar una banda vacía.
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
@@ -73,10 +93,13 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
   const tieneImagen = imagen.trim() !== '';
 
   return (
-    <section className="bg-[var(--sf-fondo)] pt-7 lg:pt-10">
-      {/* SIN `min-h`/`py` extra acá (§ el ajuste 1, arriba) — sólo el padding SUPERIOR de la sección
-          (`.cov{padding:28px 0 0}` de la maqueta); el padding horizontal vive en ESTA fila, no
-          repetido por columna, para que `gap` sea la única fuente de separación vertical/horizontal. */}
+    <section className="bg-[var(--sf-fondo)] pt-24 lg:pt-28">
+      {/* SIN `min-h`/`py` extra acá (§ el ajuste 1, arriba) — sólo el padding SUPERIOR de la sección.
+          El VALOR (`pt-24 lg:pt-28`) ya NO es el `.cov{padding:28px 0 0}` literal de la maqueta —
+          § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1, arriba, lo sube para despejar el `<header>` fijo,
+          que la maqueta (estática, sin header `fixed` propio) no tenía que descontar. El padding
+          horizontal vive en ESTA fila, no repetido por columna, para que `gap` sea la única fuente
+          de separación vertical/horizontal. */}
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-[22px] px-6 sm:px-10 lg:grid-cols-2 lg:items-end lg:gap-12 lg:px-16">
         {/* TEXTO — primero en celular Y en escritorio-izquierda (§ el ajuste 3, arriba). */}
         <div className="order-1 flex flex-col gap-4 lg:pb-7">

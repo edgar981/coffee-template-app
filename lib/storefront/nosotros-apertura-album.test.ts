@@ -100,6 +100,20 @@ describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: la caja
   });
 });
 
+describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1: la cúpula despeja el encabezado fijo', () => {
+  test('la sección lleva `pt-24 lg:pt-28` — mayor que el alto del header (`h-16 lg:h-18` = 64/72px) MÁS el aire medido contra la maqueta, nunca el `pt-7 lg:pt-10` viejo que el header tapaba', () => {
+    const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('class="bg-[var(--sf-fondo)] pt-24 lg:pt-28"'), 'la sección debe declarar el padding-top nuevo');
+    assert.ok(!html.includes('pt-7'), 'el pt-7 viejo (28px, menor que el header de 64px) no debe sobrevivir');
+    assert.ok(!html.includes('lg:pt-10'), 'el lg:pt-10 viejo (40px, menor que el header de 72px) no debe sobrevivir');
+  });
+
+  test('sigue SIN min-h — el fix es sólo el padding-top, nunca una altura mínima que reintroduzca la banda vacía que cerró § CHAMISAS-APERTURA-ALBUM-AJUSTES-1', () => {
+    const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(!/\bmin-h-\[/.test(html), 'ningún min-h arbitrario debe quedar en el grid que compone texto+arco');
+  });
+});
+
 describe('NosotrosAperturaAlbum — sin sticker, sin imagen: no revienta, no deja residuos', () => {
   test('sticker vacío → no se monta ningún nodo con el texto del sticker', () => {
     const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, { ...PROPS_BASE, sticker: '' }));
