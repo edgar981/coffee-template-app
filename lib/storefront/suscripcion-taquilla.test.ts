@@ -18,7 +18,7 @@ import {
   frecuenciaEstructuraPorSlot,
   topeUnidadesCasilla,
 } from './suscripcion-taquilla';
-import { derivarMatrizTaquilla, celdaDe } from '@/lib/tienda/taquilla';
+import { derivarCasillasCafes, celdaCafeDe } from './casillas-cafes';
 import { DEFAULTS, type SiteContentData, type SuscripcionPlanesContent } from '../config/site-content-defaults';
 import { SiteContentProvider } from '@/components/storefront/SiteContentProvider';
 import { navOffsetClase } from '../config/themes';
@@ -271,10 +271,11 @@ test('SuscripcionApertura: con `visible:true` SÍ renderiza — el título por d
   assert.ok(html.includes('CADA MES'), 'el título por defecto de la apertura debe aparecer');
 });
 
-// ─── LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) — tres cafés × dos bolsas,
-// como el catálogo real de Las Chamisas. `nombre` lleva el separador " — " de siempre para que
-// `nombreBaseProducto` lo recorte, aunque Casillas muestra la CATEGORÍA (el nombre del café), no el
-// nombre base del producto — se mantiene por fidelidad al patrón de fixture del resto del archivo.
+// ─── LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1; FILAS POR CAFÉ desde
+// § CHAMISAS-CASILLAS-POR-CAFE-1) — tres cafés × dos bolsas. `nombre` lleva el separador " — " de
+// siempre para que `nombreBaseProducto` lo recorte al CAFÉ (la fila de `derivarCasillasCafes`,
+// § ./casillas-cafes.ts); `categoria` es la MISMA para los tres —"Café de especialidad"—, como el
+// catálogo real de Las Chamisas: demuestra que la fila ya NO depende de `categoria`.
 
 function chamisas(): Product[] {
   const base = { costo: 0, sku: null, stock: 10, activo: true, disponible: true, descripcion: '' };
@@ -283,19 +284,19 @@ function chamisas(): Product[] {
     { nombre: 'Molido', metodo: 'Filtro', disponible: true },
   ];
   return [
-    { ...base, id: 'bourbon-340', nombre: 'Bourbon Rosado 340 g', slug: 'bourbon-340', categoria: 'Bourbon Rosado', precio: 52000, peso_gramos: 340, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
-    { ...base, id: 'bourbon-500', nombre: 'Bourbon Rosado 500 g', slug: 'bourbon-500', categoria: 'Bourbon Rosado', precio: 74000, peso_gramos: 500, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
-    { ...base, id: 'pacamara-340', nombre: 'Pacamara 340 g', slug: 'pacamara-340', categoria: 'Pacamara', precio: 48000, peso_gramos: 340, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
-    { ...base, id: 'pacamara-500', nombre: 'Pacamara 500 g', slug: 'pacamara-500', categoria: 'Pacamara', precio: 68000, peso_gramos: 500, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
-    { ...base, id: 'papayo-340', nombre: 'Papayo 340 g', slug: 'papayo-340', categoria: 'Papayo', precio: 44000, peso_gramos: 340, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
-    { ...base, id: 'papayo-500', nombre: 'Papayo 500 g', slug: 'papayo-500', categoria: 'Papayo', precio: 62000, peso_gramos: 500, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
+    { ...base, id: 'bourbon-340', nombre: 'Bourbon Rosado — 340 g', slug: 'bourbon-340', categoria: 'Café de especialidad', precio: 52000, peso_gramos: 340, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
+    { ...base, id: 'bourbon-500', nombre: 'Bourbon Rosado — 500 g', slug: 'bourbon-500', categoria: 'Café de especialidad', precio: 74000, peso_gramos: 500, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
+    { ...base, id: 'pacamara-340', nombre: 'Pacamara — 340 g', slug: 'pacamara-340', categoria: 'Café de especialidad', precio: 48000, peso_gramos: 340, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
+    { ...base, id: 'pacamara-500', nombre: 'Pacamara — 500 g', slug: 'pacamara-500', categoria: 'Café de especialidad', precio: 68000, peso_gramos: 500, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
+    { ...base, id: 'papayo-340', nombre: 'Papayo — 340 g', slug: 'papayo-340', categoria: 'Café de especialidad', precio: 44000, peso_gramos: 340, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
+    { ...base, id: 'papayo-500', nombre: 'Papayo — 500 g', slug: 'papayo-500', categoria: 'Café de especialidad', precio: 62000, peso_gramos: 500, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
   ] as Product[];
 }
 
-test('itemsCasillas: sólo los cafés con cantidad>0, en el orden de la matriz (alfabético es-CO)', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+test('itemsCasillas: sólo los cafés con cantidad>0, en el orden del catálogo', () => {
+  const matriz = derivarCasillasCafes(chamisas())!;
   const items = itemsCasillas(matriz, { Papayo: 2, Pacamara: 0, 'Bourbon Rosado': 1 }, 340);
-  assert.deepEqual(items.map((i) => i.categoria), ['Bourbon Rosado', 'Papayo']);
+  assert.deepEqual(items.map((i) => i.cafe), ['Bourbon Rosado', 'Papayo']);
   assert.equal(items[0].cantidad, 1);
   assert.equal(items[0].producto.id, 'bourbon-340');
   assert.equal(items[1].cantidad, 2);
@@ -303,12 +304,18 @@ test('itemsCasillas: sólo los cafés con cantidad>0, en el orden de la matriz (
 });
 
 test('itemsCasillas: un mapa vacío da una lista vacía', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const matriz = derivarCasillasCafes(chamisas())!;
   assert.deepEqual(itemsCasillas(matriz, {}, 340), []);
 });
 
+test('itemsCasillas: un café con cantidad>0 pero SIN producto al peso elegido (matriz SPARSE) se omite — no entra al pedido', () => {
+  const matriz = derivarCasillasCafes(chamisas())!;
+  // 1000 g no existe para ningún café de este fixture.
+  assert.deepEqual(itemsCasillas(matriz, { 'Bourbon Rosado': 2 }, 1000), []);
+});
+
 test('bolsasCasillas: suma las cantidades de todos los ítems', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const matriz = derivarCasillasCafes(chamisas())!;
   const items = itemsCasillas(matriz, { Papayo: 2, 'Bourbon Rosado': 3 }, 340);
   assert.equal(bolsasCasillas(items), 5);
 });
@@ -318,7 +325,7 @@ test('totalPorEnvioCasillas: null sin ítems elegidos', () => {
 });
 
 test('totalPorEnvioCasillas: suma precio×cantidad de cada ítem, a la bolsa activa', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const matriz = derivarCasillasCafes(chamisas())!;
   const items340 = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
   assert.equal(totalPorEnvioCasillas(items340), 52000 + 44000);
   const items500 = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 500);
@@ -326,7 +333,7 @@ test('totalPorEnvioCasillas: suma precio×cantidad de cada ítem, a la bolsa act
 });
 
 test('moliendasCasillas: intersección de nombres disponibles entre los productos recibidos', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const matriz = derivarCasillasCafes(chamisas())!;
   const items = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
   assert.deepEqual(moliendasCasillas(items.map((i) => i.producto)), ['En grano', 'Molido']);
 });
@@ -336,7 +343,7 @@ test('moliendasCasillas: sin productos, [] — no hay chips que mostrar', () => 
 });
 
 test('moliendasCasillas: un producto SIN esa opción disponible la saca de la intersección', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
+  const matriz = derivarCasillasCafes(chamisas())!;
   const items = itemsCasillas(matriz, { 'Bourbon Rosado': 1, Papayo: 1 }, 340);
   const productos = items.map((i) => i.producto);
   // Papayo deja de ofrecer "En grano" (p. ej. ya no queda en esa presentación).
@@ -355,8 +362,8 @@ test('frecuenciaEstructuraPorSlot: 1=quincenal, 2=mensual, 3=bimestral, 4=trimes
 });
 
 test('topeUnidadesCasilla: 9 por defecto, acotado por maxCompra si el catálogo lo declara', () => {
-  const matriz = derivarMatrizTaquilla(chamisas())!;
-  const producto = matriz.celdas.get(celdaDe('Bourbon Rosado', 340))!;
+  const matriz = derivarCasillasCafes(chamisas())!;
+  const producto = matriz.celdas.get(celdaCafeDe('Bourbon Rosado', 340))!;
   assert.equal(topeUnidadesCasilla(producto), 9);
   assert.equal(topeUnidadesCasilla({ ...producto, maxCompra: 4 }), 4);
   assert.equal(topeUnidadesCasilla({ ...producto, maxCompra: 20 }), 9);
@@ -387,17 +394,64 @@ test('SuscripcionCasillas: con un catálogo válido, renderiza la apertura, el s
   assert.ok(html.includes('elige al menos un café'), 'sin selección, el placeholder de la nota debe aparecer');
 });
 
-test('SuscripcionCasillas: sin catálogo válido (una matriz nula no debería montarse — guard de SuscripcionPlanes), este componente NO re-valida solo', () => {
-  // `SuscripcionCasillas` asume que YA recibió una matriz válida (el chequeo vive en
-  // `SuscripcionPlanes.tsx`, § el comentario de cabecera de ese archivo) — con un catálogo de UN
-  // solo producto, `derivarMatrizTaquilla` interno devuelve `null` y el componente no debe lanzar,
-  // simplemente no renderiza nada (mismo criterio que `SuscripcionTaquilla` con `!matriz`).
+// EL CATÁLOGO REAL DE LAS CHAMISAS (§ CHAMISAS-CASILLAS-POR-CAFE-1, medido el 2026-10-14): a
+// diferencia de `chamisas()` arriba (dos bolsas, para ejercer el sparse), el catálogo real tiene
+// UN SOLO tamaño y los TRES productos bajo la MISMA categoría — exactamente lo que hacía caer la
+// sección a «Tarjetas» antes de este fix.
+function chamisasCatalogoReal(): Product[] {
+  const base = { costo: 0, sku: null, stock: 10, activo: true, disponible: true, descripcion: '' };
+  const conMolienda = [
+    { nombre: 'En grano', metodo: 'Muele en casa', disponible: true },
+    { nombre: 'Molido', metodo: 'Filtro', disponible: true },
+  ];
+  return [
+    { ...base, id: 'bourbon', nombre: 'Bourbon Rosado', slug: 'bourbon', categoria: 'Café de especialidad', precio: 52000, peso_gramos: 340, notas: ['Floral', 'Frutos rojos', 'Dulce'], moliendasOpciones: conMolienda },
+    { ...base, id: 'pacamara', nombre: 'Pacamara', slug: 'pacamara', categoria: 'Café de especialidad', precio: 48000, peso_gramos: 340, notas: ['Chocolate', 'Tropical'], moliendasOpciones: conMolienda },
+    { ...base, id: 'papayo', nombre: 'Papayo', slug: 'papayo', categoria: 'Café de especialidad', precio: 44000, peso_gramos: 340, notas: ['Caramelo', 'Cítrico'], moliendasOpciones: conMolienda },
+  ] as Product[];
+}
+
+test('EL FIX, de punta a punta: `SuscripcionPlanes` monta `SuscripcionCasillas` con el catálogo REAL de Las Chamisas (misma categoría, mismo peso) — antes caía a Tarjetas', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: { ...DEFAULTS, suscripcionPlanes: PLANES_CASILLAS },
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: chamisasCatalogoReal(), whatsapp: '573000000000', negocio: 'Café Las Chamisas', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.ok(html.includes('Bourbon Rosado'), 'debe listar Bourbon Rosado');
+  assert.ok(html.includes('Pacamara'), 'debe listar Pacamara');
+  assert.ok(html.includes('Papayo'), 'debe listar Papayo');
+  // Con un SOLO tamaño declarado, el selector de bolsa NO se muestra (§ el spec, item 1).
+  assert.ok(!html.includes('aria-label="Tamaño de bolsa"'), 'un solo peso: el selector de bolsa queda fuera');
+});
+
+test('SuscripcionCasillas: con UN SOLO producto (un café activo, el piso de `derivarCasillasCafes`) SÍ renderiza — ya no hace falta un segundo café', () => {
+  // § CHAMISAS-CASILLAS-POR-CAFE-1: a diferencia de `derivarMatrizTaquilla` (mínimo 2 productos),
+  // el umbral de Casillas es "al menos un café activo" — un solo producto con peso basta.
   const unSoloProducto = chamisas().slice(0, 1);
   const html = renderToStaticMarkup(
     React.createElement(SiteContentProvider, {
       value: DEFAULTS,
       children: React.createElement(SuscripcionCasillas, {
         catalog: unSoloProducto, whatsapp: '573000000000', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.ok(html.includes('Bourbon Rosado'), 'el único café debe listarse');
+});
+
+test('SuscripcionCasillas: sin catálogo válido (cero cafés activos — guard de SuscripcionPlanes), este componente NO re-valida solo', () => {
+  // `SuscripcionCasillas` asume que YA recibió una matriz válida (el chequeo vive en
+  // `SuscripcionPlanes.tsx`, § el comentario de cabecera de ese archivo) — con un catálogo vacío,
+  // `derivarCasillasCafes` interno devuelve `null` y el componente no debe lanzar, simplemente no
+  // renderiza nada (mismo criterio que `SuscripcionTaquilla` con `!matriz`).
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: [], whatsapp: '573000000000', suscripcionPlanes: PLANES_CASILLAS,
       }),
     }),
   );

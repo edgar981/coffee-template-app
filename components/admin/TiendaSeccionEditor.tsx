@@ -39,6 +39,7 @@ import { debeMostrarSelectorComposicion } from '@/lib/admin/editor-paginas-onix'
 import { aplicaAComposicion, particionarBloques, tituloPlegado } from '@/lib/admin/editor-composicion-campos';
 import { bloquesResueltos, type BloqueResuelto } from '@/lib/tienda/bloques';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
+import { derivarCasillasCafes } from '@/lib/storefront/casillas-cafes';
 import { slotOpcional, slotVacio } from '@/lib/tienda/puente-tarjetas';
 import { condicionCampoInactiva, resumenBloqueTarjeta, vaciosDeBloqueTarjeta, tiendaCreditosPisoIncompleto } from '@/lib/admin/editor-orden-y-lienzo';
 import { quitar as quitarDeLista, mover as moverEnLista, ultimoLleno } from '@/lib/tienda/lista-plana';
@@ -2668,6 +2669,24 @@ const TiendaSeccionEditor = forwardRef<TiendaSeccionEditorHandle, TiendaSeccionE
                       El catálogo activo no forma una tabla categoría × peso válida (como máximo 3
                       valores por eje, sin dos productos en la misma celda) — la tienda está mostrando
                       «Tarjetas» en su lugar, aunque acá diga «Taquilla».
+                    </p>
+                  </div>
+                )
+              )}
+
+              {/* § CHAMISAS-CASILLAS-POR-CAFE-1 — gemelo del bloque de arriba para «Casillas», MISMO
+                  criterio (§ EDITOR-COMPOSICION-CAMPOS-1): con MENOS DE UN CAFÉ ACTIVO
+                  (`derivarCasillasCafes`, lib/storefront/casillas-cafes.ts — la fila es el CAFÉ, por
+                  `nombreBaseProducto`, no la categoría; sparse por tamaño de bolsa, así que un café
+                  sin ese tamaño no cuenta contra el umbral), `SuscripcionPlanes.tsx` cae SOLA a
+                  «Tarjetas» en silencio — el select de arriba sigue diciendo "Casillas" mientras la
+                  tienda real muestra Tarjetas. MISMO catálogo activo que el bloque de Taquilla. */}
+              {seccion === 'suscripcionPlanes' && String(form.variante ?? '') === 'casillas' && productosListos && (
+                !derivarCasillasCafes(catalogoReal.filter((p) => p.activo)) && (
+                  <div className="admin-bloque">
+                    <p className="duna-field__hint" role="status" style={{ color: 'var(--duna-sol-ink)', marginBottom: 0 }}>
+                      El catálogo activo no tiene ningún café con tamaño de bolsa declarado — la
+                      tienda está mostrando «Tarjetas» en su lugar, aunque acá diga «Casillas».
                     </p>
                   </div>
                 )

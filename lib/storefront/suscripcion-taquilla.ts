@@ -1,6 +1,6 @@
 import { decidirMolienda, normalizarOpciones, type DecisionMolienda } from '@duna/core/moliendas-opciones';
 import { formatCOP } from '@duna/core/utils';
-import { celdaDe, type MatrizTaquilla } from '@/lib/tienda/taquilla';
+import { celdaCafeDe, type MatrizCasillasCafes } from './casillas-cafes';
 import type { FrecuenciaEnvio } from './casillas-frecuencia';
 import type { SuscripcionPlanesContent } from '../config/site-content-defaults';
 import type { Product } from '@/types/product';
@@ -125,33 +125,31 @@ export function creditosDeTaquilla(p: SuscripcionPlanesContent): { etiqueta: str
 export { decidirMolienda };
 export type { DecisionMolienda };
 
-// ─── LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4) ──────
+// ─── LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4;
+// FILAS POR CAFÉ desde § CHAMISAS-CASILLAS-POR-CAFE-1) ────────────────────────────────────────
 //
 // «Arma tu pedido» ES la Taquilla, con trato Chamisas (§ el spec, item 2: "la «Taquilla» de Onix con
-// trato Chamisas"): el MISMO catálogo real, derivado con la MISMA `derivarMatrizTaquilla`
-// (lib/tienda/taquilla.ts) — nunca un segundo modelo de producto. La diferencia es de CARDINALIDAD
-// de selección: Taquilla elige UNA celda (un café, una presentación); Casillas elige VARIOS cafés
-// a la vez, cada uno con su cantidad — las `matriz.filas` dejan de ser "la presentación elegida" y
-// pasan a ser "la lista de cafés que el comprador puede sumar".
+// trato Chamisas"): el MISMO catálogo real, nunca un segundo modelo de producto. La diferencia de
+// CARDINALIDAD de selección se mantiene (Taquilla elige UNA celda; Casillas elige VARIOS cafés a la
+// vez, cada uno con su cantidad), pero la DERIVACIÓN ya NO es `derivarMatrizTaquilla` — es
+// `derivarCasillasCafes` (./casillas-cafes.ts), cuya fila es el CAFÉ (`nombreBaseProducto`), no la
+// categoría. El defecto que esto corrige, y por qué la matriz de Taquilla no sirve para Casillas,
+// está documentado en el docstring de cabecera de `casillas-cafes.ts` — no se repite acá.
 //
-// LA MATRIZ GARANTIZA COMPLETITUD, ASÍ QUE "PRECIO POR CONFIRMAR" NO APLICA ACÁ: `derivarMatrizTaquilla`
-// exige que TODA combinación fila×columna tenga su producto, o devuelve `null` entero (§ su
-// docstring: "la validez es BINARIA… un catálogo con huecos... cae ENTERO a «Actual»"). La maqueta
-// aprobada modela un caso de catálogo PARCIAL (sólo 340 g cargado, 500 g "por confirmar") que esta
-// derivación no puede representar — con un catálogo parcial de verdad, `derivarMatrizTaquilla`
-// devuelve `null` y la sección entera cae a «Tarjetas» (§ el spec, item 2: "sin catálogo que alcance,
-// la sección cae a la composición por defecto"), no a una Casillas con huecos. Por eso
-// `ItemCasilla.producto` abajo es NO-opcional: si `categoria` viene de `matriz.filas` y `peso` de
-// `matriz.columnas`, el producto SIEMPRE existe.
+// `MatrizCasillasCafes` es SPARSE (a diferencia de la matriz de Taquilla, binaria): un café sin
+// producto para el peso activo queda DESHABILITADO —`itemsCasillas` lo omite del pedido—, no
+// invalida la composición entera. Por eso `ItemCasilla.producto` sigue siendo NO-opcional (un ítem
+// sólo existe cuando el producto SÍ existe para ese café a ese peso), pero `itemsCasillas` ya no
+// puede asumir que toda fila tiene celda: filtra las que no.
 
 export interface ItemCasilla {
-  categoria: string;
+  cafe: string;
   cantidad: number;
   producto: Product;
 }
 
-/** Las cantidades elegidas, por café (`categoria` de la matriz) — el estado que monta
- *  `SuscripcionCasillas.tsx`. Un café ausente del mapa cuenta como 0. */
+/** Las cantidades elegidas, por café (`cafe` de la matriz, § ./casillas-cafes.ts) — el estado que
+ *  monta `SuscripcionCasillas.tsx`. Un café ausente del mapa cuenta como 0. */
 export type CantidadesCasillas = Record<string, number>;
 
 /** Tope de unidades por café (§ el spec: "contador − 0 + de 44 px", refero-chamisas.md §4 — sin un
@@ -166,16 +164,22 @@ export function topeUnidadesCasilla(producto: Product): number {
   return producto.maxCompra != null ? Math.min(MAX_UNIDADES_CASILLA, producto.maxCompra) : MAX_UNIDADES_CASILLA;
 }
 
-/** Los cafés con cantidad > 0, en el orden de `matriz.filas` (§ el spec: "mezclar cafés" — el orden
- *  del catálogo, no el de selección, para que la nota y la barra fija no reordenen al comprador). */
-export function itemsCasillas(matriz: MatrizTaquilla, cantidades: CantidadesCasillas, peso: number): ItemCasilla[] {
-  return matriz.filas
-    .map((categoria) => ({
-      categoria,
-      cantidad: cantidades[categoria] ?? 0,
-      producto: matriz.celdas.get(celdaDe(categoria, peso))!,
-    }))
-    .filter((it) => it.cantidad > 0);
+/** Los cafés con cantidad > 0 Y con producto disponible al peso elegido, en el orden de
+ *  `matriz.cafes` (§ el spec: "mezclar cafés" — el orden del catálogo, no el de selección, para
+ *  que la nota y la barra fija no reordenen al comprador). Un café sin producto a ese peso
+ *  (matriz SPARSE, § casillas-cafes.ts) se omite — queda deshabilitado en su fila, no entra al
+ *  pedido, aunque su cantidad en `cantidades` siga viva para cuando el comprador vuelva a su
+ *  tamaño de bolsa anterior. */
+export function itemsCasillas(matriz: MatrizCasillasCafes, cantidades: CantidadesCasillas, peso: number): ItemCasilla[] {
+  const resultado: ItemCasilla[] = [];
+  for (const cafe of matriz.cafes) {
+    const cantidad = cantidades[cafe] ?? 0;
+    if (cantidad <= 0) continue;
+    const producto = matriz.celdas.get(celdaCafeDe(cafe, peso));
+    if (!producto) continue;
+    resultado.push({ cafe, cantidad, producto });
+  }
+  return resultado;
 }
 
 /** El total de bolsas del pedido (para la barra fija del celular: "N bolsas · …"). */

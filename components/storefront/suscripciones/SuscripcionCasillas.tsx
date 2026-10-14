@@ -2,17 +2,21 @@
 
 // LA COMPOSICIÓN «CASILLAS» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4 — aprobada
 // por el owner el 2026-10-12 sobre la maqueta `.scratch/chamisas-paginas/nosotros-suscripciones.html`).
-// Montada por `SuscripcionPlanes.tsx` SÓLO con `suscripcionPlanes.variante === 'casillas'` Y una
-// matriz 2×N VÁLIDA (`derivarMatrizTaquilla`) — sin ella cae sola a «Tarjetas», el MISMO patrón que
-// «Taquilla» (§ SuscripcionPlanes.tsx) y «Láminas»/«Taquilla» de /tienda (§ TiendaCatalogo.tsx).
+// Montada por `SuscripcionPlanes.tsx` SÓLO con `suscripcionPlanes.variante === 'casillas'` Y AL
+// MENOS UN CAFÉ ACTIVO (`derivarCasillasCafes`) — sin eso cae sola a «Tarjetas», el MISMO patrón
+// que «Taquilla» (§ SuscripcionPlanes.tsx) y «Láminas»/«Taquilla» de /tienda (§ TiendaCatalogo.tsx).
 //
-// «ARMA TU PEDIDO» ES LA TAQUILLA, CON TRATO CHAMISAS (§ el spec, item 2): el catálogo real se
-// deriva con la MISMA `derivarMatrizTaquilla` que usa «Taquilla» — nunca un segundo modelo de
-// producto. La diferencia es de CARDINALIDAD: Taquilla elige UNA celda; Casillas elige VARIOS
-// cafés (las filas de la matriz) a la vez, cada uno con su cantidad, compartiendo UNA bolsa y UNA
-// molienda para TODO el pedido. El porqué de que "precio por confirmar" no exista acá —la matriz
-// garantiza completitud— vive en el docstring de cabecera de `lib/storefront/suscripcion-
-// taquilla.ts`, § LA COMPOSICIÓN «CASILLAS».
+// LAS FILAS SON POR CAFÉ, NO POR CATEGORÍA (§ CHAMISAS-CASILLAS-POR-CAFE-1): nació reusando
+// `derivarMatrizTaquilla` —la MISMA derivación de «Taquilla», fila=categoría/columna=peso— y eso
+// hacía caer la sección entera a «Tarjetas» en el catálogo real de Las Chamisas, donde los tres
+// cafés comparten categoría («Café de especialidad») y peso (340 g): los tres reclamaban la misma
+// celda. `derivarCasillasCafes` (lib/storefront/casillas-cafes.ts) deriva en su lugar, con la fila
+// = el CAFÉ (`nombreBaseProducto`) y columnas SPARSE por tamaño de bolsa — un café sin el tamaño
+// elegido queda deshabilitado en su fila, no rompe la composición. El porqué completo vive en el
+// docstring de cabecera de ese archivo.
+//
+// «ARMA TU PEDIDO» SIGUE EL TRATO DE LA TAQUILLA (§ el spec, item 2): Casillas elige VARIOS cafés
+// a la vez, cada uno con su cantidad, compartiendo UNA bolsa y UNA molienda para TODO el pedido.
 //
 // LA APERTURA REUSA eyebrow/titulo/tituloEnfasis/subtitulo — los MISMOS campos que «Tarjetas» (NO
 // se duplican): las dos composiciones comparten el mismo concepto de encabezado, sólo con
@@ -31,7 +35,7 @@ import { whatsappUrl } from '@/lib/config/site';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import CampoEditable from '@/components/storefront/CampoEditable';
-import { derivarMatrizTaquilla, celdaDe } from '@/lib/tienda/taquilla';
+import { derivarCasillasCafes, celdaCafeDe, productoDelCafe, productoDePeso } from '@/lib/storefront/casillas-cafes';
 import { colorDeLamina } from '@/lib/tienda/laminas';
 import {
   frecuenciasDeTaquilla,
@@ -65,14 +69,14 @@ interface SuscripcionCasillasProps {
 }
 
 interface MarcaCafe {
-  categoria: string;
+  cafe: string;
   color: string;
 }
 
 export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscripcionPlanes: c }: SuscripcionCasillasProps) {
   const { tiendaCatalogo } = useSiteContent();
   const preview = useIsPreview();
-  const matriz = useMemo(() => derivarMatrizTaquilla(catalog), [catalog]);
+  const matriz = useMemo(() => derivarCasillasCafes(catalog), [catalog]);
   const [cantidades, setCantidades] = useState<CantidadesCasillas>({});
   const [peso, setPeso] = useState<number | null>(null);
   const [moliendaElegida, setMoliendaElegida] = useState<string | null>(null);
@@ -115,7 +119,7 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
 
   if (!matriz) return null;
 
-  const pesoActivo = peso != null && matriz.columnas.includes(peso) ? peso : matriz.columnas[0];
+  const pesoActivo = peso != null && matriz.pesos.includes(peso) ? peso : matriz.pesos[0];
   const items = itemsCasillas(matriz, cantidades, pesoActivo);
 
   const frecuencias = frecuenciasDeTaquilla([c.frecuencia1, c.frecuencia2, c.frecuencia3, c.frecuencia4]);
@@ -125,25 +129,31 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
   const frecuenciaEtiqueta = frecuencias[slotActivo - 1] ?? frecuencias[0];
   const estructura = frecuenciaEstructuraPorSlot(Math.min(4, Math.max(1, slotActivo)) as 1 | 2 | 3 | 4);
 
-  const opcionesMolienda = moliendasCasillas(items.length > 0 ? items.map((i) => i.producto) : matriz.filas.map((f) => matriz.celdas.get(celdaDe(f, pesoActivo))!));
+  // Sólo los cafés con producto al peso ACTIVO entran a la intersección de molienda — un café
+  // deshabilitado para este tamaño (matriz SPARSE, § casillas-cafes.ts) no puede comprarse, así
+  // que no debe acotar qué molienda se ofrece.
+  const productosDisponiblesEnPeso = matriz.cafes
+    .map((cafe) => matriz.celdas.get(celdaCafeDe(cafe, pesoActivo)))
+    .filter((p): p is Product => p != null);
+  const opcionesMolienda = moliendasCasillas(items.length > 0 ? items.map((i) => i.producto) : productosDisponiblesEnPeso);
   const moliendaActiva = moliendaElegida && opcionesMolienda.includes(moliendaElegida) ? moliendaElegida : opcionesMolienda[0] ?? null;
 
   const total = totalPorEnvioCasillas(items);
   const totalTexto = total != null ? formatCOP(total) : null;
   const bolsas = bolsasCasillas(items);
 
-  const colorDeCafe = (categoria: string): string => {
-    const producto = matriz.celdas.get(celdaDe(categoria, pesoActivo))!;
+  const colorDeCafe = (cafe: string): string => {
+    const producto = productoDelCafe(matriz, cafe, pesoActivo);
     return colorDeLamina(producto.id, catalog.indexOf(producto), tiendaCatalogo.coloresPorProducto);
   };
 
-  const marcas: MarcaCafe[] = items.map((it) => ({ categoria: it.categoria, color: colorDeCafe(it.categoria) }));
+  const marcas: MarcaCafe[] = items.map((it) => ({ cafe: it.cafe, color: colorDeCafe(it.cafe) }));
   const casillas = casillasDeFrecuencia(estructura, marcas, new Date(), 6);
   const totalEnvios = totalEnviosEnVentana(estructura, 6);
 
   const lineasPedido: LineaPedido[] = items.map((it) => ({
     cantidad: it.cantidad,
-    nombre: it.categoria,
+    nombre: it.cafe,
     tamano: `${pesoActivo} g`,
     molienda: moliendaActiva ? moliendaActiva.toLowerCase() : undefined,
   }));
@@ -160,13 +170,17 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
   const mensaje = mensajeNotaPedido(notaInput);
   const mostrarBarra = barraFijaVisible && !finVisible;
 
-  const setCantidad = (categoria: string, delta: number) => {
-    const producto = matriz.celdas.get(celdaDe(categoria, pesoActivo))!;
+  const setCantidad = (cafe: string, delta: number) => {
+    // Un café sin producto al peso activo (matriz SPARSE) no debe poder sumar — su fila ya queda
+    // deshabilitada en el render (botones `disabled`); esta guarda es defensiva, nunca alcanzada
+    // por un click real.
+    const producto = matriz.celdas.get(celdaCafeDe(cafe, pesoActivo));
+    if (!producto) return;
     const tope = topeUnidadesCasilla(producto);
     setCantidades((antes) => {
-      const actual = antes[categoria] ?? 0;
+      const actual = antes[cafe] ?? 0;
       const siguiente = Math.max(0, Math.min(tope, actual + delta));
-      return { ...antes, [categoria]: siguiente };
+      return { ...antes, [cafe]: siguiente };
     });
   };
 
@@ -229,37 +243,47 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
             <div>
               <PasoCabecera numero={1} titulo="¿Qué café?" hint="Suma bolsas de uno o de varios. Puedes mezclar." />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {matriz.filas.map((categoria) => {
-                  const producto = matriz.celdas.get(celdaDe(categoria, pesoActivo))!;
-                  const cantidad = cantidades[categoria] ?? 0;
-                  const color = colorDeCafe(categoria);
+                {matriz.cafes.map((cafe) => {
+                  // SPARSE (§ casillas-cafes.ts): un café puede no tener producto al peso ACTIVO
+                  // — queda deshabilitado en su fila, no desaparece (§ el spec). El representativo
+                  // (imagen/notas/color) cae al de MENOR peso disponible cuando el activo falta,
+                  // para que la tarjeta siga mostrando el café aunque no se pueda comprar así.
+                  const productoActivo = matriz.celdas.get(celdaCafeDe(cafe, pesoActivo));
+                  const representativo = productoDelCafe(matriz, cafe, pesoActivo);
+                  const disponible = productoActivo != null;
+                  const cantidad = cantidades[cafe] ?? 0;
+                  const color = colorDeCafe(cafe);
                   return (
                     <div
-                      key={categoria}
-                      className="flex flex-col rounded-2xl border border-dashed border-[var(--sf-linea)] p-4"
+                      key={cafe}
+                      className={`flex flex-col rounded-2xl border border-dashed border-[var(--sf-linea)] p-4 ${disponible ? '' : 'opacity-50'}`}
                       style={{ backgroundColor: `${color}26` }}
                     >
                       <div className="mb-3 flex items-center gap-3">
-                        {producto.imagen ? (
-                          <img src={producto.imagen} alt="" className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--sf-fondo)] object-cover shadow-sm" />
+                        {representativo.imagen ? (
+                          <img src={representativo.imagen} alt="" className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--sf-fondo)] object-cover shadow-sm" />
                         ) : (
                           <span className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--sf-fondo)] shadow-sm" style={{ backgroundColor: color }} aria-hidden="true" />
                         )}
                         <div className="min-w-0">
-                          <h3 className="truncate font-playfair text-lg text-[var(--sf-tinta)]">{categoria}</h3>
-                          {producto.notas && producto.notas.length > 0 && (
-                            <p className="truncate text-xs text-[var(--sf-texto-suave)]">{producto.notas.join(' · ')}</p>
+                          <h3 className="truncate font-playfair text-lg text-[var(--sf-tinta)]">{cafe}</h3>
+                          {representativo.notas && representativo.notas.length > 0 && (
+                            <p className="truncate text-xs text-[var(--sf-texto-suave)]">{representativo.notas.join(' · ')}</p>
                           )}
                         </div>
                       </div>
                       <div className="mt-auto flex items-center justify-between">
-                        <span className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(producto.precio)}</span>
-                        <span role="group" aria-label={`Bolsas de ${categoria}`} className="flex items-center gap-2">
+                        {disponible ? (
+                          <span className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(productoActivo.precio)}</span>
+                        ) : (
+                          <span className="text-xs text-[var(--sf-texto-suave)]">No disponible en esta bolsa</span>
+                        )}
+                        <span role="group" aria-label={`Bolsas de ${cafe}`} className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => setCantidad(categoria, -1)}
-                            disabled={cantidad === 0}
-                            aria-label={`Quitar una bolsa de ${categoria}`}
+                            onClick={() => setCantidad(cafe, -1)}
+                            disabled={!disponible || cantidad === 0}
+                            aria-label={`Quitar una bolsa de ${cafe}`}
                             className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sf-tinta)]/30 text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
                           >
                             <Minus className="h-4 w-4" />
@@ -267,9 +291,9 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                           <output aria-live="polite" className="w-6 text-center tabular-nums text-[var(--sf-tinta)]">{cantidad}</output>
                           <button
                             type="button"
-                            onClick={() => setCantidad(categoria, 1)}
-                            disabled={cantidad >= topeUnidadesCasilla(producto)}
-                            aria-label={`Sumar una bolsa de ${categoria}`}
+                            onClick={() => setCantidad(cafe, 1)}
+                            disabled={!disponible || cantidad >= topeUnidadesCasilla(productoActivo ?? representativo)}
+                            aria-label={`Sumar una bolsa de ${cafe}`}
                             className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sf-tinta)]/30 text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
                           >
                             <Plus className="h-4 w-4" />
@@ -296,28 +320,33 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
             {/* PASO 2 — Bolsa y molienda */}
             <div>
               <PasoCabecera numero={2} titulo="Bolsa y molienda" hint="Aplica a todo el pedido." />
-              <div role="group" aria-label="Tamaño de bolsa" className="grid grid-cols-2 gap-3">
-                {matriz.columnas.map((p) => {
-                  const representativo = matriz.celdas.get(celdaDe(matriz.filas[0], p))!;
-                  const elegido = p === pesoActivo;
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      aria-pressed={elegido}
-                      onClick={() => setPeso(p)}
-                      className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-colors ${
-                        elegido ? 'border-[var(--sf-tinta)]' : 'border-[var(--sf-linea)] hover:border-[var(--sf-tinta)]/40'
-                      }`}
-                    >
-                      {representativo.imagen && (
-                        <img src={representativo.imagen} alt="" className="h-16 w-10 object-contain" />
-                      )}
-                      <span className="text-sm font-semibold text-[var(--sf-tinta)]">{p} g</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* El selector SÓLO se muestra con MÁS DE UN tamaño declarado (§ el spec, item 1 de
+                  este slice): con uno solo —el caso real de Las Chamisas, 340 g únicamente— no hay
+                  nada que elegir, y mostrar un botón solitario sería ceremonia sin decisión. */}
+              {matriz.pesos.length > 1 && (
+                <div role="group" aria-label="Tamaño de bolsa" className="grid grid-cols-2 gap-3">
+                  {matriz.pesos.map((p) => {
+                    const representativo = productoDePeso(matriz, p);
+                    const elegido = p === pesoActivo;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        aria-pressed={elegido}
+                        onClick={() => setPeso(p)}
+                        className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-colors ${
+                          elegido ? 'border-[var(--sf-tinta)]' : 'border-[var(--sf-linea)] hover:border-[var(--sf-tinta)]/40'
+                        }`}
+                      >
+                        {representativo.imagen && (
+                          <img src={representativo.imagen} alt="" className="h-16 w-10 object-contain" />
+                        )}
+                        <span className="text-sm font-semibold text-[var(--sf-tinta)]">{p} g</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {opcionesMolienda.length > 0 && (
                 <div className="mt-4">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--sf-texto-suave)]">
@@ -382,7 +411,7 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                     {casilla.marcas.length > 0 ? (
                       <span className="flex -space-x-1" aria-hidden="true">
                         {casilla.marcas.map((m) => (
-                          <span key={m.categoria} className="h-5 w-5 rounded-full border border-[var(--sf-fondo)]" style={{ backgroundColor: m.color }} />
+                          <span key={m.cafe} className="h-5 w-5 rounded-full border border-[var(--sf-fondo)]" style={{ backgroundColor: m.color }} />
                         ))}
                       </span>
                     ) : (
@@ -437,9 +466,9 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                 <div className="mt-3 flex -space-x-1" aria-hidden="true">
                   {items.map((it) => (
                     <span
-                      key={it.categoria}
+                      key={it.cafe}
                       className="casillas-sticker h-8 w-8 rounded-full border-2 border-[var(--sf-superficie)]"
-                      style={{ backgroundColor: colorDeCafe(it.categoria) }}
+                      style={{ backgroundColor: colorDeCafe(it.cafe) }}
                     />
                   ))}
                 </div>

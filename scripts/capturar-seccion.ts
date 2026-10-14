@@ -333,15 +333,18 @@ slice es un SPA de un solo archivo con estado en JS, no páginas estáticas por
 sección — automatizar sus transiciones duplicaría las capturas que ya existen
 en .scratch/lanzamiento/maqueta-compra/capturas/); el par se arma a mano
 contra esas capturas YA EXISTENTES, no contra una captura nueva del prototipo.
---sembrar-casillas (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1) siembra, sobre la base
-efímera y DESPUÉS de --preset (si se pasó): la paleta/tipografía/forma MEDIDAS
-contra el muestrario real de Las Chamisas (fondo #FAF4EB, tinta #2A2522, acento
-#B8461A, par "prensa" = Roboto Serif/Figtree, forma "recta" — leídas del
-:root que ese despliegue ya inyecta server-side, § DECISIONS.md), TRES
-productos (Bourbon Rosado/Pacamara/Papayo, un café por fila, una sola bolsa de
-340 g — la matriz mínima que derivarMatrizTaquilla acepta), y publica
-suscripcionPlanes.variante:'casillas' + SiteSetting.nombre/whatsapp. SÓLO
-válido en modo base fresca (mismo motivo que --sembrar-spotlight).
+--sembrar-casillas (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, actualizado por
+§ CHAMISAS-CASILLAS-POR-CAFE-1) siembra, sobre la base efímera y DESPUÉS de
+--preset (si se pasó): la paleta/tipografía/forma MEDIDAS contra el muestrario
+real de Las Chamisas (fondo #FAF4EB, tinta #2A2522, acento #B8461A, par
+"prensa" = Roboto Serif/Figtree, forma "recta" — leídas del :root que ese
+despliegue ya inyecta server-side, § DECISIONS.md), TRES productos (Bourbon
+Rosado/Pacamara/Papayo, los TRES bajo la MISMA categoría «Café de
+especialidad» y la MISMA bolsa de 340 g — la forma real del catálogo público;
+la fila de «Casillas» es el CAFÉ, no la categoría, § derivarCasillasCafes en
+lib/storefront/casillas-cafes.ts), y publica suscripcionPlanes.variante:
+'casillas' + SiteSetting.nombre/whatsapp. SÓLO válido en modo base fresca
+(mismo motivo que --sembrar-spotlight).
 --sembrar-album-nosotros (§ CHAMISAS-NOSOTROS-ALBUM-1) siembra, sobre la base
 efímera: la MISMA paleta/tipografía/forma de --sembrar-casillas (medidas contra
 el muestrario real de Las Chamisas), TRES productos (Bourbon Rosado/Pacamara/
@@ -1166,13 +1169,19 @@ async function sembrarTaquillaOnix(): Promise<void> {
 // ÚNICA clave de `CLAVES_FUENTES` (lib/config/fuentes.ts) cuyo par es exactamente Roboto Serif/
 // Figtree.
 //
-// TRES PRODUCTOS DE MUESTRA (§ el spec de este slice): un café por FILA de la matriz
-// (`derivarMatrizTaquilla` exige mínimo 2 productos, y Casillas necesita varios cafés para
-// "mezclar" — § refero-chamisas.md §4), con una ÚNICA columna de peso (340 g): 3 filas × 1
-// columna = una matriz válida (3 ≤ `MAX_VALORES_POR_EJE`) sin necesitar un segundo peso que esta
-// captura no pide. Cada producto declara `moliendasOpciones` (En grano/Molido, ambas disponibles)
-// y `notas` (las notas de cata de la maqueta aprobada) para que la tarjeta de cada café y el
-// chooser de molienda del paso 2 tengan algo real que mostrar.
+// TRES PRODUCTOS DE MUESTRA, AHORA CON LA FORMA DEL CATÁLOGO REAL (§ CHAMISAS-CASILLAS-POR-CAFE-1,
+// medido contra GET /api/catalog de Las Chamisas el 2026-10-14): los TRES bajo la MISMA
+// `categoria` («Café de especialidad») y el MISMO `peso_gramos` (340 g) — exactamente lo que hacía
+// caer la sección a «Tarjetas» bajo `derivarMatrizTaquilla` (tres productos reclamando la misma
+// celda categoría×peso). La fila de «Casillas» ya no es la categoría: es el CAFÉ, derivado del
+// `nombre` (`nombreBaseProducto`, lib/tienda/taquilla.ts) — por eso `nombre` es el nombre del café
+// A SECAS, sin sufijo de peso (el catálogo real no lo necesita: declara un solo tamaño). Antes de
+// este fix, cada café llevaba su PROPIA categoría (una distinción que la matriz de Taquilla
+// necesitaba para no colisionar, pero que el catálogo real NUNCA tuvo) — se corrige acá para que
+// esta siembra reproduzca el defecto observado, no un catálogo que ya lo evitaba por accidente.
+// Cada producto declara `moliendasOpciones` (En grano/Molido, ambas disponibles) y `notas` (las
+// notas de cata de la maqueta aprobada) para que la tarjeta de cada café y el chooser de molienda
+// del paso 2 tengan algo real que mostrar.
 async function sembrarCasillas(): Promise<void> {
   console.log("▸ --sembrar-casillas: paleta/tipografía/forma de Las Chamisas + 3 cafés + content.suscripcionPlanes…");
   const { default: prisma } = await import("@duna/core");
@@ -1195,16 +1204,22 @@ async function sembrarCasillas(): Promise<void> {
     { slug: "arnes-casillas-pacamara", nombre: "Pacamara", notas: ["Chocolate", "Tropical", "Cremoso"], precio: 48000 },
     { slug: "arnes-casillas-papayo", nombre: "Papayo", notas: ["Caramelo", "Cítrico", "Balanceado"], precio: 44000 },
   ];
+  // LA MISMA categoría para los TRES (§ CHAMISAS-CASILLAS-POR-CAFE-1) — el catálogo real de Las
+  // Chamisas no distingue sus cafés por categoría, los distingue por NOMBRE. `nombre` es el del
+  // café a secas, sin sufijo de peso (un solo tamaño declarado): la FILA de «Casillas» ya no es la
+  // categoría, es el café (`nombreBaseProducto`), así que esta siembra reproduce el defecto
+  // observado en vez de un catálogo que ya lo evitaba por tener una categoría por café.
+  const CATEGORIA_UNICA = "Café de especialidad";
   for (const cafe of CAFES) {
     await prisma.product.upsert({
       where: { slug: cafe.slug },
       update: {
-        activo: true, stock: 42, categoria: cafe.nombre, precio: cafe.precio, peso_gramos: 340,
+        activo: true, stock: 42, categoria: CATEGORIA_UNICA, precio: cafe.precio, peso_gramos: 340,
         notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
       },
       create: {
-        slug: cafe.slug, nombre: `${cafe.nombre} 340 g`, descripcion: `${cafe.nombre}, bolsa de 340 g.`,
-        categoria: cafe.nombre, activo: true, stock: 42, precio: cafe.precio, costo: Math.round(cafe.precio * 0.55),
+        slug: cafe.slug, nombre: cafe.nombre, descripcion: `${cafe.nombre}, bolsa de 340 g.`,
+        categoria: CATEGORIA_UNICA, activo: true, stock: 42, precio: cafe.precio, costo: Math.round(cafe.precio * 0.55),
         peso_gramos: 340, notas: cafe.notas, moliendasOpciones: CONMOLIENDA,
         imagen: "/images/cafe-nayoli-250g-molido.webp",
       },

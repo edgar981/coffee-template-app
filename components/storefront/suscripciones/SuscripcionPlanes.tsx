@@ -10,6 +10,7 @@ import { planesDeSuscripcion, gridColsPlanes } from '@/lib/storefront/planes-sus
 import CampoEditable from '@/components/storefront/CampoEditable';
 import { getCatalog } from '@/lib/api/products';
 import { derivarMatrizTaquilla } from '@/lib/tienda/taquilla';
+import { casillasCafesActivo } from '@/lib/storefront/casillas-cafes';
 import SuscripcionTaquilla from '@/components/storefront/suscripciones/SuscripcionTaquilla';
 import SuscripcionCasillas from '@/components/storefront/suscripciones/SuscripcionCasillas';
 import type { Product } from '@/types/product';
@@ -29,8 +30,16 @@ import type { SuscripcionPlanesContent } from '@/lib/config/site-content-default
 // | 'casillas' (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1: el armador de varios cafés con «Casillas de
 // frecuencia» y la Nota de pedido, § SuscripcionCasillas.tsx). El catálogo SÓLO se fetchea bajo
 // 'taquilla'/'casillas' —mismo criterio que `TiendaCatalogo.tsx` bajo 'laminas'/'taquilla'—: ningún
-// tenant con la canónica paga una llamada de red de más. Sin matriz válida (`derivarMatrizTaquilla`),
-// cae SOLA a «Tarjetas» — mismo patrón que «Taquilla»/«Láminas» caen a «Actual» en `TiendaCatalogo.tsx`.
+// tenant con la canónica paga una llamada de red de más.
+//
+// CADA COMPOSICIÓN TIENE SU PROPIO UMBRAL DE VALIDEZ (§ CHAMISAS-CASILLAS-POR-CAFE-1), Y EL GATE
+// LOS CONSULTA POR SEPARADO — NUNCA UN CHEQUEO COMÚN: 'taquilla' sigue cayendo a «Tarjetas» sin
+// matriz categoría×peso válida (`derivarMatrizTaquilla`, binaria); 'casillas' cae a «Tarjetas»
+// sin AL MENOS UN CAFÉ ACTIVO (`casillasCafesActivo`, sparse, fila=café no categoría — el defecto
+// que hacía caer Casillas en silencio con el catálogo real de Las Chamisas, § el docstring de
+// cabecera de `lib/storefront/casillas-cafes.ts`). Antes del fix las dos composiciones compartían
+// el chequeo de Taquilla, así que un catálogo válido para Casillas pero inválido para la matriz de
+// Taquilla (como el de Las Chamisas) nunca llegaba a montar `SuscripcionCasillas`.
 export default function SuscripcionPlanes({ whatsapp, negocio }: { whatsapp?: string; negocio?: string }) {
   const { suscripcionPlanes } = useSiteContent();
   const preview = useIsPreview();
@@ -45,15 +54,17 @@ export default function SuscripcionPlanes({ whatsapp, negocio }: { whatsapp?: st
 
   if (necesitaCatalogo) {
     // Mientras carga: esqueleto PROPIO, nunca «Tarjetas» (parpadearía al reemplazarse con la
-    // Taquilla/Casillas). Con el catálogo ya resuelto, sin matriz válida se CAE a «Tarjetas» — el
+    // Taquilla/Casillas). Con el catálogo ya resuelto, sin UMBRAL válido se CAE a «Tarjetas» — el
     // CHEQUEO VIVE ACÁ (como `TiendaCatalogo.tsx` decide si monta `TiendaTaquilla`), no dentro de
     // `SuscripcionTaquilla`/`SuscripcionCasillas` (que vuelven a chequear, defensivo, por si el
-    // catálogo cambia tras montar).
+    // catálogo cambia tras montar). CADA composición consulta SU PROPIO umbral — ver el docstring
+    // de cabecera, arriba.
     if (catalog === null) return <SuscripcionTaquillaCargando />;
-    if (derivarMatrizTaquilla(catalog)) {
-      if (c.variante === 'casillas') {
+    if (c.variante === 'casillas') {
+      if (casillasCafesActivo(catalog)) {
         return <SuscripcionCasillas catalog={catalog} whatsapp={whatsapp} negocio={negocio} suscripcionPlanes={c} />;
       }
+    } else if (derivarMatrizTaquilla(catalog)) {
       return (
         // 1344PX, PADDING 72PX (§ ONIX-PAGINAS-FIDELIDAD-1, el spec, punto 6) — la maqueta corre
         // la Taquilla en un `.env` de 1344px con 48px de gutter y 72px de padding de sección; antes
