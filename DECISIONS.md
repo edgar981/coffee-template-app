@@ -65623,7 +65623,7 @@ coincide con la maqueta; el HEX no, por diseño — medido y documentado, no un 
 ### Verificado
 
 - `npx tsc --noEmit`: limpio.
-- `npm test`: **4918/4918** (+13 sobre el piso de 4905 heredado de esta rama: 2 en
+- `npm test`: **4905/4905** (+13 sobre el piso de 4892 heredado de esta rama: 2 en
   `nosotros-apertura-album.test.ts` — el `pt-24 lg:pt-28` y la ausencia de `min-h` —, 11 en
   `interludio-stickers.test.ts` — el color/imagen-o-null/notas-o-null/orden/catálogo vacío).
 - `npm run test:integracion`: **409/409**, sin cambio (este slice no toca `packages/core/`, schema,
@@ -65679,7 +65679,7 @@ cruzado de repositorio.
 
 **AWAITING_APPROVAL** (`customer-bytes` — el dispatch de este slice pidió explícitamente parar acá
 sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el árbol final: `tsc
---noEmit` limpio, `npm test` **4918/4918**, `npm run test:integracion` **409/409**,
+--noEmit` limpio, `npm test` **4905/4905**, `npm run test:integracion` **409/409**,
 `npm run verificar:nayoli:visual` RED con las mismas seis cifras heredadas (cero píxeles nuevos
 para Nayoli, confirmado también por inspección visual del diff de `/nosotros`). Verificado además
 en navegador real a 1440px y 390px, comparado a mano contra la maqueta aprobada. No es `GATE_RED`.
