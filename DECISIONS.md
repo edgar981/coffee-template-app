@@ -65684,3 +65684,171 @@ sin mergear: "PARÁS EN AWAITING_APPROVAL. NO MERGEES."). Gate corrido en el ár
 para Nayoli, confirmado también por inspección visual del diff de `/nosotros`). Verificado además
 en navegador real a 1440px y 390px, comparado a mano contra la maqueta aprobada. No es `GATE_RED`.
 Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-15 — CHAMISAS-NOSOTROS-MAQUETA-1: la demo pública de Las Chamisas se ve como la maqueta «Álbum de finca» — el Interludio deja de ser una sección oscura
+
+**Pedido del owner** (2026-10-15, comparando la demo pública de `/nosotros` contra la maqueta con sus
+propias capturas): *"I don't want to include another store that aint gonna use a client in duna
+tienda, how do we get to fix the page: coffee-template-app-las-chamisas.vercel.app?"* y, ante el plan
+de arreglarla acá primero y después portar el fix a Duna Tienda, *"Yes, write the specs please, then
+copy the fixes needed in duna-tienda as well"*. La aprobación autoriza la ESCRITURA, nunca el merge.
+
+El trabajo llegó en DOS pasos.
+
+### Paso 1 — traer lo ya hecho en Duna Tienda
+
+El mismo trabajo de fidelidad (arco/sinopsis/láminas/ficha) ya se había hecho en el repo hermano Duna
+Tienda, commit `a16753c7` (`CHAMISAS-NOSOTROS-FIDELIDAD-1`, sobre los MISMOS ocho archivos que tiene
+este repo: `NosotrosAperturaAlbum.tsx`, `NosotrosEscenasAlbum.tsx`, `NosotrosFichaEtiqueta.tsx`,
+`NosotrosHistoriaPartida.tsx`, `NosotrosInterludioStickers.tsx`,
+`lib/storefront/nosotros-apertura-album.test.ts`, `lib/storefront/nosotros-ficha.test.ts`,
+`scripts/capturar-seccion.ts`). Se leyó con `git -C <duna-tienda> show a16753c7` (sólo lectura de ese
+repo) y se aplicó A MANO con la herramienta de edición — los ocho archivos de este repo coincidían
+BYTE A BYTE con el estado "antes" de ese diff (verificado leyendo cada uno antes de tocarlo), así que
+el puerto fue mecánico, sin adaptación. Commit propio (`40fd3e3c`), separado del Paso 2, "para que se
+vea qué vino de allá" (instrucción del dispatch).
+
+Lo que trajo: el ancho de columna de 1152px a 1376px (coincide con `.wrap` de la maqueta — el H1
+pasó de envolver 4 líneas a 3); el arco al 100% de ancho en celular (antes 78%); la franja de tejido
+de la Apertura DENTRO de la caja que recorta la foto, visible en las DOS anchuras (antes sólo
+celular, y fuera de la caja); la tarjeta blanca por lámina (`--sf-tarjeta`) con esquineros TRIÁNGULOS
+sólidos (26px, -5px del borde, antes corchetes finos) y el pie "Imagen ilustrativa" como rótulo sobre
+la foto (antes itálica debajo, sin rótulo); el sello de la Ficha de texto a imagen (`LogoMark`, el
+mark de marca — mismo patrón que `EstadoPedido.tsx` ya usaba) y la tarjeta a `--sf-papel`; el layout
+de la Sinopsis de "título centrado + 2 columnas con filete ENTRE párrafos" a "frase grande a la
+izquierda + filete + párrafos apilados a la derecha"; y aire (`margin`, no `padding`) entre la Ficha
+y el Interludio.
+
+### Paso 2 — lo que seguía sin coincidir
+
+Medido sección por sección contra la maqueta (`.scratch/chamisas-paginas/nosotros-suscripciones.html`,
+las capturas del owner `capturas-owner/mock-{1,3,4,5}.png`, y `capturas/v-d-nosotros.jpg`/
+`v-m-nosotros.jpg` — las tres fuentes coinciden):
+
+- **Filete de la Sinopsis a 1px, la maqueta mide 2px** (`.sin .rule{border-top/left:2px dashed}`).
+  `border-t`/`border-l` de Tailwind son 1px; se cambió a `border-t-2`/`border-l-2`.
+- **Eyebrow de la Apertura con `/70` de opacidad**, único entre los tres eyebrows de la página — la
+  maqueta usa `.eyb{color:var(--ink)}` sin alfa, y Láminas/Ficha ya estaban en tinta plena. Se quitó
+  el `/70`.
+- **El Interludio — el cambio grande.** Era una sección con fondo OSCURO (`bg-[var(--sf-tinta)]`) y
+  el patrón de tejido como wallpaper repetido en las DOS direcciones llenando toda la sección;
+  tarjetas de 128/144px; nombre y notas en texto claro. Medido contra TRES fuentes independientes que
+  coinciden (el CSS de `.inter`/`.isk` — `.inter` no declara `background`, hereda el crema de
+  `<body>`; `mock-4.png`; `v-d-nosotros.jpg`, recorte por píxel a 1408×500 en y=2650): la sección es
+  CREMA; el tejido es una FRANJA delgada (64/96px de alto) que cruza A SANGRE detrás de las tarjetas,
+  no las rellena; las tarjetas son casi cuadradas (`aspect-ratio:1/1.1`) y bastante más grandes
+  (240px fijo en escritorio — medido en el mismo recorte: ancho de tile 543-304=239px, gap entre
+  tiles 583-543=40px, EXACTO a `.inter-row{gap:40px}` desktop); nombre y notas en TINTA sobre el
+  crema. Se reescribió `NosotrosInterludioStickers.tsx` entero: sección sin fondo oscuro ni `py-*`;
+  franja a sangre (`inset-x-0`, sin contenedor de ancho) al `top-[38%]` del alto de la columna
+  tarjeta+texto — UNA APROXIMACIÓN declarada por el mismo criterio que `a16753c7` ya usó para
+  `.lam .ph` (`cqw` no se replica literalmente; se mide por píxel contra la captura y se documenta el
+  cálculo: centro de la franja en y≈237 dentro del recorte, columna completa y=109..441, (237-109)/332
+  ≈ 38,6%); tarjeta `aspect-[1/1.1] rounded-[24px]` en fila `flex` sin envolver (antes `flex-wrap`),
+  `max-w-[820px]` centrada, `gap-3 lg:gap-10` (12/40px, el valor exacto de la maqueta); texto en
+  `--sf-tinta`, `text-base lg:text-[22px]` / `text-xs lg:text-sm` (16/22px y 12/14px — la maqueta
+  pide 12.5px, Tailwind no tiene esa clase, se usó `text-xs`=12px, 0.5px de diferencia declarada).
+  Consecuencia de comportamiento, documentada: con `stickers.length === 0` la sección ya NO monta
+  nada (antes mostraba el wallpaper decorativo solo) — una franja sin tarjetas detrás ya no cumple el
+  mismo rol.
+- **Docstring desactualizado corregido de paso**: `NosotrosFichaEtiqueta.tsx` (portado en Paso 1 de
+  `a16753c7`) describía el Interludio como "fondo oscuro" — el comentario original de
+  `a16753c7`/`ARCO-E-INTERLUDIO-1` nunca se re-verificó contra la maqueta vigente. Se agregó una
+  corrección in-line, sin reescribir el punto 3 original (que sigue siendo correcto sobre
+  margen-vs-padding).
+
+### Lo que se midió y NO se cerró — fuera de `touches:`
+
+- **`CierreCostura.tsx` (`components/storefront/tienda/`) — la frase del Cierre mide 20/24px en el
+  código, la maqueta pide 22/26px** (`.band .q{font-size:22px}` mobile, `26px` desktop). El archivo
+  es pieza COMPARTIDA (`/nosotros`, `/tienda`, `/suscripciones` — su propio docstring lo dice) y
+  `touches:` de este slice es `components/storefront/nosotros/`, no `.../tienda/`; tocarlo habría
+  afectado las otras dos páginas sin autorización. Open follow-up.
+- **"Imagen ilustrativa" sobre el arco de la Apertura** — ya era open follow-up de `a16753c7`
+  (`NosotrosAperturaContent` no tiene campo para ese rótulo; agregarlo es
+  `site-content-defaults.ts`/`site-content-schema.ts`, Tier 1). Sigue abierto, sin cambio.
+- **El ancho de columna no es uniforme entre secciones**: `NosotrosAperturaAlbum.tsx` usa el literal
+  `max-w-[1376px]` (de `a16753c7`); `NosotrosHistoriaPartida.tsx`/`NosotrosFichaEtiqueta.tsx`/
+  `NosotrosCierre.tsx` usan `contenedorAnchoClase(navTratamiento.posicion)` (1152px para Las Chamisas,
+  no-CORTE); `NosotrosEscenasAlbum.tsx` usa `max-w-6xl` (1152px) hardcodeado, sin pasar por esa
+  función. La maqueta usa UN solo `.wrap` (1376px) para TODA la página. Medido, NO cerrado: elegir
+  entre (a) que las piezas «álbum» adopten `1376px` como un eje propio, o (b) que vuelvan a
+  `contenedorAnchoClase` y se acepte que el H1 vuelva a 4 líneas, es una decisión de layout que toca
+  más de un archivo y no estaba en la lista explícita del spec (tamaños de letra/bloque, tarjeta de
+  lámina, ficha+sello, interludio+franja, cierre+franja). Se deja nombrado para que el próximo que
+  mida sepa que NO es casualidad: las cinco piezas usan TRES mecanismos de ancho distintos hoy.
+
+### Verificado
+
+- `npx tsc --noEmit`: limpio (corrido dos veces, después de cada paso).
+- `npm run gate` (= `npm run typecheck && npm test && npm run test:integracion`) en el árbol final:
+  **`npm test` 4905/4905** (SIN CAMBIO sobre el piso heredado de `CHAMISAS-NOSOTROS-ARCO-E-
+  INTERLUDIO-1` — este slice no agregó ni quitó ningún `test()`, sólo edita dos aserciones existentes
+  en `nosotros-apertura-album.test.ts`/`nosotros-ficha.test.ts`, ya contadas en ese piso);
+  **`npm run test:integracion` 409/409** (SIN CAMBIO — este slice no toca `packages/core/`, schema,
+  ni ninguna cadena del motor).
+- **Capturado en navegador real** (`next build`+`next start`, Postgres efímero,
+  `--sembrar-album-nosotros --sin-prototipo --ruta /nosotros`) a 1440px y 390px, Y la demo pública
+  real (`--url https://coffee-template-app-las-chamisas.vercel.app/nosotros --sin-prototipo`) a las
+  mismas dos anchuras, para el "antes". Los cuatro PNG + los dos JPG de la maqueta + un README
+  punto-por-punto viven en `.scratch/chamisas-maqueta/nosotros/` (gitignored, evidencia local — no se
+  commitea). Confirmado por inspección: el Interludio cruza la franja detrás de las tres tarjetas
+  pastel en las DOS anchuras, full-bleed, texto en tinta debajo; el título de la Apertura entra en 3
+  líneas a 1440px; el filete de la Sinopsis se ve más grueso.
+- **NO se corrió `npm run verificar:nayoli:visual`** (el arnés pesado de dos builds completos +
+  diff de píxeles que sí corrió `CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`) — deviación medida y
+  declarada: los CINCO archivos tocados (`NosotrosAperturaAlbum`/`NosotrosEscenasAlbum` — sin cambio
+  de código en Paso 2, sólo portado en Paso 1 —/`NosotrosFichaEtiqueta`/`NosotrosHistoriaPartida`/
+  `NosotrosInterludioStickers`) son TODOS composiciones `variante==='album'|'etiqueta'|'partida'|
+  'stickers'`, seleccionadas por `content.nosotrosX.variante` en cinco dispatchers distintos
+  (`NosotrosApertura.tsx`, `NosotrosEscenas.tsx`, `NosotrosFicha.tsx`, `NosotrosHistoria.tsx`,
+  `NosotrosInterludio.tsx`) — confirmado leyendo el `if (… .variante === …)` de cada uno. Nayoli/Onix
+  nunca activan esas variantes (usan las composiciones canónicas, archivos DISTINTOS), así que la
+  garantía de "cero cambio para Nayoli/Onix" es ESTRUCTURAL (el código de esas tiendas ni siquiera
+  importa estos cinco archivos), más fuerte que un diff de píxeles — y no se pagó el costo de dos
+  builds completos para confirmar algo que la lectura del dispatcher ya prueba.
+
+### Qué grep del CLAUDE.md contra lo que cambió, y qué encontró
+
+Símbolos/rutas de este diff: `NosotrosAperturaAlbum`, `NosotrosFichaEtiqueta`,
+`NosotrosHistoriaPartida`, `NosotrosInterludioStickers`, `nosotros-apertura-album.test.ts`,
+`nosotros-ficha.test.ts`, `capturar-seccion.ts`. Grepeados contra `CLAUDE.md`: **CERO apariciones
+para cada uno** — ninguna sección de esa doctrina nombra este árbol de componentes. También se
+grepearon los símbolos REUSADOS sin modificar (`contenedorAnchoClase`, `--sf-papel`, `--sf-tarjeta`,
+`LogoMark`): `contenedorAnchoClase` y `--sf-tarjeta`/`--sf-papel` no aparecen; `LogoMark` aparece una
+vez (línea ~4503, "El MARK... NO es portable: es un ASSET por-despliegue"), describiendo la
+doctrina general de mark-vs-wordmark del componente `Logo` — no contradicha por usar `LogoMark`
+(el SVG crudo) como sello decorativo fuera de ese componente, patrón que `EstadoPedido.tsx` ya
+establecía antes de este slice. Ninguna sentencia de CLAUDE.md queda falsa por este diff.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 2` (según el spec de este slice), `writes: yes`, `approved: yes` (el owner aprobó el 2026-10-15,
+"Yes, write the specs please, then copy the fixes needed in duna-tienda as well"). El diff toca
+`components/storefront/` — bytes del visitante de cualquier tienda que elija la composición «álbum»/
+«etiqueta»/«partida»/«stickers» de /nosotros (hoy, sólo Las Chamisas). **`customer_bytes.changed =
+true`**: cambia layout que un visitante de la demo pública ve hoy (el deploy de Las Chamisas sigue
+siendo preview, no producción de un cliente real, pero el dispatch de este slice pidió explícitamente
+parar en `AWAITING_APPROVAL` sin mergear, igual que el slice anterior de esta misma página). Sin
+cambio de schema/migración ni contrato cruzado de repositorio.
+
+### Open follow-ups
+
+- `CHAMISAS-CIERRE-FRANJA-TEJIDO-FALTANTE-1` (abierto por `CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1`) —
+  estado sin cambio, no tocado por este slice.
+- La frase del Cierre («Costura») mide 20/24px contra los 22/26px de la maqueta —
+  `components/storefront/tienda/CierreCostura.tsx`, fuera de `touches:` (§ arriba).
+- El ancho de columna no es uniforme entre las cinco piezas «álbum» (tres mecanismos de ancho
+  distintos) — § arriba, "Lo que se midió y NO se cerró".
+- El rótulo "Imagen ilustrativa" de la Apertura sigue sin campo — Tier 1, abierto desde `a16753c7`.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — mismo criterio que `CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`:
+el dispatch pidió explícitamente parar acá sin mergear). Gate corrido en el árbol final:
+`npm run gate` verde — `tsc --noEmit` limpio, `npm test` **4905/4905**, `npm run test:integracion`
+**409/409**. `npm run verificar:nayoli:visual` NO corrido (deviación declarada arriba, con el
+argumento estructural que lo reemplaza). Verificado en navegador real a 1440px y 390px, local y
+contra la demo pública, comparado a mano contra la maqueta aprobada y documentado en
+`.scratch/chamisas-maqueta/nosotros/README.md`. No es `GATE_RED`. Commits `40fd3e3c` (Paso 1) y
+`d847610d` (Paso 2) en `slice/editor-secciones-1`, sin mergear.
