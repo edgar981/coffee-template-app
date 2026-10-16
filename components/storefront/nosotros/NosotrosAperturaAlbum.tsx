@@ -110,6 +110,25 @@
 // escribió. No se corrige acá (el padding-top de esta sección es otro eje, fuera de este slice); se
 // anota porque el AJUSTE DE ABAJO depende del valor real, no del que este párrafo seguía afirmando.
 //
+// § CHAMISAS-NOSOTROS-AIRE-1 — cierra CHAMISAS-NOSOTROS-APERTURA-DOBLE-OFFSET-1
+// (`CHAMISAS-PAGINAS-ARREGLOS-1`, DECISIONS.md): `pt-24 lg:pt-28` (arriba) se calculó asumiendo que
+// esta sección era la ÚNICA responsable del hueco bajo el header — header (64/72px) + aire medido
+// contra la maqueta (32/40px). Esa premisa VENCIÓ el mismo día que "Las Chamisas no lo activa" (el
+// párrafo de arriba): con `navTratamiento.posicion:true`, `app/(storefront)/nosotros/page.tsx`
+// (fuera de `touches:`) envuelve TODAS las bandas en `navOffsetClase(true)` —el alto REAL del header
+// de CORTE, 76/88px—, así que esta sección sumaba su propio header+aire ENCIMA del que la página ya
+// reservaba: 112px (lg:pt-28) + 88px (`navOffsetClase(true)` en escritorio ≥1200) = 200px, contra los
+// ~88-112px de un solo padding. Medido por imagen en `CHAMISAS-PAGINAS-ARREGLOS-1`: ~116px de exceso
+// (el rótulo aparecía a ~492px del borde del header contra ~376px en la maqueta).
+//
+// EL FIX DEPENDE DE `navTratamiento.posicion`, igual que el ancho (§ CHAMISAS-PAGINAS-ARREGLOS-1,
+// abajo): con `posicion:true` la página YA reserva el header, así que esta sección suma SÓLO el aire
+// —`pt-8 lg:pt-10` (32/40px), el mismo valor que la maqueta ya medía (`pt-24`−64px=32px,
+// `lg:pt-28`−72px=40px), ahora sin el header duplicado—. Con `posicion:false` (el default de
+// cualquier tenant que no sea CORTE) la página NO envuelve nada (`page.tsx` devuelve `<>{bandas}</>`
+// a secas), así que esta sección sigue siendo la única responsable del hueco y conserva `pt-24
+// lg:pt-28` tal cual.
+//
 // § CHAMISAS-PAGINAS-ARREGLOS-1 — cierra CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1: el grid de esta
 // portada vivía en su PROPIO `max-w-[1376px] px-6 sm:px-10 lg:px-16`, un ancho de columna distinto
 // del resto de /nosotros (que ya usa `contenedorAnchoClase(navTratamiento.posicion)` — sinopsis,
@@ -143,15 +162,21 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
   const preview = useIsPreview();
   const tieneImagen = imagen.trim() !== '';
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
+  // § CHAMISAS-NOSOTROS-AIRE-1, arriba — con `posicion:true` la PÁGINA ya reserva el alto del
+  // header (`navOffsetClase(true)`); esta sección suma sólo el aire que le queda, no el header de
+  // nuevo. Con `posicion:false` la página no reserva nada y esta sección sigue cargando con las dos
+  // cosas, como siempre.
+  const offsetClase = navTratamiento.posicion ? 'pt-8 lg:pt-10' : 'pt-24 lg:pt-28';
 
   return (
-    <section className="bg-[var(--sf-fondo)] pt-24 lg:pt-28">
+    <section className={`bg-[var(--sf-fondo)] ${offsetClase}`}>
       {/* SIN `min-h`/`py` extra acá (§ el ajuste 1, arriba) — sólo el padding SUPERIOR de la sección.
-          El VALOR (`pt-24 lg:pt-28`) ya NO es el `.cov{padding:28px 0 0}` literal de la maqueta —
-          § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1, arriba, lo sube para despejar el `<header>` fijo,
-          que la maqueta (estática, sin header `fixed` propio) no tenía que descontar. El ANCHO/
-          RELLENO horizontal es `contenedorAnchoClase(navTratamiento.posicion)` (§ CHAMISAS-PAGINAS-
-          ARREGLOS-1, arriba) — el MISMO contenedor que el resto de /nosotros, en vez de un
+          El VALOR depende de `navTratamiento.posicion` (§ CHAMISAS-NOSOTROS-AIRE-1, arriba): ya NO es
+          el `.cov{padding:28px 0 0}` literal de la maqueta en ningún caso — con `posicion:false` sigue
+          siendo `pt-24 lg:pt-28` (header+aire, § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1), con
+          `posicion:true` es sólo el aire (`pt-8 lg:pt-10`) porque la página ya reservó el header. El
+          ANCHO/RELLENO horizontal es `contenedorAnchoClase(navTratamiento.posicion)` (§ CHAMISAS-
+          PAGINAS-ARREGLOS-1, arriba) — el MISMO contenedor que el resto de /nosotros, en vez de un
           `max-w-[1376px]` propio; vive en ESTA fila, no repetido por columna, para que `gap` sea la
           única fuente de separación vertical/horizontal. */}
       <div className={`${contenedorClase} mx-auto grid grid-cols-1 gap-[22px] lg:grid-cols-2 lg:items-end lg:gap-12`}>

@@ -67040,3 +67040,85 @@ la tercera ocurrencia del mismo error — no una categoría nueva. Verificado co
 npx eslint --stdin` contra `npx eslint` en el árbol de trabajo, los dos archivos. Capturado en
 navegador real, documentado sin suavizar en `.scratch/compra-fidelidad/pasada-3/README.md`.
 Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-16 — CHAMISAS-NOSOTROS-AIRE-1: el doble offset sobre el arco de /nosotros se cierra —
+## queda UN solo relleno, como la maqueta
+
+**Pedido del owner** (hilo de la demo de Las Chamisas, 2026-10-15): cerrar
+`CHAMISAS-NOSOTROS-APERTURA-DOBLE-OFFSET-1`, el hallazgo adyacente que `CHAMISAS-PAGINAS-
+ARREGLOS-1` (entrada anterior de esta sección) dejó abierto y midió: con `navTratamiento.
+posicion:true` (el valor real de la demo), `app/(storefront)/nosotros/page.tsx` (fuera de
+`touches:`) ya envuelve TODAS las bandas de /nosotros en `navOffsetClase(true)` — el alto REAL
+del header de CORTE —, y `NosotrosAperturaAlbum.tsx` sumaba ADEMÁS su propio `pt-24 lg:pt-28`
+—calculado para cuando la página NO reservaba nada (§ `CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`)—,
+encima. Dos rellenos por el mismo header.
+
+### El fix: la sección pasa a depender de `navTratamiento.posicion`, igual que el ancho
+
+`contenedorClase` ya se deriva de `navTratamiento.posicion` (`CHAMISAS-PAGINAS-ARREGLOS-1`); el
+padding-top pasa a hacer lo mismo. Con `posicion:true` la página YA reservó el header, así que la
+sección suma SÓLO el aire (`pt-8 lg:pt-10` = 32/40px) — el mismo valor que el docstring del
+componente ya documentaba como "lo que la maqueta pide" (`pt-24`−64px=32px,
+`lg:pt-28`−72px=40px, derivado en `CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`), ahora sin el header
+duplicado. Con `posicion:false` (cualquier tenant que no sea CORTE) la página no reserva nada —
+`page.tsx` sigue devolviendo `<>{bandas}</>` a secas en ese caso—, así que la sección conserva
+`pt-24 lg:pt-28` tal cual, sin cambio.
+
+### Medido por píxel, no sólo por clase — el bug y el fix, antes/después
+
+Capturas reales (`scripts/capturar-seccion.ts --sembrar-album-nosotros [--posicion] --sin-
+prototipo`, Postgres efímero + `next build`/`next start`, nunca `next dev`) a 390px y 1440px,
+comparadas contra las de `CHAMISAS-PAGINAS-ARREGLOS-1` (el estado ANTES de este slice, ya en el
+repo) y contra la maqueta aprobada. Medición por color de píxel (`sharp`): para cada captura, se
+ubica dónde termina la banda del `<header>` fijo y dónde aparece el primer píxel oscuro de la
+foto del arco (la columna derecha); el "aire" es la diferencia.
+
+| caso | header termina en | arco empieza en | **aire medido** | aire esperado |
+| --- | --- | --- | --- | --- |
+| Escritorio 1440, ANTES (el bug) | y=88 | y=200 | **112px** | `lg:pt-28` viejo, sumado ENTERO sobre el header que la página ya reservaba |
+| Escritorio 1440, DESPUÉS (este slice) | y=88 | y=128 | **40px** | `lg:pt-10` — el aire solo |
+| Escritorio 1440, `posicion:false` (sin tocar) | y=72 | y=112 | **40px** | `lg:pt-28`(112)−header(72)=40, el criterio de siempre |
+| Celular 390, ANTES | y=76 | y=175 | **99px** | `pt-24` viejo completo, sobre el header |
+| Celular 390, DESPUÉS | y=76 | y=111 | **35px** | `pt-8`=32px (la diferencia de 3px es la curvatura del semicírculo del arco) |
+
+El aire bajó de 112px a 40px en escritorio y de 99px a 35px en celular — el mismo valor que
+`posicion:false` siempre tuvo, y el que el docstring del componente ya documentaba como correcto
+contra la maqueta. El detalle punto por punto, con las siete imágenes (antes/después/posicion-off/
+maqueta en las dos anchuras), en `.scratch/chamisas-maqueta/aire/README.md`.
+
+### Lo que NO se tocó
+
+`app/(storefront)/nosotros/page.tsx` (fuera de `touches:`, el otro lado del doble offset) no se
+tocó — el fix vive entero en la sección, como el follow-up lo dejó planteado ("mover el cálculo a
+depender de `navTratamiento.posicion` igual que el ancho", la opción elegida). El ancho
+(`contenedorAnchoClase`), el sticker, la franja de tejido, el orden celular y el resto de los
+ajustes de tandas anteriores no cambiaron — el único valor tocado es el padding-top de la
+sección, condicionado al mismo booleano que ya condiciona el ancho.
+
+### Pre-flight
+
+Árbol limpio al empezar (`git status` sin cambios), HEAD en `8057d4fc` sobre
+`slice/editor-secciones-1` (continúa la rama, no se crea una nueva — el spec lo pide explícito).
+Los dos archivos de `touches:` (`NosotrosAperturaAlbum.tsx`,
+`lib/storefront/nosotros-apertura-album.test.ts`) existen y se leyeron antes de tocarlos. El
+follow-up citado (`CHAMISAS-NOSOTROS-APERTURA-DOBLE-OFFSET-1`) se verificó contra el texto real de
+`DECISIONS.md` (línea ~66556 al empezar este slice), no se asumió por el nombre: confirma el
+mismo diagnóstico que el spec resume (112px/88px en vez de un solo padding, ~116px de exceso
+medido por imagen en esa tanda).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin mergear,
+"PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run typecheck`
+limpio (0 `error TS`), `npm test` **4993/4993**, `npm run test:integracion` **415/415** (corridos
+como `npm run gate`, un solo chaineo `&&` — típecheck y unit test tuvieron que pasar para que la
+cadena llegara a correr el carril de integración, cuyo resultado se vio completo). No es
+`GATE_RED`. `npx eslint` sobre los 2 archivos de este diff: el único error reportado
+(`react/no-children-prop` en `lib/storefront/nosotros-apertura-album.test.ts:21`) es del helper
+`render(...)` PRE-EXISTENTE, en una línea que este diff no toca (`git diff` del archivo arranca en
+la línea 117) — cero errores/warnings nuevos. Capturado en navegador real (Playwright,
+`scripts/capturar-seccion.ts --sembrar-album-nosotros [--posicion] --sin-prototipo`, 3 capturas
+nuevas × /nosotros · 390/1440 · con/sin `--posicion`, medidas por color de píxel contra las de
+`CHAMISAS-PAGINAS-ARREGLOS-1` y la maqueta aprobada), documentado sin suavizar en
+`.scratch/chamisas-maqueta/aire/README.md`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

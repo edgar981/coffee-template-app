@@ -117,6 +117,39 @@ describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1: la
   });
 });
 
+// § CHAMISAS-NOSOTROS-AIRE-1 — cierra CHAMISAS-NOSOTROS-APERTURA-DOBLE-OFFSET-1
+// (`CHAMISAS-PAGINAS-ARREGLOS-1`, DECISIONS.md): con `navTratamiento.posicion:true`,
+// `app/(storefront)/nosotros/page.tsx` (fuera de `touches:`) ya envuelve las bandas en
+// `navOffsetClase(true)` (el alto REAL del header), así que esta sección NO debe volver a sumar
+// `pt-24 lg:pt-28` (header+aire) encima — eso era el doble offset (~116px de exceso medido por
+// imagen). Con `posicion:true` la sección debe sumar SÓLO el aire (`pt-8 lg:pt-10`); con
+// `posicion:false` (DEFAULTS, cubierto arriba) debe seguir siendo la única responsable y conservar
+// `pt-24 lg:pt-28` intacto — el describe de arriba ya lo afirma con DEFAULTS.
+describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-AIRE-1: con posicion:true no se duplica el offset del header', () => {
+  test('con posicion:true la sección usa `pt-8 lg:pt-10` (sólo el aire) — la página ya reservó el header', () => {
+    const content: SiteContentData = { ...DEFAULTS, navTratamiento: { ...DEFAULTS.navTratamiento, posicion: true } };
+    const html = render(content, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('class="bg-[var(--sf-fondo)] pt-8 lg:pt-10"'), 'con posicion:true la sección debe declarar pt-8 lg:pt-10, no el pt-24 lg:pt-28 de header+aire');
+    assert.ok(!html.includes('pt-24'), 'el pt-24 de header+aire no debe sobrevivir con posicion:true — sumaría el header dos veces');
+    assert.ok(!html.includes('lg:pt-28'), 'el lg:pt-28 de header+aire no debe sobrevivir con posicion:true, por la misma razón');
+  });
+
+  test('con posicion:false la sección sigue en `pt-24 lg:pt-28` — la página NO reserva nada, sigue siendo la única responsable del hueco', () => {
+    const content: SiteContentData = { ...DEFAULTS, navTratamiento: { ...DEFAULTS.navTratamiento, posicion: false } };
+    const html = render(content, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('class="bg-[var(--sf-fondo)] pt-24 lg:pt-28"'), 'con posicion:false la sección debe conservar pt-24 lg:pt-28, como antes de este slice');
+    assert.ok(!html.includes('pt-8 lg:pt-10'), 'el pt-8 lg:pt-10 (sólo-aire) no debe aparecer con posicion:false — la página no reserva el header para esta sección');
+  });
+
+  test('sigue SIN min-h en ninguno de los dos casos — el fix de este slice no reabre la banda vacía de § CHAMISAS-APERTURA-ALBUM-AJUSTES-1', () => {
+    for (const posicion of [true, false]) {
+      const content: SiteContentData = { ...DEFAULTS, navTratamiento: { ...DEFAULTS.navTratamiento, posicion } };
+      const html = render(content, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+      assert.ok(!/\bmin-h-\[/.test(html), `posicion:${posicion} — ningún min-h arbitrario debe quedar en el grid`);
+    }
+  });
+});
+
 // § CHAMISAS-PAGINAS-ARREGLOS-1 — el swap a `contenedorAnchoClase(navTratamiento.posicion)` (§ el
 // docstring de cabecera del componente) SE JUSTIFICA con esta aritmética, no con una suposición: el
 // ancho INTERIOR disponible para el grid texto+arco nunca encoge frente al `max-w-[1376px] px-6
