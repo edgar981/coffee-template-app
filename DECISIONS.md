@@ -66005,3 +66005,229 @@ a 1440px y 390px, local y contra la demo pública, comparado a mano contra la ma
 documentado en `.scratch/chamisas-maqueta/suscripciones/README.md`. Onix confirmado sin cambio,
 estructural y empíricamente. Commits `4c535abe` (Paso 1) y `7d2bc546` (Paso 2) en
 `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-16 — Entrega y Pago se rediseñan con rótulo flotante, el cuarto eje `pasos` cierra el camino de compra (`COMPRA-FIDELIDAD-3`)
+
+**DESVIACIÓN MEDIDA, primero: el `observed-report` que el spec cita (`COMPRA-FIDELIDAD-CENSO-1`) NO
+EXISTE** — `grep -n "COMPRA-FIDELIDAD" DECISIONS.md` sobre el árbol previo a este commit da CERO
+líneas propias, y tampoco hay archivo bajo ese nombre en el repo. Es la MISMA familia que
+`WOMPI-CHECKOUT-INTENTOS-CENSO-1` ya documentó cinco veces en este mismo libro (líneas ~3284,
+~4425, ~4572, ~4763, ~8764 del árbol previo): un `observed-report` citado que nunca se escribió.
+**Segunda desviación, de nombre:** el `ledger-id` que el spec asignó es `COMPRA-FIDELIDAD-3`, pero
+la serie real en este libro es `COMPRA-LINEAS-ONIX-CHAMISAS-1` → `COMPRA-LINEAS-FIDELIDAD-1` →
+`COMPRA-LINEAS-FIDELIDAD-2` (2026-10-12/13) — falta el segmento "LINEAS". Se usó el ID EXACTO que
+el spec dio (`COMPRA-FIDELIDAD-3`, este título) sin inventar una corrección por mi cuenta; se anota
+para que quien lea la serie sepa que es la MISMA continuación, con un nombre levemente distinto.
+Ninguna de las dos desviaciones bloqueó el trabajo: la maqueta (`.scratch/checkout-rediseno/
+maqueta.html`) y su spec de campo (`refero.md`) —las dos SÍ existen— son la autoridad que el
+dispatch nombra ("la maqueta manda"), y alcanzan solas para medir qué cambiar.
+
+**Alcance:** cerrar lo que `COMPRA-LINEAS-FIDELIDAD-1/2` dejaron explícitamente fuera — Entrega y
+Pago del checkout seguían siendo la pantalla de SIEMPRE (campos `Field` con rótulo arriba, pasos
+"Información"/"Pago", métodos siempre abiertos, CTA genérico para todo lo que no fuera
+wompi/whatsapp) — contra una maqueta NUEVA, interactiva
+(`.scratch/checkout-rediseno/maqueta.html`, aprobada por el owner el 2026-10-15/16, artefacto
+`CSjTi5aoW3C5hiRi3xRjhj`) que SÍ pide una redistribución real: rótulo flotante, validación al
+salir del campo, bloque plegado de Entrega, métodos como `fieldset` con un panel que se abre sólo
+en el elegido, «Copiar», CTA que nombra el método, y el tratamiento por línea (Onix: subrayado +
+versal + "01 ENTREGA/02 PAGO"; Las Chamisas: papel punteado + tejido de avance + sticker "Entrega
+lista"). Más "lo que el censo encontrara distinto" en Rastrear pedido (buscar/no encontrado) —sin
+censo real que leer, se midió por lectura directa de `rastrear-pedido/page.tsx` contra
+`.scratch/lanzamiento/maqueta-compra/compra.html` (`pageRastrear`)—.
+
+### El cuarto eje — `content.compra.pasos`, mismo mecanismo que los otros tres
+
+`ClaveCompraPasos = 'comun'|'ficha'|'tejido'` (`site-content-defaults.ts`), resuelto por el MISMO
+`resolverVariante` que ya clampa `cajon`/`confirmacion`/`seguimiento`, con `composicionPasos`
+(`composiciones-compra.ts`) como segunda capa de clamp en runtime — ningún mecanismo nuevo, la
+misma forma que `COMPRA-LINEAS-ONIX-CHAMISAS-1` ya estableció. `'comun'` es la canónica, pero a
+diferencia de los otros tres ejes **NO es "byte-idéntico a hoy"**: lleva la MEJORA DE BASE (rótulo
+flotante, validación al salir del campo, bloque plegado, accordion de métodos, «Copiar», CTA que
+nombra el método) — eso es DELIBERADO, pedido así por el dispatch ("valen para TODAS las
+composiciones, también la común"). Lo que NO cambia entre las tres es la MECÁNICA; lo que cambia
+es el TRATAMIENTO (forma de la caja, versal, tejido). Afirmado por los 13 tests de
+`CampoFlotante.test.ts` (ninguna clase de `ficha`/`tejido` aparece bajo `linea="comun"`) y por los
+nuevos casos de `composiciones-compra.test.ts` (13/13) y `site-content-defaults.test.ts` (328/328,
+el archivo completo) — ver el gate, abajo, para el conteo del `npm test` entero.
+
+El panel ganó su CUARTO `<select>` en `CompraSeccion.tsx` (`compra-pasos`), declarado en
+`lib/config/panel-controles.ts` (`CONTROLADOS_COMPRA_SECCION`) — **SIN esto el higiene-guard
+`huecosDelPanel()` queda ROJO** (`panel-controles.test.ts`/`panel-hero-toggles.test.ts`, medido: se
+vio fallar nombrando `compra.pasos` antes de declarar el control). **`lib/config/panel-controles.ts`
+NO está en `touches:` de este spec** — es la única edición de este slice fuera de la lista
+declarada, y se hizo a propósito: es un ARRAY de un string, mecánico, en el MISMO subsistema
+(`lib/config/*`) que el archivo que SÍ está en `touches:` (`site-content-defaults.ts`) y cuyo único
+propósito es mantener honesto un guard que existe justamente para esto. Dejarlo sin tocar habría
+puesto `npm run gate` en rojo por una razón mecánica, no por un defecto real. Se declara acá para
+que quien revise la aprobación lo vea — es una línea, revertible sola, sin lógica nueva.
+
+**SIN vista previa en el panel para `pasos`**, a diferencia de los otros tres: `CajonPanel`/
+`EstadoPedido`/`SeguimientoTimeline` son componentes PROP-DRIVEN que `PreviewCompra` monta con
+datos de muestra; el checkout (`app/(storefront)/checkout/page.tsx`) no lo es —depende de
+`useCartStore`/`services/checkout.service`—, así que extraer una pieza de muestra es su propio
+trabajo. Se declara en el panel ("Sin vista previa acá — pruébalo en /checkout con un carrito
+real"), no se finge.
+
+### `CampoFlotante` — la mejora de base, un componente nuevo
+
+`components/storefront/checkout/CampoFlotante.tsx` reemplaza a `Field` (retirado, cero
+consumidores tras la migración) para los 7 campos de Entrega (correo, celular con prefijo +57,
+nombre, apellido, departamento `<select>` NATIVO, ciudad, dirección) + 1 (apartamento/torre, que
+pasó de campo de una línea a `textarea` con contador 0/200, § refero.md §2 "Notas"). La VALIDACIÓN
+sigue siendo del LLAMADOR (`errorVisible`/`intentoEnviar`, intactos) — el componente sólo RENDERIZA
+lo que recibe; no se movió esa lógica.
+
+**Dos defectos reales encontrados por la PRIMERA corrida del arnés, corregidos antes de la
+captura final:**
+
+1. La opción vacía del `<select>` de Departamento llevaba texto visible ("Selecciona
+   departamento"), que se dibuja DENTRO de la caja nativa y choca con el rótulo flotante (que
+   también descansa centrado sin valor). La maqueta usa el truco contrario —opción vacía con
+   texto VACÍO (`(o||'')`)— y así se dejó acá.
+2. El prefijo "+57" se centraba en TODA la caja del campo de celular; con el rótulo ya flotado
+   arriba, las dos cadenas competían por el mismo centro vertical y se tocaban. Se bajó el prefijo
+   a la altura del valor cuando el rótulo flota (sólo en `comun`/`tejido` — `ficha` no lo sufre,
+   su rótulo flotado vive lejos del centro de un subrayado alto).
+
+Las dos están documentadas con su porqué en el código (`page.tsx` para la primera,
+`CampoFlotante.tsx` para la segunda) — no son ajustes de gusto, son overlaps reales medidos por
+ejecución.
+
+### El CTA nombra el método — `verboCTACompra`, un wrapper, no una segunda definición
+
+`lib/checkout/estado-pedido.ts` (`verboBotonPago`) ya nombraba wompi/whatsapp pero caía al
+genérico "Confirmar pedido" para nequi/daviplata/breb/transferencia/efectivo — gap real contra
+refero.md §3 ("el CTA SIEMPRE nombra el método"). **Ese archivo NO está en `touches:`** (sólo
+`lib/checkout/composiciones-compra.ts` lo está, dentro de `lib/checkout/`), así que no se tocó:
+`verboCTACompra` (`composiciones-compra.ts`) ENVUELVE a `verboBotonPago` —lo importa, no lo
+reimplementa— y sólo agrega la frase específica para los cinco métodos manuales que hoy caen al
+default. Es un superset por delegación, no una segunda fuente del mismo hecho: el día que
+`verboBotonPago` los nombre por su cuenta, el mapa de `verboCTACompra` queda inerte. Afirmado en
+`composiciones-compra.test.ts` (nombra cada método Y delega wompi/whatsapp/null sin reimplementar).
+
+### «Copiar» — desviación medida contra la maqueta
+
+`BotonCopiar` (`page.tsx`) copia la LÍNEA completa de instrucción de pago (`opt.desc`/cada entrada
+de `opt.cuentas`), no un campo aislado (banco/número/titular por separado, como la maqueta). La
+ruta del dinero —`lib/checkout/metodos-pago.ts`, Tier 1, fuera de `touches:`— sólo expone una
+frase combinada por cuenta (`MetodoCheckout.desc`/`.cuentas`), no campos sueltos; separarlos
+tocaría ese archivo. Se documenta la desviación en vez de cerrarla en silencio, como pide el
+dispatch.
+
+### Rastrear pedido — sólo "no encontrado" cambió, "buscar" se quedó
+
+El formulario de búsqueda NO adoptó el rótulo flotante: la maqueta que gobierna ESTA pantalla
+(`.scratch/lanzamiento/maqueta-compra/compra.html`, `pageRastrear`, clase `.fld`) usa rótulo ARRIBA
+sin flotar — un patrón DISTINTO del de `checkout-rediseno/maqueta.html`, que es exclusivo de
+Entrega/Pago. El estado "no encontrado" sí se reescribió por fidelidad contra `.nf` de esa misma
+maqueta: ahora nombra el pedido buscado, lleva `role="alert"`, ícono de alerta y tres tips
+concretos (antes: "Orden no encontrada" + una frase genérica, sin eco del dato buscado, sin
+`role="alert"`).
+
+### El arnés de captura ganó dos acciones y una siembra más rica
+
+`scripts/capturar-seccion.ts` (en `touches:`) ganó `checkout-entrega-lleno` (llena el paso 1 SIN
+avanzar) y `checkout-entrega-errores` (clic en «Continuar al pago» sin llenar nada) —
+`checkout-pago`/`completar-pedido` ya existían pero SIEMPRE avanzan al paso 2, así que no podían
+producir "Entrega llena" ni "Entrega con errores". El estado "Entrega vacía" no necesitó acción
+nueva (`--accion-previa ""` ya lo es). `sembrarCompra` ganó `nequi`/`transferencia` de ejemplo
+además de `efectivo` en `SiteSetting.metodosPago` — con un solo método no se puede capturar el
+panel que se abre bajo el elegido ni el botón «Copiar». Capturas finales en
+`.scratch/compra-fidelidad/` (`app/`, 24 PNG: 4 corridas × 6 estados; `maqueta/`, 20 PNG de la
+maqueta en los mismos anchos/estados, tomadas con un script scratch propio —
+`.scratch/checkout-rediseno/maqueta.html` no vive bajo `docs/prototipos/cafeone/`, así que
+`--prototipo` no la sirve, mismo límite que `COMPRA-LINEAS-FIDELIDAD-1` ya documentó para
+`compra.html`—), con `README.md` pantalla por pantalla, sin suavizar lo que no se logró (ver ahí:
+sin captura "antes" de la app, sin captura en vivo de `comun`, sin Wompi).
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `compra.pasos`/`ClaveCompraPasos`/`composicionPasos`,
+`CampoFlotante`, `verboCTACompra`, `BotonCopiar`, `checkout-entrega-lleno`/`checkout-entrega-errores`,
+`CompraSeccion.tsx`, `panel-controles.ts`, `capturar-seccion.ts`, `capturar-compra.ts`,
+`estado-pedido.ts`, `metodos-pago.ts`, `rastrear-pedido/page.tsx`, `app/(storefront)/checkout/
+page.tsx`, `Field` (retirado).
+
+`grep -n "compra\.pasos\|ClaveCompraPasos\|composicionPasos\|CampoFlotante\|verboCTACompra\|
+BotonCopiar\|checkout-entrega\|CompraSeccion\|panel-controles\|CONTROLADOS_COMPRA_SECCION\|
+capturar-seccion\|capturar-compra\|camino de compra\|COMPRA-LINEAS\|composiciones-compra" CLAUDE.md`:
+**CERO coincidencias** — ninguno de estos símbolos, ni la feature "camino de compra", viven en
+CLAUDE.md; su doctrina vive enteramente en este libro (`CHECKOUT-LISTO-PARA-VENDER-1`,
+`COMPRA-LINEAS-ONIX-CHAMISAS-1`, `COMPRA-LINEAS-FIDELIDAD-1/2`), nunca promovida a CLAUDE.md.
+
+`grep -n "estado-pedido.ts\|verboBotonPago" CLAUDE.md`: CERO. `grep -n "metodos-pago.ts" CLAUDE.md`:
+8 coincidencias — la primera (línea 39) es la LISTA Tier 1, que YA incluye
+`lib/checkout/metodos-pago.ts` (confirma, no contradice, que este slice no debía tocarlo — y no lo
+tocó: `git diff -- lib/checkout/metodos-pago.ts` da vacío); las otras 7 describen su forma
+(`MetodoCheckout.cuentas`, `claveMedioPago`, `metodosDisponibles`…), sin una sola palabra sobre
+`verboCTACompra`/`BotonCopiar` — ninguna sentencia se vuelve falsa, las dos funciones nuevas sólo
+CONSUMEN esos exports sin alterar su contrato.
+
+`grep -n "rastrear-pedido\|Rastrear" CLAUDE.md`: 2 coincidencias — una nombra el enlace del footer
+("Rastrear Pedido", intocado), la otra dice que `/rastrear-pedido` es dato REAL vía
+`getOrderByNumber` (sigue siendo cierto, ese código no se tocó). Ninguna se vuelve falsa.
+
+`grep -n "el select es NATIVO\|select nativo" CLAUDE.md`: 2 coincidencias, ambas bajo "Controles de
+formulario" (§5964) — **ESCOPADA AL PANEL ADMIN** ("ninguna de las DIEZ opciones DEL PANEL lleva
+más que texto"). El `<select>` nuevo de `CampoFlotante` (storefront) sigue el MISMO principio
+(nativo, sin lista compuesta) pero vive en otra superficie, así que la sentencia no se vuelve
+falsa por mi diff — **salvo por el CONTEO**: agregué un UNDÉCIMO `<select>` nativo al panel
+(`compra-pasos`, en `CompraSeccion.tsx`), así que "ninguna de las diez" quedó con el número
+vencido (ahora son once, y la nueva sigue cumpliendo "sólo texto"). Es la MISMA familia que
+CLAUDE.md ya se auto-diagnostica en § Backlog técnico ("un número en doctrina es una frase con
+fecha de vencimiento") — se anota como open follow-up, no se corrige acá (editar CLAUDE.md está
+fuera de `touches:`).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (según el spec), `approved: yes` (`approval-reason`: el owner pidió terminar el camino de
+compra el 2026-10-15 y aprobó la maqueta de Entrega/Pago esa misma noche — el artefacto
+`CSjTi5aoW3C5hiRi3xRjhj` citado en el spec). Entra por `components/storefront/`/
+`app/(storefront)/` — bytes del visitante en TODAS las composiciones de `pasos` (`comun` incluida
+— a diferencia de `COMPRA-LINEAS-FIDELIDAD-1/2`, donde las composiciones opt-in nunca tocaban a
+Nayoli, ACÁ Nayoli (que corre `comun`) SÍ ve un checkout distinto: rótulo flotante, bloque plegado,
+accordion de métodos, CTA que nombra el método. **`customer_bytes.changed = true`**, y a diferencia
+de las dos entregas anteriores de esta serie, el cambio alcanza a CUALQUIER tenant, no sólo a
+Onix/Las Chamisas. Sin cambio de schema/migración, sin contrato cruzado de repositorio — el dinero
+(`lib/checkout/metodos-pago.ts`, `app/api/checkout/**`, `packages/core/src/**`,
+`lib/checkout/pasarela-disponible.ts`) queda intacto, verificado por `git diff` vacío sobre cada
+uno.
+
+### Open follow-ups
+
+- **`CLAUDE-DIEZ-OPCIONES-PANEL-VENCIDO-1`** — "ninguna de las diez opciones del panel lleva más
+  que texto" (§ Controles de formulario, CLAUDE.md:5982) quedó con el conteo vencido: ahora son
+  once (`compra-pasos` lo cumple igual, pero el número ya no es diez). No se corrige en esta
+  entrada — editar CLAUDE.md está fuera de `touches:` de este slice.
+- **`COMPRA-COPIAR-CAMPO-SUELTO-1`** — «Copiar» copia la línea combinada, no un campo aislado
+  (banco/número/titular por separado, como pide la maqueta). Cerrarlo exige separar
+  `MetodoCheckout.desc`/`.cuentas` en campos propios dentro de `lib/checkout/metodos-pago.ts`
+  (Tier 1, fuera de `touches:` de este slice).
+- **`COMPRA-PASOS-SIN-SEMBRADO-COMUN-1`** — `scripts/capturar-seccion.ts::sembrarCompra` sólo
+  acepta `onix|chamisas`; no hay una tercera siembra para capturar `pasos:'comun'` en vivo contra
+  un tema neutro. La garantía de hoy descansa en tests (`CampoFlotante.test.ts`,
+  `composiciones-compra.test.ts`) y lectura de código, no en una captura de navegador.
+- Los abiertos por `COMPRA-LINEAS-FIDELIDAD-1/2` (`COMPRA-BOLETO-FECHA-REAL-1`, el patrón de
+  tejido CSS-no-asset, `CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1`, etc.) siguen abiertos, sin tocar por
+  este slice.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin mergear,
+"PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run gate` verde —
+`tsc --noEmit` limpio, `npm test` **4922/4922** (medido DESPUÉS de todos los cambios de código de
+este slice, incluidos los tests nuevos de `composiciones-compra.test.ts`/
+`site-content-defaults.test.ts`/`CampoFlotante.test.ts`; NO se midió un piso limpio de ANTES de
+empezar — el delta exacto del slice completo queda sin medir, sólo se confirma que el ÁRBOL FINAL
+da 4922/4922 sin fallos), `npm run test:integracion` **409/409**. No es `GATE_RED`. `npm run lint`
+sobre los 13 archivos de este diff: cero errores/warnings NUEVOS — cada error/warning reportado se
+verificó contra `git diff` línea por línea y es PRE-EXISTENTE, fuera de los hunks de este commit
+(`react-hooks/refs` en `CompraSeccion.tsx:226`/`page.tsx:1547`, `react/no-children-prop` en
+`site-content-defaults.test.ts`/`capturar-compra.ts`, imports sin usar ya presentes antes de este
+slice). Verificado en navegador real vía el arnés (`npm run capturar:seccion --sembrar-compra
+{onix,chamisas} --sin-prototipo`, 4 corridas × 6 estados, a 390 y 1440) contra la maqueta aprobada,
+documentado sin suavizar en `.scratch/compra-fidelidad/README.md`. No se tomó captura "antes" de
+la app en vivo (habría exigido revertir el slice a mitad de camino); el estado previo queda en el
+`git diff` de esta rama. `npm run verificar:nayoli`/`:visual` (parte de `pre-merge`, no de `gate`)
+NO se corrieron — fuera del gate que este dispatch exige; quedan para el `pre-merge` del
+orquestador antes del merge real. Commiteado en `slice/editor-secciones-1`, sin mergear.

@@ -350,23 +350,32 @@ function OrderTrackingInner() {
           )}
 
           {searched && !loading && !order && (
-            <motion.div key="sin-resultado" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="text-center py-8">
-              <div className="w-16 h-16 bg-[var(--sf-superficie)] rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search aria-hidden="true" className="w-7 h-7 text-[var(--sf-tostado-2)]" />
+            <motion.div key="sin-resultado" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="text-left py-8">
+              {/* § COMPRA-FIDELIDAD-3 — fidelidad contra `.scratch/lanzamiento/maqueta-compra/
+                  compra.html` (`pageRastrear`, bloque `.nf`): el aviso NOMBRA lo que se buscó
+                  («No encontramos el pedido {num} con ese correo»), lleva `role="alert"` y TRES
+                  tips concretos en vez de una frase sola — antes decía "Orden no encontrada" sin
+                  repetir el dato, sin `role="alert"`, y con un solo consejo genérico. Lo escrito
+                  (`query`/`email`) sigue CONSERVADO — ningún campo se limpia al fallar. */}
+              <div role="alert" className="flex items-start gap-3 rounded-xl bg-[var(--sf-superficie)] p-4">
+                <AlertTriangle aria-hidden="true" className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+                <p className="text-sm text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                  <span className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
+                    No encontramos el pedido {query.trim() || '—'} con ese correo.
+                  </span>{' '}
+                  Conservamos lo que escribiste para que lo corrijas.
+                </p>
               </div>
-              <p className="font-medium text-[var(--sf-tinta)] mb-1">Orden no encontrada</p>
-              {/* CHECKOUT-LISTO-PARA-VENDER-1 — «no encontrado… explica dónde está el número y
-                  ofrece WhatsApp» (§ el spec, § `paginas-pendientes.md` §2.3: "ni dónde
-                  encuentro mi número, ni WhatsApp. El único camino es reintentar"). Lo
-                  escrito (`query`/`email`) se CONSERVA — ningún campo se limpia al fallar. */}
-              <p className="text-sm text-[var(--sf-texto-suave)] mb-4">
-                Verifica el número de orden y el correo con el que hiciste tu compra. El número de orden está en el correo de confirmación que te enviamos.
-              </p>
+              <ul className="mt-4 space-y-1.5 pl-5 text-sm text-[var(--sf-texto-suave)] list-disc">
+                <li>El número está en el correo de confirmación. Su asunto es «Tu pedido {TENANT_ORDER_PREFIX}…».</li>
+                <li>Usa el correo con el que compraste, no otro.</li>
+                <li>Si pagaste hace unos minutos, espera un momento y busca otra vez.</li>
+              </ul>
               {tieneWhatsapp && (
                 <a
                   href={whatsappUrl(settings.whatsapp, `Hola, no encuentro mi pedido ${query.trim() ? `(${query.trim()})` : ''}.`)}
                   target="_blank" rel="noopener"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--sf-tinta)] underline hover:no-underline"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--sf-tinta)] underline hover:no-underline"
                 >
                   <MessageCircle className="w-4 h-4" /> Escríbenos por WhatsApp
                 </a>

@@ -319,15 +319,16 @@ const CONTROLADOS_ESTILO_ELEMENTO: string[] = Object.keys(ELEMENTOS_ESTILO).flat
   (seccion) => elementosEstiloDeSeccion(seccion).map((el) => `${seccion}.estilos.${el}`),
 );
 
-/** DECLARACIÓN EXPLÍCITA de lo que `CompraSeccion.tsx` controla (§ COMPRA-LINEAS-ONIX-CHAMISAS-1 —
- *  `compra` SÍ es sección del REGISTRY, pero su editor es BESPOKE, patrón `VendedorSeccion`: no hay
- *  una página real del storefront a la que estos tres ejes "pertenezcan" como contenido de página —
- *  son la composición del cajón/confirmación/seguimiento, cada uno fuera de la grilla home/nosotros/
- *  tienda/suscripciones) — leído de su código: los tres `<select>`. `compra.visible` no aplica —
- *  `REGISTRY.compra.ocultable` es `false` (§ arriba, mismo criterio que `vendedor`). Nacen
- *  CONTROLADOS desde este commit, nunca pasan por `PENDIENTE_PANEL` — mismo criterio que
- *  `vendedor.*`. */
-const CONTROLADOS_COMPRA_SECCION = ['compra.cajon', 'compra.confirmacion', 'compra.seguimiento'];
+/** DECLARACIÓN EXPLÍCITA de lo que `CompraSeccion.tsx` controla (§ COMPRA-LINEAS-ONIX-CHAMISAS-1,
+ *  ampliado por COMPRA-FIDELIDAD-3 con el cuarto eje `pasos` — los DOS pasos del checkout (Entrega
+ *  y Pago) — `compra` SÍ es sección del REGISTRY, pero su editor es BESPOKE, patrón
+ *  `VendedorSeccion`: no hay una página real del storefront a la que estos cuatro ejes
+ *  "pertenezcan" como contenido de página — son la composición del cajón/confirmación/seguimiento/
+ *  pasos, cada uno fuera de la grilla home/nosotros/tienda/suscripciones) — leído de su código: los
+ *  CUATRO `<select>`. `compra.visible` no aplica — `REGISTRY.compra.ocultable` es `false` (§
+ *  arriba, mismo criterio que `vendedor`). Nacen CONTROLADOS desde este commit, nunca pasan por
+ *  `PENDIENTE_PANEL` — mismo criterio que `vendedor.*`. */
+const CONTROLADOS_COMPRA_SECCION = ['compra.cajon', 'compra.confirmacion', 'compra.seguimiento', 'compra.pasos'];
 
 /** TODO campo de contenido con control en el panel HOY. */
 export function camposControladosPorPanel(): string[] {

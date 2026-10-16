@@ -3295,6 +3295,7 @@ export const DEFAULTS: SiteContentData = {
     cajon: 'comun',
     confirmacion: 'comun',
     seguimiento: 'comun',
+    pasos: 'comun',
   },
   // DEFAULT ENCENDIDA (Nayoli tiene historia real): al deployar, /nosotros queda viva y el enlace
   // "Nosotros" apunta a la página. Un cliente que no la use la apaga (§ decisión del owner). NO es
@@ -4548,6 +4549,8 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       cajon: { claves: ['comun', 'creditos', 'album'], canonica: 'comun' },
       confirmacion: { claves: ['comun', 'boleto', 'lamina'], canonica: 'comun' },
       seguimiento: { claves: ['comun', 'escaleta', 'album'], canonica: 'comun' },
+      // § COMPRA-FIDELIDAD-3 — el cuarto eje, ver el docstring de `ClaveCompraPasos` arriba.
+      pasos: { claves: ['comun', 'ficha', 'tejido'], canonica: 'comun' },
     },
   },
 };
@@ -4640,6 +4643,19 @@ export interface VendedorContent {
 export type ClaveCompraCajon = 'comun' | 'creditos' | 'album';
 export type ClaveCompraConfirmacion = 'comun' | 'boleto' | 'lamina';
 export type ClaveCompraSeguimiento = 'comun' | 'escaleta' | 'album';
+// COMPRA-FIDELIDAD-3 — el CUARTO eje: los DOS pasos del checkout (Entrega y Pago), § refero-
+// compra.md (nuevo, `.scratch/checkout-rediseno/refero.md`) y su maqueta interactiva
+// (`.scratch/checkout-rediseno/maqueta.html`). `'comun'` = HOY con la MEJORA DE BASE (rótulo
+// flotante, validación al salir del campo, el bloque plegado de Entrega, el método como radio con
+// uno abierto, «Copiar», el CTA que nombra el método, la barra fija) — esa mejora vale para los
+// TRES valores, no sólo para `'ficha'`/`'tejido'`: lo que cambia por valor es sólo el TRATAMIENTO
+// (forma del campo, rótulo del paso, tarjeta de método), nunca la mecánica. `'ficha'` (Onix): campo
+// en subrayado sin caja, rótulo versal con tracking, pasos "01 ENTREGA / 02 PAGO" en serif
+// mayúscula sobre un filete, métodos como filas entre filetes con barra de 2px a la izquierda en el
+// elegido. `'tejido'` (Las Chamisas): campo en caja de papel con borde punteado que se vuelve
+// sólido en foco, el avance del tejido marca el paso (mitad en Entrega, completo en Pago), métodos
+// como tarjetas de 16px con pastel verde en la elegida, sticker "Entrega lista" al cerrar el paso 1.
+export type ClaveCompraPasos = 'comun' | 'ficha' | 'tejido';
 
 // META «CAMINO DE COMPRA» (§ COMPRA-LINEAS-ONIX-CHAMISAS-1) — TRES escalares clampados, uno por
 // tramo del camino de compra (cajón del carrito, confirmación/página de estado, seguimiento), SOBRE
@@ -4668,6 +4684,11 @@ export interface CompraContent {
    *  vertical fino, estado en mayúsculas (Onix). `'album'`: estados cumplidos como sticker pegado,
    *  pendientes como casilla punteada vacía (Las Chamisas). */
   seguimiento: ClaveCompraSeguimiento;
+  /** Los DOS pasos del checkout, Entrega y Pago (`app/(storefront)/checkout/page.tsx`). `'comun'` =
+   *  HOY con la mejora de base (rótulo flotante, validación al salir del campo…), SIN el tratamiento
+   *  de línea. `'ficha'`: subrayado + versal + "01 ENTREGA/02 PAGO" (Onix). `'tejido'`: papel
+   *  punteado + tejido de avance + sticker "Entrega lista" (Las Chamisas). § COMPRA-FIDELIDAD-3. */
+  pasos: ClaveCompraPasos;
 }
 
 // VARIANTES DE BANDAS ESTRUCTURALES (TEMAS-P1-FEATURED-VARIANTES-1): el gemelo de `SeccionDef.

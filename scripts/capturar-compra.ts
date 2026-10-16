@@ -164,6 +164,8 @@ interface TiendaConfig {
   cajon: "creditos" | "album";
   confirmacion: "boleto" | "lamina";
   seguimiento: "escaleta" | "album";
+  // § COMPRA-FIDELIDAD-3 — el cuarto eje (los pasos de Entrega/Pago del checkout).
+  pasos: "ficha" | "tejido";
 }
 
 const TIENDAS: TiendaConfig[] = [
@@ -175,6 +177,7 @@ const TIENDAS: TiendaConfig[] = [
     cajon: "creditos",
     confirmacion: "boleto",
     seguimiento: "escaleta",
+    pasos: "ficha",
   },
   {
     clave: "chamisas",
@@ -184,6 +187,7 @@ const TIENDAS: TiendaConfig[] = [
     cajon: "album",
     confirmacion: "lamina",
     seguimiento: "album",
+    pasos: "tejido",
   },
 ];
 
@@ -309,7 +313,7 @@ const RESUMEN_MUESTRA: ResumenEstadoPedido = {
 function contenidoCompra(t: TiendaConfig): SiteContentData {
   return {
     ...DEFAULTS,
-    compra: { cajon: t.cajon, confirmacion: t.confirmacion, seguimiento: t.seguimiento },
+    compra: { cajon: t.cajon, confirmacion: t.confirmacion, seguimiento: t.seguimiento, pasos: t.pasos },
     vendedor: vendedorDeMuestra(t),
   };
 }

@@ -311,12 +311,17 @@ no pide credenciales de pasarela) para que el checkout pueda completarse.
 SÓLO válido en modo base fresca (mismo motivo que --sembrar-spotlight).
 --accion-previa <nombre> (repetible, se empareja por ÍNDICE con --ruta, como
 --selector-app — "" es el placeholder de "sin acción para este índice")
-ejecuta una interacción de Playwright ANTES de capturar esa ruta. SIETE
+ejecuta una interacción de Playwright ANTES de capturar esa ruta. NUEVE
 nombres fijos: 'abrir-carrito' (agrega el primer producto del catálogo y abre
 el cajón solo); 'checkout-pago' (completa el paso 1 de /checkout y avanza al
 paso 2, método efectivo); 'completar-pedido' (como checkout-pago, y además
 acepta términos + confirma — crea una orden REAL y aterriza en la
-confirmación); 'rastrear-noencontrado' (busca en /rastrear-pedido con datos
+confirmación); 'checkout-entrega-lleno' (§ COMPRA-FIDELIDAD-3: llena el paso 1
+con datos de ejemplo SIN avanzar al paso 2 — el estado "Entrega llena");
+'checkout-entrega-errores' (§ COMPRA-FIDELIDAD-3: clic en «Continuar al pago»
+sin llenar nada — el resumen de errores + el error por campo; el estado
+"Entrega vacía" no necesita acción propia, "" sobre /checkout ya lo es);
+'rastrear-noencontrado' (busca en /rastrear-pedido con datos
 que no matchean nada); 'rastrear-resultado' (busca el pedido que la ÚLTIMA
 completar-pedido de esta misma corrida acaba de crear — requiere una
 completar-pedido en un índice ANTERIOR); 'casillas-dos-cafes' (§ CHAMISAS-
@@ -545,7 +550,10 @@ function parseCli(argv: string[]): Opciones {
   // `--selector-prototipo` ya usan (una cadena vacía es falsy, así que el índice cae al
   // comportamiento de siempre, § el `if (accionPrevia)` del loop principal).
   const ACCIONES_VALIDAS = [
-    "abrir-carrito", "checkout-pago", "completar-pedido", "rastrear-noencontrado", "rastrear-resultado",
+    "abrir-carrito", "checkout-pago", "completar-pedido",
+    // § COMPRA-FIDELIDAD-3
+    "checkout-entrega-lleno", "checkout-entrega-errores",
+    "rastrear-noencontrado", "rastrear-resultado",
     "casillas-dos-cafes", "casillas-quincenal",
   ];
   for (const a of accionesPreviasIn) {
@@ -1006,9 +1014,12 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
       `fuentePar=${tema.fuentePar ?? "(fábrica)"} forma=${tema.forma ?? "(fábrica)"}`,
   );
 
-  const COMPRA: Record<"onix" | "chamisas", { cajon: string; confirmacion: string; seguimiento: string }> = {
-    onix: { cajon: "creditos", confirmacion: "boleto", seguimiento: "escaleta" },
-    chamisas: { cajon: "album", confirmacion: "lamina", seguimiento: "album" },
+  // § COMPRA-FIDELIDAD-3 — `pasos` es el cuarto eje (Entrega/Pago del checkout): 'ficha' para
+  // Onix, 'tejido' para Las Chamisas, el MISMO par que `scripts/capturar-compra.ts` usa para sus
+  // piezas estáticas (estado/seguimiento/cajón) — una sola asignación línea→clave, no dos.
+  const COMPRA: Record<"onix" | "chamisas", { cajon: string; confirmacion: string; seguimiento: string; pasos: string }> = {
+    onix: { cajon: "creditos", confirmacion: "boleto", seguimiento: "escaleta", pasos: "ficha" },
+    chamisas: { cajon: "album", confirmacion: "lamina", seguimiento: "album", pasos: "tejido" },
   };
   const VENDEDOR: Record<"onix" | "chamisas", { nombreCompleto: string; ciudad: string }> = {
     onix: { nombreCompleto: "Café Onix", ciudad: "Pitalito, Huila" },
@@ -1021,7 +1032,7 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
   const compra = COMPRA[tienda];
   const vendedor = VENDEDOR[tienda];
   await guardarBorrador({
-    compra: { cajon: compra.cajon, confirmacion: compra.confirmacion, seguimiento: compra.seguimiento },
+    compra: { cajon: compra.cajon, confirmacion: compra.confirmacion, seguimiento: compra.seguimiento, pasos: compra.pasos },
     vendedor: {
       visible: true,
       nombreCompleto: vendedor.nombreCompleto,
@@ -1069,24 +1080,33 @@ async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
     },
   });
 
-  // `efectivo` es el ÚNICO método que el checkout puede ofrecer sin credenciales de pasarela
-  // (§ el docstring de arriba) — y sólo se OFRECE en Bogotá D.C. (`isBogota`, § metodos-pago.ts),
-  // así que `ejecutarAccionPrevia('checkout-pago')` elige ese departamento a propósito. `nombre`/
-  // `tagline` reemplazan el placeholder neutro de la migración ("Configura tu tienda", § CLAUDE.md
-  // "El código compartido no NACE siendo Nayoli") — sin esto el nav/footer/pestaña seguirían
-  // diciendo el placeholder bajo la paleta de la tienda, una mezcla que no está en ninguna captura
-  // de la maqueta.
+  // `efectivo` NO necesita credenciales de pasarela y es el único que `ejecutarAccionPrevia(
+  // 'checkout-pago'/'completar-pedido')` necesita para completar el pedido (sólo se OFRECE en
+  // Bogotá D.C., § metodos-pago.ts — de ahí que esa acción elija ese departamento a propósito).
+  // § COMPRA-FIDELIDAD-3 — se SUMAN `nequi`/`transferencia` (datos de ejemplo, sin credenciales
+  // reales) para que la captura del paso de Pago muestre el `fieldset` con MÁS de un método —
+  // el panel que se abre bajo el elegido y los botones «Copiar» no se ven con un solo método en
+  // la lista. `efectivo` queda primero en el array pero el checkout lo reordena al ORDEN CANÓNICO
+  // (`metodosDisponibles`, intocado), así que el orden de escritura acá no decide el de pantalla.
+  // `nombre`/`tagline` reemplazan el placeholder neutro de la migración ("Configura tu tienda",
+  // § CLAUDE.md "El código compartido no NACE siendo Nayoli") — sin esto el nav/footer/pestaña
+  // seguirían diciendo el placeholder bajo la paleta de la tienda, una mezcla que no está en
+  // ninguna captura de la maqueta.
   await prisma.siteSetting.update({
     where: { id: "default" },
     data: {
       nombre: vendedor.nombreCompleto,
       tagline: "San Adolfo · Huila",
       whatsapp: "+573160498092",
-      metodosPago: [{ tipo: "efectivo", datos: {} }] as unknown as Prisma.InputJsonValue,
+      metodosPago: [
+        { tipo: "efectivo", datos: {} },
+        { tipo: "nequi", datos: { numero: "3000000000" } },
+        { tipo: "transferencia", datos: { banco: "Bancolombia", tipoCuenta: "Ahorros", numeroCuenta: "000-000000-00", titular: vendedor.nombreCompleto } },
+      ] as unknown as Prisma.InputJsonValue,
     },
   });
 
-  console.log(`✔ Compra sembrada (${tienda}): paleta + content.compra + vendedor + producto + efectivo.`);
+  console.log(`✔ Compra sembrada (${tienda}): paleta + content.compra + vendedor + producto + efectivo/nequi/transferencia.`);
 }
 
 // ─── SEMBRAR LA TAQUILLA DE SUSCRIPCIÓN DE ONIX (§ ONIX-TAQUILLA-FILETES-1) ──────────────────────
@@ -1450,6 +1470,27 @@ async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promi
     return;
   }
 
+  // § COMPRA-FIDELIDAD-3 — DOS acciones nuevas para capturar el paso de Entrega en los estados
+  // que `checkout-pago` no puede mostrar (ya avanza al paso 2): LLENO (campos con datos, sin
+  // avanzar) y CON ERRORES (clic en «Continuar al pago» sin llenar nada — dispara el resumen de
+  // errores + el error por campo, § `intentarContinuar`/`errorVisible`, intocados). El estado
+  // VACÍO no necesita acción propia: `--accion-previa ""` sobre `/checkout` ya lo es.
+  if (accion === "checkout-entrega-lleno") {
+    console.log("  ▸ accion-previa checkout-entrega-lleno: llenando el paso 1, SIN avanzar…");
+    await llenarPaso1Checkout(page, { avanzar: false });
+    return;
+  }
+  if (accion === "checkout-entrega-errores") {
+    console.log("  ▸ accion-previa checkout-entrega-errores: clic en «Continuar al pago» sin llenar nada…");
+    await page.evaluate<void, undefined>(() => {
+      const btns = Array.from(document.querySelectorAll("button"));
+      const continuar = btns.find((b) => b.textContent?.trim() === "Continuar al pago");
+      continuar?.click();
+    }, undefined);
+    await page.waitForTimeout(300);
+    return;
+  }
+
   if (accion === "checkout-pago" || accion === "completar-pedido") {
     console.log(`  ▸ accion-previa ${accion}: completando el paso 1 y avanzando al paso 2…`);
     await llenarPaso1Checkout(page);
@@ -1568,13 +1609,16 @@ async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promi
 
   throw new Error(
     `Acción previa desconocida: «${accion}» (sólo "abrir-carrito"/"checkout-pago"/"completar-pedido"/` +
+      `"checkout-entrega-lleno"/"checkout-entrega-errores"/` +
       `"rastrear-noencontrado"/"rastrear-resultado"/"casillas-dos-cafes"/"casillas-quincenal").`,
   );
 }
 
 // Factoreado de "checkout-pago"/"completar-pedido" (§ arriba): las dos empiezan llenando el mismo
-// paso 1 — sólo "completar-pedido" sigue hasta el submit final.
-async function llenarPaso1Checkout(page: PlaywrightPage): Promise<void> {
+// paso 1 — sólo "completar-pedido" sigue hasta el submit final. § COMPRA-FIDELIDAD-3 — `avanzar:
+// false` (usado por `checkout-entrega-lleno`, abajo) llena los campos y SE DETIENE antes de
+// clickear «Continuar al pago», para capturar el paso de Entrega LLENO sin saltar al de Pago.
+async function llenarPaso1Checkout(page: PlaywrightPage, opts: { avanzar?: boolean } = {}): Promise<void> {
   // SIN función anidada con NOMBRE (§ el hallazgo documentado en "rastrear-noencontrado"/
   // "rastrear-resultado", arriba) — el mismo patrón de array + `for` inline.
   await page.evaluate<void, { email: string; tel: string; nombre: string; apellido: string; direccion: string; ciudad: string }>(
@@ -1616,6 +1660,7 @@ async function llenarPaso1Checkout(page: PlaywrightPage): Promise<void> {
     franja?.click();
   }, undefined);
   await page.waitForTimeout(200);
+  if (opts.avanzar === false) return;
   await page.evaluate<void, undefined>(() => {
     const btns = Array.from(document.querySelectorAll("button"));
     const continuar = btns.find((b) => b.textContent?.trim() === "Continuar al pago");

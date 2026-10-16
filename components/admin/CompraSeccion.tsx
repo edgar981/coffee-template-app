@@ -60,6 +60,16 @@ const OPCIONES_SEGUIMIENTO: OpcionCompra<'seguimiento'>[] = [
   { value: 'album', label: 'Álbum — estados cumplidos como sticker pegado (Las Chamisas)' },
 ];
 
+// § COMPRA-FIDELIDAD-3 — el cuarto eje: los DOS pasos del checkout (Entrega y Pago). "Común" YA
+// lleva la mejora de base (rótulo flotante, validación al salir del campo, bloque plegado de
+// Entrega, método como radio con uno abierto, «Copiar», CTA que nombra el método, barra fija) —
+// eligiendo "Ficha"/"Tejido" sólo cambia el TRATAMIENTO, nunca esa mecánica.
+const OPCIONES_PASOS: OpcionCompra<'pasos'>[] = [
+  { value: 'comun', label: 'Común — el checkout de hoy, con la mejora de base' },
+  { value: 'ficha', label: 'Ficha — subrayado, versal, «01 ENTREGA / 02 PAGO» (Onix)' },
+  { value: 'tejido', label: 'Tejido — papel punteado, tejido de avance, sticker «Entrega lista» (Las Chamisas)' },
+];
+
 function etiquetaDe<K extends keyof Form>(opciones: OpcionCompra<K>[], valor: Form[K]): string {
   return opciones.find((o) => o.value === valor)?.label ?? valor;
 }
@@ -311,7 +321,7 @@ export default function CompraSeccion() {
     </div>
   ) : null;
 
-  const resumenLectura = `Cajón: ${etiquetaDe(OPCIONES_CAJON, form.cajon)} · Confirmación: ${etiquetaDe(OPCIONES_CONFIRMACION, form.confirmacion)} · Seguimiento: ${etiquetaDe(OPCIONES_SEGUIMIENTO, form.seguimiento)}`;
+  const resumenLectura = `Cajón: ${etiquetaDe(OPCIONES_CAJON, form.cajon)} · Confirmación: ${etiquetaDe(OPCIONES_CONFIRMACION, form.confirmacion)} · Seguimiento: ${etiquetaDe(OPCIONES_SEGUIMIENTO, form.seguimiento)} · Pasos: ${etiquetaDe(OPCIONES_PASOS, form.pasos)}`;
 
   if (!editando) {
     return (
@@ -333,9 +343,10 @@ export default function CompraSeccion() {
             {hayBorrador && <span className="duna-badge duna-badge--attention">Sin publicar</span>}
           </div>
           <p className="duna-caption" style={{ marginTop: 'var(--duna-space-1)' }}>
-            El tratamiento del cajón del carrito, la confirmación/página de estado, y el seguimiento
-            del pedido. &ldquo;Común&rdquo;/&ldquo;Sobria&rdquo; es la estructura de siempre —
-            eligiendo otra, se ve distinto sin tocar el carrito, la confirmación ni el seguimiento ajenos.
+            El tratamiento del cajón del carrito, la confirmación/página de estado, el seguimiento
+            del pedido, y los DOS pasos del checkout (Entrega y Pago). &ldquo;Común&rdquo;/
+            &ldquo;Sobria&rdquo; es la estructura de siempre — eligiendo otra, se ve distinto sin
+            tocar el carrito, la confirmación, el seguimiento ni el checkout ajenos.
           </p>
           <p className="duna-field__hint" style={{ marginTop: 'var(--duna-space-2)' }}>{resumenLectura}</p>
           {indicadorEstado && <div style={{ marginTop: 'var(--duna-space-2)' }}>{indicadorEstado}</div>}
@@ -386,6 +397,21 @@ export default function CompraSeccion() {
             >
               {OPCIONES_SEGUIMIENTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+          </div>
+          <div className="duna-field">
+            <label className="duna-field__label" htmlFor="compra-pasos">Pasos del checkout (Entrega y Pago)</label>
+            <select
+              id="compra-pasos" className="duna-input duna-select"
+              value={form.pasos} onChange={(e) => cambiar('pasos', e.target.value)}
+            >
+              {OPCIONES_PASOS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {/* § COMPRA-FIDELIDAD-3 — SIN vista previa en el panel, a diferencia de los otros tres
+                ejes: el checkout (`app/(storefront)/checkout/page.tsx`) no es un componente
+                prop-driven como `CajonPanel`/`EstadoPedido`/`SeguimientoTimeline` — necesita un
+                carrito real (`useCartStore`) y los servicios de orden, así que extraer una pieza
+                de muestra es trabajo aparte. Se declara, no se finge. */}
+            <p className="duna-field__hint">Sin vista previa acá — pruébalo en /checkout con un carrito real.</p>
           </div>
         </div>
       </div>

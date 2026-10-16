@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { composicionCajon, composicionConfirmacion, composicionSeguimiento, stickerConfirmacion, etiquetaMetodoPedido } from './composiciones-compra';
+import { composicionCajon, composicionConfirmacion, composicionSeguimiento, composicionPasos, stickerConfirmacion, etiquetaMetodoPedido, verboCTACompra } from './composiciones-compra';
 
 // COMPRA-LINEAS-ONIX-CHAMISAS-1 — resolución de cada composición y caída a la común con un valor
 // desconocido (§ el spec del slice, "Cómo lo probás").
@@ -70,4 +70,35 @@ test('etiquetaMetodoPedido: un nombre llano por cada método real, nunca el verb
 
 test('etiquetaMetodoPedido: `null` cae a una frase honesta, no a un hueco en blanco', () => {
   assert.equal(etiquetaMetodoPedido(null), 'Por confirmar');
+});
+
+// COMPRA-FIDELIDAD-3 — el cuarto eje (Entrega/Pago) y el CTA que nombra el método.
+
+test('composicionPasos: resuelve los tres valores del set cerrado', () => {
+  assert.equal(composicionPasos('comun'), 'comun');
+  assert.equal(composicionPasos('ficha'), 'ficha');
+  assert.equal(composicionPasos('tejido'), 'tejido');
+});
+
+test('composicionPasos: ausente/null/undefined/basura/otro-tipo cae a "comun"', () => {
+  assert.equal(composicionPasos(undefined), 'comun');
+  assert.equal(composicionPasos(null), 'comun');
+  assert.equal(composicionPasos(''), 'comun');
+  assert.equal(composicionPasos('boleto'), 'comun'); // valor real de OTRO eje (confirmacion)
+  assert.equal(composicionPasos('album'), 'comun'); // valor real de OTRO eje (cajon/seguimiento)
+  assert.equal(composicionPasos(42), 'comun');
+});
+
+test('verboCTACompra: nombra el método para cada medio manual, como pide la maqueta', () => {
+  assert.equal(verboCTACompra('nequi'), 'Ya pagué con Nequi · confirmar');
+  assert.equal(verboCTACompra('daviplata'), 'Ya pagué con Daviplata · confirmar');
+  assert.equal(verboCTACompra('breb'), 'Ya pagué con Bre-B · confirmar');
+  assert.equal(verboCTACompra('transferencia'), 'Ya transferí · confirmar pedido');
+  assert.equal(verboCTACompra('efectivo'), 'Confirmar pedido contra entrega');
+});
+
+test('verboCTACompra: delega en verboBotonPago para wompi, whatsapp y null — sin segunda definición', () => {
+  assert.equal(verboCTACompra('wompi'), 'Pagar con Wompi');
+  assert.equal(verboCTACompra('whatsapp'), 'Enviar por WhatsApp');
+  assert.equal(verboCTACompra(null), 'Confirmar pedido');
 });

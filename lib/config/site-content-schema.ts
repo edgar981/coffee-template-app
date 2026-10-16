@@ -1270,6 +1270,9 @@ const compraEditableSchema = z.object({
   cajon: z.string().optional(),
   confirmacion: z.string().optional(),
   seguimiento: z.string().optional(),
+  // § COMPRA-FIDELIDAD-3 — el cuarto eje (los pasos de Entrega/Pago del checkout). SOFT como los
+  // otros tres, por el mismo criterio de este archivo.
+  pasos: z.string().optional(),
 });
 
 export const siteContentEditableSchema = z.object({

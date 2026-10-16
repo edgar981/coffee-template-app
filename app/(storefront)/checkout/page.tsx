@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
 import { ArrowLeft, Lock, CreditCard, Clock, Paperclip, FileText, X, ChevronDown, MessageCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
   createOrder, CheckoutError, pasarelaDisponibleEnEsteDespliegue, pasarelaModoApiDirecta,
@@ -31,11 +31,11 @@ import { useSiteSettings } from '@/components/storefront/SiteSettingsProvider';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { contenedorAnchoClase, navOffsetClase } from '@/lib/config/themes';
 import { whatsappUrl } from '@/lib/config/site';
-import { contenidoEstadoPedido, verboBotonPago, type MetodoPedido } from '@/lib/checkout/estado-pedido';
+import { contenidoEstadoPedido, type MetodoPedido } from '@/lib/checkout/estado-pedido';
 import EstadoPedido from '@/components/storefront/checkout/EstadoPedido';
 import { vendedorEstaCompleto, lineaVendedor } from '@/lib/legal/plantillas';
-
-const STEPS = ['Información', 'Pago'];
+import { composicionPasos, verboCTACompra } from '@/lib/checkout/composiciones-compra';
+import CampoFlotante from '@/components/storefront/checkout/CampoFlotante';
 
 // § CHECKOUT-COMPROBANTE-TOKEN-1: el código privado que `POST /api/checkout` emite para ESTA
 // orden (`CheckoutResult.codigoComprobante`) se guarda en DOS lugares, NUNCA en la URL —
@@ -81,11 +81,22 @@ export default function Checkout() {
   // EL CONTENEDOR (§ PARIDAD-ANCHO-CONTENIDO-1) — ver el docstring de `contenedorAnchoClase`
   // (`lib/config/themes.ts`) para el porqué de reusar `navTratamiento.posicion` acá. `false`
   // (todo tenant salvo CORTE) = el literal de HOY, byte a byte.
-  const { navTratamiento, vendedor } = useSiteContent();
+  const { navTratamiento, vendedor, compra } = useSiteContent();
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   // EL RELLENO SUPERIOR (§ NAV-INTERNAS-CLARO-Y-OFFSET-1) — ver el docstring de `navOffsetClase`
   // (`lib/config/themes.ts`). `false` (todo tenant salvo CORTE) = `pt-16`, byte a byte.
   const offsetClase = navOffsetClase(navTratamiento.posicion);
+  // § COMPRA-FIDELIDAD-3 — el TRATAMIENTO de los dos pasos (Entrega/Pago), clampado al set cerrado
+  // (comun/ficha/tejido). `STEP_LABELS` es el ÚNICO texto del encabezado del paso que cambia por
+  // línea; el resto de la mejora de base (el campo, la validación, el bloque plegado, el método
+  // como radio…) es igual en los tres valores.
+  const pasos = composicionPasos(compra.pasos);
+  const STEP_LABELS = pasos === 'ficha' ? ['01 ENTREGA', '02 PAGO'] : ['Entrega', 'Pago'];
+  // § COMPRA-FIDELIDAD-3 — "EL RESUMEN QUE RESPONDE" (§ refero.md §3: "el total cambia con un
+  // fundido de 200ms"). El dato YA respondía (React recalcula al elegir departamento); lo que
+  // faltaba era el AVISO visual de que cambió — un fundido corto en el número, apagado si el
+  // visitante pide menos movimiento.
+  const reduceMovimiento = useReducedMotion();
 
   // Al cambiar de paso (Continuar o Atrás), subir al inicio: el checkout son pasos por ESTADO en
   // una sola página (no rutas), así que la posición vertical del paso anterior se conserva y el
@@ -751,7 +762,7 @@ export default function Checkout() {
     : sinMetodoYsinPasarela
       ? (tieneWhatsapp ? 'whatsapp' : null)
       : metodoActivo;
-  const verboBarraFija = step === 0 ? 'Continuar al pago' : verboBotonPago(metodoParaVerboBarra);
+  const verboBarraFija = step === 0 ? 'Continuar al pago' : verboCTACompra(metodoParaVerboBarra);
   const accionBarraFija: (() => void) | null =
     step === 0
       ? intentarContinuar
@@ -787,20 +798,57 @@ export default function Checkout() {
             <h1 className="text-2xl font-playfair text-[var(--sf-tinta)]">Checkout</h1>
           </div>
 
-          {/* Steps */}
-          <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
-            {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-2 shrink-0">
-                <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento-texto)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
-                    {i < step ? '✓' : i + 1}
-                  </div>
-                  <span className="text-sm font-medium">{s}</span>
+          {/* Steps — § COMPRA-FIDELIDAD-3, el TRATAMIENTO por línea (§ refero.md §3: "Los pasos
+              se titulan «01 ENTREGA / 02 PAGO» en serif mayúscula sobre un filete. El paso hecho
+              queda en gris con «EDITAR»" — Onix; "El progreso lo marca el tejido" — Las
+              Chamisas). La mecánica (qué paso está activo/hecho) es la misma en los tres; sólo
+              cambia la FORMA. */}
+          {pasos === 'ficha' ? (
+            <div className="flex items-center gap-3 mb-8 pb-3 border-b border-[var(--sf-linea)] overflow-x-auto">
+              {STEP_LABELS.map((s, i) => (
+                <div key={s} className="flex items-center gap-3 shrink-0">
+                  <span className={`font-playfair text-xs uppercase tracking-[0.14em] ${i === step ? 'font-semibold text-[var(--sf-tinta)]' : 'text-[var(--sf-texto-suave)]'}`}>
+                    {s}{i < step && <span className="ml-1.5 underline">· EDITAR</span>}
+                  </span>
+                  {i < STEP_LABELS.length - 1 && <span className="h-px w-10 bg-[var(--sf-linea)]" aria-hidden="true" />}
                 </div>
-                {i < STEPS.length - 1 && <div className="w-8 h-px bg-[var(--sf-linea)] mx-1" />}
+              ))}
+            </div>
+          ) : pasos === 'tejido' ? (
+            <div className="mb-8">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="font-playfair text-base text-[var(--sf-tinta)]">{STEP_LABELS[step]}</span>
+                {step === 1 && (
+                  <span className="inline-block -rotate-3 rounded-md bg-[var(--sf-acento)] px-2.5 py-1 text-[11px] font-bold text-[var(--sf-acento-txt)] shadow-sm">
+                    Entrega lista
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+              <div className="h-2 w-full rounded-full bg-[var(--sf-linea)] overflow-hidden" role="progressbar" aria-valuenow={step === 0 ? 50 : 100} aria-valuemin={0} aria-valuemax={100}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: step === 0 ? '50%' : '100%',
+                    backgroundImage: 'repeating-linear-gradient(45deg, var(--sf-acento) 0, var(--sf-acento) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 6px, var(--sf-tostado-4,var(--sf-acento-4)) 12px)',
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
+              {STEP_LABELS.map((s, i) => (
+                <div key={s} className="flex items-center gap-2 shrink-0">
+                  <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento-texto)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
+                      {i < step ? '✓' : i + 1}
+                    </div>
+                    <span className="text-sm font-medium">{s}</span>
+                  </div>
+                  {i < STEP_LABELS.length - 1 && <div className="w-8 h-px bg-[var(--sf-linea)] mx-1" />}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* CHECKOUT-LISTO-PARA-VENDER-1 — «Tu pedido · n productos · $total ▾», SIEMPRE
               arriba (§ el spec, § refero-compra.md §3). Sólo en celular (`lg:hidden`): en
@@ -840,7 +888,16 @@ export default function Checkout() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-2">
-              <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6">
+              {/* § COMPRA-FIDELIDAD-3 — la caja del formulario adopta el tratamiento de línea:
+                  `ficha` (Onix) la aplana (sin radio, un filete arriba, como una ficha de
+                  ledger); `tejido` (Las Chamisas) la deja en papel con borde punteado. */}
+              <div className={
+                pasos === 'ficha'
+                  ? 'bg-[var(--sf-tarjeta)] rounded-none border-t-2 border-[var(--sf-linea)] p-6'
+                  : pasos === 'tejido'
+                    ? 'bg-[var(--sf-tarjeta)] rounded-2xl border-2 border-dashed border-[var(--sf-linea)] p-6'
+                    : 'bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-6'
+              }>
                 {/* CHECKOUT-STEP-SIN-TRANSICION-1: el cambio entre step===0 y step===1 usa la
                     misma gramática de AnimatePresence + motion.div que el resto de CORTE (fade +
                     desplazamiento vertical de 8px, 200ms), en vez de un `{cond && (<div>…)}`
@@ -867,75 +924,73 @@ export default function Checkout() {
                         </ul>
                       </div>
                     )}
-                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Información de contacto</h2>
+                    {/* § COMPRA-FIDELIDAD-3 — "Contacto"/"Envío" son los nombres de grupo de la
+                        maqueta (`.gtit`), comunes a las dos líneas; sólo su FORMA cambia por
+                        composición (micro-etiqueta versal en `ficha`, encabezado serif en
+                        `tejido`). Los campos pasan a `CampoFlotante` (rótulo flotante,
+                        validación al salir del campo) — la MISMA regla de `errorVisible` que ya
+                        regía `Field`, nada cambia en CUÁNDO se muestra un error. */}
+                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Contacto</p>
                     {/* CHECKOUT-LISTO-PARA-VENDER-1: orden reordenado a correo → celular → nombre
                         → apellido (§ refero-compra.md §3: "correo → celular/WhatsApp → nombre").
                         Departamento (ancho completo) → ciudad quedan más abajo, § el spec
                         "Departamento primero". */}
-                    <Field
-                      id="campo-email" label="Correo electrónico *" type="email" value={info.email}
+                    <div className="space-y-4">
+                    <CampoFlotante
+                      id="campo-email" label="Correo electrónico" value={info.email} tipo="email"
                       onChange={v => setInfo({ ...info, email: v })} onBlur={() => marcarTocado('campo-email')}
-                      autoComplete="email" inputMode="email"
+                      autoComplete="email" inputMode="email" linea={pasos}
+                      valido={emailValido} ayuda="Te mandamos la confirmación del pedido aquí."
                       error={errorVisible('campo-email', 'Ingresa un correo válido.')}
                     />
-                    <div>
-                      <label htmlFor="campo-telefono" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Teléfono / WhatsApp *</label>
-                      <div className="flex items-stretch">
-                        {/* PALETA-MIGRAR-TEXTO-SOBRE-SUPERFICIE-1 */}
-                        <span className="inline-flex items-center px-3 rounded-l-xl sf-borde-t sf-borde-b sf-borde-l border-[var(--sf-linea)] bg-[var(--sf-superficie)] text-base font-medium text-[var(--sf-sobre-superficie,var(--sf-texto))] select-none">+57</span>
-                        <input
-                          id="campo-telefono" name="campo-telefono" type="tel" inputMode="numeric" autoComplete="tel-national" value={info.telefono}
-                          onChange={e => setInfo({ ...info, telefono: e.target.value })} onBlur={() => marcarTocado('campo-telefono')} placeholder="300 000 0000"
-                          aria-invalid={!phoneValid ? true : undefined}
-                          className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${errorVisible('campo-telefono', 'x') ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-r-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
-                        />
-                      </div>
-                      {errorVisible('campo-telefono', 'Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).') && (
-                        <p className="mt-1 text-xs text-red-600">Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).</p>
-                      )}
-                    </div>
+                    <CampoFlotante
+                      id="campo-telefono" label="Celular / WhatsApp" value={info.telefono} tipo="tel"
+                      onChange={v => setInfo({ ...info, telefono: v })} onBlur={() => marcarTocado('campo-telefono')}
+                      autoComplete="tel-national" inputMode="numeric" prefijo="+57" linea={pasos}
+                      valido={phoneValid} ayuda="Te escribimos aquí sobre tu pedido. No enviamos publicidad."
+                      error={errorVisible('campo-telefono', 'Ingresa un celular colombiano de 10 dígitos (ej. 3XX XXX XXXX).')}
+                    />
                     <div className="grid grid-cols-2 gap-4">
-                      <Field
-                        id="campo-nombre" label="Nombre *" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })}
-                        onBlur={() => marcarTocado('campo-nombre')} autoComplete="given-name"
+                      <CampoFlotante
+                        id="campo-nombre" label="Nombre" value={info.nombre} onChange={v => setInfo({ ...info, nombre: v })}
+                        onBlur={() => marcarTocado('campo-nombre')} autoComplete="given-name" linea={pasos}
                         error={errorVisible('campo-nombre', 'Ingresa tu nombre.')}
                       />
-                      <Field
-                        id="campo-apellido" label="Apellido *" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })}
-                        onBlur={() => marcarTocado('campo-apellido')} autoComplete="family-name"
+                      <CampoFlotante
+                        id="campo-apellido" label="Apellido" value={info.apellido} onChange={v => setInfo({ ...info, apellido: v })}
+                        onBlur={() => marcarTocado('campo-apellido')} autoComplete="family-name" linea={pasos}
                         error={errorVisible('campo-apellido', 'Ingresa tu apellido.')}
                       />
                     </div>
-                    <div className="space-y-4">
-                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Dirección de entrega</h2>
-                    <div>
-                      <label htmlFor="campo-departamento" className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Departamento *</label>
-                      <select
-                        id="campo-departamento" name="campo-departamento" autoComplete="address-level1"
-                        value={address.departamento} onChange={e => selectDepartamento(e.target.value)} onBlur={() => marcarTocado('campo-departamento')}
-                        aria-invalid={address.departamento === '' ? true : undefined}
-                        className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${errorVisible('campo-departamento', 'x') ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
-                      >
-                        <option value="" disabled>Selecciona departamento</option>
-                        {COLOMBIA_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                      {errorVisible('campo-departamento', 'Selecciona tu departamento.') && (
-                        <p className="mt-1 text-xs text-red-600">Selecciona tu departamento.</p>
-                      )}
                     </div>
-                    <Field
-                      id="campo-ciudad" label="Ciudad *" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })}
-                      onBlur={() => marcarTocado('campo-ciudad')} autoComplete="address-level2"
+                    <div className="space-y-4 mt-6">
+                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Envío</p>
+                    <CampoFlotante
+                      id="campo-departamento" label="Departamento" tipo="select" value={address.departamento}
+                      onChange={selectDepartamento} onBlur={() => marcarTocado('campo-departamento')}
+                      autoComplete="address-level1" linea={pasos}
+                      // § COMPRA-FIDELIDAD-3 — la opción vacía lleva TEXTO VISIBLE en blanco (§
+                      // refero.md §2: "La primera opción va vacía, así el label se queda en
+                      // reposo hasta que elijan"). Un texto como "Selecciona departamento" se
+                      // dibuja DENTRO de la caja del `<select>` y choca con el rótulo flotante,
+                      // que también descansa centrado mientras no hay valor — medido en la
+                      // primera captura del arnés: las dos cadenas se superponían.
+                      opciones={[{ value: '', label: '', disabled: true }, ...COLOMBIA_DEPARTMENTS.map(d => ({ value: d, label: d }))]}
+                      error={errorVisible('campo-departamento', 'Selecciona tu departamento.')}
+                    />
+                    <CampoFlotante
+                      id="campo-ciudad" label="Ciudad" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })}
+                      onBlur={() => marcarTocado('campo-ciudad')} autoComplete="address-level2" linea={pasos}
                       error={errorVisible('campo-ciudad', 'Ingresa tu ciudad.')}
                     />
-                    <Field
-                      id="campo-direccion" label="Dirección *" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })}
-                      onBlur={() => marcarTocado('campo-direccion')} autoComplete="address-line1" placeholder="Calle, Carrera, número"
+                    <CampoFlotante
+                      id="campo-direccion" label="Dirección" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })}
+                      onBlur={() => marcarTocado('campo-direccion')} autoComplete="address-line1" linea={pasos}
                       error={errorVisible('campo-direccion', 'Ingresa tu dirección.')}
                     />
-                    <Field
-                      id="campo-detalle" label="Detalles adicionales (opcional)" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })}
-                      autoComplete="address-line2" placeholder="Apto, torre, interior, indicaciones de entrega."
+                    <CampoFlotante
+                      id="campo-detalle" label="Apartamento, torre o indicaciones" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })}
+                      autoComplete="address-line2" linea={pasos} tipo="textarea" maxLength={200} opcional
                     />
                     <div className="space-y-3 mt-4">
                       <p className="text-sm font-semibold text-[var(--sf-tinta)]">Método de envío</p>
@@ -950,7 +1005,16 @@ export default function Checkout() {
                               acento del botón principal (§ el spec, "la selección… va en
                               tinta") — ya no se confunde con un error cuando el acento del
                               tema es rojo (Onix). */}
-                          <div className="flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5">
+                          {/* § COMPRA-FIDELIDAD-3 — el tratamiento de la opción de envío sigue al
+                              de los métodos de pago, § refero.md: barra a la izquierda en Onix,
+                              pastel sólido en Las Chamisas. */}
+                          <div className={
+                            pasos === 'ficha'
+                              ? 'flex items-center justify-between p-4 rounded-none border-l-[3px] border-y border-r border-[var(--sf-tinta)] bg-[var(--sf-fondo)]'
+                              : pasos === 'tejido'
+                                ? 'flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-emerald-50'
+                                : 'flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5'
+                          }>
                             <div>
                               <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
                               <span className="block text-xs text-[var(--sf-texto-suave)]">{shippingMethod.description}</span>
@@ -1035,7 +1099,35 @@ export default function Checkout() {
                         (más abajo) SÍ deja al comprador volver a elegir. Se queda VISIBLE y se
                         BLOQUEA (`bloqueoMetodoDePago`, arriba) con el mismo tratamiento que los
                         campos de `FormularioTarjeta`/`AceptacionesPasarela` — nunca desaparece. */}
-                    <h2 className="font-semibold text-[var(--sf-tinta)] mb-4">Método de pago</h2>
+                    {/* § COMPRA-FIDELIDAD-3 — el BLOQUE PLEGADO DE ENTREGA (§ refero.md §3: "Entrega
+                        se pliega en un bloque de 3 líneas con «Editar»… como Aesop y Saint
+                        Laurent"). Es la mejora de base: aparece en las TRES composiciones; sólo el
+                        texto del botón de vuelta cambia por línea ("EDITAR" versal en `ficha`). */}
+                    <div className={
+                      pasos === 'ficha'
+                        ? 'mb-5 flex items-start justify-between gap-3 border-y border-[var(--sf-linea)] py-3 text-sm'
+                        : 'mb-5 flex items-start justify-between gap-3 rounded-xl bg-[var(--sf-superficie)] p-4 text-sm'
+                    }>
+                      <div className="min-w-0 space-y-0.5 text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                        <p className="font-medium text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{info.nombre} {info.apellido}</p>
+                        <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">{info.email} · +57 {info.telefono}</p>
+                        <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">
+                          {address.linea1}{address.detalle ? `, ${address.detalle}` : ''}, {address.ciudad}, {address.departamento}
+                        </p>
+                        {shippingMethod && (
+                          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">
+                            {shippingMethod.label} · {shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button" onClick={() => setStep(0)}
+                        className={`shrink-0 font-semibold text-[var(--sf-tinta)] underline hover:no-underline ${pasos === 'ficha' ? 'text-xs uppercase tracking-[0.1em]' : 'text-xs'}`}
+                      >
+                        {pasos === 'ficha' ? 'Editar' : 'Cambiar'}
+                      </button>
+                    </div>
+                    <h2 className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Método de pago</h2>
                     {availablePayments.length === 0 && !pasarelaOfrecida ? (
                       // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
                       // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
@@ -1078,30 +1170,55 @@ export default function Checkout() {
                       </div>
                     ) : (
                       <>
-                        <div className="space-y-3">
-                          {availablePayments.map(opt => (
-                            <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${!pasarelaSeleccionada && metodoActivo === opt.id ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`}>
-                              {/* CHECKOUT-LISTO-PARA-VENDER-1: selección en TINTA, no en el acento del
-                                  botón principal (§ el spec: "la selección… va en tinta"). */}
-                              <input type="radio" name="payment" value={opt.id} checked={!pasarelaSeleccionada && metodoActivo === opt.id} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
-                              <div>
-                                <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
-                                <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
-                                {/* Transferencia con VARIAS cuentas (§ PAGOS-VARIAS-CUENTAS-1): la
-                                    misma opción ÚNICA, con una línea por cuenta — `opt.cuentas`
-                                    sólo existe con 2+ cuentas completas, así que con una sola
-                                    cuenta esta rama no renderiza nada y el checkout queda
-                                    byte-idéntico a como se veía antes de esta tanda. */}
-                                {opt.cuentas && (
-                                  <ul className="mt-1 space-y-0.5 list-disc pl-4">
-                                    {opt.cuentas.map((cuenta, i) => (
-                                      <li key={i} className="text-xs text-[var(--sf-texto-suave)]">{cuenta}</li>
-                                    ))}
-                                  </ul>
+                        {/* § COMPRA-FIDELIDAD-3 — LOS MÉTODOS COMO UN `fieldset` CON RADIOS REALES,
+                            UNO ABIERTO A LA VEZ (§ refero.md §3: "Los métodos son un fieldset con
+                            input type=radio reales, así funcionan las flechas del teclado. Solo
+                            uno abierto a la vez"). El panel que se abre bajo el método elegido es
+                            NUEVO (antes el detalle —`cuentas`— estaba siempre a la vista); lo que
+                            decide qué método está disponible y qué dice su `desc`/`cuentas` sigue
+                            siendo `metodosDisponibles` (lib/checkout/metodos-pago.ts, intocado). */}
+                        <fieldset className={pasos === 'ficha' ? 'border-y border-[var(--sf-linea)] divide-y divide-[var(--sf-linea)]' : 'space-y-3'}>
+                          <legend className="sr-only">Método de pago</legend>
+                          {availablePayments.map(opt => {
+                            const elegido = !pasarelaSeleccionada && metodoActivo === opt.id;
+                            // Lo único copiable es la instrucción de pago (nequi/daviplata/breb/
+                            // transferencia) — `efectivo` no tiene nada que copiar.
+                            const textosACopiar = opt.cuentas ?? (opt.id !== 'efectivo' ? [opt.desc] : []);
+                            const filaClase = pasos === 'ficha'
+                              ? `flex items-start gap-3 p-4 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${elegido ? 'border-l-[3px] border-[var(--sf-tinta)] bg-[var(--sf-fondo)] -ml-px' : 'border-l-[3px] border-transparent'}`
+                              : pasos === 'tejido'
+                                ? `flex items-start gap-3 p-4 rounded-2xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${elegido ? 'border-[var(--sf-tinta)] bg-emerald-50' : 'border-[var(--sf-linea)]'}`
+                                : `rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${elegido ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`;
+                            return (
+                              <div key={opt.id} className={pasos === 'comun' ? filaClase : undefined}>
+                                <label className={pasos === 'comun' ? 'flex items-start gap-3 p-4' : filaClase}>
+                                  {/* CHECKOUT-LISTO-PARA-VENDER-1: selección en TINTA, no en el acento del
+                                      botón principal (§ el spec: "la selección… va en tinta"). */}
+                                  <input type="radio" name="payment" value={opt.id} checked={elegido} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
+                                    <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
+                                  </div>
+                                </label>
+                                {/* EL PANEL — `grid-template-rows: 0fr → 1fr` (refero.md §2/§3), sólo
+                                    para el método elegido y sólo si hay algo copiable. */}
+                                {textosACopiar.length > 0 && (
+                                  <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${elegido ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                    <div className="overflow-hidden">
+                                      <div className="space-y-1.5 px-4 pb-4 pl-11">
+                                        {textosACopiar.map((texto, i) => (
+                                          <div key={i} className="flex items-center justify-between gap-3 rounded-lg bg-[var(--sf-superficie)] px-3 py-2">
+                                            <span className="min-w-0 truncate text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">{texto}</span>
+                                            <BotonCopiar texto={texto} />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                            </label>
-                          ))}
+                            );
+                          })}
                           {/* La opción SÓLO se ofrece cuando el bloque de aceptación se consiguió
                               (`pasarelaOfrecida`, § CHECKOUT-UNA-SOLA-PANTALLA-1 — "si las dos completas
                               no se consiguen, la opción de pasarela no se ofrece"), no sólo por el
@@ -1113,7 +1230,13 @@ export default function Checkout() {
                               el eje real: QUIÉN CONFIRMA (instantáneo, nunca el equipo). TEXTO DEL OWNER
                               (2026-09-17) — ya no provisional. */}
                           {pasarelaOfrecida && bloquePasarela && (
-                            <label className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`}>
+                            <label className={
+                              pasos === 'ficha'
+                                ? `flex items-start gap-3 p-4 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} border-l-[3px] ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-[var(--sf-fondo)]' : 'border-transparent'}`
+                                : pasos === 'tejido'
+                                  ? `flex items-start gap-3 p-4 rounded-2xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-emerald-50' : 'border-[var(--sf-linea)]'}`
+                                  : `flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`
+                            }>
                               <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
@@ -1121,7 +1244,7 @@ export default function Checkout() {
                               </div>
                             </label>
                           )}
-                        </div>
+                        </fieldset>
                         {/* § CHECKOUT-COMPROBANTE-CLIENTE-1: reemplaza al viejo campo de texto
                             "Referencia de pago (opcional)" — el operador necesita la FOTO del
                             comprobante, no una cadena que `/api/checkout` validaba y después no
@@ -1393,7 +1516,10 @@ export default function Checkout() {
                           : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
                       </div>
                       <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
-                        <span>Total</span><span>{formatCOP(total)}</span>
+                        <span>Total</span>
+                        <motion.span key={total} initial={reduceMovimiento ? false : { opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+                          {formatCOP(total)}
+                        </motion.span>
                       </div>
                     </div>
                   </>
@@ -1417,7 +1543,12 @@ export default function Checkout() {
               <p className="text-xs text-[var(--sf-texto-suave)] truncate">
                 {address.departamento ? `Envío a ${address.departamento} incluido` : 'Envío por confirmar'}
               </p>
-              <p className="text-base font-bold text-[var(--sf-tinta)]">Total {formatCOP(montoAPagar)}</p>
+              <motion.p
+                key={montoAPagar} initial={reduceMovimiento ? false : { opacity: 0.4 }} animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }} className="text-base font-bold text-[var(--sf-tinta)]"
+              >
+                Total {formatCOP(montoAPagar)}
+              </motion.p>
             </div>
             {accionBarraFija && (
               <button
@@ -1434,63 +1565,34 @@ export default function Checkout() {
   );
 }
 
-interface FieldProps {
-  /** El `id` ESTABLE del campo — lo usa `intentarContinuar` (más arriba) para enfocar/saltar
-   *  al primer campo que falta (§ CHECKOUT-LISTO-PARA-VENDER-1), y `<label htmlFor>` para
-   *  asociar la etiqueta (§ `paginas-pendientes.md` §2.1: "las etiquetas no están asociadas a
-   *  sus campos" — antes `Field` no tenía `id`, así que no había nada que asociar). */
-  id: string;
+// § COMPRA-FIDELIDAD-3 — `Field` (y su `FieldProps`) SE RETIRARON: todo llamador migró a
+// `CampoFlotante` (§ `components/storefront/checkout/CampoFlotante.tsx`, el rótulo flotante de
+// refero.md §2). Un componente sin un solo consumidor es la misma mina inerte de siempre
+// (§ CLAUDE.md, `Customer.activo`/`Product.agotado`) — se borra, no se deja ambiguo.
 
-  label: string;
-
-  value: string;
-
-  onChange: (value: string) => void;
-
-  onBlur?: () => void;
-
-  type?: string;
-
-  placeholder?: string;
-
-  /** `autoComplete`/`inputMode` del navegador (§ el spec del slice y §
-   *  `paginas-pendientes.md` §2.1: "los campos no tienen autoComplete ni name… ni el
-   *  autollenado del navegador ni el de Google llenan nombre, correo, teléfono ni dirección"). */
-  autoComplete?: string;
-
-  inputMode?: 'text' | 'tel' | 'email' | 'numeric' | 'decimal' | 'search' | 'url' | 'none';
-
-  /** El mensaje de error a mostrar, o `undefined` si el campo está bien (o si todavía no toca
-   *  mostrarlo — esa decisión la toma el llamador, vía `errorVisible`). */
-  error?: string;
-}
-
-// § CHECKOUT-COMPROBANTE-CLIENTE-1: `disabled` se RETIRÓ de acá — su único motivo
-// (bloquear "Referencia de pago" en su lugar mientras la orden ya existe, §
-// CHECKOUT-SELECTOR-NO-SE-DESMONTA-1) desapareció con ese campo: ningún llamador
-// de `Field` lo pasaba. Un prop sin un solo consumidor es la misma mina inerte de
-// siempre (§ CLAUDE.md, `Customer.activo`/`Product.agotado`) — se borra, no se deja
-// ambiguo. El picker de comprobante que reemplazó al campo bloquea los SUYOS
-// (el input de archivo, el botón de quitar) directamente con `bloqueoMetodoDePago`.
-//
-// CHECKOUT-LISTO-PARA-VENDER-1 — 16px de texto (`text-base`, no `text-sm`/14px: § "iOS hace
-// zoom al enfocar cualquier campo de menos de 16px", medido en `paginas-pendientes.md` §2.1)
-// y 48px de alto (`h-12`). El foco va en TINTA (`--sf-tinta`), no en el acento del botón
-// principal (§ el spec: "el color del botón principal sólo en ese botón; la selección y el
-// foco van en tinta") — antes el mismo `--sf-acento` del botón "Confirmar pedido" pintaba
-// también el aro de foco de CADA campo, lo que hacía parecer que un campo activo era un error
-// (`paginas-pendientes.md` §2.1: "Ciudad con borde rojo" bajo Onix, donde el acento es rojo).
-function Field({ id, label, value, onChange, onBlur, type = 'text', placeholder, autoComplete, inputMode, error }: FieldProps) {
+// EL BOTÓN «COPIAR» (§ refero.md §2/§3, "«Copiar»… pasa a «Copiado ✓» por 2 segundos, con
+// `aria-live`"). Copia el TEXTO que el método ya muestra (`opt.desc`/cada línea de `opt.cuentas`,
+// `lib/checkout/metodos-pago.ts`) — esa función es la ruta del dinero y queda intocada por este
+// slice: no hay un valor "en bruto" (sólo el número, sólo el banco) separado de la frase que ya se
+// ve, así que lo que se copia es la frase completa. DESVIACIÓN MEDIDA contra la maqueta (que copia
+// cada campo —banco/número/titular— por separado): `MetodoCheckout.desc`/`cuentas` sólo exponen
+// una línea combinada por cuenta; separarla en campos propios tocaría `metodos-pago.ts`, fuera de
+// `touches:` de este slice.
+function BotonCopiar({ texto }: { texto: string }) {
+  const [copiado, setCopiado] = useState(false);
   return (
-    <div>
-      <label htmlFor={id} className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">{label}</label>
-      <input
-        id={id} name={id} type={type} value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur}
-        placeholder={placeholder} autoComplete={autoComplete} inputMode={inputMode}
-        aria-invalid={error ? true : undefined}
-        className={`w-full h-12 px-4 bg-[var(--sf-fondo)] sf-borde ${error ? 'border-red-400' : 'border-[var(--sf-linea)]'} rounded-xl text-base text-[var(--sf-tinta)] focus:outline-none focus:ring-2 focus:ring-[var(--sf-tinta)]/20 focus:border-[var(--sf-tinta)]`}
-      />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.preventDefault();
+        try { await navigator.clipboard.writeText(texto); } catch { /* best-effort: no hay fallback decente sin permiso */ }
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2000);
+      }}
+      aria-live="polite"
+      className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${copiado ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-[var(--sf-linea)] text-[var(--sf-texto)] hover:bg-[var(--sf-tarjeta)]'}`}
+    >
+      {copiado ? 'Copiado ✓' : 'Copiar'}
+    </button>
   );
 }
