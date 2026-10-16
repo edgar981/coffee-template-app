@@ -78,11 +78,15 @@ const DISPOSITIVOS: { key: DispositivoKey; label: string; Icon: typeof Monitor }
 // `tsc` lo rechaza (medido: `tsc --noEmit` sin este cambio da TS2741, "Property 'tienda' is
 // missing"). Sólo el LABEL de display de esta barra; `PAGINAS` (tienda-secciones.ts) ya trae el suyo
 // propio ('Tienda') para `TogglePagina`/el resto del editor.
+// NECESARIO POR CONSECUENCIA MECÁNICA de § PREGUNTAS-FRECUENTES-1 (mismo patrón que 'tienda', arriba):
+// sumar `'preguntas-frecuentes'` a `PaginaKey` (tienda-secciones.ts) vuelve este
+// `Record<PaginaKey, string>` NO-exhaustivo sin esta línea — `tsc` lo rechaza.
 const LABEL_PAGINA_SELECTOR: Record<PaginaKey, string> = {
   home: 'Inicio',
   tienda: 'Tienda',
   nosotros: 'Nosotros',
   suscripciones: 'Suscripciones',
+  'preguntas-frecuentes': 'Preguntas frecuentes',
 };
 
 // § EDITOR-AYUDA-1 — 'ayuda' se agrega al MISMO patrón que 'tema': una herramienta del riel que es,

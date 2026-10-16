@@ -598,6 +598,24 @@ const suscripcionFaqEditableSchema = z.object({
   variante: z.string().optional(),
 });
 
+// La página /preguntas-frecuentes (§ PREGUNTAS-FRECUENTES-1). REPEATER de preguntas PLANAS —no de
+// grupos anidados, § el docstring de `PreguntasFrecuentesContent`, site-content-defaults.ts—: cada
+// ítem lleva su propio `grupo`. SOFT como `suscripcionFaqItemSchema`: strings opcionales — la
+// validación de requeridos (grupo, question, answer) es del EDITOR, no del schema. `variante`
+// SOBREVIVE al parse como string (SOFT, clampada por `resolverVariante` al leer, no acá).
+const preguntasFrecuentesItemSchema = z.object({
+  grupo: z.string().optional(),
+  question: z.string().optional(),
+  answer: z.string().optional(),
+});
+const preguntasFrecuentesEditableSchema = z.object({
+  visible: z.boolean().optional(),
+  titulo: z.string().optional(),
+  subtitulo: z.string().optional(),
+  items: z.array(preguntasFrecuentesItemSchema).optional(),
+  variante: z.string().optional(),
+});
+
 // /suscripciones — EL CIERRE (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1). `ctaDestino` del SET CERRADO
 // `MENU_CTA_DESTINOS`, mismo criterio que `nosotrosCierreEditableSchema.ctaDestino` — el CTA puede
 // llegar apagado, sin label ni destino.
@@ -691,8 +709,13 @@ const tiendaProductoEditableSchema = z.object({
 
 // META de páginas: `visible` por página. NO es una sección (no pasa por el flujo borrador/publicar
 // de secciones); el toggle de encender/apagar /nosotros la escribe directo (tanda 1, commit 3).
+// (`suscripciones` no está declarada acá tampoco — el toggle de página va DIRECTO a lo publicado vía
+// `setPaginaVisible`, key-agnóstico, sin pasar por este schema; ver su docstring en
+// `site-content-write.ts`. `'preguntas-frecuentes'` se suma por la misma hygiene que ya cubre a
+// `nosotros`, no porque el write la necesite.)
 const paginasEditableSchema = z.object({
   nosotros: z.object({ visible: z.boolean().optional() }).optional(),
+  'preguntas-frecuentes': z.object({ visible: z.boolean().optional() }).optional(),
 });
 
 // META de esquemas (§ eje 5b, mitad B): el mapa banda→esquema. NO es una sección —tampoco pasa por
@@ -1298,6 +1321,7 @@ export const siteContentEditableSchema = z.object({
   suscripcionInterludio: suscripcionInterludioEditableSchema.optional(),
   suscripcionFaq: suscripcionFaqEditableSchema.optional(),
   suscripcionCierre: suscripcionCierreEditableSchema.optional(),
+  preguntasFrecuentes: preguntasFrecuentesEditableSchema.optional(),
   tiendaEncabezado: tiendaEncabezadoEditableSchema.optional(),
   tiendaCatalogo: tiendaCatalogoEditableSchema.optional(),
   tiendaCreditos: tiendaCreditosEditableSchema.optional(),

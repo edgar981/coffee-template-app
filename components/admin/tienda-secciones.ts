@@ -12,7 +12,7 @@
 // divergir de la que el resolver clampa.
 import { REGISTRY, MENU_CTA_DESTINOS, PUNTOS_FOCALES, VELO_INTENSIDADES, TICKER_VELOCIDADES, ALTURAS_HERO, type VeloIntensidad, type BandaId } from '@/lib/config/site-content-defaults';
 
-export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosEscenas' | 'nosotrosFicha' | 'nosotrosInterludio' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto';
+export type SeccionVista = 'hero' | 'marquesina' | 'trustBadges' | 'brandStory' | 'origen' | 'presentaciones' | 'subscriptionCTA' | 'testimonials' | 'spotlight' | 'nosotrosApertura' | 'nosotrosHistoria' | 'nosotrosGaleria' | 'nosotrosEscenas' | 'nosotrosFicha' | 'nosotrosInterludio' | 'nosotrosCierre' | 'suscripcionApertura' | 'suscripcionPlanes' | 'suscripcionPasos' | 'suscripcionInterludio' | 'suscripcionFaq' | 'suscripcionCierre' | 'tiendaEncabezado' | 'tiendaCatalogo' | 'tiendaCreditos' | 'tiendaInterludio' | 'tiendaCierre' | 'tiendaProducto' | 'preguntasFrecuentes';
 
 // EL SELECT COMPARTIDO del destino de un CTA de sección (§ MUESTRARIO-SECCION-CTA-1): las mismas
 // opciones que `MenuSeccion.tsx` ya ofrece para `menu.ctaDestino` + `<option value="">Sin
@@ -209,7 +209,11 @@ const OPCIONES_COMPOSICION_HERO: ComposicionOpcion[] = REGISTRY.hero.variantes!.
 // 'tienda' (§ TIENDA-PAGINA-REGISTRO-1): no apagable — el catálogo ES la tienda, la misma razón por
 // la que 'home' tampoco lo es. Entra SEGUNDA, inmediatamente después de Home: es tan central como
 // ella, no una página secundaria como Nosotros/Suscripciones.
-export type PaginaKey = 'home' | 'tienda' | 'nosotros' | 'suscripciones';
+// § PREGUNTAS-FRECUENTES-1 — `'preguntas-frecuentes'` lleva el GUION de la ruta real (no camelCase
+// como las otras cuatro), a propósito: `urlDePagina` (lib/admin/editor-iframe.ts, fuera de
+// `touches:` de ese slice) deriva la ruta del preview con `` `/${pagina}` `` sin mapa aparte — una
+// clave camelCase habría generado `/preguntasFrecuentes` (inexistente) en vez de la ruta real.
+export type PaginaKey = 'home' | 'tienda' | 'nosotros' | 'suscripciones' | 'preguntas-frecuentes';
 export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?: string }[] = [
   { key: 'home',     label: 'Home',     apagable: false },
   { key: 'tienda',   label: 'Tienda',   apagable: false },
@@ -222,11 +226,18 @@ export const PAGINAS: { key: PaginaKey; label: string; apagable: boolean; nota?:
     nota: 'El interruptor muestra u oculta la página Nosotros en toda la tienda: la página en sí, el enlace del menú, el enlace «Nuestra Historia» del pie, y cualquier botón que apunte a esta página.' },
   // Suscripciones es una PÁGINA como las otras —su pestaña vive junto a Home/Nosotros— con sus planes,
   // sus pasos y su FAQ editables (§ Backlog #49, opción 1; § SUSCRIPCIONES-FAQ-DATO-1). El interruptor
-  // gobierna las SEIS superficies que enlazan a /suscripciones: la página, el menú, el pie, el bloque
-  // de la home, el 2º CTA del hero, y —desde esta tanda— /preguntas-frecuentes (su único contenido es
-  // la FAQ de esta capacidad, § faqSuscripcionesVisible); la `nota` lo dice porque ese alcance no es obvio.
+  // gobierna las CINCO superficies que enlazan a /suscripciones: la página, el menú, el pie, el bloque
+  // de la home y el 2º CTA del hero — § PREGUNTAS-FRECUENTES-1 retiró a /preguntas-frecuentes de esta
+  // lista: esa página ya NO depende sólo de la FAQ de suscripciones, tiene su propia capacidad (abajo).
   { key: 'suscripciones', label: 'Suscripciones', apagable: true,
-    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, el bloque de la home, el segundo botón del hero, y la página de Preguntas Frecuentes.' },
+    nota: 'El interruptor muestra u oculta las suscripciones en toda la tienda: la página, el enlace del menú y del pie, el bloque de la home, y el segundo botón del hero.' },
+  // § PREGUNTAS-FRECUENTES-1 — la página de ayuda general, independiente de Suscripciones. Mientras
+  // no haya ninguna pregunta cargada (`preguntasFrecuentes.items` vacío), la página sigue cayendo a la
+  // FAQ de suscripciones de siempre si existe (§ `preguntasFrecuentesVisible`/`faqSuscripcionesVisible`,
+  // site-content-defaults.ts) — así que apagar este interruptor SIN preguntas cargadas no cambia nada
+  // visible; con preguntas cargadas, apagarlo oculta la página y su enlace del pie.
+  { key: 'preguntas-frecuentes', label: 'Preguntas frecuentes', apagable: true,
+    nota: 'El interruptor muestra u oculta la página general de Preguntas Frecuentes y su enlace del pie. Mientras no haya ninguna pregunta cargada, la página sigue mostrando la FAQ de Suscripciones si existe.' },
 ];
 
 // `categoria: true` → el campo es un DESTINO de categoría: la cáscara lo renderiza con el
@@ -1999,11 +2010,14 @@ const SUSCRIPCION_FAQ: SeccionConfig = {
   pagina: 'suscripciones',
   titulo: 'Preguntas frecuentes',
   ocultable: true,
-  // § EDITOR-COMPOSICION-CAMPOS-1 (S5, item 5 del spec) — `faqSuscripcionesVisible` (site-content-
-  // defaults.ts) es la MISMA condición que gatea la página /preguntas-frecuentes Y el enlace
-  // "Preguntas Frecuentes" del pie: vaciar esta lista o apagar el interruptor de abajo se lleva las
-  // tres cosas, no sólo esta sección dentro de /suscripciones.
-  notaVisibilidad: 'Esta sección también ES el contenido de /preguntas-frecuentes y el enlace "Preguntas Frecuentes" del pie: vaciarla o apagarla oculta las tres cosas, no sólo lo que se ve acá.',
+  // § EDITOR-COMPOSICION-CAMPOS-1 (S5, item 5 del spec), ACTUALIZADO por § PREGUNTAS-FRECUENTES-1:
+  // ya NO es la única fuente de /preguntas-frecuentes — esa página tiene su PROPIA sección
+  // («Preguntas frecuentes», pestaña «Preguntas frecuentes», § PREGUNTAS_FRECUENTES abajo). Ésta
+  // sigue siendo el FALLBACK: mientras esa sección nueva esté vacía, /preguntas-frecuentes sigue
+  // mostrando esta FAQ (§ `preguntasFrecuentesVisible`/`faqSuscripcionesVisible`, site-content-
+  // defaults.ts). Vaciarla o apagarla sólo oculta las tres cosas de siempre SI la sección nueva
+  // sigue también vacía.
+  notaVisibilidad: 'Mientras la página «Preguntas frecuentes» no tenga ninguna pregunta propia, ésta sigue siendo su contenido (y el del enlace "Preguntas Frecuentes" del pie). Con preguntas propias cargadas ahí, esta sección deja de usarse para esa página.',
   composiciones: OPCIONES_COMPOSICION_SUSCRIPCION_FAQ,
   imagenes: [], // sección de solo texto
   campos: [
@@ -2055,6 +2069,43 @@ const SUSCRIPCION_CIERRE: SeccionConfig = {
     { name: 'ctaLabel', label: 'Botón · texto', opcional: true, hint: 'Vacío: no se muestra ningún botón.' },
     { name: 'ctaDestino', label: 'Botón · destino', opcional: true, opciones: OPCIONES_CTA_DESTINO, hint: 'A dónde lleva el botón. Sin destino, no se muestra aunque tenga texto.' },
   ],
+};
+
+// LA PÁGINA /preguntas-frecuentes (§ PREGUNTAS-FRECUENTES-1). REPEATER PLANO —no de grupos, § el
+// docstring de `PreguntasFrecuentesContent` (site-content-defaults.ts) para el porqué—: cada fila es
+// UNA pregunta con su `grupo`, `question` y `answer`. El hint de `grupo` es lo que hace legible el
+// modelo aplanado en el editor: dos preguntas con el MISMO texto de grupo caen juntas en la tienda.
+const LABEL_COMPOSICION_PREGUNTAS_FRECUENTES: Record<string, string> = {
+  lista: 'Lista', creditos: 'Créditos', libreta: 'Libreta',
+};
+const ZONAS_PREGUNTAS_FRECUENTES: ZonaComposicion[] = [
+  { campos: ['titulo', 'subtitulo'], label: 'Encabezado' },
+];
+const OPCIONES_COMPOSICION_PREGUNTAS_FRECUENTES: ComposicionOpcion[] = REGISTRY.preguntasFrecuentes.variantes!.claves.map((v) => ({
+  value: v, label: LABEL_COMPOSICION_PREGUNTAS_FRECUENTES[v] ?? v, zonas: ZONAS_PREGUNTAS_FRECUENTES,
+}));
+const PREGUNTAS_FRECUENTES: SeccionConfig = {
+  seccion: 'preguntasFrecuentes',
+  pagina: 'preguntas-frecuentes',
+  titulo: 'Preguntas frecuentes',
+  ocultable: true,
+  notaVisibilidad: 'Sin ninguna pregunta cargada, la página sigue mostrando la FAQ de Suscripciones si existe; si no, se oculta como hoy.',
+  composiciones: OPCIONES_COMPOSICION_PREGUNTAS_FRECUENTES,
+  imagenes: [],
+  campos: [
+    { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
+    { name: 'subtitulo', label: 'Subtítulo', opcional: true, textarea: true, hint: 'La frase bajo el título. Vacío: no se muestra.' },
+  ],
+  repeater: {
+    itemsKey: 'items',
+    itemLabel: 'Pregunta',
+    genero: 'f', // "¿Eliminar esta pregunta?"
+    campos: [
+      { name: 'grupo', label: 'Grupo', tipo: 'texto', hint: 'El nombre del grupo (p. ej. «Envíos»). Usa el MISMO texto en todas las preguntas que quieras agrupar juntas.' },
+      { name: 'question', label: 'Pregunta', tipo: 'texto', resumen: 'principal', hint: 'La pregunta que hace el cliente.' },
+      { name: 'answer', label: 'Respuesta', tipo: 'textarea', resumen: 'detalle', hint: 'La respuesta, en un lenguaje claro.' },
+    ],
+  },
 };
 
 // LA PÁGINA /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `REGISTRY.tiendaEncabezado`/
@@ -2344,4 +2395,4 @@ const TIENDA_PRODUCTO: SeccionConfig = {
 // (sin tocar, sigue byte-idéntico) → interludio → preguntas (letra pequeña) → cierre. El spec lo
 // nombra "apertura → taquilla → interludio → letra pequeña → cierre" sin mencionar pasos porque esa
 // sección no cambia de posición — sigue exactamente donde ya estaba.
-export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_ESCENAS, NOSOTROS_FICHA, NOSOTROS_INTERLUDIO, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE];
+export const SECCIONES_TIENDA: SeccionConfig[] = [HERO, MARQUESINA, TRUSTBADGES, BRAND_STORY, ORIGEN, PRESENTACIONES, SUBSCRIPTION, TESTIMONIOS, SPOTLIGHT, TIENDA_ENCABEZADO, TIENDA_CATALOGO, TIENDA_CREDITOS, TIENDA_INTERLUDIO, TIENDA_CIERRE, TIENDA_PRODUCTO, NOSOTROS_APERTURA, NOSOTROS_HISTORIA, NOSOTROS_GALERIA, NOSOTROS_ESCENAS, NOSOTROS_FICHA, NOSOTROS_INTERLUDIO, NOSOTROS_CIERRE, SUSCRIPCION_APERTURA, SUSCRIPCION_PLANES, SUSCRIPCION_PASOS, SUSCRIPCION_INTERLUDIO, SUSCRIPCION_FAQ, SUSCRIPCION_CIERRE, PREGUNTAS_FRECUENTES];

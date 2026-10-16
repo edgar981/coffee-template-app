@@ -235,8 +235,9 @@ const CONTROLADOS_FOOTER_SECCION = [
 const CONTROLADOS_PALETA_SECCION = ['tema.fondo', 'tema.tinta', 'tema.acento', 'tema.fuentePar', 'tema.forma'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `TiendaPaginas.tsx` controla vía `<TogglePagina>`: el interruptor de
- *  encendido/apagado de cada página apagable. */
-const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible'];
+ *  encendido/apagado de cada página apagable. `'preguntas-frecuentes'` (§ PREGUNTAS-FRECUENTES-1)
+ *  entró a `PAGINAS` como tercera página apagable — mismo control genérico, sin tocar `TiendaPaginas`. */
+const CONTROLADOS_TIENDA_PAGINAS = ['paginas.nosotros.visible', 'paginas.suscripciones.visible', 'paginas.preguntas-frecuentes.visible'];
 
 /** DECLARACIÓN EXPLÍCITA de lo que `VendedorSeccion.tsx` controla (§ TIENDA-LEGAL-1 — `vendedor` SÍ
  *  es sección del REGISTRY, pero su editor es BESPOKE, patrón `MenuSeccion`/`FooterSeccion`: no hay

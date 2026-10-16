@@ -1438,6 +1438,45 @@ export interface SuscripcionCierreContent {
   franjaTejido: string;
 }
 
+// LA PÁGINA /preguntas-frecuentes COMO AYUDA GENERAL (§ PREGUNTAS-FRECUENTES-1). Hoy esa ruta sólo
+// muestra `suscripcionFaq` (y redirige a "/" sin ella, § `faqSuscripcionesVisible`) — un hueco: un
+// visitante que busca "¿cuánto tarda el envío?" no tiene dónde preguntarlo. Pasa a ser la página de
+// ayuda de TODA la tienda, por GRUPOS (envíos, pagos, el café, el pedido…), con dos composiciones
+// elegibles que la maqueta aprobada ya construyó — «Créditos» (Onix) y «Libreta» (Las Chamisas) — y
+// una canónica neutra para quien no elige ninguna.
+//
+// EL MODELO ES UNA LISTA PLANA, NO GRUPOS ANIDADOS (§ lib/storefront/preguntas-frecuentes.ts, el
+// docstring de cabecera): cada pregunta lleva su propio `grupo` (texto libre); "a qué grupo
+// pertenece" se DERIVA (`agruparPreguntas`), nunca se guarda como un array de grupos-con-preguntas.
+// Es lo que permite reusar el repeater y el `RepeaterEditor` GENÉRICOS (tres campos de texto por
+// fila) sin inventar un editor de listas-dentro-de-listas que no tiene precedente en el REGISTRY.
+export interface PreguntaFrecuenteItem {
+  grupo: string;
+  question: string;
+  answer: string;
+}
+
+// `subtitulo` (OPCIONAL, § la frontera fina de defaults-como-fallback): la frase bajo el título
+// ("Lo que más nos preguntan antes de comprar…", el `.o-cab p` de la maqueta) es decoración de
+// cabecera, no algo que la página NECESITE — vacío, no se muestra. `titulo` SÍ requerido: la página
+// necesita un encabezado, igual que cualquier otra.
+//
+// `variante` (§ eje 5e, VariantesDef): 'lista' (canónica, NUEVA — una tienda que carga preguntas sin
+// elegir Onix/Chamisas ve un acordeón agrupado simple, con los tokens `--sf-*` de siempre) | 'creditos'
+// (Onix, § PreguntasCreditos en components/storefront/ayuda/) | 'libreta' (Las Chamisas, ídem).
+// NINGUNA de las tres es "la de hoy" byte-idéntica —esta sección nunca existió—, así que no hay un
+// comportamiento viejo que preservar: lo que SÍ se preserva es que, con `items: []` (el default,
+// ninguna tienda la carga todavía), la sección entera queda oculta (hide-on-empty) y
+// /preguntas-frecuentes sigue comportándose EXACTAMENTE como hoy (§ `preguntasFrecuentesVisible`/
+// `faqSuscripcionesVisible`, abajo).
+export interface PreguntasFrecuentesContent {
+  visible: boolean;
+  titulo: string;
+  subtitulo: string;
+  items: PreguntaFrecuenteItem[];
+  variante: string;
+}
+
 // LA PÁGINA /tienda ENTRA AL EDITOR (§ TIENDA-PAGINA-REGISTRO-1, sobre TIENDA-COMPOSICIONES-CENSO-1).
 // El catálogo público era una sola función de cliente (`ShopLegacy`/`ShopCorte`,
 // app/(storefront)/tienda/page.tsx) sin registro en SiteContent — ni `PaginaKey` ni `SeccionVista`.
@@ -1834,6 +1873,21 @@ export interface FooterContent {
 export interface PaginasContent {
   nosotros: { visible: boolean };
   suscripciones: { visible: boolean };
+  // § PREGUNTAS-FRECUENTES-1 — la nueva página de ayuda general. La CLAVE lleva el guion de la
+  // RUTA real ('/preguntas-frecuentes'), no camelCase como las otras dos: `urlDePagina`
+  // (lib/admin/editor-iframe.ts, fuera de `touches:` de este slice) deriva la ruta de la clave con
+  // `` `/${pagina}` `` sin ningún mapa aparte — una clave camelCase habría producido
+  // `/preguntasFrecuentes` (inexistente) en vez de `/preguntas-frecuentes`.
+  //
+  // OPCIONAL SÓLO EN EL TIPO —MISMO criterio que `MenuContent.badgeItem?`/`.badgeTexto?` (ver su
+  // docstring arriba)—: `nosotros`/`suscripciones` ya tenían literales `PaginasContent` armados a
+  // mano FUERA de `touches:` de este slice (`lib/admin/editor-estado-paginas.test.ts`,
+  // `lib/config/footer-tema.test.ts`, `lib/config/seccion-cta.test.ts`), y exigir esta tercera clave
+  // ahí los habría roto sin poder tocarlos. En RUNTIME `content.paginas['preguntas-frecuentes']`
+  // SIEMPRE llega resuelto (`resolverPaginas` itera `Object.keys(DEFAULTS.paginas)`, que ya la
+  // incluye) — nunca `undefined` de verdad; `preguntasFrecuentesVisible` (abajo) trata la ausencia
+  // como visible, el mismo default que `resolverPaginas` ya aplica sin un booleano explícito.
+  'preguntas-frecuentes'?: { visible: boolean };
 }
 
 // META de TEMA: las 3 RAÍCES de paleta del storefront (fondo·tinta·acento). NO es una sección (no
@@ -2386,6 +2440,7 @@ export interface SiteContentData {
   suscripcionInterludio: SuscripcionInterludioContent;
   suscripcionFaq: SuscripcionFaqContent;
   suscripcionCierre: SuscripcionCierreContent;
+  preguntasFrecuentes: PreguntasFrecuentesContent;
   tiendaEncabezado: TiendaEncabezadoContent;
   tiendaCatalogo: TiendaCatalogoContent;
   tiendaCreditos: TiendaCreditosContent;
@@ -3114,6 +3169,23 @@ export const DEFAULTS: SiteContentData = {
     variante: 'fraseYBoton',
     franjaTejido: '',
   },
+  // LA PÁGINA /preguntas-frecuentes (§ PREGUNTAS-FRECUENTES-1). NACE VACÍA a propósito, mismo
+  // criterio que testimonios/`tiendaCreditos`/`suscripcionFaq` (§ #44 — ningún dato de negocio se
+  // hornea): `items: []` → hide-on-empty → ninguna tienda ve nada nuevo hasta que el owner carga sus
+  // propias preguntas por el editor. `titulo` conserva un encabezado NEUTRO (no un claim de marca);
+  // `subtitulo` vacío a propósito (es decoración opcional, no algo que la página necesite).
+  preguntasFrecuentes: {
+    visible: true,
+    // "Centro de ayuda", no "Preguntas frecuentes" — ese texto ya es el default de
+    // `suscripcionFaq.titulo` y el catcher de duplicados de DEFAULTS (§ site-content-defaults.test.ts)
+    // trata cualquier texto repetido entre campos distintos como colisión (misma regla que ya evitó
+    // un duplicado en `footer.variante`, § su docstring). Las dos páginas son ayuda de todos modos;
+    // el título distinto es lo que las distingue a simple vista en el editor.
+    titulo: 'Centro de ayuda',
+    subtitulo: '',
+    items: [],
+    variante: 'lista',
+  },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1): el texto EXACTO de hoy (`ShopLegacy`/`ShopCorte`, antes de
   // este slice) — byte-idéntico sin fila de SiteContent sembrada. El placeholder del buscador
   // ("Buscar café...") queda FUERA de este modelo a propósito (§ el docstring de
@@ -3307,6 +3379,10 @@ export const DEFAULTS: SiteContentData = {
   paginas: {
     nosotros: { visible: true },
     suscripciones: { visible: true },
+    // DEFAULT ENCENDIDA (§ PREGUNTAS-FRECUENTES-1), mismo criterio que nosotros/suscripciones: la
+    // página existe de arranque; lo que de verdad decide si muestra algo es el contenido
+    // (`preguntasFrecuentes.items`, vacío por default) — § `preguntasFrecuentesVisible`.
+    'preguntas-frecuentes': { visible: true },
   },
   // TEMA por defecto: las 3 raíces en null → el storefront usa los defaults de código (§ globals.css
   // `--sf-*`), que SON la paleta de Nayoli → byte-idéntico sin depender de una fila. Un cliente setea
@@ -4256,6 +4332,29 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
       ctaLabel: 'opcional',
       ctaDestino: 'opcional',
       franjaTejido: 'opcional',
+    },
+  },
+  // LA PÁGINA /preguntas-frecuentes (§ PREGUNTAS-FRECUENTES-1). REPEATER de preguntas PLANAS —no de
+  // grupos— con `grupo` requerido por fila: "a qué grupo pertenece" se deriva en
+  // `lib/storefront/preguntas-frecuentes.ts` (`agruparPreguntas`), nunca se guarda anidado (ver el
+  // docstring de `PreguntasFrecuentesContent`, arriba, para el porqué). `ocultable:true`, hide-on-empty
+  // de siempre con `items: []`. `variantes`: 'lista' (canónica, acordeón agrupado neutro) | 'creditos'
+  // (Onix) | 'libreta' (Las Chamisas).
+  preguntasFrecuentes: {
+    label: 'Preguntas frecuentes',
+    ocultable: true,
+    variantes: { claves: ['lista', 'creditos', 'libreta'], canonica: 'lista' },
+    campos: {
+      titulo: 'requerido',
+      subtitulo: 'opcional',
+    },
+    repeater: {
+      itemsKey: 'items',
+      campos: {
+        grupo: 'requerido',
+        question: 'requerido',
+        answer: 'requerido',
+      },
     },
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1, ver el docstring de `TiendaEncabezadoContent`/
@@ -5504,18 +5603,40 @@ export function seccionEsVisible(def: SeccionDef, sec: object): boolean {
 }
 
 /**
- * ¿Debe mostrarse /preguntas-frecuentes —y su enlace, en el footer— (§ SUSCRIPCIONES-FAQ-DATO-1)?
- * Compone DOS condiciones: la CAPACIDAD de suscripciones está encendida
- * (`paginas.suscripciones.visible` — la FAQ es hoy contenido de esa capacidad, la misma que gatea el
- * 2º CTA del hero, el nav, el footer y el bloque de la home, § Backlog #49) Y la sección
- * `suscripcionFaq` se muestra (`seccionEsVisible`, que ya cubre su propio toggle Y hide-on-empty).
- * Sin las dos, la página quedaría en BLANCO —su único contenido es esta FAQ— y su enlace apuntaría a
- * nada. UNA función para los DOS consumidores (la ruta y `StoreFooter`): escribir la condición dos
- * veces es la falla de las dos declaraciones que este repo ya pagó varias veces (§ CLAUDE.md,
- * `razonDelServidor`/`cruzoMinimo`).
+ * ¿Debe mostrarse la FAQ de /suscripciones (§ SUSCRIPCIONES-FAQ-DATO-1)? Compone DOS condiciones: la
+ * CAPACIDAD de suscripciones está encendida (`paginas.suscripciones.visible` — la FAQ es contenido de
+ * esa capacidad, la misma que gatea el 2º CTA del hero, el nav, el footer y el bloque de la home, §
+ * Backlog #49) Y la sección `suscripcionFaq` se muestra (`seccionEsVisible`, que ya cubre su propio
+ * toggle Y hide-on-empty).
+ *
+ * YA NO ES, POR SÍ SOLA, "¿SE MUESTRA /preguntas-frecuentes?" (§ PREGUNTAS-FRECUENTES-1 — esa página
+ * ganó su PROPIA sección, `preguntasFrecuentes`, con su propio gate: `preguntasFrecuentesVisible`,
+ * abajo). Lo que sobrevive sin cambiar es el uso DENTRO de /suscripciones (la sección de esa página
+ * sigue gateada exactamente así) y el uso como FALLBACK de /preguntas-frecuentes —la ruta y
+ * `columnasDeFooter` componen las DOS con `||`: mientras `preguntasFrecuentes.items` esté vacío,
+ * ninguna tienda pierde la FAQ que ya tenía—.
  */
 export function faqSuscripcionesVisible(content: SiteContentData): boolean {
   return content.paginas.suscripciones.visible && seccionEsVisible(REGISTRY.suscripcionFaq, content.suscripcionFaq);
+}
+
+/**
+ * ¿Debe mostrarse la página general /preguntas-frecuentes —y su enlace, en el footer— (§
+ * PREGUNTAS-FRECUENTES-1)? MISMA FORMA que `faqSuscripcionesVisible` (arriba): el toggle de la
+ * página propia (`paginas['preguntas-frecuentes'].visible`) Y la sección se muestra
+ * (`seccionEsVisible`, que ya cubre hide-on-empty — `items: []` por default, § DEFAULTS).
+ *
+ * NO verifica la COMPLETITUD de cada pregunta (grupo+question+answer no vacíos): ese filtro más
+ * fino vive en `lib/storefront/preguntas-frecuentes.ts` (`agruparPreguntas`), fuera de este módulo
+ * a propósito — `site-content-defaults.ts` no importa de `lib/storefront/` (dirección de
+ * dependencia: los módulos de FEATURE importan de acá, no al revés, § los imports de este archivo,
+ * todos dentro de `lib/config/`). El llamador de la página (`app/(storefront)/preguntas-frecuentes/
+ * page.tsx`) compone las dos: esta función decide si hay ALGO guardado; `agruparPreguntas` decide
+ * si lo guardado es REAL antes de renderizar la composición nueva.
+ */
+export function preguntasFrecuentesVisible(content: SiteContentData): boolean {
+  return content.paginas['preguntas-frecuentes']?.visible !== false
+    && seccionEsVisible(REGISTRY.preguntasFrecuentes, content.preguntasFrecuentes);
 }
 
 // LOS HREFS DE LAS 5 COLUMNAS DEL PIE SON ESTRUCTURA (§ el docstring de `FooterContent`, arriba):
@@ -5544,7 +5665,11 @@ export interface FooterLinkColumnas {
  */
 export function columnasDeFooter(content: SiteContentData): FooterLinkColumnas {
   const { footer, paginas } = content;
-  const faqVisible = faqSuscripcionesVisible(content);
+  // § PREGUNTAS-FRECUENTES-1 — el enlace del pie se muestra con CUALQUIERA de las dos fuentes de
+  // ayuda visible: la FAQ general nueva, o (ninguna tienda la cargó todavía) la FAQ de suscripciones
+  // de siempre — exactamente el "ninguna tienda cambia hasta que cargue sus preguntas" del spec,
+  // aplicado al footer.
+  const faqVisible = preguntasFrecuentesVisible(content) || faqSuscripcionesVisible(content);
   return {
     tienda: [
       { label: footer.linkTienda, href: HREF_FOOTER_TIENDA },

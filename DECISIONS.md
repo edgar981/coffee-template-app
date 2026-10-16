@@ -66231,3 +66231,200 @@ la app en vivo (habría exigido revertir el slice a mitad de camino); el estado 
 `git diff` de esta rama. `npm run verificar:nayoli`/`:visual` (parte de `pre-merge`, no de `gate`)
 NO se corrieron — fuera del gate que este dispatch exige; quedan para el `pre-merge` del
 orquestador antes del merge real. Commiteado en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-16 — /preguntas-frecuentes pasa de FAQ de suscripciones a página de ayuda general, por grupos, con dos composiciones elegibles (`PREGUNTAS-FRECUENTES-1`)
+
+**DESVIACIÓN MEDIDA, primero: el `observed-report` que el spec cita
+(`PREGUNTAS-FRECUENTES-CENSO-1`) NO EXISTE.** `grep -rln "PREGUNTAS-FRECUENTES-CENSO-1" .`
+(excluyendo `node_modules`/`.git`) sobre el árbol previo a este commit da CERO coincidencias —
+ni en `DECISIONS.md`, ni en ningún archivo del repo. Es la MISMA familia que
+`WOMPI-CHECKOUT-INTENTOS-CENSO-1` y `COMPRA-FIDELIDAD-CENSO-1` ya documentaron en este libro
+(un `observed-report` citado por un spec que nunca se escribió). No bloqueó el trabajo: la
+maqueta (`.scratch/preguntas-frecuentes/maqueta.html`) y las dos capturas ya provistas
+(`onix-creditos-1300.png`, `chamisas-libreta-1300.png`) —las tres SÍ existen— son la autoridad
+que el dispatch nombra ("la maqueta manda"), y el modelo/claves/editor que el censo habría
+propuesto se DERIVARON de leer esa maqueta y el REGISTRY existente, documentados abajo.
+
+### El modelo: lista PLANA de preguntas, no grupos anidados
+
+`PreguntaFrecuenteItem {grupo, question, answer}` — un repeater de PREGUNTAS, cada una con su
+propio `grupo` (texto libre), no un array de `{grupo, items:[...]}`. Medido ANTES de modelar:
+`resolverItems` (site-content-defaults.ts) sólo resuelve campos STRING de un ítem de repeater —
+un campo anidado (un array-dentro-de-array) pasaría "tal cual" sin validar, y `RepeaterEditor.tsx`
+no tiene precedente de editar listas-de-listas (su `CampoItem.tipo` es `'texto'|'textarea'|
+'rating'|'imagen'`, ninguno "sub-lista"). Construir un editor de dos niveles habría significado
+tocar `RepeaterEditor.tsx` —compartido por TODOS los repeaters del REGISTRY— o escribir un
+editor bespoke nuevo. Aplanar evita las dos cosas: "a qué grupo pertenece" (el pedido EXPLÍCITO
+del spec, "las reglas puras... a qué grupo pertenece") se vuelve la función DERIVADA
+`agruparPreguntas` (`lib/storefront/preguntas-frecuentes.ts`), agrupando por el campo `grupo` en
+orden de PRIMERA APARICIÓN — nunca alfabético (es el orden que el operador ya declaró al
+escribir). El repeater genérico (`grupo`/`question`/`answer`, los tres `tipo:'texto'`/
+`'textarea'`) + `RepeaterEditor` sin tocar bastan — CERO líneas nuevas en ese archivo compartido.
+
+`preguntaCompleta`/`preguntasCompletas` filtran filas a medias (mismo criterio que
+`filasCompletas` de `tiendaCreditos`); `agruparPreguntas` las excluye ANTES de agrupar, así que
+`grupos.length === 0` significa "cero preguntas reales en cualquier grupo" — la condición real
+de hide-on-empty — no "cero grupos con un nombre puesto y nada adentro" (afirmado por el test de
+integración "hide-on-empty real, no sólo de array").
+
+### `preguntasFrecuentes` entra al REGISTRY como una sección más — repeater + 2 campos + 3 composiciones
+
+`REGISTRY.preguntasFrecuentes`: `campos:{titulo:'requerido', subtitulo:'opcional'}`,
+`repeater:{itemsKey:'items', campos:{grupo:'requerido', question:'requerido',
+answer:'requerido'}}`, `variantes:{claves:['lista','creditos','libreta'], canonica:'lista'}`.
+DEFAULT `items: []` — NACE VACÍA, mismo criterio que testimonios/`tiendaCreditos`/
+`suscripcionFaq` (§ #44, ningún dato de negocio se hornea). El `titulo` default es **"Centro de
+ayuda"**, NO "Preguntas frecuentes" — ese texto ya es el default de `suscripcionFaq.titulo`, y el
+catcher de duplicados de `DEFAULTS` (`site-content-defaults.test.ts`) trata cualquier texto
+repetido entre campos distintos como colisión; medido, se vio fallar con "Preguntas frecuentes"
+en las dos secciones antes de cambiarlo.
+
+**`SeccionConfig` en `tienda-secciones.ts` (`PREGUNTAS_FRECUENTES`) usa el editor GENÉRICO
+entero, sin bloques bespoke** — `TiendaSeccionEditor`/`RepeaterEditor`/el selector de composición
+(`debeMostrarSelectorComposicion`, data-driven: "¿esta sección declara 2+ composiciones?") ya
+cubren campos planos + repeater + variantes sin código nuevo. El hint del campo `grupo` dice
+explícito "Usa el MISMO texto en todas las preguntas que quieras agrupar juntas" — es la única
+pieza de UX que compensa el modelo aplanado (el operador repite el nombre del grupo por cada
+fila, en vez de verlo una sola vez).
+
+### La nueva PÁGINA — `PaginaKey = 'preguntas-frecuentes'`, con el guion de la ruta real
+
+`PaginaKey`/`PAGINAS` (tienda-secciones.ts) ganan una QUINTA página, apagable, tercera de su
+clase junto a `nosotros`/`suscripciones`. La CLAVE es `'preguntas-frecuentes'` (con guion),
+**no** `'preguntasFrecuentes'` (camelCase, como el resto de los `PaginaKey`) — medido antes de
+elegir: `urlDePagina` (`lib/admin/editor-iframe.ts`, fuera de `touches:`) deriva la ruta real de
+la clave con `` `/${pagina}` `` sin mapa aparte; una clave camelCase habría producido
+`/preguntasFrecuentes` (ruta inexistente) en vez de `/preguntas-frecuentes`. Elegir la clave para
+que coincida con la ruta evitó tener que tocar ese archivo.
+
+**`PaginasContent['preguntas-frecuentes']` es OPCIONAL SÓLO EN EL TIPO**, mismo patrón ya
+declarado para `MenuContent.badgeItem?`/`.badgeTexto?` (site-content-defaults.ts, el propio
+docstring lo explica): `nosotros`/`suscripciones` ya tenían literales `PaginasContent` armados a
+mano FUERA de `touches:` de este slice (`lib/admin/editor-estado-paginas.test.ts`,
+`lib/config/footer-tema.test.ts`, `lib/config/seccion-cta.test.ts`) y exigir la tercera clave ahí
+los habría roto sin poder tocarlos (`lib/admin/` no está en `touches:`). En RUNTIME la clave
+SIEMPRE llega resuelta (`resolverPaginas` itera `Object.keys(DEFAULTS.paginas)`, que ya la
+incluye) — la opcionalidad es sólo del tipo, nunca un `undefined` real.
+
+**`lib/admin/editor-estado-paginas.ts` NO SE TOCÓ, y es un hueco CONOCIDO, anotado abajo.**
+`paginaEstaApagada` hardcodea `pagina !== 'nosotros' && pagina !== 'suscripciones'` → `false` —
+NO deriva de `PAGINAS.find(p=>p.apagable)`. Con la página nueva apagada mientras el owner la
+previsualiza en el editor de pantalla completa (`VistaTiendaIframe.tsx`), el "vigía de ruta" no
+sabría que la página está apagada y reintentaría navegarla — PERO el propio archivo ya tiene un
+TOPE (`TOPE_INTENTOS_VIGIA_RUTA = 5`, "nunca insistir indefinidamente") que acota el costo a 5
+reintentos de ~400ms, no un loop infinito. Fuera de `touches:` de este slice; abierto como
+`PREGUNTAS-FRECUENTES-ESTADO-PAGINAS-HARDCODE-1`.
+
+### El viaje a través de `/preguntas-frecuentes`: ninguna tienda cambia hasta cargar preguntas
+
+`preguntasFrecuentesVisible(content)` (site-content-defaults.ts) = MISMA forma que
+`faqSuscripcionesVisible`: toggle de página Y `seccionEsVisible` (array no vacío). El `page.tsx`
+de la ruta compone DOS condiciones: `preguntasFrecuentesVisible(content) &&
+agruparPreguntas(content.preguntasFrecuentes.items).length > 0` (el gate FINO — al menos una
+pregunta COMPLETA, no sólo una fila a medias) decide si renderiza la composición NUEVA
+(`AyudaPagina`); si no, cae EXACTO al código de HOY (`faqSuscripcionesVisible` →
+`<PreguntasFrecuentes />`, el componente intacto, byte por byte) o al redirect de siempre.
+`suscripcionFaq` y su componente `PreguntasFrecuentes.tsx` **no se tocaron en absoluto** — siguen
+siendo el contenido de `/suscripciones` y el FALLBACK de `/preguntas-frecuentes` mientras
+`preguntasFrecuentes.items` esté vacío. `columnasDeFooter` gatea el enlace del pie con
+`preguntasFrecuentesVisible(content) || faqSuscripcionesVisible(content)` — el mismo `||` en el
+único lugar que decide, nunca duplicado.
+
+Confirmado por el carril (`tests/integracion/preguntas-frecuentes-viaje.test.ts`, 4 casos): el
+campo `grupo` sobrevive el schema (no lo strippea en silencio, la MISMA clase de bug que
+`#65-B`/`presentaciones-viaje.test.ts` ya cerró una vez); la `variante` elegida no revierte a la
+canónica; una fila a medias no cuenta como grupo visible; y sin ninguna fila guardada,
+`preguntasFrecuentesVisible` da `false` — la base de "ninguna tienda cambia".
+
+### Las dos composiciones — Créditos (Onix) y Libreta (Las Chamisas), contra la maqueta
+
+`components/storefront/ayuda/`: `AyudaPagina.tsx` (despachador headless, lee `useSiteContent()`,
+decide por `variante`, registrado en `VistaTiendaEnVivo.tsx` para la vista previa en vivo del
+editor), `AyudaCreditos.tsx` (270 líneas), `AyudaLibreta.tsx` (175 líneas), `AyudaLista.tsx` (80
+líneas, la canónica neutra sin maqueta propia). Interacciones implementadas: Créditos — índice
+fijo con scroll-spy (`IntersectionObserver`, apagado en `preview` — mismo motivo que
+`whileInView` no dispara dentro del contenedor escalado de `VistaTiendaEnVivo`), buscador que
+filtra pregunta+respuesta y resalta la coincidencia (`resaltarCoincidencia`, `<mark>`), apertura
+independiente por fila (no exclusiva, igual que la maqueta), numeración CONTINUA (no el esquema
+`gi*10+i+1` de la maqueta — decisión, no descuido, documentada en el README de capturas); Libreta
+— pestañas por grupo (columna vertical en escritorio, fila horizontal arriba en celular, EXACTO
+lo que pide el spec para "Celular"), casilla punteada→rellena al abrir, sticker con "pop" de
+escala+rotación al cambiar de pestaña. SIEMPRE tokens `--sf-*`, nunca los hex de la maqueta
+(crema/verde/rojo de Onix, pasteles/terracota de Las Chamisas) — para Onix el tema REAL medido
+coincide visualmente con la maqueta porque la maqueta se diseñó a partir de ese tema.
+
+**Capturado en navegador real** (Playwright headless, `next build`+`next start`, Postgres
+efímero — `scripts/capturar-seccion.ts --sembrar-preguntas-frecuentes <onix|chamisas>
+--sin-prototipo`, nueva función de siembra + dos acciones previas nuevas
+`ayuda-buscar`/`ayuda-abrir-pregunta`, siguiendo el patrón YA establecido de
+`sembrarCasillas`/`sembrarTaquillaOnix`) a **390 y 1440** (las cifras-decisión del spec), más el
+buscador con texto y una pregunta abierta, comparadas lado a lado contra la maqueta aprobada en
+`.scratch/preguntas-frecuentes/pares/README.md` — **sin suavizar las diferencias**: el header de
+Créditos pasó de una columna a dos (corregido en esta misma tanda, tras ver la primera captura);
+la franja decorativa "tejido" de Libreta se OMITIÓ POR COMPLETO (4 hex hardcodeados de marca sin
+token `--sf-*` equivalente — violaría la regla "nunca los hex de la maqueta"); los anillos de la
+libreta se ven desplazados hacia afuera del borde de la tarjeta en la captura de escritorio, sin
+causa raíz identificada en el tiempo disponible.
+
+### Qué tiene que cargar y elegir cada demo (para el gate visual del owner)
+
+- **Onix** (`cafe-onix.vercel.app` o su preview): en `/admin/tienda` → pestaña "Preguntas
+  frecuentes" → cargar preguntas por grupo (el campo `grupo` repetido por fila agrupa) → elegir
+  composición **"Créditos"** → Publicar. Sin esto, `/preguntas-frecuentes` sigue mostrando lo que
+  ya tenga `suscripcionFaq` (si tiene) o redirige a "/".
+- **Las Chamisas**: mismo flujo, composición **"Libreta"**.
+- Cualquier OTRA tienda que cargue preguntas sin elegir composición ve **"Lista"** (la canónica),
+  un acordeón agrupado neutro con los tokens de siempre.
+
+### Open follow-ups
+
+- **`PREGUNTAS-FRECUENTES-ESTADO-PAGINAS-HARDCODE-1`** — `lib/admin/editor-estado-paginas.ts::
+  paginaEstaApagada` no conoce `'preguntas-frecuentes'` (hardcodea `nosotros`/`suscripciones`);
+  acotado por `TOPE_INTENTOS_VIGIA_RUTA` (no es un loop infinito), pero el vigía de ruta del
+  editor de pantalla completa no detecta la página apagada hasta agotar sus 5 reintentos. Cerrarlo
+  es una línea (`PAGINAS.find(p=>p.key===pagina)?.apagable`), fuera de `touches:` de este slice.
+- **`PREGUNTAS-FRECUENTES-LIBRETA-ANILLOS-1`** — los anillos de la composición Libreta se ven
+  desplazados fuera del borde de la tarjeta en la captura de 1440px (`chamisas-libreta-app-1440.
+  png`/`-abierta-1440.png`, `.scratch/preguntas-frecuentes/pares/`); el CSS debería posicionarlos
+  dentro del padding reservado y no se identificó la causa en el tiempo disponible de esta tanda.
+- **`PREGUNTAS-FRECUENTES-TEJIDO-OMITIDO-1`** — la franja decorativa "tejido" de la maqueta de
+  Libreta (arriba/debajo de la tarjeta, 4 colores fijos de marca) no tiene equivalente en tokens
+  `--sf-*` y se omitió. Si el owner la quiere, es una decisión de producto (¿se expone como un
+  elemento de tema editable, o se acepta la ausencia?), no un fix de CSS.
+- **Hallazgo adyacente, NO causado por este diff**: CLAUDE.md (líneas ~2632/~2660, "LA VISTA
+  PREVIA ES EN VIVO... no un iframe", "la razón por la que se retiró el iframe") describe
+  `VistaTiendaEnVivo.tsx` (preview POR SECCIÓN, sin iframe) pero el repo YA TIENE
+  `VistaTiendaIframe.tsx` (preview de PÁGINA COMPLETA, CON iframe — `lib/admin/editor-iframe.ts`,
+  `TiendaPaginas.tsx`), de una tanda posterior ("EDITOR-TIENDA-IFRAME-VISTA-1") que no actualizó
+  esa doctrina. Descubierto investigando cómo cablear la página nueva al editor; no se corrige acá
+  (fuera de `touches:`, y no lo causó este slice).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (según el spec), `approved: yes` (`approval-reason`: el owner eligió "Créditos" para
+Onix y "Libreta" para Las Chamisas sobre la maqueta aprobada el 2026-10-15, pidiendo trabajar
+toda la noche; segunda etapa sobre `PREGUNTAS-FRECUENTES-CENSO-1`, que no se encontró — ver la
+desviación de arriba). Entra por `app/(storefront)/preguntas-frecuentes/`,
+`components/storefront/ayuda/` — bytes del visitante nuevos en TODA tienda que cargue preguntas
+en la sección nueva (la composición "Lista" no es byte-idéntica a nada previo: es contenido que
+no existía). **`customer_bytes.changed = true`**. Sin cambio de schema/migración (el contenido va
+en `SiteContent`, como el resto de las secciones — verificado: cero diff en
+`packages/core/prisma/`), sin contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin
+mergear, "PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run
+gate` verde — `tsc --noEmit` limpio, `npm test` **4951/4951**, `npm run test:integracion`
+**413/413** (incluidos los 19 casos nuevos de `lib/storefront/preguntas-frecuentes.test.ts` y los
+4 de `tests/integracion/preguntas-frecuentes-viaje.test.ts`). No es `GATE_RED`. `npm run lint`
+sobre los archivos de este diff: cero errores/warnings nuevos — dos hallazgos reales del lint se
+corrigieron EN esta misma tanda (`react-hooks/set-state-in-effect` en `AyudaCreditos.tsx`,
+`react-hooks/immutability` en `AyudaLista.tsx`/`AyudaCreditos.tsx`, los tres antes de este commit
+final); el resto del reporte de `npm run lint` (451 errores/3616 warnings) es TODO pre-existente,
+fuera de los archivos de este diff (verificado archivo por archivo con `npx eslint` acotado a los
+9 archivos modificados + 7 nuevos). Capturado en navegador real (Playwright, `scripts/
+capturar-seccion.ts --sembrar-preguntas-frecuentes {onix,chamisas} --sin-prototipo`, 7 capturas ×
+390/1440/con-buscador/con-pregunta-abierta) contra la maqueta aprobada, documentado sin suavizar
+en `.scratch/preguntas-frecuentes/pares/README.md`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

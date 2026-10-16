@@ -240,6 +240,8 @@ interface Opciones {
   sembrarAlbumNosotros: boolean;
   // ONIX-TAQUILLA-FILETES-1 — ver el docstring de `sembrarTaquillaOnix`, abajo.
   sembrarTaquillaOnix: boolean;
+  // PREGUNTAS-FRECUENTES-1 — ver el docstring de `sembrarPreguntasFrecuentes`, abajo.
+  sembrarPreguntasFrecuentes: "onix" | "chamisas" | undefined;
 }
 
 function ayuda(): string {
@@ -327,8 +329,12 @@ completar-pedido de esta misma corrida acaba de crear — requiere una
 completar-pedido en un índice ANTERIOR); 'casillas-dos-cafes' (§ CHAMISAS-
 SUSCRIPCIONES-CASILLAS-1: suma una bolsa de Bourbon Rosado y una de Pacamara —
 requiere --sembrar-casillas); 'casillas-quincenal' (elige la frecuencia "15
-días" — requiere --sembrar-casillas). Las que dependen del carrito/de una
-orden ya creada necesitan su acción previa en un índice ANTERIOR, en la MISMA
+días" — requiere --sembrar-casillas); 'ayuda-buscar' (§ PREGUNTAS-FRECUENTES-1:
+escribe "nequi" en el buscador de /preguntas-frecuentes — requiere
+--sembrar-preguntas-frecuentes); 'ayuda-abrir-pregunta' (abre la primera
+pregunta del primer grupo — requiere --sembrar-preguntas-frecuentes). Las que
+dependen del carrito/de una orden ya creada necesitan su acción previa en un
+índice ANTERIOR, en la MISMA
 corrida (mismo browser context, § el docstring de ejecutarAccionPrevia).
 Ver ese docstring para el porqué de nombres fijos y no un DSL de clicks genérico.
 --sin-prototipo salta la mitad "prototipo" de la captura — sin ella NO hace
@@ -369,6 +375,15 @@ suscripcionPlanes.variante:'taquilla' (las 3 frecuencias ya son el default de
 DEFAULTS.suscripcionPlanes) + SiteSetting.nombre/whatsapp. MUTUAMENTE
 EXCLUYENTE con --sembrar-compra (catálogos distintos que romperían la matriz
 2×2 si convivieran) y con --url (mismo motivo que --sembrar-spotlight).
+--sembrar-preguntas-frecuentes <onix|chamisas> (§ PREGUNTAS-FRECUENTES-1)
+siembra, sobre la base efímera: el tema (Onix medido en vivo contra
+cafe-onix.vercel.app, igual que --sembrar-taquilla-onix; Chamisas con la MISMA
+medición hardcodeada que --sembrar-casillas) + SiteSetting.nombre/tagline/
+whatsapp, y publica content.preguntasFrecuentes con las CUATRO preguntas por
+grupo (Envíos/Pagos/El café/Tu pedido) de la maqueta aprobada
+(.scratch/preguntas-frecuentes/maqueta.html) y variante:'creditos' (onix) o
+'libreta' (chamisas). SÓLO válido en modo base fresca (mismo motivo que
+--sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -415,6 +430,11 @@ Ejemplo (--sembrar-taquilla-onix + --sin-prototipo, § ONIX-TAQUILLA-FILETES-1):
   node --import tsx scripts/capturar-seccion.ts --sembrar-taquilla-onix --sin-prototipo \\
     --ruta /suscripciones \\
     --nombre onix-taquilla-filetes
+
+Ejemplo (--sembrar-preguntas-frecuentes + --sin-prototipo, § PREGUNTAS-FRECUENTES-1):
+  node --import tsx scripts/capturar-seccion.ts --sembrar-preguntas-frecuentes onix --sin-prototipo \\
+    --ruta /preguntas-frecuentes --ancho 1440 \\
+    --nombre onix-creditos-1440
 `.trim();
 }
 
@@ -443,6 +463,7 @@ function parseCli(argv: string[]): Opciones {
       "sembrar-casillas": { type: "boolean" },
       "sembrar-album-nosotros": { type: "boolean" },
       "sembrar-taquilla-onix": { type: "boolean" },
+      "sembrar-preguntas-frecuentes": { type: "string" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -516,6 +537,17 @@ function parseCli(argv: string[]): Opciones {
         `(§ el docstring de sembrarTaquillaOnix).\n\n${ayuda()}`,
     );
   }
+  const sembrarPreguntasFrecuentesIn = values["sembrar-preguntas-frecuentes"];
+  if (sembrarPreguntasFrecuentesIn !== undefined && sembrarPreguntasFrecuentesIn !== "onix" && sembrarPreguntasFrecuentesIn !== "chamisas") {
+    throw new Error(`--sembrar-preguntas-frecuentes sólo acepta "onix" o "chamisas" (recibido: «${sembrarPreguntasFrecuentesIn}»).\n\n${ayuda()}`);
+  }
+  const sembrarPreguntasFrecuentes = sembrarPreguntasFrecuentesIn as "onix" | "chamisas" | undefined;
+  if (sembrarPreguntasFrecuentes && url) {
+    throw new Error(
+      `--sembrar-preguntas-frecuentes y --url son mutuamente excluyentes: no hay base local que ` +
+        `sembrar contra una URL ya desplegada (§ PREGUNTAS-FRECUENTES-1).\n\n${ayuda()}`,
+    );
+  }
 
   // En modo --url, sin --ruta se asume una única ruta implícita ("/") — la URL ya trae el
   // destino (§ ARNES-CAPTURA-MUESTRARIO-REAL-1, el ejemplo canónico del modo no repite --ruta /).
@@ -555,6 +587,8 @@ function parseCli(argv: string[]): Opciones {
     "checkout-entrega-lleno", "checkout-entrega-errores",
     "rastrear-noencontrado", "rastrear-resultado",
     "casillas-dos-cafes", "casillas-quincenal",
+    // § PREGUNTAS-FRECUENTES-1
+    "ayuda-buscar", "ayuda-abrir-pregunta",
   ];
   for (const a of accionesPreviasIn) {
     if (a !== "" && !ACCIONES_VALIDAS.includes(a)) {
@@ -586,6 +620,7 @@ function parseCli(argv: string[]): Opciones {
     sembrarCasillas,
     sembrarAlbumNosotros,
     sembrarTaquillaOnix,
+    sembrarPreguntasFrecuentes,
   };
 }
 
@@ -1607,10 +1642,46 @@ async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promi
     return;
   }
 
+  // § PREGUNTAS-FRECUENTES-1 — "nequi" es un término que SÓLO aparece en la respuesta ("Tarjeta y
+  // PSE en línea, Nequi, Bre-B…"), no en ninguna pregunta: esta acción también sirve de prueba de
+  // que `preguntaCoincide` busca en la respuesta, no sólo en el título (§ lib/storefront/
+  // preguntas-frecuentes.ts). Sólo la composición «Créditos» monta el buscador (`aria-label="Buscar
+  // una pregunta"`); en «Libreta» el `.waitFor()` expira y la acción queda como no-op silencioso —
+  // aceptable: el arnés no fuerza una composición desde acá, la elige `--sembrar-preguntas-
+  // frecuentes`/el borrador.
+  if (accion === "ayuda-buscar") {
+    console.log('  ▸ accion-previa ayuda-buscar: escribiendo "nequi" en el buscador…');
+    const buscador = page.locator('input[aria-label="Buscar una pregunta"]');
+    await buscador.waitFor({ timeout: 5_000 }).catch(() => {});
+    await page.evaluate<void, undefined>(() => {
+      const el = document.querySelector('input[aria-label="Buscar una pregunta"]') as HTMLInputElement | null;
+      if (!el) return;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(el, "nequi");
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, undefined);
+    await page.waitForTimeout(300);
+    return;
+  }
+
+  // Abre la PRIMERA pregunta visible (el botón con `aria-expanded="false"` que aparece primero en
+  // el documento) — funciona en las TRES composiciones (Créditos/Libreta/Lista comparten el mismo
+  // contrato `aria-expanded` en su botón de fila, § `AyudaCreditos`/`AyudaLibreta`/`AyudaLista.tsx`).
+  if (accion === "ayuda-abrir-pregunta") {
+    console.log("  ▸ accion-previa ayuda-abrir-pregunta: abriendo la primera pregunta…");
+    await page.evaluate<void, undefined>(() => {
+      const boton = document.querySelector('button[aria-expanded="false"]') as HTMLButtonElement | null;
+      boton?.click();
+    }, undefined);
+    await page.waitForTimeout(400); // la altura animada (0.3s, § AyudaCreditos/AyudaLibreta.tsx) asienta
+    return;
+  }
+
   throw new Error(
     `Acción previa desconocida: «${accion}» (sólo "abrir-carrito"/"checkout-pago"/"completar-pedido"/` +
       `"checkout-entrega-lleno"/"checkout-entrega-errores"/` +
-      `"rastrear-noencontrado"/"rastrear-resultado"/"casillas-dos-cafes"/"casillas-quincenal").`,
+      `"rastrear-noencontrado"/"rastrear-resultado"/"casillas-dos-cafes"/"casillas-quincenal"/` +
+      `"ayuda-buscar"/"ayuda-abrir-pregunta").`,
   );
 }
 
@@ -1666,6 +1737,74 @@ async function llenarPaso1Checkout(page: PlaywrightPage, opts: { avanzar?: boole
     const continuar = btns.find((b) => b.textContent?.trim() === "Continuar al pago");
     continuar?.click();
   }, undefined);
+}
+
+// ─── SEMBRAR /preguntas-frecuentes (§ PREGUNTAS-FRECUENTES-1) ────────────────────────────────────
+//
+// Las MISMAS cuatro preguntas por grupo que `.scratch/preguntas-frecuentes/maqueta.html` (el array
+// `G` de su `<script>`) — no inventadas para esta captura, para que el par app↔maqueta compare el
+// MISMO contenido. `onix` publica `variante:'creditos'`; `chamisas` publica `variante:'libreta'` y
+// reusa el tema/tagline/whatsapp YA medidos de `sembrarCasillas` (arriba) — una segunda medición
+// divergiría si el muestrario real cambia.
+const PREGUNTAS_MAQUETA: { grupo: string; items: { question: string; answer: string }[] }[] = [
+  { grupo: "Envíos", items: [
+    { question: "¿A dónde envían?", answer: "A todo Colombia con transportadora. En la ciudad de la tienda, también entrega propia en el día." },
+    { question: "¿Cuánto cuesta el envío?", answer: "Desde $9.000 en la ciudad y $14.000 al resto del país; gratis desde $120.000." },
+    { question: "¿Cuánto tarda?", answer: "De 1 a 2 días hábiles en ciudades principales y de 3 a 5 en el resto del país." },
+  ] },
+  { grupo: "Pagos", items: [
+    { question: "¿Cómo puedo pagar?", answer: "Tarjeta y PSE en línea, Nequi, Bre-B o transferencia. Ves los datos al final del pedido." },
+    { question: "¿Es seguro pagar con tarjeta?", answer: "El pago lo procesa Wompi; nosotros nunca vemos ni guardamos los datos de tu tarjeta." },
+    { question: "Pagué por transferencia, ¿y ahora?", answer: "Envíanos el comprobante por WhatsApp; confirmamos y despachamos." },
+  ] },
+  { grupo: "El café", items: [
+    { question: "¿En grano o molido?", answer: "Como prefieras: en grano, o molido para tu cafetera (filtro, prensa o espresso)." },
+    { question: "¿Cuándo lo tuestan?", answer: "En los 7 días antes del envío, en lotes pequeños." },
+    { question: "¿Cómo lo guardo?", answer: "Cerrado, lejos de la luz y del calor; no en la nevera. Rinde mejor en el primer mes." },
+  ] },
+  { grupo: "Tu pedido", items: [
+    { question: "¿Cómo sigo mi pedido?", answer: "En «Rastrear pedido» con tu número; también te avisamos por WhatsApp." },
+    { question: "¿Puedo cambiar o cancelar?", answer: "Sí, mientras no haya salido. Escríbenos con tu número de pedido." },
+    { question: "Llegó algo mal, ¿qué hago?", answer: "Mándanos una foto por WhatsApp en las primeras 48 horas y lo resolvemos." },
+  ] },
+];
+
+async function sembrarPreguntasFrecuentes(tienda: "onix" | "chamisas"): Promise<void> {
+  console.log(`▸ --sembrar-preguntas-frecuentes ${tienda}: tema + preguntasFrecuentes.variante:'${tienda === "onix" ? "creditos" : "libreta"}'…`);
+  const { default: prisma } = await import("@duna/core");
+  const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
+
+  const items = PREGUNTAS_MAQUETA.flatMap((g) => g.items.map((it) => ({ grupo: g.grupo, ...it })));
+
+  if (tienda === "onix") {
+    const { medirTemaReal } = await import("./capturar-compra");
+    const tema = await medirTemaReal("https://cafe-onix.vercel.app/");
+    console.log(`  tema medido (Onix): fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento}`);
+    await guardarTemaBorrador({ fondo: tema.fondo, tinta: tema.tinta, acento: tema.acento, fuentePar: tema.fuentePar, forma: tema.forma });
+    await publicarSeccion("tema");
+    await prisma.siteSetting.update({
+      where: { id: "default" },
+      data: { nombre: "Café Onix", tagline: "Pitalito · Huila", whatsapp: "+573000000000" },
+    });
+    await guardarBorrador({
+      preguntasFrecuentes: { titulo: "Preguntas frecuentes", subtitulo: "Lo que más nos preguntan antes de comprar. Si no está aquí, escríbenos.", items, variante: "creditos" },
+    });
+  } else {
+    // MISMA medición que `sembrarCasillas` (arriba, § CHAMISAS-SUSCRIPCIONES-CASILLAS-1) — no se
+    // vuelve a fetchear el muestrario real para no duplicar la fuente de esa constante.
+    await guardarTemaBorrador({ fondo: "#FAF4EB", tinta: "#2A2522", acento: "#B8461A", fuentePar: "prensa", forma: "recta" });
+    await publicarSeccion("tema");
+    await prisma.siteSetting.update({
+      where: { id: "default" },
+      data: { nombre: "Café Las Chamisas", tagline: "San Adolfo · Huila", whatsapp: "+573000000000" },
+    });
+    await guardarBorrador({
+      preguntasFrecuentes: { titulo: "Lo que nos preguntan", subtitulo: "Envíos, pagos, el café y tu pedido. Lo que no esté aquí, nos lo preguntas por WhatsApp.", items, variante: "libreta" },
+    });
+  }
+  await publicarSeccion("preguntasFrecuentes");
+
+  console.log(`✔ Preguntas frecuentes sembradas (${tienda}): ${items.length} preguntas en ${PREGUNTAS_MAQUETA.length} grupos.`);
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────────────────────
@@ -1740,6 +1879,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarTaquillaOnix) {
       await sembrarTaquillaOnix();
+    }
+
+    if (opciones.sembrarPreguntasFrecuentes) {
+      await sembrarPreguntasFrecuentes(opciones.sembrarPreguntasFrecuentes);
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

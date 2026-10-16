@@ -23,6 +23,7 @@ import SuscripcionPasos from '@/components/storefront/suscripciones/SuscripcionP
 import SuscripcionInterludio from '@/components/storefront/suscripciones/SuscripcionInterludio';
 import SuscripcionCierre from '@/components/storefront/suscripciones/SuscripcionCierre';
 import PreguntasFrecuentes from '@/components/storefront/PreguntasFrecuentes';
+import AyudaPagina from '@/components/storefront/ayuda/AyudaPagina';
 import TiendaEncabezado from '@/components/storefront/tienda/TiendaEncabezado';
 import TiendaCatalogo from '@/components/storefront/tienda/TiendaCatalogo';
 import TiendaCreditos from '@/components/storefront/tienda/TiendaCreditos';
@@ -227,6 +228,13 @@ const COMPONENTES: Record<SeccionVista, ComponentType<Record<string, unknown>>> 
   // `SiteContentProvider` de acá abajo, sin prop adicional.
   suscripcionFaq: PreguntasFrecuentes,
   suscripcionCierre: SuscripcionCierre,
+  // NECESARIO POR CONSECUENCIA MECÁNICA de § PREGUNTAS-FRECUENTES-1 (mismo patrón que 'origen'/
+  // 'nosotrosCierre' arriba): sumar 'preguntasFrecuentes' a `SeccionVista` vuelve este
+  // `Record<SeccionVista, ComponentType>` NO-exhaustivo sin esta línea. `AyudaPagina` sólo toma
+  // `whatsapp` opcional (§ su docstring) → asignable a `ComponentType` sin prop. Con
+  // `preguntasFrecuentes.items` vacío (el default) devuelve `null` — la vista previa queda en
+  // blanco, no rota.
+  preguntasFrecuentes: AyudaPagina,
 };
 
 export interface VistaTiendaProps {
