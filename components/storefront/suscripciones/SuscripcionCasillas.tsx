@@ -36,7 +36,8 @@ import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
 import CampoEditable from '@/components/storefront/CampoEditable';
 import { derivarCasillasCafes, celdaCafeDe, productoDelCafe, productoDePeso } from '@/lib/storefront/casillas-cafes';
-import { colorDeLamina } from '@/lib/tienda/laminas';
+import { colorDeLamina, lavadoLamina } from '@/lib/tienda/laminas';
+import { LogoMark } from '@/components/storefront/Logo';
 import {
   frecuenciasDeTaquilla,
   itemsCasillas,
@@ -199,48 +200,54 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
         .casillas-cascada { animation: casillas-llenar 220ms ease-out both; }
       `}</style>
 
-      {/* APERTURA (§ el spec, item 1): fondo crema, sticker inclinado, línea explicativa. REUSA
-          eyebrow/titulo/tituloEnfasis/subtitulo — ver el docstring de cabecera. */}
-      <section className="relative bg-[var(--sf-fondo)] px-4 py-16 text-center sm:py-20">
-        {c.eyebrow && (
-          <p className="mb-4 text-xs uppercase tracking-widest text-[var(--sf-tostado)]">
-            <CampoEditable campo="suscripcionPlanes.eyebrow">{c.eyebrow}</CampoEditable>
-          </p>
-        )}
-        <h1 className="font-playfair text-4xl text-[var(--sf-tinta)] sm:text-5xl">
-          <CampoEditable campo="suscripcionPlanes.titulo">{c.titulo}</CampoEditable>
-          {c.tituloEnfasis && (
-            <>
-              {' '}
-              <span
-                className="inline-block -rotate-3 rounded-sm bg-[var(--sf-tostado-4,var(--sf-acento-4))] px-3 py-1 align-middle text-base font-sans font-semibold uppercase tracking-wide text-[var(--sf-tinta)]"
-              >
-                <CampoEditable campo="suscripcionPlanes.tituloEnfasis">{c.tituloEnfasis}</CampoEditable>
-              </span>
-            </>
+      {/* APERTURA (§ CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 1 — medido contra `.so`/`.so h1
+          .stk` de la maqueta): ALINEADA A LA IZQUIERDA, no centrada — la maqueta nunca centra `.so`,
+          y el centrado era el único defecto de alineación. Va dentro del MISMO ancho que «Arma tu
+          pedido» (`max-w-6xl`), para que las dos secciones compartan el mismo margen izquierdo.
+          `tituloEnfasis` ("cada mes") DEJA de llevar su píldora propia: la maqueta lo imprime como
+          texto PLANO dentro del `<h1>` — sólo el STICKER ("sin cobro automático") es un chip, y ahora
+          va INLINE al final de esa misma frase (antes: su propio párrafo debajo, "en su propia
+          línea"). Reusa eyebrow/titulo/tituloEnfasis/subtitulo — ver el docstring de cabecera. */}
+      <section className="relative bg-[var(--sf-fondo)] px-4 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl">
+          {c.eyebrow && (
+            <p className="mb-3 text-xs uppercase tracking-widest text-[var(--sf-tostado)]">
+              <CampoEditable campo="suscripcionPlanes.eyebrow">{c.eyebrow}</CampoEditable>
+            </p>
           )}
-        </h1>
-        {c.casillasSticker && (
-          <p className="mt-4">
-            <span className="inline-block -rotate-6 rounded-sm bg-[var(--sf-tostado-4,var(--sf-acento-4))] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--sf-tinta)] shadow-sm">
-              <CampoEditable campo="suscripcionPlanes.casillasSticker">{c.casillasSticker}</CampoEditable>
-            </span>
-          </p>
-        )}
-        {c.subtitulo && (
-          <p className="mx-auto mt-4 max-w-xl text-sm text-[var(--sf-texto)]">
-            <CampoEditable campo="suscripcionPlanes.subtitulo" multilinea>{c.subtitulo}</CampoEditable>
-          </p>
-        )}
+          <h1 className="font-playfair text-4xl text-[var(--sf-tinta)] sm:text-5xl">
+            <CampoEditable campo="suscripcionPlanes.titulo">{c.titulo}</CampoEditable>
+            {c.tituloEnfasis && (
+              <>
+                {' '}
+                <CampoEditable campo="suscripcionPlanes.tituloEnfasis">{c.tituloEnfasis}</CampoEditable>
+              </>
+            )}
+            {c.casillasSticker && (
+              <span className="relative top-[-4px] ml-1.5 inline-block -rotate-[8deg] rounded-sm bg-[var(--sf-tostado-4,var(--sf-acento-4))] px-3 py-1 align-middle text-xs font-semibold text-[var(--sf-tinta)] shadow-sm">
+                <CampoEditable campo="suscripcionPlanes.casillasSticker">{c.casillasSticker}</CampoEditable>
+              </span>
+            )}
+          </h1>
+          {c.subtitulo && (
+            <p className="mt-4 max-w-xl text-sm text-[var(--sf-texto)]">
+              <CampoEditable campo="suscripcionPlanes.subtitulo" multilinea>{c.subtitulo}</CampoEditable>
+            </p>
+          )}
+        </div>
       </section>
 
       {/* ARMA TU PEDIDO (§ el spec, item 2): 7/5, los pasos a la izquierda, la nota fija a la
           derecha (en escritorio) — § el spec, item 3: "Escritorio: 7/5". */}
       <section className="bg-[var(--sf-fondo)] px-4 pb-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12">
-          <div className="space-y-10">
+          {/* ESPACIADO 12PX (§ CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 2 — `.steps{gap:
+              12px}` de la maqueta): antes `space-y-10` (40px), un resto de cuando los pasos no eran
+              tarjetas propias — con cada Paso en su tarjeta blanca, 40px de aire entre tarjetas se
+              lee como demasiado hueco. */}
+          <div className="space-y-3">
             {/* PASO 1 — ¿Qué café? */}
-            <div>
+            <div className="rounded-3xl bg-[var(--sf-tarjeta)] p-4 sm:p-6">
               <PasoCabecera numero={1} titulo="¿Qué café?" hint="Suma bolsas de uno o de varios. Puedes mezclar." />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {matriz.cafes.map((cafe) => {
@@ -253,28 +260,44 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                   const disponible = productoActivo != null;
                   const cantidad = cantidades[cafe] ?? 0;
                   const color = colorDeCafe(cafe);
+                  // § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 3 — el fondo de la tarjeta de
+                  // café pasa del tinte manual al 15% (`${color}26`) al LAVADO de verdad
+                  // (`lavadoLamina`, § lib/tienda/laminas.ts): es el MISMO pastel que ya pinta
+                  // «Láminas» de /tienda (`TiendaLaminas.tsx`), mezclado hacia el fondo del tema
+                  // hasta pasar 4,5:1 contra la tinta — no un alfa arbitrario sobre el color pleno.
+                  const fondoTarjeta = lavadoLamina(color);
                   return (
                     <div
                       key={cafe}
-                      className={`flex flex-col rounded-2xl border border-dashed border-[var(--sf-linea)] p-4 ${disponible ? '' : 'opacity-50'}`}
-                      style={{ backgroundColor: `${color}26` }}
+                      className={`flex flex-col gap-3 rounded-2xl p-4 ${disponible ? '' : 'opacity-50'}`}
+                      style={{ backgroundColor: fondoTarjeta }}
                     >
-                      <div className="mb-3 flex items-center gap-3">
+                      <div className="flex items-center gap-3">
+                        {/* La miniatura pasa de un avatar REDONDO de 56px a un cuadro de 80px
+                            (§ el spec item 3): «miniatura redonda» era la queja medida; acá es la
+                            foto del café, no un avatar. El NOMBRE ya no se trunca (`truncate`
+                            cortaba "Bourbon Rosado" a "Bourbon …") — envuelve si hace falta. */}
                         {representativo.imagen ? (
-                          <img src={representativo.imagen} alt="" className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--sf-fondo)] object-cover shadow-sm" />
+                          <img src={representativo.imagen} alt="" className="h-20 w-20 shrink-0 rounded-xl border-2 border-[var(--sf-fondo)] object-cover shadow-sm" />
                         ) : (
-                          <span className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--sf-fondo)] shadow-sm" style={{ backgroundColor: color }} aria-hidden="true" />
+                          <span className="h-20 w-20 shrink-0 rounded-xl border-2 border-[var(--sf-fondo)] shadow-sm" style={{ backgroundColor: color }} aria-hidden="true" />
                         )}
                         <div className="min-w-0">
-                          <h3 className="truncate font-playfair text-lg text-[var(--sf-tinta)]">{cafe}</h3>
+                          <h3 className="font-playfair text-lg text-[var(--sf-tinta)]">{cafe}</h3>
                           {representativo.notas && representativo.notas.length > 0 && (
-                            <p className="truncate text-xs text-[var(--sf-texto-suave)]">{representativo.notas.join(' · ')}</p>
+                            <p className="text-xs text-[var(--sf-tinta)]/80">{representativo.notas.join(' · ')}</p>
                           )}
                         </div>
                       </div>
-                      <div className="mt-auto flex items-center justify-between">
+                      <div className="mt-auto flex items-center justify-between gap-2">
                         {disponible ? (
-                          <span className="text-sm font-semibold text-[var(--sf-tinta)]">{formatCOP(productoActivo.precio)}</span>
+                          // La línea «bolsa de N g» (§ el spec item 3, faltaba) — `pesoActivo` ya
+                          // está en este scope (el peso elegido en el Paso 2), sin tocar ningún
+                          // helper de lib/.
+                          <span className="text-sm font-semibold leading-tight text-[var(--sf-tinta)]">
+                            {formatCOP(productoActivo.precio)}
+                            <span className="block text-xs font-normal text-[var(--sf-tinta)]/70">bolsa de {pesoActivo} g</span>
+                          </span>
                         ) : (
                           <span className="text-xs text-[var(--sf-texto-suave)]">No disponible en esta bolsa</span>
                         )}
@@ -318,7 +341,7 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
             </div>
 
             {/* PASO 2 — Bolsa y molienda */}
-            <div>
+            <div className="rounded-3xl bg-[var(--sf-tarjeta)] p-4 sm:p-6">
               <PasoCabecera numero={2} titulo="Bolsa y molienda" hint="Aplica a todo el pedido." />
               {/* El selector SÓLO se muestra con MÁS DE UN tamaño declarado (§ el spec, item 1 de
                   este slice): con uno solo —el caso real de Las Chamisas, 340 g únicamente— no hay
@@ -374,7 +397,7 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
             </div>
 
             {/* PASO 3 — ¿Cada cuánto? + Casillas de frecuencia */}
-            <div>
+            <div className="rounded-3xl bg-[var(--sf-tarjeta)] p-4 sm:p-6">
               <PasoCabecera numero={3} titulo="¿Cada cuánto?" hint="Así se ven tus próximos seis meses." />
               <div role="group" aria-label="Frecuencia" className="flex flex-wrap gap-2">
                 {frecuencias.map((f, i) => {
@@ -421,14 +444,26 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                       // a llenar) vs. un mes SIN envío en esta cadencia (el mismo sello, MÁS la
                       // etiqueta "sin envío" — mismo criterio que la maqueta: `ship?'':'<span
                       // class="off">sin envío</span>'`).
-                      <span className="h-5 w-5 rounded-full border border-dashed border-[var(--sf-linea)]" aria-hidden="true" />
+                      //
+                      // § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 4 — el SELLO era un punto
+                      // dashed genérico; la maqueta pinta `.ca .seal` (una imagen, opacidad baja). Se
+                      // reemplaza por el MISMO `LogoMark` que ya es "el sello" de marca de Las
+                      // Chamisas en `NosotrosFichaEtiqueta.tsx`/`EstadoPedido.tsx` — nunca un asset
+                      // nuevo para esta captura.
+                      <LogoMark className="h-6 w-6 opacity-10" stroke="var(--sf-tinta)" cherry="var(--sf-tinta)" />
                     )}
                     {casilla.dosVeces && <span className="absolute right-1 top-1 text-[10px] font-bold text-[var(--sf-tostado)]">×2</span>}
                     {!casilla.conEnvio && (
                       <span className="text-[8px] uppercase tracking-wide text-[var(--sf-texto-suave)]/70">sin envío</span>
                     )}
-                    <span className="text-[10px] uppercase text-[var(--sf-texto-suave)]">
+                    {/* EL AÑO bajo el mes (§ el spec item 4, faltaba) — `casilla.anio` ya lo calcula
+                        `casillasDeFrecuencia` (lib/storefront/casillas-frecuencia.ts); sólo faltaba
+                        pintarlo. */}
+                    <span className="text-[10px] uppercase leading-tight text-[var(--sf-texto-suave)]">
                       {NOMBRES_MES_ABREV[casilla.mes]}
+                      <span className="block text-[9px] font-normal normal-case leading-tight text-[var(--sf-texto-suave)]/70">
+                        {casilla.anio}
+                      </span>
                     </span>
                   </li>
                 ))}
@@ -462,33 +497,60 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
               <p className="mt-1 text-xs text-[var(--sf-texto-suave)]">
                 <CampoEditable campo="suscripcionPlanes.casillasNotaIntro">{c.casillasNotaIntro}</CampoEditable>
               </p>
-              {items.length > 0 && (
-                <div className="mt-3 flex -space-x-1" aria-hidden="true">
-                  {items.map((it) => (
+              {/* § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 5 — faltaba la fila "Aquí se
+                  pegan los cafés que elijas." para el estado SIN café elegido (`row.
+                  insertAdjacentHTML` de la maqueta, la rama `else` de `upd()`): antes esa franja
+                  quedaba simplemente VACÍA (`items.length > 0 &&`). `min-h` reserva el alto para que
+                  pasar de un estado al otro no salte el layout. Los stickers individuales son
+                  decorativos (`aria-hidden`); el texto del estado vacío no lo es. */}
+              <div className="mt-3 flex min-h-[32px] items-center gap-1">
+                {items.length > 0 ? (
+                  items.map((it) => (
                     <span
                       key={it.cafe}
+                      aria-hidden="true"
                       className="casillas-sticker h-8 w-8 rounded-full border-2 border-[var(--sf-superficie)]"
                       style={{ backgroundColor: colorDeCafe(it.cafe) }}
                     />
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 space-y-1 text-sm text-[var(--sf-texto)]">
-                {lineasMensaje.map((linea, i) => (
-                  <p key={i} className={i === 0 ? 'font-medium text-[var(--sf-tinta)]' : ''}>{linea}</p>
-                ))}
+                  ))
+                ) : (
+                  <span className="text-xs text-[var(--sf-texto-suave)]">Aquí se pegan los cafés que elijas.</span>
+                )}
               </div>
-              <label className="mt-3 block text-sm text-[var(--sf-texto)]">
-                <CampoEditable campo="suscripcionPlanes.casillasCiudadLabel">{c.casillasCiudadLabel}</CampoEditable>
-                <input
-                  type="text"
-                  value={ciudad}
-                  onChange={(e) => setCiudad(e.target.value)}
-                  placeholder={c.casillasCiudadPlaceholder}
-                  autoComplete="address-level2"
-                  className="mt-1 w-full rounded-lg border border-[var(--sf-linea)] bg-[var(--sf-fondo)] px-3 py-2 text-sm text-[var(--sf-tinta)]"
-                />
-              </label>
+              {/* § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 5 — la ciudad era un CAMPO
+                  APARTE (una `<label>` + `<input>` en caja propia, debajo del mensaje); la maqueta
+                  la escribe EN LÍNEA, sobre la hoja rayada (`.msg{line-height:26px}` +
+                  `repeating-linear-gradient` cada 26px), como una línea más del mensaje. El fondo
+                  rayado se aplica acá; `lineasMensaje` sigue viniendo de `lineasNotaPedido` (lib/
+                  storefront/nota-pedido.ts, fuera de `touches:`) en su ORDEN FIJO documentado —
+                  "Mi ciudad: …" es SIEMPRE la línea anteúltima (antes de la pregunta de cierre), así
+                  que se sustituye por índice derivado (`lineasMensaje.length - 2`), no una copia a
+                  mano del texto. */}
+              <div
+                className="mt-4 px-0.5 text-sm leading-[26px] text-[var(--sf-texto)]"
+                style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0, transparent 25px, var(--sf-linea) 25px, var(--sf-linea) 26px)' }}
+              >
+                {lineasMensaje.map((linea, i) =>
+                  i === lineasMensaje.length - 2 ? (
+                    <div key={i} className="flex items-baseline gap-1">
+                      <label htmlFor="casillas-ciudad">
+                        <CampoEditable campo="suscripcionPlanes.casillasCiudadLabel">{c.casillasCiudadLabel}</CampoEditable>:
+                      </label>
+                      <input
+                        id="casillas-ciudad"
+                        type="text"
+                        value={ciudad}
+                        onChange={(e) => setCiudad(e.target.value)}
+                        placeholder={c.casillasCiudadPlaceholder}
+                        autoComplete="address-level2"
+                        className="min-w-0 flex-1 border-0 bg-transparent px-1 leading-[26px] text-[var(--sf-tinta)] placeholder:italic placeholder:text-[var(--sf-texto-suave)] focus:outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <p key={i} className={i === 0 ? 'font-medium text-[var(--sf-tinta)]' : ''}>{linea}</p>
+                  ),
+                )}
+              </div>
 
               <div ref={botonRef} className="mt-5">
                 {whatsapp && (
@@ -549,14 +611,24 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
 // por índice). Simplificación DECLARADA frente al spec item 7 ("todo texto visible es un campo
 // editable"), que aplica de lleno al resto de la página (apertura/así-funciona/letra-pequeña/
 // cierre) pero no se extendió acá por presupuesto del slice — ver DECISIONS.md.
+// § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 2 — medido contra `.stp-n`/`.stp .hint` de la
+// maqueta: el número era un PUNTO lleno (círculo de tinta); pasa a CUADRO PUNTEADO (34×34,
+// `border-dashed`, serif) — el mismo lenguaje visual que el sello de las casillas y el marco de la
+// nota de pedido. El `hint` se indenta `ml-[46px]` (34px de badge + 12px de `gap-3`) para quedar
+// bajo el TÍTULO, no bajo el número — igual que `.stp .hint{margin-left:46px}`.
 function PasoCabecera({ numero, titulo, hint }: { numero: number; titulo: string; hint: string }) {
   return (
     <div className="mb-3">
-      <div className="flex items-center gap-2">
-        <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--sf-tinta)] text-xs font-bold text-[var(--sf-fondo)]">{numero}</span>
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] border-2 border-dashed border-[var(--sf-tinta)] font-playfair text-base text-[var(--sf-tinta)]"
+        >
+          {numero}
+        </span>
         <h2 className="font-playfair text-xl text-[var(--sf-tinta)]">{titulo}</h2>
       </div>
-      <p className="mt-1 text-sm text-[var(--sf-texto-suave)]">{hint}</p>
+      <p className="ml-[46px] mt-1 text-sm text-[var(--sf-texto-suave)]">{hint}</p>
     </div>
   );
 }

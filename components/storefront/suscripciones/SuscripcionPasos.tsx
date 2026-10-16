@@ -19,10 +19,11 @@ export default function SuscripcionPasos() {
   const c = suscripcionPasos;
   const pasos = pasosDeSuscripcion(c);
 
-  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — "Así funciona" como casillas de álbum (§ el spec, item
-  // 5): CERO campos nuevos, las mismas `pasos` tal cual, sólo otro tratamiento visual (vertical en
-  // celular, en fila en escritorio, con números rotados y filetes punteados — el lenguaje de álbum
-  // de Las Chamisas).
+  // § CHAMISAS-SUSCRIPCIONES-CASILLAS-1, re-medido en § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1 — "Así
+  // funciona" como tarjetas de álbum inclinadas (§ el spec, item 6): CERO campos nuevos, las mismas
+  // `pasos` tal cual, sólo otro tratamiento visual (una rejilla de tarjetas rotadas con número en
+  // círculo, en vez de numerales centrados sobre una banda a lo ancho — el lenguaje de álbum de Las
+  // Chamisas, ver el docstring de `SuscripcionPasosCasillas` abajo).
   if (c.variante === 'casillas') {
     return <SuscripcionPasosCasillas titulo={c.titulo} pasos={pasos} />;
   }
@@ -60,36 +61,42 @@ export default function SuscripcionPasos() {
   );
 }
 
-// «CASILLAS DE ÁLBUM» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4, item 4) — lista
-// numerada: vertical (una fila por paso) en celular, en FILA (`sm:flex-row`) en escritorio — nunca
-// una rejilla de íconos como «Tarjetas». Cada número lleva una rotación leve alternada, el
-// tratamiento de "casilla de álbum" que ya usan las Láminas de /tienda (§ TIENDA-CHAMISAS-ALBUM-1),
-// y un filete punteado separa los pasos en vez de un divisor sólido.
+// «CASILLAS DE ÁLBUM» (§ CHAMISAS-SUSCRIPCIONES-CASILLAS-1, refero-chamisas.md §4, item 4 —
+// re-medido en § CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 6, contra `.how`/`.alb`/`.alb li`
+// de la maqueta aprobada): TARJETAS INCLINADAS, no numerales centrados sobre una banda a lo ancho.
+// Cada paso es su propia TARJETA (`--sf-superficie` sobre el fondo de PÁGINA de la sección —
+// `--sf-fondo`, no `--sf-superficie`, para que la tarjeta se recorte contra algo), con una rotación
+// leve FIJA por índice (el mismo tratamiento de "casilla de álbum" de las Láminas de /tienda,
+// § TIENDA-CHAMISAS-ALBUM-1) aplicada a la TARJETA entera —antes sólo al número—, y un número en
+// un círculo BLANCO (`--sf-tarjeta`) sobre la tarjeta, no un divisor punteado entre pasos.
 const ROTACIONES = ['-1deg', '0.8deg', '-0.6deg', '0.6deg'];
 
 function SuscripcionPasosCasillas({ titulo, pasos }: { titulo: string; pasos: { label: string; descripcion: string }[] }) {
   return (
-    <section className="bg-[var(--sf-superficie)] py-16">
+    <section className="bg-[var(--sf-fondo)] py-16">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <h2 className="mb-10 text-center font-playfair text-2xl text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
+        <h2 className="mb-10 text-center font-playfair text-2xl text-[var(--sf-tinta)]">
           <CampoEditable campo="suscripcionPasos.titulo">{titulo}</CampoEditable>
         </h2>
-        <ol className="flex flex-col divide-y divide-dashed divide-[var(--sf-linea)] sm:flex-row sm:divide-x sm:divide-y-0">
+        <ol className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-4">
           {pasos.map((paso, i) => {
             const n = i + 1;
             return (
-              <li key={i} className="flex-1 px-4 py-4 text-center first:pt-0 sm:py-0">
+              <li
+                key={i}
+                style={{ transform: `rotate(${ROTACIONES[i % ROTACIONES.length]})` }}
+                className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-2xl bg-[var(--sf-superficie)] p-3.5 sm:grid-cols-1 sm:content-start sm:items-start sm:gap-y-2.5 sm:p-4"
+              >
                 <span
                   aria-hidden="true"
-                  style={{ transform: `rotate(${ROTACIONES[i % ROTACIONES.length]})` }}
-                  className="mb-2 inline-block font-playfair text-3xl text-[var(--sf-tostado)]"
+                  className="row-span-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--sf-tarjeta)] font-playfair text-lg text-[var(--sf-tinta)] sm:row-span-1"
                 >
-                  {String(n).padStart(2, '0')}
+                  {n}
                 </span>
-                <p className="font-semibold text-[var(--sf-sobre-superficie,var(--sf-tinta))]">
+                <p className="font-playfair text-lg leading-tight text-[var(--sf-tinta)]">
                   <CampoEditable campo={`suscripcionPasos.paso${n}Label`}>{paso.label}</CampoEditable>
                 </p>
-                <p className="mt-1 text-xs text-[var(--sf-sobre-superficie,var(--sf-texto))]">
+                <p className="text-sm leading-snug text-[var(--sf-texto)]">
                   <CampoEditable campo={`suscripcionPasos.paso${n}Desc`} multilinea>{paso.descripcion}</CampoEditable>
                 </p>
               </li>
