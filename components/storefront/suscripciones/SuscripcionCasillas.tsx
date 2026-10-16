@@ -29,7 +29,7 @@
 // segunda regla de default para el mismo concepto.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Minus, Plus, MessageCircle } from 'lucide-react';
+import { Minus, Plus, MessageCircle, Check } from 'lucide-react';
 import { formatCOP } from '@duna/core/utils';
 import { whatsappUrl } from '@/lib/config/site';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
@@ -267,33 +267,50 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                   // hasta pasar 4,5:1 contra la tinta — no un alfa arbitrario sobre el color pleno.
                   const fondoTarjeta = lavadoLamina(color);
                   return (
+                    // § CHAMISAS-SUSCRIPCIONES-MAQUETA-1 — el grid `.cafe`/`.bag` COMPLETO de la
+                    // maqueta (cierra el open follow-up `CHAMISAS-CAFE-GRID-COMPLETO-1` de
+                    // duna-tienda, que dejó esto para una tanda propia): en vez del avatar +
+                    // franja de precio/contador de la fidelidad anterior, la foto del café ocupa
+                    // una columna FIJA de 78px que abarca las DOS filas (nombre+notas arriba,
+                    // precio+contador abajo) en celular; en `sm:` pasa a una sola columna con la
+                    // foto GRANDE arriba (176px, `.cafe .bag{height:176px}` de la maqueta) y el
+                    // resto apilado debajo.
+                    //
+                    // LA FOTO NO SANGRA FUERA DE SU CAJA — DESVIACIÓN DECLARADA frente a `.cafe
+                    // .bag img{height:100%;width:auto}` de la maqueta (que deja a la bolsa
+                    // recortada salirse de su columna/fila, "a sangre"): esa sangre sólo se ve
+                    // bien con un PNG recortado de fondo transparente, que no existe en el modelo
+                    // de datos —`Product.imagen` es una foto cuadrada normal, no un sticker—. Sin
+                    // ese asset, dejar la imagen sin `overflow-hidden` pondría un rectángulo girado
+                    // de fondo visible encima del nombre/precio, que se leería como un bug, no
+                    // como el efecto de la maqueta. Se contiene en un marco redondeado
+                    // (`overflow-hidden`, `object-cover` + `scale-110` para que el giro no revele
+                    // esquinas vacías) — el mismo límite de asset que ya nombra
+                    // `CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1` (sin stickers de bolsa recortada).
                     <div
                       key={cafe}
-                      className={`flex flex-col gap-3 rounded-2xl p-4 ${disponible ? '' : 'opacity-50'}`}
+                      className={`relative grid grid-cols-[78px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5 rounded-[20px] p-3 sm:grid-cols-1 sm:content-start sm:items-start sm:gap-y-2 ${disponible ? '' : 'opacity-50'}`}
                       style={{ backgroundColor: fondoTarjeta }}
                     >
-                      <div className="flex items-center gap-3">
-                        {/* La miniatura pasa de un avatar REDONDO de 56px a un cuadro de 80px
-                            (§ el spec item 3): «miniatura redonda» era la queja medida; acá es la
-                            foto del café, no un avatar. El NOMBRE ya no se trunca (`truncate`
-                            cortaba "Bourbon Rosado" a "Bourbon …") — envuelve si hace falta. */}
+                      <span className="row-span-2 flex h-[122px] w-full items-center justify-center overflow-hidden rounded-2xl sm:row-span-1 sm:mb-1 sm:h-44">
                         {representativo.imagen ? (
-                          <img src={representativo.imagen} alt="" className="h-20 w-20 shrink-0 rounded-xl border-2 border-[var(--sf-fondo)] object-cover shadow-sm" />
+                          <img src={representativo.imagen} alt="" className="h-full w-full -rotate-3 scale-110 object-cover" />
                         ) : (
-                          <span className="h-20 w-20 shrink-0 rounded-xl border-2 border-[var(--sf-fondo)] shadow-sm" style={{ backgroundColor: color }} aria-hidden="true" />
+                          <span className="h-full w-full" style={{ backgroundColor: color }} aria-hidden="true" />
                         )}
-                        <div className="min-w-0">
-                          <h3 className="font-playfair text-lg text-[var(--sf-tinta)]">{cafe}</h3>
-                          {representativo.notas && representativo.notas.length > 0 && (
-                            <p className="text-xs text-[var(--sf-tinta)]/80">{representativo.notas.join(' · ')}</p>
-                          )}
-                        </div>
+                      </span>
+                      <div className="min-w-0">
+                        {/* El NOMBRE no se trunca (`truncate` cortaba "Bourbon Rosado" a
+                            "Bourbon …") — envuelve si hace falta. */}
+                        <h3 className="font-playfair text-xl text-[var(--sf-tinta)]">{cafe}</h3>
+                        {representativo.notas && representativo.notas.length > 0 && (
+                          <p className="text-xs text-[var(--sf-tinta)]/80">{representativo.notas.join(' · ')}</p>
+                        )}
                       </div>
-                      <div className="mt-auto flex items-center justify-between gap-2">
+                      <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-1">
                         {disponible ? (
-                          // La línea «bolsa de N g» (§ el spec item 3, faltaba) — `pesoActivo` ya
-                          // está en este scope (el peso elegido en el Paso 2), sin tocar ningún
-                          // helper de lib/.
+                          // La línea «bolsa de N g» — `pesoActivo` ya está en este scope (el peso
+                          // elegido en el Paso 2), sin tocar ningún helper de lib/.
                           <span className="text-sm font-semibold leading-tight text-[var(--sf-tinta)]">
                             {formatCOP(productoActivo.precio)}
                             <span className="block text-xs font-normal text-[var(--sf-tinta)]/70">bolsa de {pesoActivo} g</span>
@@ -301,23 +318,27 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                         ) : (
                           <span className="text-xs text-[var(--sf-texto-suave)]">No disponible en esta bolsa</span>
                         )}
-                        <span role="group" aria-label={`Bolsas de ${cafe}`} className="flex items-center gap-2">
+                        {/* EL CONTADOR EN PÍLDORA (§ el spec) — `.qty` de la maqueta: una sola
+                            superficie blanca (`--sf-tarjeta`, el blanco de siempre, NUNCA el
+                            pastel de la tarjeta) con los dos botones adentro, en vez de dos
+                            círculos sueltos con su propio borde cada uno. */}
+                        <span role="group" aria-label={`Bolsas de ${cafe}`} className="flex h-[46px] items-center rounded-full border border-[var(--sf-linea)] bg-[var(--sf-tarjeta)]">
                           <button
                             type="button"
                             onClick={() => setCantidad(cafe, -1)}
                             disabled={!disponible || cantidad === 0}
                             aria-label={`Quitar una bolsa de ${cafe}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sf-tinta)]/30 text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
+                            className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
-                          <output aria-live="polite" className="w-6 text-center tabular-nums text-[var(--sf-tinta)]">{cantidad}</output>
+                          <output aria-live="polite" className="min-w-[22px] text-center text-sm font-semibold tabular-nums text-[var(--sf-tinta)]">{cantidad}</output>
                           <button
                             type="button"
                             onClick={() => setCantidad(cafe, 1)}
                             disabled={!disponible || cantidad >= topeUnidadesCasilla(productoActivo ?? representativo)}
                             aria-label={`Sumar una bolsa de ${cafe}`}
-                            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sf-tinta)]/30 text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
+                            className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--sf-tinta)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--sf-superficie)]"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -346,6 +367,13 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
               {/* El selector SÓLO se muestra con MÁS DE UN tamaño declarado (§ el spec, item 1 de
                   este slice): con uno solo —el caso real de Las Chamisas, 340 g únicamente— no hay
                   nada que elegir, y mostrar un botón solitario sería ceremonia sin decisión. */}
+              {/* TARJETAS GRANDES CON LA FOTO DE LA BOLSA (§ el spec) — `.size`/`.sph` de la
+                  maqueta: el marco-pastilla (74% de ancho, 132px de alto en celular; 60%/150px en
+                  escritorio, redondeado 999px arriba y 12px abajo) con la bolsa apoyada abajo
+                  (`items-end`), en vez del cuadro chico `h-16 w-10` de antes. El precio
+                  representativo de ese tamaño reemplaza el rango min–max de la maqueta (que leía
+                  los TRES cafés de un mock fijo): acá el componente es genérico, por producto, sin
+                  ese dato cruzado entre cafés. */}
               {matriz.pesos.length > 1 && (
                 <div role="group" aria-label="Tamaño de bolsa" className="grid grid-cols-2 gap-3">
                   {matriz.pesos.map((p) => {
@@ -357,14 +385,17 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                         type="button"
                         aria-pressed={elegido}
                         onClick={() => setPeso(p)}
-                        className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-colors ${
-                          elegido ? 'border-[var(--sf-tinta)]' : 'border-[var(--sf-linea)] hover:border-[var(--sf-tinta)]/40'
+                        className={`flex flex-col items-center gap-0.5 rounded-[20px] bg-[var(--sf-superficie)] p-3 text-center transition-shadow ${
+                          elegido ? 'shadow-[inset_0_0_0_2px_var(--sf-tinta)]' : ''
                         }`}
                       >
-                        {representativo.imagen && (
-                          <img src={representativo.imagen} alt="" className="h-16 w-10 object-contain" />
-                        )}
-                        <span className="text-sm font-semibold text-[var(--sf-tinta)]">{p} g</span>
+                        <span className="mb-2 flex h-[132px] w-[74%] items-end justify-center overflow-hidden rounded-t-full rounded-b-xl bg-[var(--sf-fondo)] pt-2">
+                          {representativo.imagen && (
+                            <img src={representativo.imagen} alt="" className="h-[78%] w-auto object-contain" />
+                          )}
+                        </span>
+                        <span className="font-playfair text-xl text-[var(--sf-tinta)]">{p} g</span>
+                        <span className="text-xs text-[var(--sf-texto)]">{formatCOP(representativo.precio)}</span>
                       </button>
                     );
                   })}
@@ -375,22 +406,29 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--sf-texto-suave)]">
                     <CampoEditable campo="suscripcionPlanes.taquillaEtiquetaMolienda">{c.taquillaEtiquetaMolienda}</CampoEditable>
                   </p>
+                  {/* CHIP CON CHECK, SIN INVERTIR COLORES (§ `.opt`/`.opt[aria-pressed="true"]` de
+                      la maqueta): el estado elegido se marca con el ANILLO interno + el ícono de
+                      check, no con un fondo relleno — la maqueta nunca invierte tinta/fondo acá. */}
                   <div role="group" aria-label="Molienda" className="flex flex-wrap gap-2">
-                    {opcionesMolienda.map((nombre) => (
-                      <button
-                        key={nombre}
-                        type="button"
-                        aria-pressed={nombre === moliendaActiva}
-                        onClick={() => setMoliendaElegida(nombre)}
-                        className={`rounded-full border-2 px-4 py-1.5 text-sm transition-colors ${
-                          nombre === moliendaActiva
-                            ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
-                            : 'border-[var(--sf-linea)] text-[var(--sf-tinta)] hover:border-[var(--sf-tinta)]/40'
-                        }`}
-                      >
-                        {nombre}
-                      </button>
-                    ))}
+                    {opcionesMolienda.map((nombre) => {
+                      const elegido = nombre === moliendaActiva;
+                      return (
+                        <button
+                          key={nombre}
+                          type="button"
+                          aria-pressed={elegido}
+                          onClick={() => setMoliendaElegida(nombre)}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm text-[var(--sf-tinta)] transition-shadow ${
+                            elegido
+                              ? 'border-[var(--sf-tinta)] font-semibold shadow-[inset_0_0_0_1px_var(--sf-tinta)]'
+                              : 'border-[var(--sf-linea)]'
+                          }`}
+                        >
+                          {elegido && <Check className="h-3.5 w-3.5" />}
+                          {nombre}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
