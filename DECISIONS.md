@@ -65836,10 +65836,12 @@ cambio de schema/migración ni contrato cruzado de repositorio.
 
 - `CHAMISAS-CIERRE-FRANJA-TEJIDO-FALTANTE-1` (abierto por `CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1`) —
   estado sin cambio, no tocado por este slice.
-- La frase del Cierre («Costura») mide 20/24px contra los 22/26px de la maqueta —
-  `components/storefront/tienda/CierreCostura.tsx`, fuera de `touches:` (§ arriba).
-- El ancho de columna no es uniforme entre las cinco piezas «álbum» (tres mecanismos de ancho
-  distintos) — § arriba, "Lo que se midió y NO se cerró".
+- `CHAMISAS-CIERRE-FRASE-TAMANO-1` (coined acá) — la frase del Cierre («Costura») mide 20/24px contra
+  los 22/26px de la maqueta — `components/storefront/tienda/CierreCostura.tsx`, fuera de `touches:`
+  (§ arriba, "Lo que se midió y NO se cerró").
+- `CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1` (coined acá) — el ancho de columna no es uniforme entre las
+  cinco piezas «álbum» (tres mecanismos de ancho distintos: literal `max-w-[1376px]`,
+  `contenedorAnchoClase`, y `max-w-6xl` hardcodeado) — § arriba, "Lo que se midió y NO se cerró".
 - El rótulo "Imagen ilustrativa" de la Apertura sigue sin campo — Tier 1, abierto desde `a16753c7`.
 
 ### Verdict
