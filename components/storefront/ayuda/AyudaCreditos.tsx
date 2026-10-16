@@ -8,6 +8,18 @@
 // Onix), que son del MUESTRARIO, no de esta tienda. El acento rojo de la maqueta (el punto del grupo
 // activo, el "+/–") se resuelve a `--sf-acento`; el verde de los encabezados de grupo, a `--sf-tinta`.
 //
+// EL TEXTO CORRIDO (subtítulo, respuesta abierta, el aviso de "sin resultados") NO usa
+// `--sf-texto-suave` (§ PREGUNTAS-FRECUENTES-ARREGLOS-1): para el tema REAL de Onix ese token deriva
+// prácticamente idéntico a `--sf-acento` — medido: ambos rgb(150,23,0) sobre el storefront
+// desplegado —, así que un párrafo entero salía en rojo y se leía como un error, no como texto.
+// `--chk-tinta-suave`/`PreguntasFrecuentes.tsx` ya documentan el mismo defecto en otras pantallas
+// (§ CampoFlotante.test.ts: "que en Onix sale casi del mismo rojo que el botón"). El reemplazo es
+// `text-[var(--sf-tinta)]/65` — EXACTAMENTE el que ya usa la respuesta de `PreguntasFrecuentes.tsx`
+// (la FAQ de siempre, que este slice no toca) para el mismo rol. El acento queda para el botón y los
+// "detalles" (números, eyebrow, etiquetas de grupo inactivas) — ésos NO cambian, siguen en
+// `--sf-texto-suave`: son UI chrome, no texto corrido, y la maqueta los deja en su color de "suave"
+// con total normalidad.
+//
 // EL ÍNDICE SÓLO HACE SCROLL-SPY FUERA DE PREVIEW: dentro de la vista previa EN VIVO del editor
 // (`VistaTiendaEnVivo.tsx`) el árbol se renderiza escalado (`transform:scale`) y un
 // `IntersectionObserver` contra ese contenedor no refleja la posición real de scroll del panel —
@@ -39,6 +51,13 @@ export interface AyudaComposicionProps {
    *  el cierre "¿No está tu pregunta?" se omite (CTA sin destino real, mismo criterio que el resto
    *  del storefront: "vacío → no se muestra", nunca un botón muerto). */
   whatsapp?: string;
+  /** La franja de tejido decorativa (§ PREGUNTAS-FRECUENTES-ARREGLOS-1, `preguntasFrecuentes.
+   *  franjaTejido`) — SÓLO la lee «Libreta» (Las Chamisas), igual que `tiendaCierre.franjaTejido`
+   *  "sólo tiene efecto bajo 'costura'". Viaja por las TRES composiciones (mismo patrón que
+   *  `whatsapp`) para que `AyudaPagina` no tenga que ramificar qué props manda a cuál; «Créditos» y
+   *  «Lista» simplemente no la destructuran. Ausente/vacío → ninguna franja se dibuja (nunca se
+   *  imita con CSS/hex — § el criterio de siempre). */
+  franjaTejido?: string;
 }
 
 export default function AyudaCreditos({ titulo, subtitulo, items, whatsapp }: AyudaComposicionProps) {
@@ -128,7 +147,7 @@ export default function AyudaCreditos({ titulo, subtitulo, items, whatsapp }: Ay
         </div>
         <div>
           {subtitulo && (
-            <p className="max-w-md text-[var(--sf-texto-suave,var(--sf-texto))]">
+            <p className="max-w-md text-[var(--sf-tinta)]/65">
               <CampoEditable campo="preguntasFrecuentes.subtitulo" multilinea>{subtitulo}</CampoEditable>
             </p>
           )}
@@ -174,7 +193,7 @@ export default function AyudaCreditos({ titulo, subtitulo, items, whatsapp }: Ay
 
           <div>
             {visibles.length === 0 ? (
-              <p className="text-sm text-[var(--sf-texto-suave,var(--sf-texto))]">No encontramos ninguna pregunta con «{query}».</p>
+              <p className="text-sm text-[var(--sf-tinta)]/65">No encontramos ninguna pregunta con «{query}».</p>
             ) : (
               visibles.map((g) => (
                 <section
@@ -229,7 +248,7 @@ export default function AyudaCreditos({ titulo, subtitulo, items, whatsapp }: Ay
                               transition={{ duration: 0.3 }}
                               style={{ overflow: 'hidden' }}
                             >
-                              <div id={panelId} role="region" aria-labelledby={botonId} className="max-w-[62ch] pb-5 pl-[56px] text-[var(--sf-texto-suave,var(--sf-texto))]">
+                              <div id={panelId} role="region" aria-labelledby={botonId} className="max-w-[62ch] pb-5 pl-[56px] text-[var(--sf-tinta)]/65">
                                 <CampoEditable campo={`preguntasFrecuentes.items.${indiceOriginal}.answer`} multilinea>{pregunta.answer}</CampoEditable>
                               </div>
                             </motion.div>

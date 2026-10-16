@@ -76,3 +76,31 @@ test('sin ninguna fila guardada, preguntasFrecuentesVisible da false — "ningun
   assert.equal(content.preguntasFrecuentes.items.length, 0);
   assert.equal(preguntasFrecuentesVisible(content), false);
 });
+
+// § PREGUNTAS-FRECUENTES-ARREGLOS-1 — franjaTejido sobrevive el mismo viaje (el schema real, no
+// strippearlo; borrador→publicar→releer), y vacío-explícito se OMITE, como cualquier opcional.
+
+test('franjaTejido sobrevive borrador→publicar→releer — no lo strippea el schema', async () => {
+  await guardarComoElRoute({
+    titulo: 'Lo que nos preguntan',
+    items: [{ grupo: 'Envíos', question: '¿A dónde envían?', answer: 'A todo Colombia.' }],
+    variante: 'libreta',
+    franjaTejido: 'https://blob.example/tejido.jpg',
+  });
+  await publicarSeccion('preguntasFrecuentes');
+
+  const pf = (await readSiteContent()).preguntasFrecuentes;
+  assert.equal(pf.franjaTejido, 'https://blob.example/tejido.jpg');
+  assert.equal(pf.variante, 'libreta');
+});
+
+test('franjaTejido vacío EXPLÍCITO se OMITE — opcional, nunca inventa un default', async () => {
+  await guardarComoElRoute({
+    items: [{ grupo: 'Envíos', question: '¿A dónde envían?', answer: 'A todo Colombia.' }],
+    franjaTejido: '',
+  });
+  await publicarSeccion('preguntasFrecuentes');
+
+  const pf = (await readSiteContent()).preguntasFrecuentes;
+  assert.equal(pf.franjaTejido, '');
+});

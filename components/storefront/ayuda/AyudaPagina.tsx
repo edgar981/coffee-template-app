@@ -22,14 +22,14 @@ import AyudaLista from './AyudaLista';
 export default function AyudaPagina({ whatsapp }: { whatsapp?: string }) {
   const { preguntasFrecuentes } = useSiteContent();
   if (!seccionEsVisible(REGISTRY.preguntasFrecuentes, preguntasFrecuentes)) return null;
-  const { titulo, subtitulo, items, variante } = preguntasFrecuentes;
+  const { titulo, subtitulo, items, variante, franjaTejido } = preguntasFrecuentes;
   if (agruparPreguntas(items).length === 0) return null;
 
   const Composicion = variante === 'creditos' ? AyudaCreditos : variante === 'libreta' ? AyudaLibreta : AyudaLista;
 
   return (
     <div {...{ [ATRIBUTO_EDITOR_SECCION]: 'preguntasFrecuentes' }}>
-      <Composicion titulo={titulo} subtitulo={subtitulo} items={items} whatsapp={whatsapp} />
+      <Composicion titulo={titulo} subtitulo={subtitulo} items={items} whatsapp={whatsapp} franjaTejido={franjaTejido} />
     </div>
   );
 }

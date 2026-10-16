@@ -66806,3 +66806,129 @@ capturar:seccion --sembrar-compra {onix,chamisas,comun} --sin-prototipo`, 5 corr
 estados cada una, a 390 y 1440), documentado sin suavizar en
 `.scratch/compra-fidelidad/pasada-2/README.md`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-16 — PREGUNTAS-FRECUENTES-ARREGLOS-1: la pasada de arreglos contra la maqueta — colores, tamaño, sticker, pasteles, franjaTejido; los anillos NO se reproducen
+
+**Pedido del owner** (2026-10-15, mismo hilo que `PREGUNTAS-FRECUENTES-1`): "For Onix let's use
+'Créditos' and for Las Chamisas 'Libreta'. They are really cool", pidiendo trabajar toda la noche y
+verificar contra la vista previa real. Esta pasada cierra lo que `PREGUNTAS-FRECUENTES-1` dejó
+distinto de la maqueta aprobada, los seis puntos del spec.
+
+### 1 y 2 — El texto corrido deja `--sf-texto-suave`, va en tinta/65
+
+Medido ANTES de tocar nada (`onix-creditos-app-abierta-1440.png`, la captura de
+`PREGUNTAS-FRECUENTES-1`): el subtítulo y la respuesta abierta de Créditos daban `rgb(150,23,0)` —
+el MISMO rojo que `--sf-acento` deriva para el tema real de Onix (`#a70004`). El repo ya tenía el
+mismo defecto documentado en otra pantalla (`CampoFlotante.test.ts`: "--sf-texto-suave, que en Onix
+sale casi del mismo rojo que el botón") y su mismo remedio ya en uso
+(`PreguntasFrecuentes.tsx`, la FAQ de siempre: `text-[var(--sf-tinta)]/65` para su respuesta). Se
+aplicó el MISMO patrón a `AyudaCreditos.tsx` (subtítulo, respuesta, el aviso "sin resultados") y a la
+intro de `AyudaLibreta.tsx` — para Las Chamisas ese mismo token deriva un terracota casi idéntico al
+acento `#B8461A`. **Lo que NO cambió, a propósito:** los "detalles" (eyebrow, números mono, etiquetas
+de grupo inactivas) siguen en `--sf-texto-suave` — es la lectura literal del spec ("el acento queda
+para el botón y los detalles") — y la RESPUESTA abierta de Libreta tampoco se tocó (el spec nombra
+sólo "título e introducción"; la maqueta pinta su respuesta con el mismo rol que el subtítulo,
+`var(--c-suave)`).
+
+El título de Libreta pasó de `text-4xl…sm:text-5xl` (36–48px, sin breakpoint más allá de `sm`) a
+`text-[clamp(38px,5.4vw,72px)]` — el MISMO clamp que `.c-h` de la maqueta.
+
+### 3 — El sticker, con el texto MEDIDO contra la maqueta, no el citado por el spec
+
+El spec pide el sticker «en letra menuda»; `grep` de `.scratch/preguntas-frecuentes/maqueta.html`
+(línea 277) da el texto real: `<span class="sticker">sin letra menuda</span>`, dentro de `.c-cab`
+(el header, no el `.libreta`). Se usó el texto MEDIDO ("sin letra menuda"), no la cita del spec —
+la misma familia que el tripwire del repo ya documenta: lo escrito en un spec no prueba lo que dice
+la maqueta que cita. Header reestructurado a grid (`grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto]
+items-end`): texto a la izquierda, sticker a la derecha, alineados al pie — apila a una columna por
+debajo de `md`, el sticker baja, nunca se esconde. Copy DECORATIVA (no hay fila de SiteContent que
+la sostenga), literal, no `CampoEditable`.
+
+### 4 — Las pestañas, pasteles derivados de "Colores por café"
+
+Cada pestaña (activa incluida) pasó a `lavadoLamina(colorDeLamina(grupo, índice, {}))`
+(`lib/tienda/laminas.ts`, la MISMA paleta que ya pinta las Láminas del catálogo — nunca un hex de la
+maqueta), texto siempre `--sf-tinta` (el lavado garantiza ≥4.5:1 contra ese token, por diseño de esa
+función). La activa se distingue por peso + `md:translate-x-1` — el mismo gesto
+`transform:translateX(8px)` de `.pestanas button.on` en la maqueta —, nunca por un color aparte.
+`colorDeLamina`/`lavadoLamina` se llaman SIN `raices` (tercer/cuarto parámetro), igual que sus otros
+cuatro consumidores del repo (`TiendaLaminas.tsx`, `SuscripcionCasillas.tsx`,
+`NosotrosInterludioStickers.tsx`, `ProductoLamina.tsx`): ninguno pasa el tema del tenant hoy, y
+extenderlo habría sido un cambio de alcance mayor, no de este punto.
+
+### 5 — Los anillos: medido, NO se reproduce — no se tocó el CSS
+
+Medición por pixel (sharp) de la captura VIEJA que `PREGUNTAS-FRECUENTES-LIBRETA-ANILLOS-1` citó
+como evidencia (`chamisas-libreta-app-abierta-1440.png`): el borde de la tarjeta va de x≈176 a más
+allá de x=1264; los seis anillos están en x≈200–210, y=350–590 — SIEMPRE dentro de ese rango.
+Repetido sobre la captura nueva de esta tanda (después de los otros cinco cambios): mismo resultado.
+El reporte que levantó el ítem decía "medido visualmente" (su propio README), no por pixel — la
+lectura es que fue un error de apreciación al ver la captura completa de un vistazo (la franja clara
+del padding entre el borde y la línea de acento se confunde con "fuera de la tarjeta" sin zoom), no
+un defecto de CSS. **Deviación medida contra el spec** (que pedía "encontrar la causa y corregirla"):
+no se encontró causa porque no hay reproducción; no se tocó `AyudaLibreta.tsx` en esta parte.
+
+### 6 — `franjaTejido`, campo de imagen opcional, mismo patrón que `nosotrosApertura`/`nosotrosCierre`
+
+`preguntasFrecuentes.franjaTejido: string` (opcional) — vacío no dibuja nada (nunca se imita con
+hex, cerrando `PREGUNTAS-FRECUENTES-TEJIDO-OMITIDO-1`); con imagen, una franja `h-[22px] sm:h-[34px]`
+a sangre arriba Y abajo de toda la composición «Libreta» (`backgroundImage` + `repeat-x` +
+`backgroundSize:auto 100%`, el MISMO mecanismo que `CierreCostura.tsx`/`NosotrosAperturaAlbum.tsx`).
+Control del editor en su propia zona ("Franja de tejido"), gateado a la composición `libreta`
+(`ZONAS_PREGUNTAS_FRECUENTES_LIBRETA`, `tienda-secciones.ts`), mismo patrón que
+`suscripcionCierre.franjaTejido` bajo "costura". Viaje borrador→publicar→releer afirmado en
+`tests/integracion/preguntas-frecuentes-viaje.test.ts` (dos casos nuevos, vistos pasar contra el
+schema real).
+
+**DESVIACIÓN MEDIDA — `franjaTejido` NO entra a `REGISTRY.preguntasFrecuentes.imagenes` (blob-GC).**
+`imagenesDe` (`lib/config/site-content-blobs.ts`, FUERA de `touches:` de este slice) resuelve
+`def.imagenes` como campos POR-ÍTEM cuando la sección tiene `repeater` — nunca como campo plano de
+sección —, y `preguntasFrecuentes` SÍ tiene `repeater` (a diferencia de `nosotrosApertura`/
+`nosotrosCierre`, que no lo tienen). Declarar `franjaTejido` en ese array habría sido una entrada
+que la función JAMÁS resuelve (buscaría `item.franjaTejido` en cada pregunta, no
+`preguntasFrecuentes.franjaTejido`). Se dejó AFUERA de ese array a propósito: el costo es que el
+blob reemplazado/quitado queda sin garbage-collect (basura barata, nunca el riesgo opuesto de
+borrar un blob en uso). Abierto como `PREGUNTAS-FRECUENTES-FRANJA-BLOB-GC-1` — cerrarlo exige tocar
+`imagenesDe` para que soporte AMBOS casos (campo plano de sección Y repeater) en la misma sección,
+fuera de `touches:`.
+
+**SIN asset de tejido real en el repo para la captura** (mismo límite ya documentado para
+`sembrarAlbumNosotros`): se usó `/images/cafe-nayoli-250g-grano.webp` como placeholder, documentado
+como tal en el propio script (`FRANJA_TEJIDO_PLACEHOLDER`, `scripts/capturar-seccion.ts`) — demuestra
+el MECANISMO (el campo viaja, se dibuja arriba y abajo, repite en X), no la fidelidad de una textura
+de tejido real. `--sembrar-preguntas-frecuentes` ganó un TERCER valor, `lista`, para poder capturar
+la composición canónica "para mostrar que no cambió" sin seed aparte (siembra sin tocar tema ni
+SiteSetting).
+
+### Captura en navegador real
+
+`npm run capturar:seccion -- --sembrar-preguntas-frecuentes {onix,chamisas,lista} --sin-prototipo`
+(Postgres efímero, `next build`/`next start`, Playwright headless — 5 corridas: Onix 1440
+cerrada/buscar/abierta, Onix 390 cerrada/abierta, Chamisas 1440 cerrada/abierta, Chamisas 390
+cerrada/abierta, Lista 1440 cerrada/abierta), documentado punto por punto sin suavizar en
+`.scratch/preguntas-frecuentes/arreglos/README.md` — incluye los valores `--sf-tinta`/`--sf-acento`
+medidos por el propio arnés para cada tema y los recortes de pixel que sostienen el punto 5.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (según el spec). Entra por `app/(storefront)/preguntas-frecuentes/` (indirectamente, vía
+`components/storefront/ayuda/`) — bytes del visitante que cambian en TODA tienda que ya tenga
+preguntas cargadas con composición «Créditos»/«Libreta» (el color del texto corrido, el tamaño del
+título, el sticker nuevo, los pasteles de pestaña, la franja de tejido si se carga una imagen).
+**`customer_bytes.changed = true`.** Sin cambio de schema/migración (franjaTejido vive en
+`SiteContent.content`, como el resto — verificado: cero diff en `packages/core/prisma/`), sin
+contrato cruzado de repositorio.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin mergear,
+"PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run gate` verde —
+`npm run typecheck` limpio, `npm test` **4990/4990** (4985 heredados de `COMPRA-FIDELIDAD-4` + 5
+nuevos en `site-content-defaults.test.ts`), `npm run test:integracion` **415/415** (413 heredados +
+2 nuevos en `preguntas-frecuentes-viaje.test.ts`). No es `GATE_RED`. `npm run lint` sobre los 9
+archivos de este diff: CERO errores/warnings nuevos (verificado archivo por archivo con `npx
+eslint`; los 23 errores que `site-content-defaults.test.ts` reporta son TODOS pre-existentes —
+líneas ≤2596, mi única inserción en ese archivo es un `+30` al final, línea 2954 en adelante, sin
+JSX). Capturado en navegador real, documentado sin suavizar en
+`.scratch/preguntas-frecuentes/arreglos/README.md`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

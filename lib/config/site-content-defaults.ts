@@ -1469,12 +1469,28 @@ export interface PreguntaFrecuenteItem {
 // ninguna tienda la carga todavía), la sección entera queda oculta (hide-on-empty) y
 // /preguntas-frecuentes sigue comportándose EXACTAMENTE como hoy (§ `preguntasFrecuentesVisible`/
 // `faqSuscripcionesVisible`, abajo).
+//
+// `franjaTejido` (§ PREGUNTAS-FRECUENTES-ARREGLOS-1): la franja decorativa que la maqueta de
+// «Libreta» dibuja a sangre arriba Y abajo con CUATRO hex fijos de marca (`.tejido`,
+// `.scratch/preguntas-frecuentes/maqueta.html`) — sin equivalente en tokens `--sf-*`, así que
+// PREGUNTAS-FRECUENTES-1 la omitió por completo (§ PREGUNTAS-FRECUENTES-TEJIDO-OMITIDO-1). Mismo
+// patrón que `nosotrosApertura.franjaTejido`/`nosotrosCierre.franjaTejido`: OPCIONAL, imagen
+// (vacía → nada se dibuja, nunca se imita con CSS), SÓLO tiene efecto bajo la composición
+// «libreta» — «Créditos»/«Lista» no la leen. NO entra al `imagenes: [...]` de blob-GC de este
+// REGISTRY (§ el comentario junto a `imagenesDe`, `lib/config/site-content-blobs.ts`, fuera de
+// `touches:` de este slice): esta sección YA tiene `repeater`, y esa función resuelve `imagenes`
+// ÚNICAMENTE como campos POR-ÍTEM cuando `def.repeater` existe (`item[f]`, nunca `sec[f]`) — a
+// diferencia de `nosotrosApertura`/`nosotrosCierre`, que NO son repeaters. Declararla ahí sería
+// una entrada que MIENTE (nunca se resolvería), y el blob quedaría sin rastrear para el borrado
+// — "basura barata", nunca el riesgo opuesto de borrar una imagen en uso. Abierto como
+// `PREGUNTAS-FRECUENTES-FRANJA-BLOB-GC-1`.
 export interface PreguntasFrecuentesContent {
   visible: boolean;
   titulo: string;
   subtitulo: string;
   items: PreguntaFrecuenteItem[];
   variante: string;
+  franjaTejido: string;
 }
 
 // LA PÁGINA /tienda ENTRA AL EDITOR (§ TIENDA-PAGINA-REGISTRO-1, sobre TIENDA-COMPOSICIONES-CENSO-1).
@@ -3185,6 +3201,7 @@ export const DEFAULTS: SiteContentData = {
     subtitulo: '',
     items: [],
     variante: 'lista',
+    franjaTejido: '',
   },
   // /tienda (§ TIENDA-PAGINA-REGISTRO-1): el texto EXACTO de hoy (`ShopLegacy`/`ShopCorte`, antes de
   // este slice) — byte-idéntico sin fila de SiteContent sembrada. El placeholder del buscador
@@ -4339,7 +4356,11 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
   // `lib/storefront/preguntas-frecuentes.ts` (`agruparPreguntas`), nunca se guarda anidado (ver el
   // docstring de `PreguntasFrecuentesContent`, arriba, para el porqué). `ocultable:true`, hide-on-empty
   // de siempre con `items: []`. `variantes`: 'lista' (canónica, acordeón agrupado neutro) | 'creditos'
-  // (Onix) | 'libreta' (Las Chamisas).
+  // (Onix) | 'libreta' (Las Chamisas). `franjaTejido` (§ PREGUNTAS-FRECUENTES-ARREGLOS-1, ver el
+  // docstring de `PreguntasFrecuentesContent` arriba) es OPCIONAL, SIN entrada en `imagenes:` —esta
+  // sección tiene `repeater`, y `imagenesDe` sólo resuelve `imagenes` como campos POR-ÍTEM cuando
+  // `repeater` existe, nunca como campo plano de sección; declararlo ahí sería una entrada que no se
+  // resuelve nunca—.
   preguntasFrecuentes: {
     label: 'Preguntas frecuentes',
     ocultable: true,
@@ -4347,6 +4368,7 @@ export const REGISTRY: Record<SeccionKey, SeccionDef> = {
     campos: {
       titulo: 'requerido',
       subtitulo: 'opcional',
+      franjaTejido: 'opcional',
     },
     repeater: {
       itemsKey: 'items',

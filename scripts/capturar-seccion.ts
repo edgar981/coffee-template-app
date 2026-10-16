@@ -241,7 +241,7 @@ interface Opciones {
   // ONIX-TAQUILLA-FILETES-1 — ver el docstring de `sembrarTaquillaOnix`, abajo.
   sembrarTaquillaOnix: boolean;
   // PREGUNTAS-FRECUENTES-1 — ver el docstring de `sembrarPreguntasFrecuentes`, abajo.
-  sembrarPreguntasFrecuentes: "onix" | "chamisas" | undefined;
+  sembrarPreguntasFrecuentes: "onix" | "chamisas" | "lista" | undefined;
   // CHAMISAS-PAGINAS-ARREGLOS-1 — ver el docstring de `encenderPosicion`, abajo.
   posicion: boolean;
 }
@@ -386,14 +386,19 @@ suscripcionPlanes.variante:'taquilla' (las 3 frecuencias ya son el default de
 DEFAULTS.suscripcionPlanes) + SiteSetting.nombre/whatsapp. MUTUAMENTE
 EXCLUYENTE con --sembrar-compra (catálogos distintos que romperían la matriz
 2×2 si convivieran) y con --url (mismo motivo que --sembrar-spotlight).
---sembrar-preguntas-frecuentes <onix|chamisas> (§ PREGUNTAS-FRECUENTES-1)
-siembra, sobre la base efímera: el tema (Onix medido en vivo contra
-cafe-onix.vercel.app, igual que --sembrar-taquilla-onix; Chamisas con la MISMA
-medición hardcodeada que --sembrar-casillas) + SiteSetting.nombre/tagline/
-whatsapp, y publica content.preguntasFrecuentes con las CUATRO preguntas por
-grupo (Envíos/Pagos/El café/Tu pedido) de la maqueta aprobada
-(.scratch/preguntas-frecuentes/maqueta.html) y variante:'creditos' (onix) o
-'libreta' (chamisas). SÓLO válido en modo base fresca (mismo motivo que
+--sembrar-preguntas-frecuentes <onix|chamisas|lista> (§ PREGUNTAS-FRECUENTES-1,
+el tercer valor § PREGUNTAS-FRECUENTES-ARREGLOS-1) siembra, sobre la base
+efímera: el tema (Onix medido en vivo contra cafe-onix.vercel.app, igual que
+--sembrar-taquilla-onix; Chamisas con la MISMA medición hardcodeada que
+--sembrar-casillas; "lista" NO toca el tema — la composición canónica corre
+con los --sf-* de fábrica, cualquier tenant) + SiteSetting.nombre/tagline/
+whatsapp (salvo "lista", que tampoco los toca), y publica
+content.preguntasFrecuentes con las CUATRO preguntas por grupo (Envíos/Pagos/
+El café/Tu pedido) de la maqueta aprobada (.scratch/preguntas-frecuentes/
+maqueta.html) y variante:'creditos' (onix), 'libreta' (chamisas, con
+franjaTejido = una foto EXISTENTE del repo como placeholder — § el docstring
+de FRANJA_TEJIDO_PLACEHOLDER, no hay asset de tejido real) o 'lista' (la
+canónica, sin tema propio). SÓLO válido en modo base fresca (mismo motivo que
 --sembrar-spotlight).
 --posicion (§ CHAMISAS-PAGINAS-ARREGLOS-1) enciende, sobre la base efímera y
 DESPUÉS de --preset/los --sembrar-* (si se pasaron), content.navTratamiento.
@@ -559,10 +564,13 @@ function parseCli(argv: string[]): Opciones {
     );
   }
   const sembrarPreguntasFrecuentesIn = values["sembrar-preguntas-frecuentes"];
-  if (sembrarPreguntasFrecuentesIn !== undefined && sembrarPreguntasFrecuentesIn !== "onix" && sembrarPreguntasFrecuentesIn !== "chamisas") {
-    throw new Error(`--sembrar-preguntas-frecuentes sólo acepta "onix" o "chamisas" (recibido: «${sembrarPreguntasFrecuentesIn}»).\n\n${ayuda()}`);
+  if (
+    sembrarPreguntasFrecuentesIn !== undefined
+    && sembrarPreguntasFrecuentesIn !== "onix" && sembrarPreguntasFrecuentesIn !== "chamisas" && sembrarPreguntasFrecuentesIn !== "lista"
+  ) {
+    throw new Error(`--sembrar-preguntas-frecuentes sólo acepta "onix", "chamisas" o "lista" (recibido: «${sembrarPreguntasFrecuentesIn}»).\n\n${ayuda()}`);
   }
-  const sembrarPreguntasFrecuentes = sembrarPreguntasFrecuentesIn as "onix" | "chamisas" | undefined;
+  const sembrarPreguntasFrecuentes = sembrarPreguntasFrecuentesIn as "onix" | "chamisas" | "lista" | undefined;
   if (sembrarPreguntasFrecuentes && url) {
     throw new Error(
       `--sembrar-preguntas-frecuentes y --url son mutuamente excluyentes: no hay base local que ` +
@@ -1861,14 +1869,30 @@ const PREGUNTAS_MAQUETA: { grupo: string; items: { question: string; answer: str
   ] },
 ];
 
-async function sembrarPreguntasFrecuentes(tienda: "onix" | "chamisas"): Promise<void> {
-  console.log(`▸ --sembrar-preguntas-frecuentes ${tienda}: tema + preguntasFrecuentes.variante:'${tienda === "onix" ? "creditos" : "libreta"}'…`);
+// § PREGUNTAS-FRECUENTES-ARREGLOS-1 — SIN ASSET DE TEJIDO PARA ESTE ARNÉS (mismo límite que
+// `sembrarAlbumNosotros`, arriba: "SIN ASSET DE TEJIDO… se usa una foto EXISTENTE del repo como
+// placeholder, documentado como lo que es, nunca una franja de tejido real"). Se usa para que la
+// captura de «Libreta» demuestre el MECANISMO (el campo viaja, se dibuja arriba y abajo, repite en
+// X) — no para afirmar fidelidad de la textura.
+const FRANJA_TEJIDO_PLACEHOLDER = "/images/cafe-nayoli-250g-grano.webp";
+
+async function sembrarPreguntasFrecuentes(tienda: "onix" | "chamisas" | "lista"): Promise<void> {
+  const VARIANTE: Record<typeof tienda, string> = { onix: "creditos", chamisas: "libreta", lista: "lista" };
+  console.log(`▸ --sembrar-preguntas-frecuentes ${tienda}: tema + preguntasFrecuentes.variante:'${VARIANTE[tienda]}'…`);
   const { default: prisma } = await import("@duna/core");
   const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
 
   const items = PREGUNTAS_MAQUETA.flatMap((g) => g.items.map((it) => ({ grupo: g.grupo, ...it })));
 
-  if (tienda === "onix") {
+  if (tienda === "lista") {
+    // § PREGUNTAS-FRECUENTES-ARREGLOS-1 — "lista" es la composición CANÓNICA: corre con los
+    // `--sf-*` de fábrica, sin tema ni SiteSetting propios (cualquier tenant que cargue preguntas
+    // sin elegir Onix/Chamisas la ve así). Para el gate visual de este slice, que pide capturarla
+    // "para mostrar que no cambió" (§ Cómo lo probás).
+    await guardarBorrador({
+      preguntasFrecuentes: { titulo: "Centro de ayuda", items, variante: "lista" },
+    });
+  } else if (tienda === "onix") {
     const { medirTemaReal } = await import("./capturar-compra");
     const tema = await medirTemaReal("https://cafe-onix.vercel.app/");
     console.log(`  tema medido (Onix): fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento}`);
@@ -1891,7 +1915,11 @@ async function sembrarPreguntasFrecuentes(tienda: "onix" | "chamisas"): Promise<
       data: { nombre: "Café Las Chamisas", tagline: "San Adolfo · Huila", whatsapp: "+573000000000" },
     });
     await guardarBorrador({
-      preguntasFrecuentes: { titulo: "Lo que nos preguntan", subtitulo: "Envíos, pagos, el café y tu pedido. Lo que no esté aquí, nos lo preguntas por WhatsApp.", items, variante: "libreta" },
+      preguntasFrecuentes: {
+        titulo: "Lo que nos preguntan",
+        subtitulo: "Envíos, pagos, el café y tu pedido. Lo que no esté aquí, nos lo preguntas por WhatsApp.",
+        items, variante: "libreta", franjaTejido: FRANJA_TEJIDO_PLACEHOLDER,
+      },
     });
   }
   await publicarSeccion("preguntasFrecuentes");

@@ -2943,3 +2943,33 @@ test('resolverSiteContent: los cinco interruptores de la Taquilla sólo cambian 
   const sinNada = resolverSiteContent({ suscripcionPlanes: { taquillaMostrarResumen: 'si' as unknown as boolean } });
   assert.equal(sinNada.suscripcionPlanes.taquillaMostrarResumen, false); // basura → el default, nunca lanza
 });
+
+// ─── preguntasFrecuentes · franjaTejido (§ PREGUNTAS-FRECUENTES-ARREGLOS-1) ────────────────────────
+// La franja decorativa de la composición «Libreta» (Las Chamisas) — OPCIONAL, igual patrón que
+// `nosotrosApertura.franjaTejido`/`nosotrosCierre.franjaTejido`, con una diferencia DELIBERADA: NO
+// entra a `REGISTRY.preguntasFrecuentes.imagenes` porque esta sección tiene `repeater` y esa clave
+// se resuelve POR-ÍTEM cuando hay repeater, nunca como campo plano (§ el docstring de
+// `PreguntasFrecuentesContent`).
+
+test('DEFAULTS.preguntasFrecuentes.franjaTejido nace vacío', () => {
+  assert.equal(DEFAULTS.preguntasFrecuentes.franjaTejido, '');
+});
+
+test('REGISTRY.preguntasFrecuentes.campos.franjaTejido es "opcional"; sin `imagenes` (§ el porqué en el docstring del tipo)', () => {
+  assert.equal(REGISTRY.preguntasFrecuentes.campos.franjaTejido, 'opcional');
+  assert.equal(REGISTRY.preguntasFrecuentes.imagenes, undefined);
+});
+
+test('preguntasFrecuentes: sin fila guardada, franjaTejido resuelve vacío — byte-idéntico a DEFAULTS', () => {
+  assert.equal(resolverSiteContent({}).preguntasFrecuentes.franjaTejido, '');
+});
+
+test('preguntasFrecuentes: un franjaTejido guardado SOBREVIVE al resolver', () => {
+  const r = resolverSiteContent({ preguntasFrecuentes: { franjaTejido: 'https://blob.example/tejido.jpg' } });
+  assert.equal(r.preguntasFrecuentes.franjaTejido, 'https://blob.example/tejido.jpg');
+});
+
+test('preguntasFrecuentes: franjaTejido vacío EXPLÍCITO se OMITE — opcional, nunca inventa (cae a "")', () => {
+  const r = resolverSiteContent({ preguntasFrecuentes: { franjaTejido: '' } });
+  assert.equal(r.preguntasFrecuentes.franjaTejido, '');
+});

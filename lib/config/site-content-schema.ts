@@ -614,6 +614,9 @@ const preguntasFrecuentesEditableSchema = z.object({
   subtitulo: z.string().optional(),
   items: z.array(preguntasFrecuentesItemSchema).optional(),
   variante: z.string().optional(),
+  // § PREGUNTAS-FRECUENTES-ARREGLOS-1 — la franja de tejido, SÓLO con efecto bajo «libreta» (mismo
+  // criterio que `nosotrosCierre.franjaTejido` bajo «costura»).
+  franjaTejido: z.string().optional(),
 });
 
 // /suscripciones — EL CIERRE (§ ONIX-SUSCRIPCION-LETRA-CIERRE-1). `ctaDestino` del SET CERRADO

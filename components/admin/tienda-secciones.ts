@@ -2081,8 +2081,15 @@ const LABEL_COMPOSICION_PREGUNTAS_FRECUENTES: Record<string, string> = {
 const ZONAS_PREGUNTAS_FRECUENTES: ZonaComposicion[] = [
   { campos: ['titulo', 'subtitulo'], label: 'Encabezado' },
 ];
+// § PREGUNTAS-FRECUENTES-ARREGLOS-1 — «libreta» gana una zona propia para `franjaTejido` (mismo
+// patrón que `ZONAS_SUSCRIPCION_CIERRE_COSTURA`, arriba): sólo esa composición la lee.
+const ZONAS_PREGUNTAS_FRECUENTES_LIBRETA: ZonaComposicion[] = [
+  { campos: ['titulo', 'subtitulo'], label: 'Encabezado' },
+  { campos: ['franjaTejido'], label: 'Franja de tejido' },
+];
 const OPCIONES_COMPOSICION_PREGUNTAS_FRECUENTES: ComposicionOpcion[] = REGISTRY.preguntasFrecuentes.variantes!.claves.map((v) => ({
-  value: v, label: LABEL_COMPOSICION_PREGUNTAS_FRECUENTES[v] ?? v, zonas: ZONAS_PREGUNTAS_FRECUENTES,
+  value: v, label: LABEL_COMPOSICION_PREGUNTAS_FRECUENTES[v] ?? v,
+  zonas: v === 'libreta' ? ZONAS_PREGUNTAS_FRECUENTES_LIBRETA : ZONAS_PREGUNTAS_FRECUENTES,
 }));
 const PREGUNTAS_FRECUENTES: SeccionConfig = {
   seccion: 'preguntasFrecuentes',
@@ -2091,7 +2098,9 @@ const PREGUNTAS_FRECUENTES: SeccionConfig = {
   ocultable: true,
   notaVisibilidad: 'Sin ninguna pregunta cargada, la página sigue mostrando la FAQ de Suscripciones si existe; si no, se oculta como hoy.',
   composiciones: OPCIONES_COMPOSICION_PREGUNTAS_FRECUENTES,
-  imagenes: [],
+  // § PREGUNTAS-FRECUENTES-ARREGLOS-1 — `franjaTejido` SÓLO tiene efecto bajo «libreta» (mismo
+  // criterio que `suscripcionCierre.franjaTejido` bajo «costura», arriba).
+  imagenes: [{ name: 'franjaTejido', label: 'Franja de tejido', opcional: true, composiciones: ['libreta'] }],
   campos: [
     { name: 'titulo', label: 'Título', hint: 'Vacío: se usa el texto por defecto.' },
     { name: 'subtitulo', label: 'Subtítulo', opcional: true, textarea: true, hint: 'La frase bajo el título. Vacío: no se muestra.' },
