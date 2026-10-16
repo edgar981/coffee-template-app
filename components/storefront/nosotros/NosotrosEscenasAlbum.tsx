@@ -184,55 +184,88 @@ function Carrusel({ laminas, esquineros, actual, onActualChange, mostrarContador
   );
 }
 
+// § CHAMISAS-NOSOTROS-FIDELIDAD-1 — CUATRO AJUSTES medidos contra la maqueta
+// (`.lam`/`.lam .ph`/`.cn`/`.lam .ph .ilus`/`.lam .d`, `.scratch/chamisas-paginas/
+// nosotros-suscripciones.html`) y contra captura real (sin tarjeta, corchetes finos, descripción
+// cortada a 2 líneas, pie en itálica debajo — `.capturas/chamisas-baseline-1440/` antes de este fix):
+//
+// 1. CADA LÁMINA GANA SU PROPIA TARJETA BLANCA (`.lam{background:#FFFFFF (--sf-tarjeta);
+//    border-radius:24px;padding:14px 14px 18px}`) — antes la foto y el texto vivían directo sobre el
+//    fondo de la página/panel, sin la superficie propia que la maqueta pinta por lámina.
+//    `--sf-tarjeta` (§ `app/globals.css`, familia TARJETA/SOBRE) ya existía, declarado para esto —
+//    "INERTE: nadie los lee todavía" — y ésta es su primer consumidor real.
+// 2. LOS ESQUINEROS PASAN DE CORCHETES (borde fino, `border-*-2`) A TRIÁNGULOS SÓLIDOS
+//    (`.cn{width:26px;height:26px;background:#B8461A (--sf-acento)}` + `clip-path` por esquina,
+//    a -5px del borde de la FOTO). Siguen siendo HERMANOS de la caja `overflow-hidden` que recorta
+//    la foto, no sus hijos — mismo patrón que el sticker de `NosotrosAperturaAlbum.tsx` (§ su
+//    "ajuste 2"): adentro, el `-5px` de vuelo se recortaría contra la máscara.
+// 3. LA DESCRIPCIÓN YA NO SE CORTA A 2 LÍNEAS (`.lam .d`, sin `line-clamp`) — texto completo.
+// 4. EL PIE DE FOTO ("Imagen ilustrativa") PASA DE ITÁLICA DEBAJO A RÓTULO SOBRE LA IMAGEN
+//    (`.lam .ph .ilus{left:12px;bottom:12px}`, el MISMO patrón de etiqueta que ya usa la portada
+//    «Álbum» — ver el open follow-up de `NosotrosAperturaAlbum.tsx` sobre el campo que a esa pieza
+//    le falta; acá el campo YA EXISTE (`items[].pie`), así que el fix es sólo de RENDER).
 function Lamina({ lamina, esquineros, ancha }: { lamina: LaminaConPosicion; esquineros: boolean; ancha: boolean }) {
   const { idx, numero, foto, titulo, descripcion, pie } = lamina;
   return (
+    // `col-span-2` se queda SOLO en `<figure>` (el ítem del grid, § `esLaminaAncha` — intacto,
+    // `lib/storefront/nosotros-escenas.test.ts` afirma esta clase exacta); la TARJETA BLANCA
+    // (§ el ajuste 1, arriba) vive en el `<div>` anidado, no en el `<figure>` — así ninguna de las
+    // dos responsabilidades (posición en el grid vs. superficie visual) pisa a la otra.
     <figure className={ancha ? 'col-span-2' : undefined}>
-      {/* RADIO 24 EN CELULAR (sin marco de superficie); en escritorio alto FIJO 300px — como el
-          `.lam .ph` de la maqueta (`aspect-ratio:auto;height:300px` a ≥960px): el ancho lo da la
-          columna del grid (entera para una ancha, mitad para una angosta), nunca el recorte de la
-          foto original. */}
-      <div className="relative aspect-[10/11] overflow-hidden rounded-[24px] bg-[var(--sf-superficie)] sm:aspect-auto sm:h-[300px] sm:rounded-[10px]">
-        <CampoEditable campo={`nosotrosEscenas.items.${idx}.foto`} tipo="imagen">
-          <Image
-            src={foto}
-            alt={titulo.trim() || 'Lámina'}
-            fill
-            sizes="(max-width: 640px) 84vw, 36vw"
-            className="object-cover"
-          />
-        </CampoEditable>
-        {esquineros && <Esquineros />}
+      <div className="flex flex-col rounded-[24px] bg-[var(--sf-tarjeta)] p-3.5 pb-[18px]">
+        {/* Envoltorio SIN `overflow-hidden` (§ el ajuste 2, arriba) — los esquineros cuelgan -5px del
+            borde de la foto y no deben recortarse contra la máscara que recorta la foto misma. */}
+        <div className="relative">
+          {/* Alto: 10/11 en celular (aprox. al `(84cqw-28px)*1.08` de la maqueta, sobre el ancho YA
+              reducido por el padding de la tarjeta); fijo 300px en escritorio, como `.lam .ph`. Radio
+              10px CONSTANTE (la tarjeta ya aporta el 24px exterior; `.lam .ph` de la maqueta no
+              cambia de radio entre anchos). */}
+          <div className="relative aspect-[10/11] overflow-hidden rounded-[10px] bg-[var(--sf-superficie)] sm:aspect-auto sm:h-[300px]">
+            <CampoEditable campo={`nosotrosEscenas.items.${idx}.foto`} tipo="imagen">
+              <Image
+                src={foto}
+                alt={titulo.trim() || 'Lámina'}
+                fill
+                sizes="(max-width: 640px) 84vw, 36vw"
+                className="object-cover"
+              />
+            </CampoEditable>
+            {pie.trim() !== '' && (
+              <p className="sf-pildora absolute bottom-3 left-3 z-10 bg-[var(--sf-tinta)]/[0.74] px-2.5 py-[3px] text-[11px] tracking-[0.02em] text-[var(--sf-fondo)]">
+                <CampoEditable campo={`nosotrosEscenas.items.${idx}.pie`}>{pie}</CampoEditable>
+              </p>
+            )}
+          </div>
+          {esquineros && <Esquineros />}
+        </div>
+        <figcaption className="mt-3.5">
+          <p className="font-playfair text-lg text-[var(--sf-tinta)]">
+            <CampoEditable campo={`nosotrosEscenas.items.${idx}.titulo`}>{tituloLamina(titulo, numero)}</CampoEditable>
+          </p>
+          {descripcion.trim() !== '' && (
+            <p className="mt-1 text-sm leading-[1.45] text-[var(--sf-tinta)]/80">
+              <CampoEditable campo={`nosotrosEscenas.items.${idx}.descripcion`} multilinea>{descripcion}</CampoEditable>
+            </p>
+          )}
+        </figcaption>
       </div>
-      <figcaption className="mt-4">
-        <p className="font-playfair text-lg text-[var(--sf-tinta)]">
-          <CampoEditable campo={`nosotrosEscenas.items.${idx}.titulo`}>{tituloLamina(titulo, numero)}</CampoEditable>
-        </p>
-        {descripcion.trim() !== '' && (
-          <p className="mt-1 text-sm text-[var(--sf-tinta)]/80 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
-            <CampoEditable campo={`nosotrosEscenas.items.${idx}.descripcion`} multilinea>{descripcion}</CampoEditable>
-          </p>
-        )}
-        {pie.trim() !== '' && (
-          <p className="mt-1 text-xs italic text-[var(--sf-tinta)]/50">
-            <CampoEditable campo={`nosotrosEscenas.items.${idx}.pie`}>{pie}</CampoEditable>
-          </p>
-        )}
-      </figcaption>
     </figure>
   );
 }
 
-/** Los esquineros de álbum en terracota (§ el spec) — `--sf-acento`, nunca un hex fijo (el acento de
- *  Las Chamisas DERIVA a terracota; otro tenant ve SU acento, no el de ningún cliente particular). */
+/** Los esquineros de álbum en terracota (§ el spec): triángulos SÓLIDOS (26×26px, `clip-path`),
+ *  `--sf-acento` — nunca un hex fijo (el acento de Las Chamisas DERIVA a terracota; otro tenant ve
+ *  SU acento, no el de ningún cliente particular). Posicionados a -5px del borde de la FOTO, como
+ *  `.cn.tl/.tr/.bl/.br` de la maqueta (26px, offset -5px, `background` sólido recortado por
+ *  `clip-path`, nunca un borde). */
 function Esquineros() {
-  const base = 'pointer-events-none absolute h-5 w-5 border-[var(--sf-acento)]';
+  const base = 'pointer-events-none absolute h-[26px] w-[26px] bg-[var(--sf-acento)]';
   return (
     <>
-      <span aria-hidden="true" className={`${base} top-2 left-2 border-t-2 border-l-2`} />
-      <span aria-hidden="true" className={`${base} top-2 right-2 border-t-2 border-r-2`} />
-      <span aria-hidden="true" className={`${base} bottom-2 left-2 border-b-2 border-l-2`} />
-      <span aria-hidden="true" className={`${base} bottom-2 right-2 border-b-2 border-r-2`} />
+      <span aria-hidden="true" className={`${base} -top-[5px] -left-[5px] [clip-path:polygon(0_0,100%_0,0_100%)]`} />
+      <span aria-hidden="true" className={`${base} -top-[5px] -right-[5px] [clip-path:polygon(0_0,100%_0,100%_100%)]`} />
+      <span aria-hidden="true" className={`${base} -bottom-[5px] -left-[5px] [clip-path:polygon(0_0,0_100%,100%_100%)]`} />
+      <span aria-hidden="true" className={`${base} -bottom-[5px] -right-[5px] [clip-path:polygon(100%_0,100%_100%,0_100%)]`} />
     </>
   );
 }

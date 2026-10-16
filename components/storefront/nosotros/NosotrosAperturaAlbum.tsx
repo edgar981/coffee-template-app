@@ -55,6 +55,35 @@
 // por captura real (`.scratch/revision-owner/pares-nosotros-arco-ficha/README.md`): el arco pasó de
 // un borde recto a la curva completa, con el mismo `border-radius` computado de antes.
 //
+// § CHAMISAS-NOSOTROS-FIDELIDAD-1 — TRES AJUSTES medidos contra la maqueta aprobada
+// (`.scratch/chamisas-paginas/nosotros-suscripciones.html`, `.wrap`/`.arch`/`.arch .foot`) y contra
+// capturas reales (`.scratch/chamisas-fidelidad/nosotros/`):
+//
+// 1. EL ANCHO DE LA COLUMNA ERA `max-w-6xl` (1152px) — la maqueta mide `.wrap{max-width:1376px}`,
+//    el MISMO contenedor que envuelve TODA la página (cobertura, sinopsis, láminas, ficha). Medido:
+//    con 1152px el H1 envolvía a CUATRO líneas ("Nuestro" / "territorio, sus" / "manos, nuestro" /
+//    "orgullo.") contra las TRES de la maqueta — y, como el arco es `aspect-[4/5]` con el ANCHO
+//    derivado del porcentaje de su columna (no de `max-h` directamente: con la columna angosta el
+//    ancho disponible topaba el alto ANTES de llegar al cap de `lg:max-h-[600px]`), ensanchar el
+//    contenedor también corrige el alto efectivo del arco, sin tocar `lg:w-[72%]`.
+// 2. EN CELULAR EL ARCO SE QUEDABA EN `w-[78%]`, un porcentaje fijo que no respeta "ancho completo"
+//    (la maqueta deriva el ancho del alto — `.arch{height:min(...)}` con `aspect-ratio:4/5` — así que
+//    en celular normalmente gana el ancho completo del contenedor, acotado sólo si la altura lo
+//    exige). `w-full` logra el mismo resultado sin inventar el cálculo por altura: a los anchos de
+//    teléfono típicos, `max-h-[55vh]` no llega a ser la restricción activa.
+// 3. LA FRANJA DE TEJIDO ERA `lg:hidden` (sólo celular) Y vivía FUERA de la caja que recorta la foto
+//    — la maqueta la pinta SIEMPRE (`.arch .foot`, sin media query que la oculte) como una capa
+//    ABSOLUTA dentro de `.arch` (`position:absolute;bottom:0`, recortada por el mismo
+//    `overflow:hidden` que ya recorta la foto al semicírculo). Se mueve DENTRO de la caja
+//    `overflow-hidden rounded-t-full rounded-b-[20px]` como overlay absoluto, y se quita el
+//    `lg:hidden` — ahora se ve en las DOS anchuras, como la maqueta.
+//
+// LA "Imagen ilustrativa" DE LA MAQUETA (el rótulo sobre el arco, `.ilus`) NO ENTRA EN ESTA TANDA:
+// no hay campo en `NosotrosAperturaContent` que la declare (a diferencia de `nosotrosEscenas.items[].
+// pie`, que YA tiene ese campo y sí se corrige en `NosotrosEscenasAlbum.tsx`). Agregar uno es un
+// cambio de `lib/config/site-content-defaults.ts`/`site-content-schema.ts` — Tier 1, fuera de
+// `touches:` de este slice. Queda como open follow-up.
+//
 // § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1 — CON LA CURVA YA VISIBLE, LA CÚPULA SEGUÍA DEBAJO DEL
 // ENCABEZADO FIJO: medido por color de píxel sobre capturas reales (`next build`+`next start`),
 // nunca supuesto. `/nosotros` NO reserva alto de encabezado para esta composición —
@@ -100,7 +129,7 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
           que la maqueta (estática, sin header `fixed` propio) no tenía que descontar. El padding
           horizontal vive en ESTA fila, no repetido por columna, para que `gap` sea la única fuente
           de separación vertical/horizontal. */}
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-[22px] px-6 sm:px-10 lg:grid-cols-2 lg:items-end lg:gap-12 lg:px-16">
+      <div className="mx-auto grid max-w-[1376px] grid-cols-1 gap-[22px] px-6 sm:px-10 lg:grid-cols-2 lg:items-end lg:gap-12 lg:px-16">
         {/* TEXTO — primero en celular Y en escritorio-izquierda (§ el ajuste 3, arriba). */}
         <div className="order-1 flex flex-col gap-4 lg:pb-7">
           {eyebrow.trim() !== '' && (
@@ -122,16 +151,28 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
         <div className="order-2 flex flex-col items-center lg:items-end">
           {/* `relative`, SIN `overflow-hidden` (§ el ajuste 2, arriba) — el sticker es HERMANO de la
               caja que recorta la foto, nunca su hijo, para no caer dentro de esa máscara. */}
-          <div className="relative w-[78%] lg:w-[72%]">
+          <div className="relative w-full lg:w-[72%]">
             <div
               className="relative aspect-[4/5] max-h-[55vh] overflow-hidden rounded-t-full rounded-b-[20px] bg-[var(--sf-tinta)] lg:max-h-[600px]"
             >
               {tieneImagen ? (
                 <CampoEditable campo="nosotrosApertura.imagen" tipo="imagen">
-                  <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 78vw, 36vw" className="object-cover" />
+                  <Image src={imagen} alt="" fill sizes="(max-width: 1024px) 100vw, 36vw" className="object-cover" />
                 </CampoEditable>
               ) : (
                 <HuecoImagenOpcional campo="nosotrosApertura.imagen" className="absolute inset-0" />
+              )}
+              {/* LA FRANJA DE TEJIDO — AHORA overlay ABSOLUTO dentro de la caja que recorta la foto
+                  (como `.arch .foot` de la maqueta), visible en las DOS anchuras (§ el ajuste 3,
+                  arriba). El `overflow-hidden` del ancestro ya la recorta contra la curva/esquinas. */}
+              {franjaTejido.trim() !== '' && (
+                <CampoEditable campo="nosotrosApertura.franjaTejido" tipo="imagen">
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-3"
+                    style={{ backgroundImage: `url(${franjaTejido})`, backgroundRepeat: 'repeat-x', backgroundSize: 'auto 100%' }}
+                    aria-hidden="true"
+                  />
+                </CampoEditable>
               )}
             </div>
             {sticker.trim() !== '' && (
@@ -150,17 +191,6 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
               </motion.span>
             )}
           </div>
-          {/* LA FRANJA DE TEJIDO — 12px (§ el spec), SÓLO CELULAR (`lg:hidden`): la maqueta la pide
-              únicamente bajo el arco de la vista móvil. */}
-          {franjaTejido.trim() !== '' && (
-            <CampoEditable campo="nosotrosApertura.franjaTejido" tipo="imagen">
-              <div
-                className="h-3 w-[78%] lg:hidden"
-                style={{ backgroundImage: `url(${franjaTejido})`, backgroundRepeat: 'repeat-x', backgroundSize: 'auto 100%' }}
-                aria-hidden="true"
-              />
-            </CampoEditable>
-          )}
         </div>
       </div>
     </section>

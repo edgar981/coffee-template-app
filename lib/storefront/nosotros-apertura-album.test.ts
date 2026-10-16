@@ -96,7 +96,10 @@ describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: la caja
 
   test('el wrapper EXTERIOR del sticker sigue llevando su propio `relative` (el ajuste 2 no se revierte)', () => {
     const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
-    assert.ok(html.includes('class="relative w-[78%] lg:w-[72%]"'), 'el wrapper que separa la caja recortada del sticker debe seguir siendo `relative`');
+    // § CHAMISAS-NOSOTROS-FIDELIDAD-1: el ancho mobile pasó de `w-[78%]` a `w-full` (el defecto
+    // medido — "en celular el arco ocupa 78% del ancho en vez del ancho completo"); el `relative`
+    // que esta prueba afirma no se tocó, sólo el valor de ancho que lo acompaña en la misma clase.
+    assert.ok(html.includes('class="relative w-full lg:w-[72%]"'), 'el wrapper que separa la caja recortada del sticker debe seguir siendo `relative`');
   });
 });
 

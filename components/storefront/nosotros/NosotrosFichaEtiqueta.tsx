@@ -43,12 +43,44 @@
 // capacidad de selección que nadie pidió" sigue en pie: esto no la contradice, sólo reemplaza el
 // ícono NEUTRO único por un ícono NEUTRO-POR-DATO, derivado, nunca elegido a mano)—; `ICONOS_FICHA`
 // es el ÚNICO lugar que traduce esa clave a un componente de lucide-react.
+// § CHAMISAS-NOSOTROS-FIDELIDAD-1 — TRES AJUSTES medidos contra la maqueta (`.fic-card`/`.fic-seal`,
+// `.scratch/chamisas-paginas/nosotros-suscripciones.html`) y contra captura real
+// (`.capturas/chamisas-baseline-*`, antes de este fix):
+//
+// 1. EL SELLO ERA UNA PÍLDORA DE TEXTO (`nosotrosFicha.sello`, borde + fondo + texto) — la maqueta
+//    usa una IMAGEN (`.fic-seal{width:96/124px;rotate:-12deg;mix-blend-mode:multiply;opacity:.92}`,
+//    sin fondo ni borde propios: el sello es arte, no texto compuesto en vivo). Con texto largo la
+//    píldora (`whitespace-nowrap`) se salía de la pantalla en celular — el ancho FIJO de una imagen
+//    no tiene ese riesgo.
+//
+//    Se reemplaza por `LogoMark` (`@/components/storefront/Logo`), el MISMO mark de marca del
+//    storefront que ya cumple este rol en otra pieza de fidelidad de Las Chamisas —
+//    `EstadoPedido.tsx` lo monta como "un SELLO (`LogoMark`, el mark de marca del storefront — el
+//    punto de swap por-despliegue, nunca un logo fabricado para esta captura)"—, puesto en la MISMA
+//    posición/rotación/tamaño que `.fic-seal`. Es el punto de SWAP por-despliegue (§ CLAUDE.md, "El
+//    WORDMARK carga la identidad; el MARK es asset por-despliegue"): el despliegue real de Las
+//    Chamisas reemplaza el SVG de la flor por SU sello ilustrado, sin tocar este componente.
+//
+//    CONSECUENCIA DECLARADA: `nosotrosFicha.sello` queda SIN NINGÚN consumidor en todo el registro
+//    (era el único). No se retira del modelo —`site-content-defaults.ts`/`site-content-schema.ts`
+//    son Tier 1, fuera de `touches:` de este slice—; queda como open follow-up.
+// 2. EL COLOR DE LA TARJETA ERA `--sf-superficie` — la maqueta usa `--paper` (`.fic-card{background:
+//    var(--paper)}`), un crema más CLARO que `--surface`. `--sf-papel` (`app/globals.css`) es su
+//    equivalente ya tokenizado en este repo (el mismo matiz, "levemente distinto de `--sf-fondo`").
+// 3. LA SECCIÓN NO TENÍA AIRE ANTES DEL INTERLUDIO — medido en captura real: el fondo oscuro de
+//    `NosotrosInterludioStickers` arranca en el mismo punto donde termina la tarjeta de la ficha,
+//    sin un solo píxel de crema entre medio. La causa no es esta pieza (que, como la maqueta,
+//    sólo lleva padding-TOP, nunca inferior — el `.fic{padding:72px 0 0}` de la maqueta tampoco lo
+//    tiene): es que `NosotrosInterludioStickers` pinta su fondo oscuro con `py-*` (padding, que el
+//    propio color de fondo rellena) donde la maqueta usa `margin` (`.inter{margin:80px 0 0}`, que
+//    SÍ deja ver el fondo del padre antes). El fix vive en ese archivo, no en éste.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { MapPin, Mountain, Sprout, Droplet, Calendar, Users, Coffee, Package, Minus, type LucideIcon } from 'lucide-react';
 import { filasCompletas } from '@/lib/tienda/creditos';
 import { fichaIcono } from '@/lib/storefront/ficha-iconos';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable from '@/components/storefront/CampoEditable';
+import { LogoMark } from '@/components/storefront/Logo';
 
 const ICONOS_FICHA: Record<ReturnType<typeof fichaIcono>, LucideIcon> = {
   origen: MapPin,
@@ -66,7 +98,7 @@ export default function NosotrosFichaEtiqueta() {
   const { nosotrosFicha, tiendaCreditos, navTratamiento } = useSiteContent();
   const filas = filasCompletas(tiendaCreditos.items);
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
-  const { eyebrow, titulo, bajada, tituloTarjeta, sello, notaPie } = nosotrosFicha;
+  const { eyebrow, titulo, bajada, tituloTarjeta, notaPie } = nosotrosFicha;
 
   return (
     <section className="bg-[var(--sf-fondo)] pt-[72px] lg:pt-[104px]">
@@ -97,7 +129,7 @@ export default function NosotrosFichaEtiqueta() {
             sangre adentro que necesite máscara, sólo texto con relleno. */}
         <div
           className="relative rounded-[24px] border-2 border-dashed border-[var(--sf-tinta)] p-5 pt-5 pb-[14px] lg:p-7 lg:pb-[18px]"
-          style={{ backgroundColor: 'var(--sf-superficie)' }}
+          style={{ backgroundColor: 'var(--sf-papel)' }}
         >
           {tituloTarjeta.trim() !== '' && (
             <h3 className="pr-24 font-playfair text-xl text-[var(--sf-tinta)] lg:text-2xl">
@@ -126,14 +158,15 @@ export default function NosotrosFichaEtiqueta() {
               <CampoEditable campo="nosotrosFicha.notaPie">{notaPie}</CampoEditable>
             </p>
           )}
-          {sello.trim() !== '' && (
-            <span
-              className="sf-pildora absolute -top-[30px] right-3 -rotate-12 whitespace-nowrap border-2 border-[var(--sf-tinta)] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--sf-tinta)] lg:-top-10 lg:right-6"
-              style={{ backgroundColor: 'var(--sf-fondo)' }}
-            >
-              <CampoEditable campo="nosotrosFicha.sello">{sello}</CampoEditable>
-            </span>
-          )}
+          {/* EL SELLO — IMAGEN, no texto (§ el ajuste 1, arriba). SIEMPRE visible, sin gate de
+              contenido: es el mark de marca (punto de swap por-despliegue), no un dato que el
+              dueño pueda vaciar — mismo criterio que `EstadoPedido.tsx` ya aplica a este rol. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-[30px] right-3 z-10 h-24 w-24 -rotate-12 opacity-[0.92] mix-blend-multiply lg:-top-10 lg:right-6 lg:h-[124px] lg:w-[124px]"
+          >
+            <LogoMark className="h-full w-full" stroke="var(--sf-acento)" cherry="var(--sf-tinta)" />
+          </div>
         </div>
       </div>
     </section>

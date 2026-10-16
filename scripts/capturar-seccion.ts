@@ -1382,6 +1382,11 @@ async function sembrarAlbumNosotros(): Promise<void> {
     // "Créditos: ficha de origen" (/tienda) — la Ficha «Etiqueta» de /nosotros LEE estas mismas
     // filas (§ NosotrosFicha.tsx), nunca una copia propia. Datos CONFIRMADOS (refero-chamisas.md §3
     // punto 4) + los marcados [ejemplo] hasta que la finca los confirme.
+    // § CHAMISAS-NOSOTROS-FIDELIDAD-1 — las OCHO filas de la maqueta (antes, 6: faltaban Tostión y
+    // Presentación), para ejercitar "que la ficha admita las 8 filas de la maqueta" con el dato
+    // REAL que `FICHA` declara en `.scratch/chamisas-paginas/nosotros-suscripciones.html` — el
+    // modelo (`CreditoItem[]`, sin tope — § `lib/tienda/creditos.ts`) ya las admitía; lo que
+    // faltaba era sembrar las dos que el fixture no traía.
     tiendaCreditos: {
       visible: true,
       items: [
@@ -1391,6 +1396,8 @@ async function sembrarAlbumNosotros(): Promise<void> {
         { etiqueta: "Proceso", valor: "Lavado [ejemplo]" },
         { etiqueta: "Cosecha principal", valor: "Marzo – junio [ejemplo]" },
         { etiqueta: "Familias", valor: "12 familias [ejemplo]" },
+        { etiqueta: "Tostión", valor: "Media" },
+        { etiqueta: "Presentación", valor: "340 g y 500 g · en grano o molido" },
       ],
     },
   });

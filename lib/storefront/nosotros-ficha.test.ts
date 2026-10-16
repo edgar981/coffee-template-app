@@ -47,14 +47,22 @@ describe('NosotrosFichaEtiqueta — el ajuste 1: titulo/bajada separan el texto 
     assert.ok(html.includes('Los mismos datos de la etiqueta de la bolsa, en grande y con sello.'));
   });
 
-  test('el defecto medido YA NO reproduce: la bajada puede vivir en `bajada` sin pisar `sello`, y `sello` sigue siendo SU PROPIO texto', () => {
+  // § CHAMISAS-NOSOTROS-FIDELIDAD-1 — "sello sigue siendo SU PROPIO texto" VENCIÓ: el sello pasó
+  // de píldora de texto a imagen (`LogoMark`, § el docstring de cabecera del componente), así que
+  // `nosotrosFicha.sello` ya NO tiene ningún consumidor — esta prueba antes pasaba por una
+  // COINCIDENCIA (el texto "San Adolfo" también aparece en `TRES_CREDITOS.Finca`, no por el sello),
+  // no porque el sello renderizara. Se corrige para afirmar la realidad nueva: la bajada SIGUE
+  // viviendo en `bajada` (sin pisarla), el campo `sello` queda SIN EFECTO (lo que el dueño escriba
+  // ahí no aparece en ningún lado), y el sello-IMAGEN (el mark, nunca el texto) SIGUE presente.
+  test('la bajada vive en `bajada` sin pisar `sello`; `sello` queda SIN EFECTO (texto ya no renderiza) y el sello-imagen (LogoMark) sigue presente', () => {
     const content = contenidoEtiqueta({
       bajada: 'Los mismos datos de la etiqueta de la bolsa, en grande y con sello.',
-      sello: 'San Adolfo',
+      sello: 'Un texto de sello que ya no debe aparecer en ningún lado',
     });
     const html = render(content, React.createElement(NosotrosFicha));
     assert.ok(html.includes('Los mismos datos de la etiqueta de la bolsa, en grande y con sello.'), 'la bajada debe aparecer');
-    assert.ok(html.includes('San Adolfo'), 'el sello (otro campo) debe seguir apareciendo, intacto');
+    assert.ok(!html.includes('Un texto de sello que ya no debe aparecer en ningún lado'), '`sello` ya no tiene efecto bajo esta composición');
+    assert.ok(html.includes('mix-blend-multiply'), 'el sello-imagen (LogoMark) debe seguir presente, con su mezcla de color');
   });
 
   test('titulo/bajada vacíos (el default) → no aparece esa columna de texto, sin romper el resto', () => {

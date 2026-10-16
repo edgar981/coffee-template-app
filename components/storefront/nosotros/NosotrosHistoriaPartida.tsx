@@ -9,10 +9,24 @@
 // de «Relato», reposicionado); `parrafo1`/`parrafo2` → los dos párrafos cortos. `parrafo3`/`imagen`/
 // `retratoNombre` quedan SIN EFECTO bajo esta composición.
 //
-// EL FILETE PUNTEADO ES EL DIVISOR ENTRE LOS DOS PÁRRAFOS, no un marco alrededor — horizontal en
-// celular (`divide-y`, los párrafos apilados), vertical en escritorio (`sm:divide-x`), con las
-// utilidades `divide-dashed` de Tailwind en vez de un borde dibujado a mano en cada párrafo (así el
-// filete nunca aparece dos veces si un párrafo queda vacío — `divide-*` sólo pinta ENTRE hijos).
+// § CHAMISAS-NOSOTROS-FIDELIDAD-1 — EL LAYOUT ERA "título centrado sobre dos columnas con el filete
+// ENTRE los párrafos"; la maqueta (`.sin`/`.sin-g`/`.big`/`.rule`/`.paras`,
+// `.scratch/chamisas-paginas/nosotros-suscripciones.html`) es otra composición: la frase grande a la
+// IZQUIERDA, un filete punteado (horizontal en celular, VERTICAL en escritorio) entre la frase y el
+// bloque de párrafos, y los párrafos APILADOS a la DERECHA — nunca un divisor ENTRE los dos
+// párrafos entre sí. Medido contra captura real (`.capturas/chamisas-baseline-1440/app-0.png`
+// antes de este fix): el título salía centrado arriba de las dos columnas, exactamente el layout
+// viejo.
+//
+// REUSA LOS MISMOS TRES CAMPOS, sin tocar el modelo: `titulo` → la frase grande (`.big`);
+// `parrafo1`/`parrafo2` → el bloque `.paras`, apilados con un simple `gap` (nunca un `divide-*`
+// entre ellos — la maqueta no lo tiene). `parrafo3`/`imagen`/`retratoNombre` siguen SIN EFECTO bajo
+// esta composición (sin cambio).
+//
+// MEDIDAS DE LA MAQUETA: `.sin-g{grid-template-columns:minmax(0,7fr) auto minmax(0,5fr);gap:48px}`
+// en escritorio (celular: una columna, `gap:22px`, el filete pasa de `border-left` a `border-top`);
+// `.big{font-size:27px/36px;line-height:1.25}`; `.paras p{font-size:16px;line-height:1.65;
+// max-width:52ch}`, con `gap:14px` entre los párrafos del bloque.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable from '@/components/storefront/CampoEditable';
@@ -25,18 +39,19 @@ export default function NosotrosHistoriaPartida() {
 
   return (
     <section className="bg-[var(--sf-fondo)] py-20">
-      <div className={`${contenedorClase} mx-auto`}>
-        <p className="mx-auto max-w-3xl text-center font-playfair text-3xl leading-tight text-[var(--sf-tinta)] sm:text-4xl">
+      <div className={`${contenedorClase} mx-auto grid grid-cols-1 gap-[22px] lg:grid-cols-[7fr_auto_5fr] lg:items-start lg:gap-12`}>
+        <p className="font-playfair text-[27px] leading-[1.25] text-balance text-[var(--sf-tinta)] lg:text-[36px]">
           <CampoEditable campo="nosotrosHistoria.titulo">{titulo}</CampoEditable>
         </p>
-        {/* SIN `parrafo2`: una sola columna, SIN filete — `divide-*` sólo pinta ENTRE hijos, así que
-            un grid de un solo ítem ya no necesita la rama condicional de clases. */}
-        <div className={`mx-auto mt-10 grid max-w-4xl grid-cols-1 divide-y divide-dashed divide-[var(--sf-tinta)]/30 ${dosParrafos ? 'sm:grid-cols-2 sm:divide-x sm:divide-y-0' : ''}`}>
-          <p className="py-6 text-[17px] text-[var(--sf-tinta)] sm:px-8 sm:py-0">
+        {/* EL FILETE — horizontal en celular (border-top), vertical en escritorio (border-left,
+            `lg:self-stretch` para que llegue al alto de la fila). */}
+        <span aria-hidden="true" className="block border-t border-dashed border-[var(--sf-tinta)]/30 lg:h-full lg:self-stretch lg:border-t-0 lg:border-l" />
+        <div className="grid grid-cols-1 gap-[14px]">
+          <p className="max-w-[52ch] text-base leading-[1.65] text-[var(--sf-tinta)]">
             <CampoEditable campo="nosotrosHistoria.parrafo1" multilinea>{parrafo1}</CampoEditable>
           </p>
           {dosParrafos && (
-            <p className="py-6 text-[17px] text-[var(--sf-tinta)] sm:px-8 sm:py-0">
+            <p className="max-w-[52ch] text-base leading-[1.65] text-[var(--sf-tinta)]">
               <CampoEditable campo="nosotrosHistoria.parrafo2" multilinea>{parrafo2}</CampoEditable>
             </p>
           )}

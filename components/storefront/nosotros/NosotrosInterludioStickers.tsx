@@ -96,7 +96,14 @@ export default function NosotrosInterludioStickers({ imagen }: { imagen: string 
   const stickers = catalog ? stickersDeCatalogo(catalog, tiendaCatalogo.coloresPorProducto) : [];
 
   return (
-    <section className="relative overflow-hidden bg-[var(--sf-tinta)] py-20">
+    // § CHAMISAS-NOSOTROS-FIDELIDAD-1 — `mt-20 lg:mt-[120px]` (MARGEN, no padding) se agrega acá, no
+    // en la pieza anterior (NosotrosFichaEtiqueta.tsx): medido en captura real que el fondo oscuro
+    // de esta sección arrancaba pegado contra la tarjeta de la ficha, sin un solo píxel de crema
+    // entre medio — la maqueta separa con `.inter{margin:80px 0 0}`/`120px` (MARGEN, que deja ver
+    // el fondo del PADRE antes de que empiece el de esta sección), no con padding (que el propio
+    // `bg-[var(--sf-tinta)]` de esta sección ya rellena, así que no abre ningún hueco). `py-20` se
+    // queda: sigue siendo el espacio INTERNO entre el borde de la sección y los stickers.
+    <section className="relative mt-20 overflow-hidden bg-[var(--sf-tinta)] py-20 lg:mt-[120px]">
       <CampoEditable campo="nosotrosInterludio.imagen" tipo="imagen">
         <div
           className="absolute inset-0"
