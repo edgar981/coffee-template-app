@@ -113,3 +113,24 @@ export function verboCTACompra(metodo: MetodoPedido): string {
   const especifico = metodo ? VERBO_CTA_MANUAL[metodo] : undefined;
   return especifico ?? verboBotonPago(metodo);
 }
+
+// LA FRASE «FALTA: …» DEL BLOQUE OSCURO (§ COMPRA-FIDELIDAD-4, refero-compra.md §3 — "el botón
+// dice qué falta en vez de quedarse gris"). PURA a propósito: QUÉ campo falta es del LLAMADOR (lee
+// el estado del formulario — `page.tsx` ya tiene esa lógica en `CAMPOS_PASO1`/`aceptaTerminos`,
+// intactos); esta función sólo decide CÓMO SE LEEN una, dos o varias etiquetas ya resueltas. Igual
+// que `verboCTACompra`/`stickerConfirmacion`: una decisión de REDACCIÓN, no de validación.
+const MAX_FALTANTES_NOMBRADOS = 2;
+
+/** `[]` → "Todo listo para pagar" (medido en `onix-pago.png`, el bloque sin pendientes). 1 o 2
+ *  etiquetas → listadas con coma ("Falta: X" / "Falta: X, Y", medido en `cham-1440-pago.png`: "Falta:
+ *  el método de pago, aceptar los términos"). Más de 2 → las dos primeras + el resto contado
+ *  ("Falta: correo, celular / whatsapp y 4 más", medido en `cham-1440-entrega-vacia.png`) — nunca
+ *  una lista completa que desborde el bloque. El ORDEN es el que el llamador ya pasó (el orden
+ *  visual del formulario, § `CAMPOS_PASO1`); esta función no reordena. */
+export function fraseFalta(faltantes: string[]): string {
+  if (faltantes.length === 0) return 'Todo listo para pagar';
+  if (faltantes.length <= MAX_FALTANTES_NOMBRADOS) return `Falta: ${faltantes.join(', ')}`;
+  const nombrados = faltantes.slice(0, MAX_FALTANTES_NOMBRADOS);
+  const resto = faltantes.length - MAX_FALTANTES_NOMBRADOS;
+  return `Falta: ${nombrados.join(', ')} y ${resto} más`;
+}

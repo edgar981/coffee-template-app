@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { composicionCajon, composicionConfirmacion, composicionSeguimiento, composicionPasos, stickerConfirmacion, etiquetaMetodoPedido, verboCTACompra } from './composiciones-compra';
+import { composicionCajon, composicionConfirmacion, composicionSeguimiento, composicionPasos, stickerConfirmacion, etiquetaMetodoPedido, verboCTACompra, fraseFalta } from './composiciones-compra';
 
 // COMPRA-LINEAS-ONIX-CHAMISAS-1 — resolución de cada composición y caída a la común con un valor
 // desconocido (§ el spec del slice, "Cómo lo probás").
@@ -101,4 +101,32 @@ test('verboCTACompra: delega en verboBotonPago para wompi, whatsapp y null — s
   assert.equal(verboCTACompra('wompi'), 'Pagar con Wompi');
   assert.equal(verboCTACompra('whatsapp'), 'Enviar por WhatsApp');
   assert.equal(verboCTACompra(null), 'Confirmar pedido');
+});
+
+// COMPRA-FIDELIDAD-4 — la frase «Falta: …» del bloque oscuro de «Tu pedido».
+
+test('fraseFalta: sin pendientes, "Todo listo para pagar"', () => {
+  assert.equal(fraseFalta([]), 'Todo listo para pagar');
+});
+
+test('fraseFalta: un pendiente, "Falta: X"', () => {
+  assert.equal(fraseFalta(['celular / whatsapp']), 'Falta: celular / whatsapp');
+});
+
+test('fraseFalta: dos pendientes, los dos con coma, sin "y"', () => {
+  assert.equal(
+    fraseFalta(['el método de pago', 'aceptar los términos']),
+    'Falta: el método de pago, aceptar los términos',
+  );
+});
+
+test('fraseFalta: más de dos, las dos primeras + "y N más"', () => {
+  assert.equal(
+    fraseFalta(['correo', 'celular / whatsapp', 'nombre y apellido', 'departamento', 'ciudad', 'dirección']),
+    'Falta: correo, celular / whatsapp y 4 más',
+  );
+});
+
+test('fraseFalta: el orden es el que llega — no reordena ni dedupe', () => {
+  assert.equal(fraseFalta(['b', 'a']), 'Falta: b, a');
 });

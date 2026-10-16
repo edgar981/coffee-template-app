@@ -95,3 +95,26 @@ test('CampoFlotante: el prefijo (+57) sólo aplica a `tipo="tel"`, y va oculto h
   assert.match(conValor, /\+57/);
   assert.match(conValor, /opacity-100/);
 });
+
+// § COMPRA-FIDELIDAD-4 — el rótulo EN REPOSO y la `ayuda` van en `--chk-tinta-suave` (NUNCA
+// `--sf-texto-suave`, que en Onix sale casi del mismo rojo que el botón — § el docstring de
+// `page.tsx`), y el error en `--chk-error` (NUNCA un literal `red-*` de Tailwind, para que las
+// TRES composiciones compartan el mismo tono de error, derivado de la paleta).
+
+test('CampoFlotante: el rótulo en reposo usa --chk-tinta-suave, nunca --sf-texto-suave', async () => {
+  const html = await render({ id: 'f16', label: 'Correo', value: '', onChange: () => {}, linea: 'comun' });
+  assert.match(html, /text-\[var\(--chk-tinta-suave\)\]/);
+});
+
+test('CampoFlotante: la `ayuda` usa --chk-tinta-suave, nunca --sf-texto-suave', async () => {
+  const html = await render({ id: 'f17', label: 'Celular', value: '300', onChange: () => {}, linea: 'comun', ayuda: 'No enviamos publicidad.' });
+  assert.match(html, /text-\[var\(--chk-tinta-suave\)\]/);
+});
+
+test('CampoFlotante: el error usa --chk-error (texto, ícono y borde) en las TRES composiciones, nunca un literal red-*', async () => {
+  for (const linea of ['comun', 'ficha', 'tejido'] as const) {
+    const html = await render({ id: `f18-${linea}`, label: 'Correo', value: 'x', onChange: () => {}, linea, error: 'Mal.' });
+    assert.match(html, /chk-error/, `linea=${linea} debe usar --chk-error`);
+    assert.doesNotMatch(html, /red-\d/, `linea=${linea} no debe llevar un literal red-* de Tailwind`);
+  }
+});

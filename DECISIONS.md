@@ -66594,3 +66594,215 @@ sin tocar el resto del párrafo.
 /suscripciones · 390 · 1440 · posicion-off) contra la maqueta aprobada, documentado sin suavizar en
 `.scratch/chamisas-maqueta/arreglos/README.md`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-16 — Segunda pasada de Entrega y Pago: el marco del paso, la columna «Tu pedido», la
+## barra fija sólo en celular, y un rol de color propio para que el rótulo deje de leerse como
+## error (`COMPRA-FIDELIDAD-4`)
+
+**Alcance:** cerrar lo que `COMPRA-FIDELIDAD-3` (entrada anterior de este libro) dejó distinto de
+la MISMA maqueta aprobada (`.scratch/checkout-rediseno/maqueta.html`, artefacto
+`CSjTi5aoW3C5hiRi3xRjhj`) — seis puntos nombrados por el spec: el marco del paso (indicador +
+título grande), la columna «Tu pedido» (antes «Resumen del pedido»), la barra fija gateada a
+<820px, los rótulos/ayudas en tinta suave, los métodos de pago de Onix con casilla cuadrada, y
+Ciudad+Dirección en una fila en escritorio. El dinero no se tocó: `lib/checkout/metodos-pago.ts`,
+`lib/checkout/pasarela-disponible.ts`, `app/api/**`, `packages/core/src/**` — verificado con
+`git diff` vacío sobre cada uno.
+
+### El hallazgo central: `--sf-texto-suave` deriva del ACENTO, no de la tinta
+
+El punto 4 del spec ("los rótulos salen en color de acento y parecen errores") se verificó CONTRA
+LA CAPTURA de `COMPRA-FIDELIDAD-3` (`.scratch/compra-fidelidad/app/onix-1440-entrega-vacia.png`,
+ya en el repo antes de este slice) antes de tocar una línea: "CONTACTO", "CORREO ELECTRÓNICO", las
+dos ayudas, "NOMBRE", "APELLIDO", "ENVÍO", "DEPARTAMENTO", "CIUDAD", "DIRECCIÓN" salían en el MISMO
+rojo que el botón "Continuar al pago". La causa, leída en `lib/config/palette-derive.ts` (fuera de
+`touches:`, sólo LEÍDO): `RECETA['texto-suave'] = {a:'acento', b:'tinta', w:0.12}` —
+`mezclar(acento, tinta, 0.12)`, un 88% acento + 12% tinta. Es DELIBERADO para el resto del
+storefront (texto de cuerpo con calidez de marca), pero con un acento rojo (Onix, medido por
+ejecución contra `cafe-onix.vercel.app`: `#a70004`) un texto 88%-acento es casi el mismo rojo que
+el botón, y por eso "parecen errores" — literal, no una impresión.
+
+No se podía tocar la RECETA (`lib/config/palette-derive.ts` no está en `touches:`, y cambiarle el
+peso a `texto-suave` afectaría CADA consumidor del storefront, no sólo el checkout). La solución
+vive enteramente DENTRO del checkout: dos roles de color nuevos, `--chk-tinta-suave` y
+`--chk-error`, definidos UNA vez como `color-mix()` inline en la raíz del árbol de
+`app/(storefront)/checkout/page.tsx` (`estiloRaizCheckout`, un `style={}` con las dos custom
+properties) y heredados por cascada de CSS a todo descendiente, incluido `CampoFlotante.tsx` (su
+único consumidor, que las usa por NOMBRE sin redefinirlas):
+
+- `--chk-tinta-suave: color-mix(in oklab, var(--sf-tinta) 62%, var(--sf-fondo) 38%)` — deriva de
+  TINTA + FONDO, nunca de acento, así que por construcción no puede coincidir con el botón en
+  NINGÚN tema.
+- `--chk-error: color-mix(in oklab, #dc2626 82%, var(--sf-tinta) 18%)` — `#dc2626` es el rojo que
+  el checkout YA usaba para errores (Tailwind `red-600`) antes de este slice, no un hex sacado de
+  la maqueta; mezclarlo con la tinta del tema es lo que lo vuelve "a partir de la paleta" (el spec,
+  punto 4) en vez de un literal Tailwind repetido sin relación con el tema.
+
+Medido por ejecución en las TRES composiciones (Onix/ficha, Las Chamisas/tejido, la común):
+`onix-1440-entrega-vacia.png` (esta pasada) muestra los mismos rótulos en gris-verde neutro,
+distinto del rojo del botón Y del rojo de los errores (`onix-1440-entrega-errores.png`, que SIGUE
+distinguible). Las Chamisas y la común tenían el defecto menos visible (sus acentos —naranja,
+marrón— están más cerca en tono de sus tintas), pero el fix es el mismo en las tres — afirmado en
+`CampoFlotante.test.ts` (3 tests nuevos: el rótulo/la ayuda usan `--chk-tinta-suave`, el error usa
+`--chk-error` en las TRES composiciones y NUNCA un literal `red-*`).
+
+### El marco del paso — casillas cuadradas (Onix) / círculos con ✓ (Las Chamisas), título grande
+
+`STEP_TITLE` ("ENTREGA"/"PAGO" versal para Onix, "Entrega"/"Pago" serif para las otras dos) se
+agregó junto a `STEP_LABELS`. El indicador de Onix ganó un cuadrado por paso (relleno de tinta +
+`Check` cuando está hecho, borde cuando falta); el de Las Chamisas ganó círculos con el mismo
+criterio — AMBOS nuevos, no reemplazan nada: la franja de progreso tejida y el sticker "Entrega
+lista" de Las Chamisas, que `COMPRA-FIDELIDAD-3` ya había dejado correctos (confirmados "están" en
+el preámbulo del spec), se CONSERVAN intactos debajo del indicador nuevo.
+
+"Pago seguro · Volver al carrito" reemplaza al "← Checkout" de siempre. La navegación real de la
+tienda (StoreNav) sigue montada por el layout compartido — no se tocó `app/(storefront)/layout.tsx`
+(fuera de `touches:`); la línea nueva se agrega ARRIBA del paso, tal como el spec pide cuando
+esconder la nav no es una opción.
+
+### La columna «Tu pedido» y el bloque oscuro — reusa `accionBarraFija`, no lo reimplementa
+
+Título "Tu pedido" (versal en Onix), cada ítem con miniatura + globo de cantidad (un círculo con el
+número, sobre la esquina de la foto) + variante en su propia línea (molienda y/o peso — `250 G`
+para el producto sembrado por el arnés), Subtotal, "Envío a X"/"Se calcula con tu departamento", y
+debajo un bloque `bg-[var(--sf-tinta)]` con el total grande, la línea de envío, el botón ADENTRO y
+"Falta: …"/"Todo listo para pagar" (`fraseFalta`, `lib/checkout/composiciones-compra.ts`, pura —
+"Falta: X" con un pendiente, "Falta: X, Y" con dos, "Falta: X, Y y N más" con más — los tres casos
+medidos contra la maqueta y afirmados en `composiciones-compra.test.ts`, 5 tests nuevos).
+
+**El botón del bloque oscuro y el de la barra fija de celular son el MISMO `accionBarraFija`/
+`verboBarraFija`/`loading`** — ya existían, calculados una sola vez; este slice NO los duplica, sólo
+los renderiza en un segundo sitio (desktop) además del primero (celular, gateado a <820px). La
+columna entera está gateada a `hidden min-[820px]:block` — en celular el resumen plegable de
+siempre (`resumenAbierto`, sin cambios de esta tanda) y la barra fija ya cubren lo mismo; mostrar
+los dos sería un CTA duplicado.
+
+**Límite declarado:** la miniatura de la rama `confirmation.items` (orden YA creada, pasarela en
+curso) sólo muestra la MOLIENDA si existe, nunca el peso — `CheckoutResultItem`
+(`services/checkout.service.ts`, Tier 1, fuera de `touches:`) no snapshotea `peso_gramos`, y no se
+inventa un dato que la orden confirmada no trae.
+
+### La barra fija, gateada a 820px — la misma cifra que `Spotlight.tsx` ya usa
+
+El grid de dos columnas pasó de `lg:` (1024px, Tailwind) a `min-[820px]:` — la cifra de decisión de
+este spec, y la MISMA variante arbitraria que `components/storefront/home/Spotlight.tsx` ya usa
+(verificado por grep antes de elegirla, no inventada). Con dos breakpoints distintos (1024 para el
+grid, 820 para la barra) habría habido una franja 820–1023px sin ningún total visible; unificar los
+dos al mismo valor lo cierra. La barra fija ganó `min-[820px]:hidden`; el padding de reserva
+(`pb-28`) se retira en el mismo breakpoint (`min-[820px]:pb-8`).
+
+### Los métodos de pago de Onix — casilla cuadrada SOBRE el radio nativo, no en vez de
+
+El `<input type="radio">` real sigue montado (`sr-only` para Onix, visible para los otros dos) —
+teclado, foco y agrupación de radios no cambian; `IndicadorMetodoPago` (nuevo, junto a
+`BotonCopiar`) pinta el cuadrado al lado, puramente visual. `opt.desc` (lo que ya mostraba cada
+método — para Nequi/Daviplata/Bre-B, el NÚMERO real; para Transferencia, el intro genérico
+`INTRO_VARIAS_CUENTAS`, ya así antes de este slice) migró de `--sf-texto-suave` a
+`--chk-tinta-suave` — mismo fix que el punto 4, aplicado acá porque el spec lo nombra aparte
+("no los datos de la cuenta en color de acento"). `lib/checkout/metodos-pago.ts` sigue intocado:
+QUÉ dice `opt.desc` no cambió, sólo CÓMO se ve.
+
+### Detalles de Entrega — Ciudad+Dirección en fila (≥820px), el radio de envío
+
+Ciudad y Dirección se envolvieron en `grid grid-cols-1 min-[820px]:grid-cols-2 gap-4` — apiladas en
+celular, en fila en escritorio. Nombre/Apellido NO se tocaron: ya eran dos campos en fila desde
+`COMPRA-FIDELIDAD-3` (el spec pedía confirmar que la regla no cambia, no agregar nada). La tarjeta
+de envío ganó el bullet relleno (⬤) que la maqueta pinta junto al nombre del método — antes era
+texto plano sin ningún indicador de selección, aunque sólo hay un método posible por departamento
+(determinista, sin elección real: el bullet es la misma afordancia visual que ya usan los métodos
+de pago, no un control nuevo).
+
+### `scripts/capturar-seccion.ts` ganó una acción y un tercer valor de siembra
+
+- **`checkout-pago-transferencia`** (décima acción previa): llega al mismo paso 2 que
+  `checkout-pago` (que deja a Nequi abierto, el `payment` inicial del componente) y clickea
+  "Transferencia Bancaria" para abrir SU panel — las DOS juntas cubren "Pago con cada método
+  abierto" (el spec, "Cómo lo probás"); Bre-B/Daviplata/Contra entrega comparten la misma forma que
+  Nequi (fila + un solo «Copiar», o sin panel) así que no habrían mostrado nada nuevo.
+- **`sembrarCompra` acepta `"comun"`** como tercer valor de `--sembrar-compra` (antes sólo
+  `onix|chamisas`): sin medir ningún tema (no hay un muestrario "común" desplegado que medir), deja
+  la paleta en fábrica y los CUATRO ejes de `content.compra` en `'comun'`. Cierra el hueco que
+  `COMPRA-LINEAS-FIDELIDAD-1`/`COMPRA-FIDELIDAD-3` habían dejado documentado ("la garantía de
+  `comun` descansa en tests y lectura de código, no en una captura de navegador") — el spec de esta
+  pasada pide explícitamente "Capturá también la composición común para mostrar cómo queda".
+
+### DESVIACIÓN MEDIDA — un nuevo `react-hooks/refs` en el bloque oscuro, consecuencia de reusar
+### `accionBarraFija` en vez de duplicarlo
+
+`npx eslint` sobre los 6 archivos de este diff: **2 errores `react-hooks/refs`** ("Cannot access
+ref value during render"), ambos sobre referencias a `accionBarraFija` (tipo `(() => void) | null`,
+cuya rama final es `handleOrder`, que cierra sobre `codigosComprobanteRef`). **UNO es
+PRE-EXISTENTE** (la línea 1745 de hoy es la barra fija de siempre, YA flagueada antes de este
+slice — `COMPRA-FIDELIDAD-3` la documentó en `page.tsx:1547`, el mismo código, sólo desplazado por
+las inserciones de arriba). **El otro es NUEVO** (línea 1703, el botón del bloque oscuro): se
+intentó evitarlo con una variable booleana separada (`accionBarraFija !== null`) para el `&&` de
+JSX, pero el lint flaguea CUALQUIER lectura de la variable, no el patrón `&&` — el intento sólo
+agregó un TERCER sitio flagueado (la propia declaración del booleano) sin quitar ninguno, así que
+se revirtió. La alternativa —NO reusar `accionBarraFija`, reimplementar la lógica del botón en el
+bloque oscuro— habría sido la misma clase de defecto que esta doctrina existe para evitar ("dos
+definiciones del mismo helper es cómo vuelve a pasar", § CLAUDE.md, `razonDelServidor`/
+`cruzoMinimo`). Se acepta la ÚNICA instancia nueva, documentada acá; arreglar la causa de raíz
+(sacar la lectura de `codigosComprobanteRef` de la cadena de cierre de `handleOrder`) es un
+refactor de ese handler, fuera de `touches:` de este slice. Los otros 6 warnings de `page.tsx`
+(`CreditCard`/`contenidoEstadoPedido` sin usar, 2× `set-state-in-effect`, 2× `no-img-element`) son
+TODOS pre-existentes — verificados contra `git diff` línea por línea, ninguno dentro de un hunk de
+este commit.
+
+### Grep de doctrina — qué toca esta entrada de CLAUDE.md
+
+Símbolos/archivos de este diff: `STEP_TITLE`, `IndicadorMetodoPago`, `fraseFalta`,
+`--chk-tinta-suave`/`--chk-error`, `checkout-pago-transferencia`, `sembrarCompra` (el valor
+`"comun"`), `min-[820px]`, la columna «Tu pedido» (antes «Resumen del pedido»).
+
+`grep -n "compra\.pasos\|ClaveCompraPasos\|composicionPasos\|CampoFlotante\|verboCTACompra\|
+BotonCopiar\|checkout-entrega\|capturar-seccion\|capturar-compra\|composiciones-compra\|
+sembrarCompra\|fraseFalta\|checkout-pago-transferencia\|chk-tinta-suave\|chk-error\|
+IndicadorMetodoPago\|accionBarraFija\|min-\[820px\]\|Resumen del pedido\|Tu pedido" CLAUDE.md`:
+**CERO coincidencias** — ninguno de estos símbolos, viejos o nuevos, vive en CLAUDE.md; la doctrina
+del camino de compra sigue enteramente en este libro.
+
+`grep -n "checkout\|camino de compra\|metodos-pago.ts\|estado-pedido.ts\|rastrear-pedido" CLAUDE.md`:
+decenas de coincidencias, todas sobre la lista Tier 1 (línea 39, `app/(storefront)/` y
+`lib/checkout/metodos-pago.ts` — ninguno de los dos cambió de estado: `page.tsx` SIGUE bajo el
+primero, `metodos-pago.ts` SIGUE intocado), la frontera `lib/checkout/`/`lib/pagos/` (§53-59, sin
+cambio), y menciones sueltas del checkout en otras doctrinas (pagos, legal, dashboard) que esta
+tanda no toca. Ninguna sentencia se vuelve falsa.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (según el spec), `approved: yes` (`approval-reason`: el owner pidió terminar el camino de
+compra el 2026-10-15 y aprobó la maqueta de Entrega/Pago esa noche — el mismo artefacto
+`CSjTi5aoW3C5hiRi3xRjhj` que `COMPRA-FIDELIDAD-3` ya citó). Entra por `components/storefront/`/
+`app/(storefront)/` — bytes del visitante en TODAS las composiciones de `pasos` (`comun` incluida:
+la común también ve el indicador nuevo, la columna «Tu pedido», el bloque oscuro). **`customer_
+bytes.changed = true`**, alcanza a CUALQUIER tenant. Sin cambio de schema/migración, sin contrato
+cruzado de repositorio — el dinero (`lib/checkout/metodos-pago.ts`, `app/api/checkout/**`,
+`packages/core/src/**`, `lib/checkout/pasarela-disponible.ts`) queda intacto, verificado por
+`git diff` vacío sobre cada uno.
+
+### Open follow-ups
+
+- **`COMPRA-PASOS-COMUN-ESTADOS-FALTANTES-1`** — la captura de `comun` sólo cubre 3 de los 6 estados
+  (tienda-carrito, entrega-vacía, pago-nequi) y un solo ancho (1440). El mecanismo
+  (`sembrarCompra("comun")`) ya existe; agregar entrega-errores/entrega-llena/pago-transferencia y
+  390 es mecánico, no se hizo por presupuesto de tiempo de esta pasada.
+- **`CHK-REFS-HANDLEORDER-CIERRE-1`** — el `react-hooks/refs` nuevo en el bloque oscuro (§ arriba)
+  tiene causa de raíz en `handleOrder` cerrando sobre `codigosComprobanteRef`; sacar esa lectura de
+  la cadena de cierre (p. ej. pasarla como argumento en vez de leerla del ref dentro del handler)
+  cerraría la clase entera, no sólo este síntoma. Fuera de `touches:` de este slice.
+- Los abiertos por `COMPRA-FIDELIDAD-3` (`CLAUDE-DIEZ-OPCIONES-PANEL-VENCIDO-1`,
+  `COMPRA-COPIAR-CAMPO-SUELTO-1`) siguen abiertos, sin tocar por este slice —
+  `COMPRA-PASOS-SIN-SEMBRADO-COMUN-1` se CIERRA con esta pasada (§ arriba, "ganó un tercer valor de
+  siembra").
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — mismo criterio que `COMPRA-FIDELIDAD-3`: bytes del
+visitante en una pantalla de alto tráfico, en las tres composiciones). Gate corrido en el árbol
+final: `npm run gate` verde — `npm run typecheck` limpio, `npm test` **4985/4985**,
+`npm run test:integracion` **413/413**. No es `GATE_RED`. `npm run lint` (`eslint`) sobre los 6
+archivos de este diff: 2 errores + 6 warnings, TODOS pre-existentes salvo UNO (§ la desviación
+medida, arriba) — documentado, no silencioso. Verificado en navegador real vía el arnés (`npm run
+capturar:seccion --sembrar-compra {onix,chamisas,comun} --sin-prototipo`, 5 corridas, hasta 6
+estados cada una, a 390 y 1440), documentado sin suavizar en
+`.scratch/compra-fidelidad/pasada-2/README.md`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

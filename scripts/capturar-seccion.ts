@@ -231,7 +231,7 @@ interface Opciones {
   sembrarSpotlight: boolean;
   sembrarOrigen: boolean;
   // COMPRA-LINEAS-FIDELIDAD-1 — ver el docstring de `sembrarCompra`/`ejecutarAccionPrevia`, abajo.
-  sembrarCompra: "onix" | "chamisas" | undefined;
+  sembrarCompra: "onix" | "chamisas" | "comun" | undefined;
   accionesPrevias: (string | undefined)[];
   sinPrototipo: boolean;
   // CHAMISAS-SUSCRIPCIONES-CASILLAS-1 — ver el docstring de `sembrarCasillas`, abajo.
@@ -303,29 +303,38 @@ de la banda origen con el MISMO contenido que .spec-list/.stats muestra
 siembra, los 8 campos nacen VACÍOS (§ el docstring de OrigenContent) y la
 lista/los contadores no rinden nada (hide-on-empty). SÓLO válido en modo base
 fresca (mismo motivo que --sembrar-spotlight).
---sembrar-compra <onix|chamisas> (§ COMPRA-LINEAS-FIDELIDAD-1) siembra, sobre
-la base efímera, DESPUÉS de --preset/--sembrar-spotlight/--sembrar-origen (si
-se pasaron): la paleta (content.tema: fondo/tinta/acento MEDIDOS contra la
-maqueta aprobada, .scratch/lanzamiento/maqueta-compra/compra.html, líneas
-.ln-onix/.ln-ch), los TRES ejes de content.compra para esa tienda (Onix:
-creditos/boleto/escaleta — Las Chamisas: album/lamina/album), un vendedor
+--sembrar-compra <onix|chamisas|comun> (§ COMPRA-LINEAS-FIDELIDAD-1, el tercer
+valor § COMPRA-FIDELIDAD-4) siembra, sobre la base efímera, DESPUÉS de
+--preset/--sembrar-spotlight/--sembrar-origen (si se pasaron): la paleta
+(content.tema: fondo/tinta/acento MEDIDOS contra la maqueta aprobada,
+.scratch/lanzamiento/maqueta-compra/compra.html, líneas .ln-onix/.ln-ch), los
+CUATRO ejes de content.compra para esa tienda (Onix: creditos/boleto/
+escaleta/ficha — Las Chamisas: album/lamina/album/tejido), un vendedor
 completo (para la línea "Vende…"), UN producto sin moliendas (agrega directo
 al carrito, sin modal) y SiteSetting.metodosPago con 'efectivo' (el único que
 no pide credenciales de pasarela) para que el checkout pueda completarse.
-SÓLO válido en modo base fresca (mismo motivo que --sembrar-spotlight).
+"comun" NO mide ningún tema real (no hay un muestrario "común" desplegado que
+medir) — deja la paleta en los defaults de fábrica (byte-idéntico, § globals.css
+--sf-*) y los CUATRO ejes de content.compra en 'comun', la canónica; sólo
+siembra vendedor/producto/métodos, igual que las otras dos. SÓLO válido en
+modo base fresca (mismo motivo que --sembrar-spotlight).
 --accion-previa <nombre> (repetible, se empareja por ÍNDICE con --ruta, como
 --selector-app — "" es el placeholder de "sin acción para este índice")
-ejecuta una interacción de Playwright ANTES de capturar esa ruta. NUEVE
+ejecuta una interacción de Playwright ANTES de capturar esa ruta. DIEZ
 nombres fijos: 'abrir-carrito' (agrega el primer producto del catálogo y abre
 el cajón solo); 'checkout-pago' (completa el paso 1 de /checkout y avanza al
-paso 2, método efectivo); 'completar-pedido' (como checkout-pago, y además
+paso 2, método Nequi — el estado "payment" inicial del componente, su panel
+queda abierto); 'completar-pedido' (como checkout-pago, y además
 acepta términos + confirma — crea una orden REAL y aterriza en la
 confirmación); 'checkout-entrega-lleno' (§ COMPRA-FIDELIDAD-3: llena el paso 1
 con datos de ejemplo SIN avanzar al paso 2 — el estado "Entrega llena");
 'checkout-entrega-errores' (§ COMPRA-FIDELIDAD-3: clic en «Continuar al pago»
 sin llenar nada — el resumen de errores + el error por campo; el estado
 "Entrega vacía" no necesita acción propia, "" sobre /checkout ya lo es);
-'rastrear-noencontrado' (busca en /rastrear-pedido con datos
+'checkout-pago-transferencia' (§ COMPRA-FIDELIDAD-4: como checkout-pago, pero
+clickea "Transferencia Bancaria" — abre SU panel en vez del de Nequi, para
+capturar "Pago con cada método abierto"); 'rastrear-noencontrado' (busca en
+/rastrear-pedido con datos
 que no matchean nada); 'rastrear-resultado' (busca el pedido que la ÚLTIMA
 completar-pedido de esta misma corrida acaba de crear — requiere una
 completar-pedido en un índice ANTERIOR); 'casillas-dos-cafes' (§ CHAMISAS-
@@ -510,10 +519,10 @@ function parseCli(argv: string[]): Opciones {
     );
   }
   const sembrarCompraIn = values["sembrar-compra"];
-  if (sembrarCompraIn !== undefined && sembrarCompraIn !== "onix" && sembrarCompraIn !== "chamisas") {
-    throw new Error(`--sembrar-compra sólo acepta "onix" o "chamisas" (recibido: «${sembrarCompraIn}»).\n\n${ayuda()}`);
+  if (sembrarCompraIn !== undefined && sembrarCompraIn !== "onix" && sembrarCompraIn !== "chamisas" && sembrarCompraIn !== "comun") {
+    throw new Error(`--sembrar-compra sólo acepta "onix", "chamisas" o "comun" (recibido: «${sembrarCompraIn}»).\n\n${ayuda()}`);
   }
-  const sembrarCompra = sembrarCompraIn as "onix" | "chamisas" | undefined;
+  const sembrarCompra = sembrarCompraIn as "onix" | "chamisas" | "comun" | undefined;
   if (sembrarCompra && url) {
     throw new Error(
       `--sembrar-compra y --url son mutuamente excluyentes: no hay base local que sembrar contra ` +
@@ -604,6 +613,8 @@ function parseCli(argv: string[]): Opciones {
     "abrir-carrito", "checkout-pago", "completar-pedido",
     // § COMPRA-FIDELIDAD-3
     "checkout-entrega-lleno", "checkout-entrega-errores",
+    // § COMPRA-FIDELIDAD-4
+    "checkout-pago-transferencia",
     "rastrear-noencontrado", "rastrear-resultado",
     "casillas-dos-cafes", "casillas-quincenal",
     // § PREGUNTAS-FRECUENTES-1
@@ -1053,36 +1064,47 @@ async function sembrarOrigen(): Promise<void> {
 // `sembrarAlbumNosotros` (abajo) con un `fetch()` suelto, ahora reusable y re-corrido en cada
 // invocación (así una próxima deriva del tema real en producción se refleja sola, sin que alguien
 // tenga que volver a medir a mano).
-async function sembrarCompra(tienda: "onix" | "chamisas"): Promise<void> {
+async function sembrarCompra(tienda: "onix" | "chamisas" | "comun"): Promise<void> {
   console.log(`▸ --sembrar-compra ${tienda}: tema real (medido) + content.compra + vendedor + 1 producto + método efectivo…`);
   const { default: prisma } = await import("@duna/core");
   const { guardarBorrador, publicarSeccion, guardarTemaBorrador } = await import("../lib/config/site-content-write");
-  const { medirTemaReal } = await import("./capturar-compra");
 
-  const URL_MUESTRARIO: Record<"onix" | "chamisas", string> = {
-    onix: "https://cafe-onix.vercel.app/",
-    chamisas: "https://coffee-template-app-las-chamisas.vercel.app/",
-  };
-  const tema = await medirTemaReal(URL_MUESTRARIO[tienda]);
-  console.log(
-    `  tema medido: fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento} ` +
-      `fuentePar=${tema.fuentePar ?? "(fábrica)"} forma=${tema.forma ?? "(fábrica)"}`,
-  );
+  // § COMPRA-FIDELIDAD-4 — `comun` NO mide ningún tema (no hay un muestrario "común" desplegado
+  // que medir, § el docstring de `ayuda()`): la paleta se deja en los defaults de fábrica —no se
+  // llama a `guardarTemaBorrador`/`publicarSeccion('tema')` en absoluto— así que el storefront
+  // sirve los `--sf-*` de `globals.css`, byte-idéntico a Nayoli.
+  if (tienda !== "comun") {
+    const { medirTemaReal } = await import("./capturar-compra");
+    const URL_MUESTRARIO: Record<"onix" | "chamisas", string> = {
+      onix: "https://cafe-onix.vercel.app/",
+      chamisas: "https://coffee-template-app-las-chamisas.vercel.app/",
+    };
+    const tema = await medirTemaReal(URL_MUESTRARIO[tienda]);
+    console.log(
+      `  tema medido: fondo=${tema.fondo} tinta=${tema.tinta} acento=${tema.acento} ` +
+        `fuentePar=${tema.fuentePar ?? "(fábrica)"} forma=${tema.forma ?? "(fábrica)"}`,
+    );
+    await guardarTemaBorrador({ fondo: tema.fondo, tinta: tema.tinta, acento: tema.acento, fuentePar: tema.fuentePar, forma: tema.forma });
+    await publicarSeccion("tema");
+  } else {
+    console.log("  tema: fábrica (sin medir — no hay muestrario 'común' desplegado, § el docstring de ayuda()).");
+  }
 
   // § COMPRA-FIDELIDAD-3 — `pasos` es el cuarto eje (Entrega/Pago del checkout): 'ficha' para
   // Onix, 'tejido' para Las Chamisas, el MISMO par que `scripts/capturar-compra.ts` usa para sus
   // piezas estáticas (estado/seguimiento/cajón) — una sola asignación línea→clave, no dos.
-  const COMPRA: Record<"onix" | "chamisas", { cajon: string; confirmacion: string; seguimiento: string; pasos: string }> = {
+  // § COMPRA-FIDELIDAD-4 — 'comun' es la CANÓNICA en los CUATRO ejes: ningún valor custom, lo que
+  // cualquier tenant sin preset ya ve hoy.
+  const COMPRA: Record<"onix" | "chamisas" | "comun", { cajon: string; confirmacion: string; seguimiento: string; pasos: string }> = {
     onix: { cajon: "creditos", confirmacion: "boleto", seguimiento: "escaleta", pasos: "ficha" },
     chamisas: { cajon: "album", confirmacion: "lamina", seguimiento: "album", pasos: "tejido" },
+    comun: { cajon: "comun", confirmacion: "comun", seguimiento: "comun", pasos: "comun" },
   };
-  const VENDEDOR: Record<"onix" | "chamisas", { nombreCompleto: string; ciudad: string }> = {
+  const VENDEDOR: Record<"onix" | "chamisas" | "comun", { nombreCompleto: string; ciudad: string }> = {
     onix: { nombreCompleto: "Café Onix", ciudad: "Pitalito, Huila" },
     chamisas: { nombreCompleto: "Las Chamisas", ciudad: "San Adolfo, Huila" },
+    comun: { nombreCompleto: "Café de muestra", ciudad: "Bogotá, D.C." },
   };
-
-  await guardarTemaBorrador({ fondo: tema.fondo, tinta: tema.tinta, acento: tema.acento, fuentePar: tema.fuentePar, forma: tema.forma });
-  await publicarSeccion("tema");
 
   const compra = COMPRA[tienda];
   const vendedor = VENDEDOR[tienda];
@@ -1625,6 +1647,24 @@ async function ejecutarAccionPrevia(page: PlaywrightPage, accion: string): Promi
         if (numero) window.name = numero;
       }, undefined);
     }
+    return;
+  }
+
+  // § COMPRA-FIDELIDAD-4 — "Pago con CADA método abierto" (§ el spec del slice, "Cómo lo
+  // probás"): `checkout-pago` ya deja a Nequi abierto (es el `payment` inicial del componente,
+  // § `useState<MetodoPagoTipo>('nequi')`); esta acción llega al MISMO paso 2 y clickea
+  // "Transferencia Bancaria" para abrir SU panel —el más distinto de los cinco (cuenta + «Copiar»
+  // × 2, § `onix-pago.png`)—, dando una SEGUNDA captura de Pago con un panel distinto abierto.
+  // `page.locator(...).click()`, no `evaluate(...).click()` — mismo motivo que la casilla de
+  // términos arriba: espera actionability real tras la transición de paso.
+  if (accion === "checkout-pago-transferencia") {
+    console.log("  ▸ accion-previa checkout-pago-transferencia: completando el paso 1 y abriendo Transferencia…");
+    await llenarPaso1Checkout(page);
+    await page.waitForTimeout(500);
+    const transferencia = page.locator('label:has-text("Transferencia Bancaria")').first();
+    await transferencia.waitFor({ timeout: 10_000 });
+    await transferencia.click();
+    await page.waitForTimeout(400);
     return;
   }
 

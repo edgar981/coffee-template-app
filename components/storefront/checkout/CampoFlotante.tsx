@@ -96,11 +96,16 @@ export default function CampoFlotante({
   // LA CAJA — tres tratamientos, una sola mecánica. `comun` y `tejido` son cajas; `ficha` es un
   // subrayado sin caja (§ refero.md "Cómo cambia en Onix": "El campo es solo un subrayado, sin
   // caja y con esquinas rectas").
+  // § COMPRA-FIDELIDAD-4 — `--chk-tinta-suave`/`--chk-error` las define UNA vez el checkout en la
+  // raíz de su árbol (`app/(storefront)/checkout/page.tsx`, el único consumidor de este
+  // componente) y acá se CONSUMEN por nombre, heredadas por cascada de CSS — no redefinidas. Ver
+  // el comentario de cabecera de esa página para el porqué de las dos (ninguna puede derivarse de
+  // `--sf-texto-suave`/un literal Tailwind sin reproducir el defecto que esta tanda cierra).
   const cajaClases = esFicha
-    ? `bg-transparent rounded-none border-0 border-b px-0 ${error ? 'border-b-2 border-red-500' : foco ? 'border-b-2 border-[var(--sf-tinta)]' : 'border-b border-[var(--sf-linea)]'}`
+    ? `bg-transparent rounded-none border-0 border-b px-0 ${error ? 'border-b-2 border-[var(--chk-error)]' : foco ? 'border-b-2 border-[var(--sf-tinta)]' : 'border-b border-[var(--sf-linea)]'}`
     : esTejido
-      ? `rounded-xl px-4 bg-[var(--sf-superficie)] ${error ? 'border-2 border-red-400' : foco ? 'border-2 border-[var(--sf-tinta)]' : tieneValor(value) ? 'border-2 border-[var(--sf-linea)]' : 'border-2 border-dashed border-[var(--sf-linea)]'}`
-      : `rounded-xl px-4 bg-[var(--sf-fondo)] border ${error ? 'border-red-400' : foco ? 'border-[var(--sf-tinta)] ring-2 ring-[var(--sf-tinta)]/20' : 'border-[var(--sf-linea)]'}`;
+      ? `rounded-xl px-4 bg-[var(--sf-superficie)] ${error ? 'border-2 border-[var(--chk-error)]' : foco ? 'border-2 border-[var(--sf-tinta)]' : tieneValor(value) ? 'border-2 border-[var(--sf-linea)]' : 'border-2 border-dashed border-[var(--sf-linea)]'}`
+      : `rounded-xl px-4 bg-[var(--sf-fondo)] border ${error ? 'border-[var(--chk-error)]' : foco ? 'border-[var(--sf-tinta)] ring-2 ring-[var(--sf-tinta)]/20' : 'border-[var(--sf-linea)]'}`;
 
   const alturaClase = tipo === 'textarea' ? 'min-h-24' : 'h-14';
   const prefijoActivo = !!prefijo && tipo === 'tel';
@@ -116,17 +121,17 @@ export default function CampoFlotante({
   const labelPosicion = arriba
     ? (esFicha ? 'top-1' : 'top-2') + ' scale-[0.72]'
     : (esFicha ? 'top-1/2 -translate-y-1/2 scale-100' : 'top-1/2 -translate-y-1/2 scale-100');
-  const labelColor = error ? 'text-red-600' : foco ? 'text-[var(--sf-tinta)]' : 'text-[var(--sf-texto-suave)]';
+  const labelColor = error ? 'text-[var(--chk-error)]' : foco ? 'text-[var(--sf-tinta)]' : 'text-[var(--chk-tinta-suave)]';
   const labelLeft = esFicha ? 'left-0' : (prefijoActivo && !arriba ? 'left-11' : 'left-4');
   const labelTipografia = esFicha ? 'uppercase tracking-[0.12em] text-sm' : 'text-base';
 
   const contenidoAyudaOError = error ? (
-    <p id={errorId} className="mt-1.5 flex items-start gap-1.5 text-xs text-red-600">
-      <span aria-hidden="true" className="mt-px flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold leading-none text-white">!</span>
+    <p id={errorId} className="mt-1.5 flex items-start gap-1.5 text-xs text-[var(--chk-error)]">
+      <span aria-hidden="true" className="mt-px flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[var(--chk-error)] text-[9px] font-bold leading-none text-white">!</span>
       <span>{error}</span>
     </p>
   ) : ayuda ? (
-    <p id={ayudaId} className="mt-1.5 text-xs text-[var(--sf-texto-suave)]">{ayuda}</p>
+    <p id={ayudaId} className="mt-1.5 text-xs text-[var(--chk-tinta-suave)]">{ayuda}</p>
   ) : null;
 
   const manejarFoco = () => { setFoco(true); onFocus?.(); };

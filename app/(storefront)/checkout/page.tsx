@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import Link from "next/link";
 import { imagenPortada } from "@/lib/producto-imagen";
-import { ArrowLeft, Lock, CreditCard, Clock, Paperclip, FileText, X, ChevronDown, MessageCircle } from 'lucide-react';
+import { Lock, CreditCard, Clock, Paperclip, FileText, X, ChevronDown, MessageCircle, Check } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useCartStore } from '@/lib/cartStore';
 import {
@@ -34,7 +35,7 @@ import { whatsappUrl } from '@/lib/config/site';
 import { contenidoEstadoPedido, type MetodoPedido } from '@/lib/checkout/estado-pedido';
 import EstadoPedido from '@/components/storefront/checkout/EstadoPedido';
 import { vendedorEstaCompleto, lineaVendedor } from '@/lib/legal/plantillas';
-import { composicionPasos, verboCTACompra } from '@/lib/checkout/composiciones-compra';
+import { composicionPasos, verboCTACompra, fraseFalta } from '@/lib/checkout/composiciones-compra';
 import CampoFlotante from '@/components/storefront/checkout/CampoFlotante';
 
 // § CHECKOUT-COMPROBANTE-TOKEN-1: el código privado que `POST /api/checkout` emite para ESTA
@@ -92,6 +93,11 @@ export default function Checkout() {
   // como radio…) es igual en los tres valores.
   const pasos = composicionPasos(compra.pasos);
   const STEP_LABELS = pasos === 'ficha' ? ['01 ENTREGA', '02 PAGO'] : ['Entrega', 'Pago'];
+  // § COMPRA-FIDELIDAD-4 — el TÍTULO GRANDE del paso ("ENTREGA"/"PAGO" en serif versal para Onix;
+  // "Entrega"/"Pago" en serif para Las Chamisas y la común), medido contra `onix-entrega.png` ("01
+  // ENTREGA" arriba, "ENTREGA" grande debajo — sin el "01") y `cham-1440-entrega-vacia.png`
+  // ("① Entrega" arriba, "Entrega" grande debajo).
+  const STEP_TITLE = pasos === 'ficha' ? ['ENTREGA', 'PAGO'] : ['Entrega', 'Pago'];
   // § COMPRA-FIDELIDAD-3 — "EL RESUMEN QUE RESPONDE" (§ refero.md §3: "el total cambia con un
   // fundido de 200ms"). El dato YA respondía (React recalcula al elegir departamento); lo que
   // faltaba era el AVISO visual de que cambió — un fundido corto en el número, apagado si el
@@ -785,45 +791,148 @@ export default function Checkout() {
     ? confirmation.items.reduce((sum, i) => sum + i.cantidad, 0)
     : items.reduce((sum, i) => sum + i.quantity, 0);
 
+  // § COMPRA-FIDELIDAD-4 — «FALTA: …» del bloque oscuro de «Tu pedido» (§ el spec, punto 2;
+  // `fraseFalta`, `lib/checkout/composiciones-compra.ts`, pura). QUÉ falta reusa el MISMO estado
+  // ya validado por `CAMPOS_PASO1`/`aceptaTerminos` — nombre y apellido se COMBINAN en una sola
+  // etiqueta (medido en `onix-entrega.png`: el bloque plegado ya los junta en "NOMBRE Y
+  // APELLIDO"), orden visual del formulario. Nunca se calcula dos veces lo que ya decide si el
+  // botón de paso 1 avanza: `camposInvalidosPaso1` es la fuente, esto sólo la REDACTA distinto.
+  const faltantesEntrega: string[] = [
+    (info.email.trim() === '' || !emailValido) ? 'correo' : null,
+    !phoneValid ? 'celular / whatsapp' : null,
+    (info.nombre.trim() === '' || info.apellido.trim() === '') ? 'nombre y apellido' : null,
+    address.departamento === '' ? 'departamento' : null,
+    address.ciudad.trim() === '' ? 'ciudad' : null,
+    address.linea1.trim() === '' ? 'dirección' : null,
+    (isBogota && !slot) ? 'franja horaria' : null,
+  ].filter((x): x is string => x !== null);
+  // Paso 2: el método sólo falta de verdad en el caso límite ya guardado (`!pasarelaSeleccionada
+  // && !metodoActivo`, § `handleOrder` arriba) — `metodoActivo` cae al primero disponible, así
+  // que en el camino normal siempre hay uno elegido.
+  const faltantesPago: string[] = [
+    (!pasarelaSeleccionada && !metodoActivo) ? 'el método de pago' : null,
+    !aceptaTerminos ? 'aceptar los términos' : null,
+  ].filter((x): x is string => x !== null);
+  const textoFaltaColumna = fraseFalta(step === 0 ? faltantesEntrega : faltantesPago);
+
+  // La línea de envío del bloque oscuro y de la fila de «Envío» (§ el spec, punto 2: "Envío a
+  // Bogotá D.C." / "Se calcula con tu departamento" — medido en `cham-1440-entrega-vacia.png` y
+  // `onix-entrega.png`). Usa `address.departamento`, que sigue disponible aunque la orden ya se
+  // haya creado (el form no se desmonta al confirmar).
+  const envioLineaColumna = address.departamento
+    ? `Envío a ${address.departamento} incluido`
+    : 'Se calcula con tu departamento';
+
+  // § COMPRA-FIDELIDAD-4 — DOS roles de color que el checkout necesita y que la paleta compartida
+  // (`lib/config/palette-derive.ts`, fuera de `touches:`) no ofrece tal cual:
+  //   · `--chk-tinta-suave`: un gris/tinta SUAVE DE VERDAD. `--sf-texto-suave` deriva del ACENTO
+  //     (`RECETA['texto-suave'] = {a:'acento', b:'tinta', w:0.12}` → 88% acento + 12% tinta), así
+  //     que con un acento rojo (Onix, acento medido `#a70004`) cada rótulo/ayuda del formulario
+  //     salía CASI del mismo rojo que «Continuar al pago» — medido por ejecución contra
+  //     `.scratch/compra-fidelidad/app/onix-1440-entrega-vacia.png` (COMPRA-FIDELIDAD-3): "CONTACTO",
+  //     "CORREO ELECTRÓNICO", las ayudas, todo en ese rojo. Acá se deriva de TINTA + FONDO, sin
+  //     pasar por el acento — por construcción no puede coincidir con el botón, en NINGÚN tema.
+  //   · `--chk-error`: su propio tono, distinto del acento aunque el acento sea rojo (Onix) — un
+  //     `color-mix` que nunca lee `--sf-acento`. El rojo semilla (`#dc2626`) es el que este
+  //     checkout YA usaba para errores antes de esta tanda (Tailwind `red-600`), no un hex sacado
+  //     de la maqueta; mezclarlo con la tinta del tema es lo que lo vuelve "a partir de la
+  //     paleta" en vez de un literal Tailwind suelto repetido en cada borde/ícono/texto de error.
+  // Las dos se definen UNA vez acá, en la raíz de este árbol, y se heredan por cascada de CSS a
+  // todo descendiente — incluido `CampoFlotante.tsx` (su único consumidor), que las usa por
+  // nombre sin redefinirlas.
+  const estiloRaizCheckout = {
+    '--chk-tinta-suave': 'color-mix(in oklab, var(--sf-tinta) 62%, var(--sf-fondo) 38%)',
+    '--chk-error': 'color-mix(in oklab, #dc2626 82%, var(--sf-tinta) 18%)',
+  } as CSSProperties;
+
   return (
-      <div className={`${offsetClase} min-h-screen bg-[var(--sf-fondo)]`}>
-        {/* `pb-28`: deja sitio para la barra de total fija (§ abajo), para que no tape el
-            último campo/botón del formulario. */}
-        <div className={`${contenedorClase} mx-auto py-8 pb-28`}>
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-8">
-            <Link href="/tienda" className="p-2 hover:bg-[var(--sf-superficie)] sf-radio-lg transition-colors cursor-pointer">
-              <ArrowLeft className="w-5 h-5 text-[var(--sf-texto)]" />
+      <div className={`${offsetClase} min-h-screen bg-[var(--sf-fondo)]`} style={estiloRaizCheckout}>
+        {/* `pb-28`: deja sitio para la barra de total fija EN CELULAR (§ más abajo, gateada a
+            <820px — § COMPRA-FIDELIDAD-4, cifra de decisión). A ≥820px la barra no existe —el
+            botón real vive en el bloque oscuro de la columna «Tu pedido»— así que ahí el padding
+            extra es inocuo pero innecesario; se retira con `min-[820px]:pb-8`. */}
+        <div className={`${contenedorClase} mx-auto py-8 pb-28 min-[820px]:pb-8`}>
+          {/* § COMPRA-FIDELIDAD-4 — "Pago seguro · Volver al carrito" reemplaza al "← Checkout" de
+              siempre, como pide la maqueta. La navegación REAL de la tienda (StoreNav) ya vive en
+              el layout compartido y NO se esconde acá —tocar `app/(storefront)/layout.tsx` está
+              fuera de `touches:`—, así que esta línea se agrega ARRIBA del paso en vez de
+              reemplazar la nav, tal como el spec pide cuando esconderla no es una opción. */}
+          <div className="flex items-center justify-between gap-3 mb-6 text-xs text-[var(--chk-tinta-suave)]">
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Pago seguro
+            </span>
+            <Link href="/tienda" className="font-medium text-[var(--sf-tinta)] underline hover:no-underline">
+              Volver al carrito
             </Link>
-            <h1 className="text-2xl font-playfair text-[var(--sf-tinta)]">Checkout</h1>
           </div>
 
           {/* Steps — § COMPRA-FIDELIDAD-3, el TRATAMIENTO por línea (§ refero.md §3: "Los pasos
               se titulan «01 ENTREGA / 02 PAGO» en serif mayúscula sobre un filete. El paso hecho
               queda en gris con «EDITAR»" — Onix; "El progreso lo marca el tejido" — Las
               Chamisas). La mecánica (qué paso está activo/hecho) es la misma en los tres; sólo
-              cambia la FORMA. */}
+              cambia la FORMA.
+              § COMPRA-FIDELIDAD-4 — EL MARCO DEL PASO gana DOS piezas que la maqueta pide y la
+              tanda anterior no tenía: el INDICADOR con su affordance propia por línea (Onix:
+              casillas CUADRADAS, medido en `onix-entrega.png`/`onix-pago.png` — "1"/"2"/"✓" dentro
+              de un cuadrado; Las Chamisas: CÍRCULOS con ✓, medido en `cham-1440-entrega-vacia.png`/
+              `cham-1440-pago.png` — "①"/"②"/"✓" dentro de un círculo) y el TÍTULO GRANDE del paso
+              (`STEP_TITLE`, serif). La franja de progreso tejida de Las Chamisas y el sticker
+              «Entrega lista» NO se tocan —ya estaban correctos (§ el spec, "están")—, sólo se les
+              agregan los círculos arriba y el título debajo. */}
           {pasos === 'ficha' ? (
-            <div className="flex items-center gap-3 mb-8 pb-3 border-b border-[var(--sf-linea)] overflow-x-auto">
-              {STEP_LABELS.map((s, i) => (
-                <div key={s} className="flex items-center gap-3 shrink-0">
-                  <span className={`font-playfair text-xs uppercase tracking-[0.14em] ${i === step ? 'font-semibold text-[var(--sf-tinta)]' : 'text-[var(--sf-texto-suave)]'}`}>
-                    {s}{i < step && <span className="ml-1.5 underline">· EDITAR</span>}
-                  </span>
-                  {i < STEP_LABELS.length - 1 && <span className="h-px w-10 bg-[var(--sf-linea)]" aria-hidden="true" />}
-                </div>
-              ))}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 pb-3 border-b border-[var(--sf-linea)] overflow-x-auto">
+                {STEP_LABELS.map((s, i) => (
+                  <div key={s} className="flex items-center gap-2 shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-5 w-5 items-center justify-center border text-[10px] font-bold ${
+                        i < step
+                          ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
+                          : i === step
+                            ? 'border-[var(--sf-tinta)] text-[var(--sf-tinta)]'
+                            : 'border-[var(--chk-tinta-suave)] text-[var(--chk-tinta-suave)]'
+                      }`}
+                    >
+                      {i < step ? <Check className="h-3 w-3" strokeWidth={3} /> : i + 1}
+                    </span>
+                    <span className={`font-playfair text-xs uppercase tracking-[0.14em] ${i === step ? 'font-semibold text-[var(--sf-tinta)]' : 'text-[var(--chk-tinta-suave)]'}`}>
+                      {s}{i < step && <span className="ml-1.5 underline">· EDITAR</span>}
+                    </span>
+                    {i < STEP_LABELS.length - 1 && <span className="h-px w-10 bg-[var(--sf-linea)]" aria-hidden="true" />}
+                  </div>
+                ))}
+              </div>
+              <h2 className="font-playfair text-3xl uppercase tracking-wide text-[var(--sf-tinta)] mt-4">{STEP_TITLE[step]}</h2>
             </div>
           ) : pasos === 'tejido' ? (
             <div className="mb-8">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <span className="font-playfair text-base text-[var(--sf-tinta)]">{STEP_LABELS[step]}</span>
+              <div className="flex items-center gap-3 flex-wrap">
+                {STEP_LABELS.map((s, i) => (
+                  <div key={s} className="flex items-center gap-2 shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                        i < step
+                          ? 'bg-emerald-600 text-white'
+                          : i === step
+                            ? 'bg-[var(--sf-tinta)] text-[var(--sf-fondo)]'
+                            : 'border border-[var(--chk-tinta-suave)] text-[var(--chk-tinta-suave)]'
+                      }`}
+                    >
+                      {i < step ? '✓' : i + 1}
+                    </span>
+                    <span className={`text-sm ${i === step ? 'font-semibold text-[var(--sf-tinta)]' : 'text-[var(--chk-tinta-suave)]'}`}>{s}</span>
+                    {i < STEP_LABELS.length - 1 && <span className="h-px w-8 bg-[var(--sf-linea)]" aria-hidden="true" />}
+                  </div>
+                ))}
                 {step === 1 && (
                   <span className="inline-block -rotate-3 rounded-md bg-[var(--sf-acento)] px-2.5 py-1 text-[11px] font-bold text-[var(--sf-acento-txt)] shadow-sm">
                     Entrega lista
                   </span>
                 )}
               </div>
+              <h2 className="font-playfair text-3xl text-[var(--sf-tinta)] mt-3 mb-2">{STEP_TITLE[step]}</h2>
               <div className="h-2 w-full rounded-full bg-[var(--sf-linea)] overflow-hidden" role="progressbar" aria-valuenow={step === 0 ? 50 : 100} aria-valuemin={0} aria-valuemax={100}>
                 <div
                   className="h-full rounded-full transition-all duration-500"
@@ -835,18 +944,21 @@ export default function Checkout() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
-              {STEP_LABELS.map((s, i) => (
-                <div key={s} className="flex items-center gap-2 shrink-0">
-                  <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento-texto)]' : i < step ? 'text-emerald-600' : 'text-[var(--sf-tostado-3)]'}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--sf-texto-suave)]'}`}>
-                      {i < step ? '✓' : i + 1}
+            <div className="mb-8">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                {STEP_LABELS.map((s, i) => (
+                  <div key={s} className="flex items-center gap-2 shrink-0">
+                    <div className={`flex items-center gap-2 ${i === step ? 'text-[var(--sf-acento-texto)]' : i < step ? 'text-emerald-600' : 'text-[var(--chk-tinta-suave)]'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === step ? 'bg-[var(--sf-acento)] text-[var(--sf-acento-txt)]' : i < step ? 'bg-emerald-600 text-white' : 'bg-[var(--sf-linea)] text-[var(--chk-tinta-suave)]'}`}>
+                        {i < step ? '✓' : i + 1}
+                      </div>
+                      <span className="text-sm font-medium">{s}</span>
                     </div>
-                    <span className="text-sm font-medium">{s}</span>
+                    {i < STEP_LABELS.length - 1 && <div className="w-8 h-px bg-[var(--sf-linea)] mx-1" />}
                   </div>
-                  {i < STEP_LABELS.length - 1 && <div className="w-8 h-px bg-[var(--sf-linea)] mx-1" />}
-                </div>
-              ))}
+                ))}
+              </div>
+              <h2 className="font-playfair text-3xl text-[var(--sf-tinta)] mt-3">{STEP_TITLE[step]}</h2>
             </div>
           )}
 
@@ -885,9 +997,15 @@ export default function Checkout() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* § COMPRA-FIDELIDAD-4 — el grid pasa de `lg:` (1024px) a `min-[820px]:` — la cifra de
+              decisión de esta tanda, la misma que ya usa `Spotlight.tsx` (§ el docstring de
+              cabecera) — para que el momento en que la columna «Tu pedido» aparece COINCIDA con
+              el momento en que la barra fija desaparece (más abajo). Con dos breakpoints
+              distintos (1024 para el grid, 820 para la barra) habría una franja 820–1023px sin
+              NINGÚN total visible. */}
+          <div className="grid grid-cols-1 min-[820px]:grid-cols-3 gap-8">
             {/* Form */}
-            <div className="lg:col-span-2">
+            <div className="min-[820px]:col-span-2">
               {/* § COMPRA-FIDELIDAD-3 — la caja del formulario adopta el tratamiento de línea:
                   `ficha` (Onix) la aplana (sin radio, un filete arriba, como una ficha de
                   ledger); `tejido` (Las Chamisas) la deja en papel con borde punteado. */}
@@ -911,7 +1029,7 @@ export default function Checkout() {
                         resumen arriba al enviar"). Sólo aparece tras un intento de avanzar con
                         algo incompleto — nunca antes. */}
                     {intentoEnviar && camposInvalidosPaso1.length > 0 && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-[var(--chk-error)]">
                         <p className="font-medium mb-1">Revisa estos datos antes de continuar:</p>
                         <ul className="list-disc pl-4 space-y-0.5">
                           {camposInvalidosPaso1.map((c) => (
@@ -930,7 +1048,7 @@ export default function Checkout() {
                         `tejido`). Los campos pasan a `CampoFlotante` (rótulo flotante,
                         validación al salir del campo) — la MISMA regla de `errorVisible` que ya
                         regía `Field`, nada cambia en CUÁNDO se muestra un error. */}
-                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Contacto</p>
+                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--chk-tinta-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Contacto</p>
                     {/* CHECKOUT-LISTO-PARA-VENDER-1: orden reordenado a correo → celular → nombre
                         → apellido (§ refero-compra.md §3: "correo → celular/WhatsApp → nombre").
                         Departamento (ancho completo) → ciudad quedan más abajo, § el spec
@@ -964,7 +1082,7 @@ export default function Checkout() {
                     </div>
                     </div>
                     <div className="space-y-4 mt-6">
-                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Envío</p>
+                    <p className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--chk-tinta-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Envío</p>
                     <CampoFlotante
                       id="campo-departamento" label="Departamento" tipo="select" value={address.departamento}
                       onChange={selectDepartamento} onBlur={() => marcarTocado('campo-departamento')}
@@ -978,16 +1096,23 @@ export default function Checkout() {
                       opciones={[{ value: '', label: '', disabled: true }, ...COLOMBIA_DEPARTMENTS.map(d => ({ value: d, label: d }))]}
                       error={errorVisible('campo-departamento', 'Selecciona tu departamento.')}
                     />
-                    <CampoFlotante
-                      id="campo-ciudad" label="Ciudad" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })}
-                      onBlur={() => marcarTocado('campo-ciudad')} autoComplete="address-level2" linea={pasos}
-                      error={errorVisible('campo-ciudad', 'Ingresa tu ciudad.')}
-                    />
-                    <CampoFlotante
-                      id="campo-direccion" label="Dirección" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })}
-                      onBlur={() => marcarTocado('campo-direccion')} autoComplete="address-line1" linea={pasos}
-                      error={errorVisible('campo-direccion', 'Ingresa tu dirección.')}
-                    />
+                    {/* § COMPRA-FIDELIDAD-4 — Ciudad y Dirección EN UNA FILA en escritorio (≥820px,
+                        medido en `onix-entrega.png`/`cham-1440-entrega-vacia.png`: "CIUDAD O
+                        MUNICIPIO" | "DIRECCIÓN" lado a lado); apiladas en celular, como siempre.
+                        Nombre/Apellido NO se tocan acá — siguen siendo dos campos uno al lado del
+                        otro (§ el spec, "la regla no cambia"), ya lo eran antes de este slice. */}
+                    <div className="grid grid-cols-1 min-[820px]:grid-cols-2 gap-4">
+                      <CampoFlotante
+                        id="campo-ciudad" label="Ciudad" value={address.ciudad} onChange={v => setAddress({ ...address, ciudad: v })}
+                        onBlur={() => marcarTocado('campo-ciudad')} autoComplete="address-level2" linea={pasos}
+                        error={errorVisible('campo-ciudad', 'Ingresa tu ciudad.')}
+                      />
+                      <CampoFlotante
+                        id="campo-direccion" label="Dirección" value={address.linea1} onChange={v => setAddress({ ...address, linea1: v })}
+                        onBlur={() => marcarTocado('campo-direccion')} autoComplete="address-line1" linea={pasos}
+                        error={errorVisible('campo-direccion', 'Ingresa tu dirección.')}
+                      />
+                    </div>
                     <CampoFlotante
                       id="campo-detalle" label="Apartamento, torre o indicaciones" value={address.detalle} onChange={v => setAddress({ ...address, detalle: v })}
                       autoComplete="address-line2" linea={pasos} tipo="textarea" maxLength={200} opcional
@@ -996,7 +1121,7 @@ export default function Checkout() {
                       <p className="text-sm font-semibold text-[var(--sf-tinta)]">Método de envío</p>
                       {/* Method, price and franja are derived from departamento. */}
                       {!shippingMethod ? (
-                        <p className="text-sm text-[var(--sf-texto-suave)] p-4 rounded-xl border-2 border-dashed border-[var(--sf-linea)]">
+                        <p className="text-sm text-[var(--chk-tinta-suave)] p-4 rounded-xl border-2 border-dashed border-[var(--sf-linea)]">
                           Selecciona tu departamento para ver el método y el costo de envío.
                         </p>
                       ) : (
@@ -1007,21 +1132,35 @@ export default function Checkout() {
                               tema es rojo (Onix). */}
                           {/* § COMPRA-FIDELIDAD-3 — el tratamiento de la opción de envío sigue al
                               de los métodos de pago, § refero.md: barra a la izquierda en Onix,
-                              pastel sólido en Las Chamisas. */}
+                              pastel sólido en Las Chamisas.
+                              § COMPRA-FIDELIDAD-4 — gana el RADIO relleno que la maqueta pinta
+                              (`onix-entrega.png`: "⬤ Envío estándar a Bogotá D.C."): hay un único
+                              método posible por departamento (determinista, sin elección real),
+                              así que el bullet queda SIEMPRE marcado — no es un control, es la
+                              misma afordancia visual que ya usan los métodos de pago, aplicada a
+                              la única opción de envío que existe. */}
                           <div className={
                             pasos === 'ficha'
-                              ? 'flex items-center justify-between p-4 rounded-none border-l-[3px] border-y border-r border-[var(--sf-tinta)] bg-[var(--sf-fondo)]'
+                              ? 'flex items-start gap-3 p-4 rounded-none border-l-[3px] border-y border-r border-[var(--sf-tinta)] bg-[var(--sf-fondo)]'
                               : pasos === 'tejido'
-                                ? 'flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-emerald-50'
-                                : 'flex items-center justify-between p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5'
+                                ? 'flex items-start gap-3 p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-emerald-50'
+                                : 'flex items-start gap-3 p-4 rounded-xl border-2 border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5'
                           }>
-                            <div>
-                              <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
-                              <span className="block text-xs text-[var(--sf-texto-suave)]">{shippingMethod.description}</span>
+                            <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[var(--sf-tinta)]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--sf-tinta)]" />
+                            </span>
+                            <div className="min-w-0 flex-1 flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <span className="block text-sm font-medium text-[var(--sf-tinta)]">{shippingMethod.label}</span>
+                                <span className="block text-xs text-[var(--chk-tinta-suave)]">{shippingMethod.description}</span>
+                              </div>
+                              <span className="text-sm font-bold text-[var(--sf-tinta)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
                             </div>
-                            <span className="text-sm font-bold text-[var(--sf-tinta)] shrink-0">{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}</span>
                           </div>
-                          {/* Franja horaria — required for Bogotá D.C., framed as a preference */}
+                          {/* Franja horaria — required for Bogotá D.C., framed as a preference.
+                              § COMPRA-FIDELIDAD-4: "se queda debajo, con el mismo estilo" (§ el
+                              spec, punto 6) — sin cambios de forma, sólo el error migra a
+                              `--chk-error` (§ el docstring de cabecera). */}
                           {isBogota && shippingMethod.slots && (
                             <div id="campo-franja" tabIndex={-1} className="mt-3 ml-4 pl-4 border-l-2 border-[var(--sf-linea)] space-y-2">
                               <p className="text-xs font-semibold text-[var(--sf-texto)]">Franja horaria *</p>
@@ -1032,7 +1171,7 @@ export default function Checkout() {
                                 </label>
                               ))}
                               {errorVisible('campo-franja', 'Elige una franja horaria.') && (
-                                <p className="text-xs text-red-600">Elige una franja horaria.</p>
+                                <p className="text-xs text-[var(--chk-error)]">Elige una franja horaria.</p>
                               )}
                             </div>
                           )}
@@ -1127,7 +1266,7 @@ export default function Checkout() {
                         {pasos === 'ficha' ? 'Editar' : 'Cambiar'}
                       </button>
                     </div>
-                    <h2 className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-texto-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Método de pago</h2>
+                    <h2 className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--chk-tinta-suave)] font-semibold mb-3' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-3' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Método de pago</h2>
                     {availablePayments.length === 0 && !pasarelaOfrecida ? (
                       // Guarda defensiva: el dueño apagó TODOS los métodos (o ninguno tiene datos). El
                       // editor exige ≥1 encendido, así que casi no pasa —pero el checkout no puede quedar
@@ -1193,11 +1332,18 @@ export default function Checkout() {
                               <div key={opt.id} className={pasos === 'comun' ? filaClase : undefined}>
                                 <label className={pasos === 'comun' ? 'flex items-start gap-3 p-4' : filaClase}>
                                   {/* CHECKOUT-LISTO-PARA-VENDER-1: selección en TINTA, no en el acento del
-                                      botón principal (§ el spec: "la selección… va en tinta"). */}
-                                  <input type="radio" name="payment" value={opt.id} checked={elegido} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
+                                      botón principal (§ el spec: "la selección… va en tinta").
+                                      § COMPRA-FIDELIDAD-4 — Onix usa CASILLA CUADRADA, no el radio
+                                      redondo nativo (medido en `onix-pago.png`: los cinco métodos
+                                      llevan un cuadrado, nunca un círculo). El input sigue siendo
+                                      un `<input type=radio>` real —teclado, foco, grupo— sólo que
+                                      se esconde visualmente (`sr-only`) y `IndicadorMetodoPago`
+                                      pinta el cuadrado al lado. */}
+                                  <input type="radio" name="payment" value={opt.id} checked={elegido} onChange={() => { setPayment(opt.id); setPasarelaSeleccionada(false); }} disabled={bloqueoMetodoDePago} className={pasos === 'ficha' ? 'sr-only' : 'mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none'} />
+                                  {pasos === 'ficha' && <IndicadorMetodoPago elegido={elegido} />}
                                   <div className="min-w-0 flex-1">
                                     <p className="text-sm font-semibold text-[var(--sf-tinta)]">{opt.label}</p>
-                                    <p className="text-xs text-[var(--sf-texto-suave)]">{opt.desc}</p>
+                                    <p className="text-xs text-[var(--chk-tinta-suave)]">{opt.desc}</p>
                                   </div>
                                 </label>
                                 {/* EL PANEL — `grid-template-rows: 0fr → 1fr` (refero.md §2/§3), sólo
@@ -1237,10 +1383,11 @@ export default function Checkout() {
                                   ? `flex items-start gap-3 p-4 rounded-2xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-emerald-50' : 'border-[var(--sf-linea)]'}`
                                   : `flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${bloqueoMetodoDePago ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${pasarelaSeleccionada ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]/5' : 'border-[var(--sf-linea)]'}`
                             }>
-                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className="mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none" />
+                              <input type="radio" name="payment" checked={pasarelaSeleccionada} onChange={() => setPasarelaSeleccionada(true)} disabled={bloqueoMetodoDePago} className={pasos === 'ficha' ? 'sr-only' : 'mt-0.5 accent-[var(--sf-tinta)] disabled:pointer-events-none'} />
+                              {pasos === 'ficha' && <IndicadorMetodoPago elegido={pasarelaSeleccionada} />}
                               <div>
                                 <p className="text-sm font-semibold text-[var(--sf-tinta)]">{ETIQUETA_PAGO_PASARELA}</p>
-                                <p className="text-xs text-[var(--sf-texto-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
+                                <p className="text-xs text-[var(--chk-tinta-suave)]">{subtituloPagoPasarela(bloquePasarela.metodosOtros)}</p>
                               </div>
                             </label>
                           )}
@@ -1274,7 +1421,7 @@ export default function Checkout() {
                                 type="button"
                                 onClick={() => comprobanteInputRef.current?.click()}
                                 disabled={bloqueoMetodoDePago}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--sf-linea)] rounded-xl text-sm text-[var(--sf-texto-suave)] hover:border-[var(--sf-tinta)] hover:text-[var(--sf-texto)] transition-colors disabled:opacity-60 disabled:pointer-events-none"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--sf-linea)] rounded-xl text-sm text-[var(--chk-tinta-suave)] hover:border-[var(--sf-tinta)] hover:text-[var(--sf-texto)] transition-colors disabled:opacity-60 disabled:pointer-events-none"
                               >
                                 <Paperclip className="w-4 h-4" /> Adjuntar comprobante
                               </button>
@@ -1285,18 +1432,18 @@ export default function Checkout() {
                                   <img src={comprobantePreviewUrl} alt="Vista previa del comprobante" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                                 ) : (
                                   <span className="w-12 h-12 rounded-lg bg-[var(--sf-superficie)] flex items-center justify-center shrink-0">
-                                    <FileText className="w-5 h-5 text-[var(--sf-texto-suave)]" />
+                                    <FileText className="w-5 h-5 text-[var(--chk-tinta-suave)]" />
                                   </span>
                                 )}
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs font-medium text-[var(--sf-tinta)] truncate">{comprobanteFile.name}</p>
-                                  <p className="text-xs text-[var(--sf-texto-suave)]">{formatearTamano(comprobanteFile.size)}</p>
+                                  <p className="text-xs text-[var(--chk-tinta-suave)]">{formatearTamano(comprobanteFile.size)}</p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={quitarComprobante}
                                   disabled={bloqueoMetodoDePago}
-                                  className="p-1.5 rounded-lg hover:bg-[var(--sf-superficie)] text-[var(--sf-texto-suave)] disabled:opacity-60 disabled:pointer-events-none shrink-0"
+                                  className="p-1.5 rounded-lg hover:bg-[var(--sf-superficie)] text-[var(--chk-tinta-suave)] disabled:opacity-60 disabled:pointer-events-none shrink-0"
                                   aria-label="Quitar comprobante"
                                 >
                                   <X className="w-4 h-4" />
@@ -1304,9 +1451,9 @@ export default function Checkout() {
                               </div>
                             )}
                             {comprobanteErrorSeleccion ? (
-                              <p className="mt-1 text-xs text-red-600">{comprobanteErrorSeleccion}</p>
+                              <p className="mt-1 text-xs text-[var(--chk-error)]">{comprobanteErrorSeleccion}</p>
                             ) : (
-                              <p className="mt-1 text-xs text-[var(--sf-texto-suave)]">Opcional — ayuda a confirmar tu pago más rápido.</p>
+                              <p className="mt-1 text-xs text-[var(--chk-tinta-suave)]">Opcional — ayuda a confirmar tu pago más rápido.</p>
                             )}
                           </div>
                         )}
@@ -1386,7 +1533,7 @@ export default function Checkout() {
                     )}
                     <div
                       id="casilla-terminos"
-                      className={`rounded-xl p-3 transition-colors ${terminosResaltado ? 'ring-2 ring-red-400' : ''}`}
+                      className={`rounded-xl p-3 transition-colors ${terminosResaltado ? 'ring-2 ring-[var(--chk-error)]' : ''}`}
                     >
                       <label className="flex items-start gap-2.5 text-xs text-[var(--sf-texto)] cursor-pointer">
                         <input
@@ -1402,7 +1549,7 @@ export default function Checkout() {
                         </span>
                       </label>
                       {terminosResaltado && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">Marca esta casilla para continuar.</p>
+                        <p className="mt-1 text-xs text-[var(--chk-error)]" role="alert">Marca esta casilla para continuar.</p>
                       )}
                     </div>
                     {!confirmation && (
@@ -1431,99 +1578,139 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* Order Summary */}
-            <div>
-              <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-5 sticky top-20">
-                <h3 className="font-semibold text-[var(--sf-tinta)] mb-4">Resumen del pedido</h3>
-                {confirmation ? (
-                  // CHECKOUT-PAGO-EN-EL-PASO-1: con la orden de pasarela ya creada (§ el paso de
-                  // pago, arriba) el carrito ya se vació —`clearCart()` en `handleOrder`—, así que
-                  // este resumen deja de leer el carrito EN VIVO (mostraría $0/vacío) y pasa a leer
-                  // la orden que el servidor confirmó: la MISMA fuente que usa la pantalla "¡Pedido
-                  // recibido!" para el resto de los métodos de pago (arriba en el archivo). Llegar
-                  // acá con `confirmation` truthy sólo puede ser la rama de pasarela en curso — las
-                  // otras dos (métodos manuales, `metodo_no_habilitado`) ya devolvieron esa pantalla
-                  // completa antes de alcanzar este layout.
-                  <>
-                    {/* § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1: la miniatura vuelve, con el MISMO
-                        tratamiento que la rama del carrito de abajo (mismo tamaño, misma forma,
-                        misma posición) — copiado, no reinventado. `imagenPortada` cae al
-                        placeholder de marca si `producto_imagen` viene vacía (producto sin foto,
-                        o una orden anterior a este slice, que nace sin instantánea): la línea
-                        sigue dibujándose, nunca una imagen rota. */}
-                    <div className="space-y-3 mb-4">
-                      {confirmation.items.map((item, i) => (
-                        <div key={i} className="flex gap-3">
-                          <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
-                            <img src={imagenPortada(item.producto_imagen)} alt={item.producto_nombre} className="w-full h-full object-cover" />
+            {/* § COMPRA-FIDELIDAD-4 — LA COLUMNA «TU PEDIDO» (§ el spec, punto 2; medido contra
+                `onix-entrega.png`/`cham-1440-entrega-vacia.png`). SÓLO EN ESCRITORIO
+                (`hidden min-[820px]:block`): en celular el mismo total y el mismo botón viven en
+                la barra fija de abajo (§ más abajo) — las dos a la vez duplicarían el CTA. El
+                resumen plegable de arriba (`resumenAbierto`, sin cambios de esta tanda seguía
+                siendo correcto) sigue cubriendo el celular. */}
+            <div className="hidden min-[820px]:block">
+              <div className="sticky top-20 space-y-4">
+                <div className="bg-[var(--sf-tarjeta)] rounded-2xl sf-borde border-[var(--sf-linea)] p-5">
+                  <h3 className={pasos === 'ficha' ? 'text-xs uppercase tracking-[0.18em] text-[var(--sf-tinta)] font-semibold mb-4' : pasos === 'tejido' ? 'font-playfair text-lg text-[var(--sf-tinta)] mb-4' : 'font-semibold text-[var(--sf-tinta)] mb-4'}>Tu pedido</h3>
+                  {confirmation ? (
+                    // CHECKOUT-PAGO-EN-EL-PASO-1: con la orden de pasarela ya creada (§ el paso de
+                    // pago, arriba) el carrito ya se vació —`clearCart()` en `handleOrder`—, así que
+                    // este resumen deja de leer el carrito EN VIVO (mostraría $0/vacío) y pasa a leer
+                    // la orden que el servidor confirmó: la MISMA fuente que usa la pantalla "¡Pedido
+                    // recibido!" para el resto de los métodos de pago (arriba en el archivo). Llegar
+                    // acá con `confirmation` truthy sólo puede ser la rama de pasarela en curso — las
+                    // otras dos (métodos manuales, `metodo_no_habilitado`) ya devolvieron esa pantalla
+                    // completa antes de alcanzar este layout.
+                    <>
+                      {/* § CHECKOUT-RESUMEN-PIERDE-LA-FOTO-1 + § COMPRA-FIDELIDAD-4: la miniatura
+                          gana el GLOBO DE CANTIDAD (medido en `onix-entrega.png`: "①"/"②" sobre la
+                          esquina de la foto) y la variante pasa a su propia línea debajo del
+                          nombre, en vez de ir pegada con "×N". Sin peso disponible en
+                          `CheckoutResultItem` (`services/checkout.service.ts`, fuera de
+                          `touches:`) — sólo se muestra la molienda cuando existe; no se inventa un
+                          dato que la orden confirmada no snapshotea. */}
+                      <div className="space-y-3 mb-4">
+                        {confirmation.items.map((item, i) => (
+                          <div key={i} className="flex gap-3">
+                            <div className="relative w-12 h-12 shrink-0">
+                              <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)]">
+                                <img src={imagenPortada(item.producto_imagen)} alt={item.producto_nombre} className="w-full h-full object-cover" />
+                              </div>
+                              <span aria-hidden="true" className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--sf-tinta)] text-[9px] font-bold text-[var(--sf-fondo)]">
+                                {item.cantidad}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0 flex justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-[var(--sf-tinta)] truncate">{item.producto_nombre}</p>
+                                {item.moliendaSeleccionada && (
+                                  <p className="text-[11px] uppercase tracking-wide text-[var(--chk-tinta-suave)]">{item.moliendaSeleccionada}</p>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-xs font-medium text-[var(--sf-tinta)]">{formatCOP(item.subtotal)}</span>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0 flex justify-between text-xs text-[var(--sf-texto)]">
-                            <span className="min-w-0 truncate pr-2">
-                              {item.producto_nombre}
-                              {item.moliendaSeleccionada ? ` · ${item.moliendaSeleccionada}` : ''} × {item.cantidad}
-                            </span>
-                            <span className="shrink-0 font-medium">{formatCOP(item.subtotal)}</span>
-                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
+                        <div className="flex justify-between text-[var(--sf-texto)]">
+                          <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
                         </div>
-                      ))}
-                    </div>
-                    <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                      <div className="flex justify-between text-[var(--sf-texto)]">
-                        <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-[var(--sf-texto)]">
-                        <span>Envío</span>
-                        <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
-                        <span>Total</span><span>{formatCOP(confirmation.total)}</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-3 mb-4">
-                      {items.map(item => {
-                        const sinStock = sinStockIds.includes(item.id);
-                        return (
-                        <div key={item.key} className={`flex gap-3 ${sinStock ? 'sf-radio-lg -mx-1 px-1 ring-1 ring-red-300 bg-red-50/60' : ''}`}>
-                          <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)] shrink-0">
-                            <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>
-                            {typeof item.options?.molienda === 'string' && (
-                              <p className="text-xs text-[var(--sf-tostado-3)]">Molienda: {item.options.molienda}</p>
-                            )}
-                            <p className="text-xs text-[var(--sf-texto-suave)]">× {item.quantity}</p>
-                            {sinStock && (
-                              <p className="text-xs font-medium text-red-600 mt-0.5">Cantidad no disponible</p>
-                            )}
-                          </div>
-                          <p className="text-xs font-bold text-[var(--sf-tinta)] shrink-0">{formatCOP(item.precio * item.quantity)}</p>
+                        <div className="flex justify-between text-[var(--sf-texto)]">
+                          <span>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
+                          <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
                         </div>
-                        );
-                      })}
-                    </div>
-                    <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                      <div className="flex justify-between text-[var(--sf-texto)]">
-                        <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
                       </div>
-                      <div className="flex justify-between text-[var(--sf-texto)]">
-                        <span>Envío</span>
-                        {shippingCost === null
-                          ? <span className="text-[var(--sf-texto-suave)]">Selecciona departamento</span>
-                          : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-3 mb-4">
+                        {items.map(item => {
+                          const sinStock = sinStockIds.includes(item.id);
+                          const variante = [
+                            typeof item.options?.molienda === 'string' ? item.options.molienda : null,
+                            typeof item.peso_gramos === 'number' ? `${item.peso_gramos} g` : null,
+                          ].filter((v): v is string => v !== null).join(' · ');
+                          return (
+                          <div key={item.key} className={`flex gap-3 ${sinStock ? 'sf-radio-lg -mx-1 px-1 ring-1 ring-[var(--chk-error)] bg-red-50/60' : ''}`}>
+                            <div className="relative w-12 h-12 shrink-0">
+                              <div className="w-12 h-12 sf-radio-lg overflow-hidden bg-[var(--sf-superficie)]">
+                                <img src={imagenPortada(item.imagen)} alt={item.nombre} className="w-full h-full object-cover" />
+                              </div>
+                              <span aria-hidden="true" className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--sf-tinta)] text-[9px] font-bold text-[var(--sf-fondo)]">
+                                {item.quantity}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0 flex justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-[var(--sf-tinta)] line-clamp-2">{item.nombre}</p>
+                                {variante && (
+                                  <p className="text-[11px] uppercase tracking-wide text-[var(--chk-tinta-suave)]">{variante}</p>
+                                )}
+                                {sinStock && (
+                                  <p className="text-xs font-medium text-[var(--chk-error)] mt-0.5">Cantidad no disponible</p>
+                                )}
+                              </div>
+                              <p className="shrink-0 text-xs font-bold text-[var(--sf-tinta)]">{formatCOP(item.precio * item.quantity)}</p>
+                            </div>
+                          </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex justify-between font-bold text-[var(--sf-tinta)] text-base pt-1 sf-divisor-t border-[var(--sf-linea)]">
-                        <span>Total</span>
-                        <motion.span key={total} initial={reduceMovimiento ? false : { opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
-                          {formatCOP(total)}
-                        </motion.span>
+                      <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
+                        <div className="flex justify-between text-[var(--sf-texto)]">
+                          <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-[var(--sf-texto)]">
+                          <span>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
+                          {shippingCost === null
+                            ? <span className="text-[var(--chk-tinta-suave)]">Se calcula con tu departamento</span>
+                            : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
+                {/* § COMPRA-FIDELIDAD-4 — EL BLOQUE OSCURO DEL TOTAL (§ el spec, punto 2; medido en
+                    `onix-entrega.png`/`cham-1440-pago.png`): "Total $X" grande + "envío… incluido"
+                    + el botón ADENTRO + "Falta: …"/"Todo listo para pagar" debajo. Reusa
+                    `accionBarraFija`/`verboBarraFija`/`loading` de la barra fija de celular —NUNCA
+                    una segunda copia de esa lógica—; en escritorio ESTE botón es el real, la barra
+                    de abajo no se renderiza (`min-[820px]:hidden`). Cuando `accionBarraFija` es
+                    `null` (el widget de Wompi o `SelectorMetodoPasarela` ya tienen su propio botón
+                    en pantalla) este bloque tampoco ofrece uno — mismo criterio que la barra. */}
+                <div className={pasos === 'ficha' ? 'rounded-none bg-[var(--sf-tinta)] p-5 text-[var(--sf-fondo)]' : 'rounded-2xl bg-[var(--sf-tinta)] p-5 text-[var(--sf-fondo)]'}>
+                  <p className={pasos === 'tejido' ? 'font-playfair text-2xl font-bold' : 'text-2xl font-bold'}>
+                    Total {formatCOP(montoAPagar)}
+                  </p>
+                  <p className="mt-0.5 text-xs opacity-70">{envioLineaColumna}</p>
+                  {accionBarraFija && (
+                    <button
+                      onClick={accionBarraFija}
+                      disabled={loading}
+                      className="mt-4 w-full rounded-xl bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none py-3.5 text-sm font-bold text-[var(--sf-acento-txt)] transition-colors"
+                    >
+                      {loading ? 'Procesando…' : verboBarraFija}
+                    </button>
+                  )}
+                  <p className="mt-2.5 text-center text-[11px] opacity-70">{textoFaltaColumna}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1531,16 +1718,21 @@ export default function Checkout() {
 
         {/* CHECKOUT-LISTO-PARA-VENDER-1 — LA BARRA DE TOTAL FIJA (§ el spec del slice, §
             refero-compra.md §3): "Total $X · envío a [departamento] incluido" + el botón con
-            el VERBO del método, en LOS DOS pasos, en escritorio y en celular. El botón
-            DESAPARECE (nunca se deshabilita mudo) cuando la acción real vive en un control
-            ajeno que ya está en pantalla — el widget de Wompi inyectado por el proveedor, o el
-            formulario propio de `SelectorMetodoPasarela` que valida sus propios campos antes
-            de poder confirmar (§ CHECKOUT-UNA-SOLA-PANTALLA-1: "el único botón que confirma
-            dice cuánto se paga" — duplicarlo acá sería un segundo botón compitiendo con ése). */}
-        <div className="fixed bottom-0 inset-x-0 z-30 bg-[var(--sf-tarjeta)] sf-divisor-t border-[var(--sf-linea)] px-4 py-3">
+            el VERBO del método. El botón DESAPARECE (nunca se deshabilita mudo) cuando la
+            acción real vive en un control ajeno que ya está en pantalla — el widget de Wompi
+            inyectado por el proveedor, o el formulario propio de `SelectorMetodoPasarela` que
+            valida sus propios campos antes de poder confirmar (§ CHECKOUT-UNA-SOLA-PANTALLA-1:
+            "el único botón que confirma dice cuánto se paga" — duplicarlo acá sería un segundo
+            botón compitiendo con ése).
+            § COMPRA-FIDELIDAD-4 — SÓLO EN CELULAR (`min-[820px]:hidden`, § el spec, punto 3): en
+            escritorio tapaba el formulario ("en TODOS los anchos", medido contra la maqueta, que
+            la gatea a <820px); el botón real de escritorio vive ahora en el bloque oscuro de la
+            columna «Tu pedido» (arriba), que reusa ESTE MISMO `accionBarraFija`/`verboBarraFija`
+            — nunca una segunda definición de la acción. */}
+        <div className="fixed bottom-0 inset-x-0 z-30 bg-[var(--sf-tarjeta)] sf-divisor-t border-[var(--sf-linea)] px-4 py-3 min-[820px]:hidden">
           <div className={`${contenedorClase} mx-auto flex items-center justify-between gap-4`}>
             <div className="min-w-0">
-              <p className="text-xs text-[var(--sf-texto-suave)] truncate">
+              <p className="text-xs text-[var(--chk-tinta-suave)] truncate">
                 {address.departamento ? `Envío a ${address.departamento} incluido` : 'Envío por confirmar'}
               </p>
               <motion.p
@@ -1569,6 +1761,23 @@ export default function Checkout() {
 // `CampoFlotante` (§ `components/storefront/checkout/CampoFlotante.tsx`, el rótulo flotante de
 // refero.md §2). Un componente sin un solo consumidor es la misma mina inerte de siempre
 // (§ CLAUDE.md, `Customer.activo`/`Product.agotado`) — se borra, no se deja ambiguo.
+
+// § COMPRA-FIDELIDAD-4 — LA CASILLA CUADRADA de los métodos de pago de Onix (§ el spec, punto 5;
+// medido en `onix-pago.png`: los cinco métodos llevan un cuadrado con "✓" cuando están elegidos,
+// nunca el círculo del radio nativo). Puramente VISUAL — el `<input type=radio>` real sigue
+// montado al lado (`sr-only`), así que teclado/foco/grupo de radios no cambian; esto sólo pinta.
+function IndicadorMetodoPago({ elegido }: { elegido: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border ${
+        elegido ? 'border-[var(--sf-tinta)] bg-[var(--sf-tinta)]' : 'border-[var(--chk-tinta-suave)]'
+      }`}
+    >
+      {elegido && <Check className="h-3 w-3 text-[var(--sf-fondo)]" strokeWidth={3} />}
+    </span>
+  );
+}
 
 // EL BOTÓN «COPIAR» (§ refero.md §2/§3, "«Copiar»… pasa a «Copiado ✓» por 2 segundos, con
 // `aria-live`"). Copia el TEXTO que el método ya muestra (`opt.desc`/cada línea de `opt.cuentas`,
