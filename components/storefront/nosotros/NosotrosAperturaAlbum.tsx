@@ -133,7 +133,10 @@ export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen,
         {/* TEXTO — primero en celular Y en escritorio-izquierda (§ el ajuste 3, arriba). */}
         <div className="order-1 flex flex-col gap-4 lg:pb-7">
           {eyebrow.trim() !== '' && (
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-tinta)]/70">
+            // SIN opacidad (§ CHAMISAS-NOSOTROS-MAQUETA-1 — medido: `.eyb{color:var(--ink)}`, la
+            // MISMA clase que usan el eyebrow de «Láminas» y de la Ficha, los dos en tinta plena, sin
+            // el `/70` que sólo tenía éste).
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-tinta)]">
               <CampoEditable campo="nosotrosApertura.rotuloIzquierda">{eyebrow}</CampoEditable>
             </p>
           )}

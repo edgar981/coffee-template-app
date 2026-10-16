@@ -44,8 +44,10 @@ export default function NosotrosHistoriaPartida() {
           <CampoEditable campo="nosotrosHistoria.titulo">{titulo}</CampoEditable>
         </p>
         {/* EL FILETE — horizontal en celular (border-top), vertical en escritorio (border-left,
-            `lg:self-stretch` para que llegue al alto de la fila). */}
-        <span aria-hidden="true" className="block border-t border-dashed border-[var(--sf-tinta)]/30 lg:h-full lg:self-stretch lg:border-t-0 lg:border-l" />
+            `lg:self-stretch` para que llegue al alto de la fila). GROSOR 2px (§ CHAMISAS-NOSOTROS-
+            MAQUETA-1 — medido: `.sin .rule{border-top:2px dashed}`/`border-left:2px dashed}`; el
+            `border-t`/`border-l` sin número de Tailwind son 1px, la mitad del grosor de la maqueta). */}
+        <span aria-hidden="true" className="block border-t-2 border-dashed border-[var(--sf-tinta)]/30 lg:h-full lg:self-stretch lg:border-t-0 lg:border-l-2" />
         <div className="grid grid-cols-1 gap-[14px]">
           <p className="max-w-[52ch] text-base leading-[1.65] text-[var(--sf-tinta)]">
             <CampoEditable campo="nosotrosHistoria.parrafo1" multilinea>{parrafo1}</CampoEditable>

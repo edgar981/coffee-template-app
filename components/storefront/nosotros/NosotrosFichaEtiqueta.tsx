@@ -67,13 +67,21 @@
 // 2. EL COLOR DE LA TARJETA ERA `--sf-superficie` — la maqueta usa `--paper` (`.fic-card{background:
 //    var(--paper)}`), un crema más CLARO que `--surface`. `--sf-papel` (`app/globals.css`) es su
 //    equivalente ya tokenizado en este repo (el mismo matiz, "levemente distinto de `--sf-fondo`").
-// 3. LA SECCIÓN NO TENÍA AIRE ANTES DEL INTERLUDIO — medido en captura real: el fondo oscuro de
-//    `NosotrosInterludioStickers` arranca en el mismo punto donde termina la tarjeta de la ficha,
-//    sin un solo píxel de crema entre medio. La causa no es esta pieza (que, como la maqueta,
-//    sólo lleva padding-TOP, nunca inferior — el `.fic{padding:72px 0 0}` de la maqueta tampoco lo
-//    tiene): es que `NosotrosInterludioStickers` pinta su fondo oscuro con `py-*` (padding, que el
-//    propio color de fondo rellena) donde la maqueta usa `margin` (`.inter{margin:80px 0 0}`, que
-//    SÍ deja ver el fondo del padre antes). El fix vive en ese archivo, no en éste.
+// 3. LA SECCIÓN NO TENÍA AIRE ANTES DEL INTERLUDIO — medido en captura real: el fondo (entonces
+//    oscuro, § la corrección de abajo) de `NosotrosInterludioStickers` arrancaba en el mismo punto
+//    donde terminaba la tarjeta de la ficha, sin un solo píxel de crema entre medio. La causa no es
+//    esta pieza (que, como la maqueta, sólo lleva padding-TOP, nunca inferior — el `.fic{padding:72px
+//    0 0}` de la maqueta tampoco lo tiene): era que `NosotrosInterludioStickers` pintaba su fondo con
+//    `py-*` (padding, que el propio color de fondo rellena) donde la maqueta usa `margin`
+//    (`.inter{margin:80px 0 0}`, que SÍ deja ver el fondo del padre antes). El fix vive en ese
+//    archivo, no en éste.
+//
+//    CORRECCIÓN (§ CHAMISAS-NOSOTROS-MAQUETA-1): "el fondo OSCURO de `NosotrosInterludioStickers`"
+//    (arriba) describía el estado de § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1, sin re-verificar contra
+//    la maqueta vigente — medido de nuevo (tres fuentes: el HTML, la captura del owner y
+//    `v-d-nosotros.jpg`), esa sección es CREMA, no oscura; sólo la franja de tejido (delgada, a
+//    sangre) cruza detrás de las tarjetas. El punto 3 de arriba (margen vs. padding) sigue siendo
+//    correcto y no se tocó; sólo el color del fondo que describía estaba mal.
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { MapPin, Mountain, Sprout, Droplet, Calendar, Users, Coffee, Package, Minus, type LucideIcon } from 'lucide-react';
 import { filasCompletas } from '@/lib/tienda/creditos';
