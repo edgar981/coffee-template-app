@@ -66932,3 +66932,111 @@ líneas ≤2596, mi única inserción en ese archivo es un `+30` al final, líne
 JSX). Capturado en navegador real, documentado sin suavizar en
 `.scratch/preguntas-frecuentes/arreglos/README.md`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-16 — Tercera pasada de Entrega y Pago: el acento deja de teñir texto de lectura, el
+## total de Las Chamisas entra a la tarjeta clara, Onix en versal (`COMPRA-FIDELIDAD-5`)
+
+**Alcance:** cerrar lo que `COMPRA-FIDELIDAD-4` (entrada anterior de este libro) dejó distinto de
+la MISMA maqueta aprobada (`.scratch/checkout-rediseno/maqueta.html`, artefacto
+`CSjTi5aoW3C5hiRi3xRjhj`) — tres puntos nombrados por el spec: los textos de resumen (subtotal,
+envío, datos de Entrega, +57, «Comprobante») en tinta en vez del color de acento; el bloque del
+total de Las Chamisas claro como su maqueta (hoy compartía el bloque oscuro de Onix); el botón de
+Onix en versal. El dinero no se tocó: `lib/checkout/metodos-pago.ts`,
+`lib/checkout/pasarela-disponible.ts`, `app/api/**`, `packages/core/src/**` — `git diff` vacío
+sobre cada uno.
+
+### Punto 1 — `--sf-sobre-superficie(-suave)` es tan acento-derivado como `--sf-texto`
+
+`COMPRA-FIDELIDAD-4` ya había creado `--chk-tinta-suave` (neutro, `mezclar(tinta,fondo)`) para los
+rótulos/ayudas de los campos, pero cuatro sitios seguían leyendo roles de la paleta compartida que
+NO son neutros: el rótulo+valor de «Subtotal»/«Envío a …» (`--sf-texto`), el «+57» del celular
+(`--sf-texto-suave`, `CampoFlotante.tsx`), las cuatro líneas del bloque plegado de Entrega en el
+paso de Pago (`--sf-sobre-superficie`/`-suave`) y el rótulo «Comprobante» (`--sf-texto`). Medido en
+`lib/config/palette-derive.ts` (fuera de `touches:`, sólo LEÍDO): `sobre-superficie`/`-suave` usan
+el MISMO peso que `texto`/`-suave` (`mezclar(acento,tinta,0.34/0.12)`, floreado contra
+`--sf-superficie` en vez de `--sf-fondo`) — para un cliente de raíces CUSTOM (Onix/Las Chamisas)
+ese par SÍ está definido (`derivarPaleta` lo inyecta siempre), así que su fallback a
+`--sf-tinta`/`--sf-texto-suave` nunca se alcanzaba. Confirmado por ejecución contra
+`.scratch/compra-fidelidad/pasada-2/app/onix-1440-pago-nequi.png` (ya en el repo, de
+`COMPRA-FIDELIDAD-4`): el bloque plegado entero —nombre en negrita incluido— salía en el mismo rojo
+del botón. Los cuatro sitios pasaron a `--sf-tinta` (valores/nombre) y `--chk-tinta-suave`
+(rótulos/datos secundarios), sin tocar `palette-derive.ts`.
+
+### Punto 2 — el total de Las Chamisas entra a la tarjeta clara; Onix y `comun` conservan el bloque oscuro
+
+El bloque "Total + botón + Falta" vivía como un `<div>` HERMANO de la tarjeta «Tu pedido», con su
+propio `bg-[var(--sf-tinta)]` — compartido por las TRES composiciones (`rounded-none` para `ficha`,
+`rounded-2xl` para `tejido`/`comun`). La maqueta de Las Chamisas (`cham-1440-pago-nequi.png` de
+`pasada-2/maqueta/`, sin cambios entre pasadas) muestra el total DENTRO de la misma tarjeta clara
+de «Tu pedido» —separado del resumen por un divisor, sin fondo propio—, con el botón oscurecido él
+mismo (`bg-[var(--sf-tinta)]`, bordes redondeados) para seguir leyéndose como CTA. Se condicionó por
+`pasos`: `tejido` renderiza el total DENTRO del `<div>` de la tarjeta (antes de su cierre), con su
+propio estilo claro; `ficha`/`comun` siguen con el `<div>` hermano oscuro, intacto — **`comun` no
+tiene maqueta propia** (§ `pasada-2/README.md`, "no hay un muestrario «común» desplegado que
+medir"), así que se dejó con el tratamiento que ya tenía, verificado sin regresión contra una
+corrida de control (`--sembrar-compra comun`, no incluida en `touches:` como entrega final, sólo
+como chequeo).
+
+### Punto 3 — el botón de Onix en versal, en los DOS sitios que reusan `accionBarraFija`
+
+`uppercase tracking-[0.08em]` condicionado a `pasos==='ficha'`, aplicado a los DOS botones que ya
+reusaban `accionBarraFija`/`verboBarraFija`/`loading` (el bloque de escritorio y la barra fija de
+celular) — una sola constante (`botonCTAClaseExtra`), no una tercera definición de "cómo se ve el
+CTA". Es presentación CSS (`text-transform`); no se tocó `verboBarraFija`/`verboCTACompra`
+(`lib/checkout/composiciones-compra.ts`, `lib/checkout/estado-pedido.ts`) — mismo texto, sólo cambia
+cómo se pinta, igual que "Contacto"→"CONTACTO" ya hace en el resto de `ficha`.
+
+### Lo que el spec describía y no se tocó: la línea del vendedor dentro de la tarjeta
+
+La maqueta (de las DOS tiendas, no sólo Las Chamisas) muestra "Vende … · NIT/C.C. …" DENTRO de la
+tarjeta del resumen, debajo del botón — y el punto 2 del spec la lista como parte de lo que esa
+tarjeta contiene. En la app esa misma línea YA EXISTE (`TIENDA-LEGAL-1`,
+`vendedorEstaCompleto`/`lineaVendedor`, `lib/legal/plantillas.ts`, fuera de `touches:`), pero vive
+en la columna principal del paso de Pago, no en la tarjeta del resumen. No se relocalizó: mover una
+pieza construida por otro slice a otra columna es una reestructuración distinta de un ajuste de
+color/tipografía/caja, y el spec no la nombra en su "surface" (sólo en la descripción de la
+maqueta). Documentado como hallazgo en `.scratch/compra-fidelidad/pasada-3/README.md`, no resuelto.
+Tampoco se tocaron "Tu información está segura…" ni el propio bloque «Vendedor» (mismo
+`--sf-sobre-superficie` acento-derivado que el punto 1 cerró en otros cuatro sitios) ni "Franja
+horaria \*"/el contador "0/200": ninguno está en la lista taxativa del punto 1.
+
+### Captura con el arnés
+
+`npm run capturar:seccion -- --sembrar-compra {onix,chamisas} --sin-prototipo --ancho {390,1440}
+--ruta /tienda --accion-previa abrir-carrito --ruta /checkout --accion-previa
+checkout-entrega-lleno --ruta /checkout --accion-previa checkout-pago-transferencia` (Postgres
+efímero, `next build`/`next start`, Playwright headless — 4 corridas, 3 estados cada una: carrito
+abierto, Entrega llena, Pago con Transferencia abierta), documentado punto por punto sin suavizar en
+`.scratch/compra-fidelidad/pasada-3/README.md`, junto a las capturas de la maqueta (reusadas de
+`pasada-2/maqueta/`, sin cambios).
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 1` (según el spec). Entra por `app/(storefront)/checkout/`/`components/storefront/
+checkout/` — bytes del visitante que cambian en TODA tienda con `content.compra.pasos` en
+`'ficha'`/`'tejido'` (el color de los textos de resumen, la forma del bloque de total en `tejido`,
+el versal del botón en `ficha`); `'comun'` (la canónica, el default) no cambia de estructura, sólo
+de color de rótulo/valor en la tarjeta «Tu pedido» (de acento-derivado a tinta neutra — más legible,
+mismo layout). **`customer_bytes.changed = true`.** Sin cambio de schema/migración (verificado: cero
+diff en `packages/core/prisma/`), sin contrato cruzado de repositorio, sin texto nuevo (todo el
+copy —"Subtotal", "Total", "Confirmar pedido", etc.— ya existía; lo que cambió es color/mayúsculas/
+posición en el layout).
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin mergear,
+"PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run gate` verde —
+`npm run typecheck` limpio, `npm test` **4990/4990** (sin cambio respecto a `PREGUNTAS-FRECUENTES-
+ARREGLOS-1`: este slice no agregó ni quitó un test), `npm run test:integracion` **415/415** (ídem,
+sin cambio). Wall time del `npm run gate` completo: **75.28 s** (`time npm run gate`). No es
+`GATE_RED`. `npm run lint` sobre los 2 archivos de este diff: `CampoFlotante.tsx` **0→0**
+(sin cambio); `app/(storefront)/checkout/page.tsx` **8→9 problemas (2→3 errores, 6 warnings sin
+cambio)** — UNA desviación medida, no silenciada: el error nuevo es `react-hooks/refs` ("Cannot
+access ref value during render") sobre el MISMO patrón pre-existente (`{accionBarraFija && (<button
+…>)}`, ya presente DOS veces en `HEAD`, ninguna tocada por este slice) — el bloque nuevo de Las
+Chamisas reusa `accionBarraFija`/`verboBarraFija`/`loading` tal como el comentario original de
+`COMPRA-FIDELIDAD-4` pedía ("Reusa… NUNCA una segunda copia de esa lógica"), y ESO es lo que produce
+la tercera ocurrencia del mismo error — no una categoría nueva. Verificado con `git show HEAD:… |
+npx eslint --stdin` contra `npx eslint` en el árbol de trabajo, los dos archivos. Capturado en
+navegador real, documentado sin suavizar en `.scratch/compra-fidelidad/pasada-3/README.md`.
+Commiteado en `slice/editor-secciones-1`, sin mergear.

@@ -823,6 +823,27 @@ export default function Checkout() {
     ? `Envío a ${address.departamento} incluido`
     : 'Se calcula con tu departamento';
 
+  // § COMPRA-FIDELIDAD-5 — el RÓTULO de «Subtotal»/«Envío a …» en la columna «Tu pedido» (§ el
+  // spec, punto 1: "en tinta y no en el color de acento… Onix: «SUBTOTAL» y «ENVÍO A …» en versal
+  // chica"). Onix (`ficha`) lo pinta en versal con tracking, como el resto de sus encabezados de
+  // grupo (`"Contacto"`, línea ~1051); Las Chamisas/común se quedan en frase normal — las DOS en
+  // `--chk-tinta-suave`, nunca `--sf-texto-suave` (deriva del acento, § el docstring de
+  // `--chk-tinta-suave` abajo). El VALOR de cada fila va en `--sf-tinta` directo en el JSX —no
+  // necesita este helper, es un solo token sin variante por composición.
+  const etiquetaResumenClase = pasos === 'ficha'
+    ? 'text-[10px] uppercase tracking-[0.12em] text-[var(--chk-tinta-suave)]'
+    : 'text-[var(--chk-tinta-suave)]';
+
+  // § COMPRA-FIDELIDAD-5 — el botón de Onix en VERSAL con tracking (§ el spec, punto 3; medido en
+  // `.scratch/checkout-rediseno/maqueta.html`, `onix-1440-pago-nequi.png`/`onix-390-entrega-llena.png`:
+  // "CONTINUAR AL PAGO"/"CONFIRMAR PEDIDO", siempre mayúsculas). Las Chamisas/común se quedan en
+  // frase normal ("Confirmar pedido"). Es presentación CSS (`uppercase`), no reescribe
+  // `verboBarraFija`/`verboCTACompra` — el texto sigue siendo el mismo, sólo cambia cómo se pinta,
+  // igual que "Contacto"→"CONTACTO" ya hace en el resto de `ficha`. Compartido por los DOS botones
+  // que reusan `accionBarraFija`/`verboBarraFija` (el bloque de escritorio y la barra fija de
+  // celular) — nunca una tercera definición de "cómo se ve el CTA".
+  const botonCTAClaseExtra = pasos === 'ficha' ? 'uppercase tracking-[0.08em]' : '';
+
   // § COMPRA-FIDELIDAD-4 — DOS roles de color que el checkout necesita y que la paleta compartida
   // (`lib/config/palette-derive.ts`, fuera de `touches:`) no ofrece tal cual:
   //   · `--chk-tinta-suave`: un gris/tinta SUAVE DE VERDAD. `--sf-texto-suave` deriva del ACENTO
@@ -1247,14 +1268,22 @@ export default function Checkout() {
                         ? 'mb-5 flex items-start justify-between gap-3 border-y border-[var(--sf-linea)] py-3 text-sm'
                         : 'mb-5 flex items-start justify-between gap-3 rounded-xl bg-[var(--sf-superficie)] p-4 text-sm'
                     }>
-                      <div className="min-w-0 space-y-0.5 text-[var(--sf-sobre-superficie,var(--sf-texto))]">
-                        <p className="font-medium text-[var(--sf-sobre-superficie,var(--sf-tinta))]">{info.nombre} {info.apellido}</p>
-                        <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">{info.email} · +57 {info.telefono}</p>
-                        <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">
+                      {/* § COMPRA-FIDELIDAD-5 — las líneas de este bloque dejan `--sf-sobre-superficie(-
+                          suave)` (§ el spec, punto 1): ese par resuelve `mezclar(acento,tinta,0.34/0.12)`
+                          para un cliente de raíces CUSTOM (Onix/Las Chamisas) — tan acento-derivado como
+                          `--sf-texto`/`-suave`, así que su FALLBACK nunca se alcanzaba y el bloque salía
+                          rojo igual (medido en `onix-1440-pago-nequi.png`, pasada-2). `--sf-tinta`/
+                          `--chk-tinta-suave` son neutros por construcción, legibles tanto sobre
+                          `--sf-fondo` (`ficha`, sin superficie propia) como sobre `--sf-superficie`
+                          (`tejido`/`comun`). */}
+                      <div className="min-w-0 space-y-0.5 text-[var(--sf-tinta)]">
+                        <p className="font-medium text-[var(--sf-tinta)]">{info.nombre} {info.apellido}</p>
+                        <p className="text-xs text-[var(--chk-tinta-suave)]">{info.email} · +57 {info.telefono}</p>
+                        <p className="text-xs text-[var(--chk-tinta-suave)]">
                           {address.linea1}{address.detalle ? `, ${address.detalle}` : ''}, {address.ciudad}, {address.departamento}
                         </p>
                         {shippingMethod && (
-                          <p className="text-xs text-[var(--sf-sobre-superficie-suave,var(--sf-texto-suave))]">
+                          <p className="text-xs text-[var(--chk-tinta-suave)]">
                             {shippingMethod.label} · {shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost!)}
                           </p>
                         )}
@@ -1402,7 +1431,11 @@ export default function Checkout() {
                             cliente.ts`), no un OR repetido de los cuatro ids a mano. */}
                         {!pasarelaSeleccionada && aceptaComprobanteCliente(metodoActivo) && (
                           <div>
-                            <label className="block text-xs font-medium text-[var(--sf-texto)] mb-1.5">Comprobante</label>
+                            {/* § COMPRA-FIDELIDAD-5 — el rótulo en tinta, no en `--sf-texto` (§ el spec,
+                                punto 1; `--sf-texto` deriva 66% del acento, § el docstring de
+                                `--chk-tinta-suave` abajo — medido rojo en `onix-1440-pago-nequi.png`).
+                                Mismo tratamiento que "Método de envío" (línea ~1145). */}
+                            <label className="block text-xs font-medium text-[var(--sf-tinta)] mb-1.5">Comprobante</label>
                             <input
                               ref={comprobanteInputRef}
                               type="file"
@@ -1629,12 +1662,12 @@ export default function Checkout() {
                         ))}
                       </div>
                       <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                        <div className="flex justify-between text-[var(--sf-texto)]">
-                          <span>Subtotal</span><span>{formatCOP(confirmation.subtotal)}</span>
+                        <div className="flex justify-between">
+                          <span className={etiquetaResumenClase}>Subtotal</span><span className="text-[var(--sf-tinta)]">{formatCOP(confirmation.subtotal)}</span>
                         </div>
-                        <div className="flex justify-between text-[var(--sf-texto)]">
-                          <span>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
-                          <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : ''}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
+                        <div className="flex justify-between">
+                          <span className={etiquetaResumenClase}>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
+                          <span className={confirmation.costo_envio === 0 ? 'text-emerald-600' : 'text-[var(--sf-tinta)]'}>{confirmation.costo_envio === 0 ? 'Gratis' : formatCOP(confirmation.costo_envio)}</span>
                         </div>
                       </div>
                     </>
@@ -1674,29 +1707,57 @@ export default function Checkout() {
                         })}
                       </div>
                       <div className="space-y-2 pt-3 sf-divisor-t border-[var(--sf-linea)] text-sm">
-                        <div className="flex justify-between text-[var(--sf-texto)]">
-                          <span>Subtotal</span><span>{formatCOP(subtotal)}</span>
+                        <div className="flex justify-between">
+                          <span className={etiquetaResumenClase}>Subtotal</span><span className="text-[var(--sf-tinta)]">{formatCOP(subtotal)}</span>
                         </div>
-                        <div className="flex justify-between text-[var(--sf-texto)]">
-                          <span>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
+                        <div className="flex justify-between">
+                          <span className={etiquetaResumenClase}>{address.departamento ? `Envío a ${address.departamento}` : 'Envío'}</span>
                           {shippingCost === null
                             ? <span className="text-[var(--chk-tinta-suave)]">Se calcula con tu departamento</span>
-                            : <span className={shippingCost === 0 ? 'text-emerald-600' : ''}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
+                            : <span className={shippingCost === 0 ? 'text-emerald-600' : 'text-[var(--sf-tinta)]'}>{shippingCost === 0 ? 'Gratis' : formatCOP(shippingCost)}</span>}
                         </div>
                       </div>
                     </>
                   )}
+                  {/* § COMPRA-FIDELIDAD-5 — Las Chamisas: el total vive DENTRO de la MISMA tarjeta
+                      clara de «Tu pedido» (§ el spec, punto 2; medido en
+                      `.scratch/compra-fidelidad/pasada-2/maqueta/cham-1440-pago-nequi.png`), no en un
+                      bloque oscuro aparte — antes compartía la rama `else` con `comun` (el mismo
+                      `rounded-2xl bg-[var(--sf-tinta)]` de Onix, sólo con la esquina redondeada). El
+                      botón se oscurece ÉL MISMO (`bg-[var(--sf-tinta)]`) para seguir leyéndose como el
+                      CTA, ya que la tarjeta ya no tiene fondo oscuro que lo resalte. */}
+                  {pasos === 'tejido' && (
+                    <div className="space-y-2.5 mt-4 pt-4 sf-divisor-t border-[var(--sf-linea)]">
+                      <p className="font-playfair text-2xl font-bold text-[var(--sf-tinta)]">
+                        Total {formatCOP(montoAPagar)}
+                      </p>
+                      <p className="text-xs text-[var(--chk-tinta-suave)]">{envioLineaColumna}</p>
+                      {accionBarraFija && (
+                        <button
+                          onClick={accionBarraFija}
+                          disabled={loading}
+                          className="mt-1.5 w-full rounded-xl bg-[var(--sf-tinta)] hover:opacity-90 active:opacity-80 disabled:opacity-60 disabled:pointer-events-none py-3.5 text-sm font-bold text-[var(--sf-fondo)] transition-opacity"
+                        >
+                          {loading ? 'Procesando…' : verboBarraFija}
+                        </button>
+                      )}
+                      <p className="text-center text-[11px] text-[var(--chk-tinta-suave)]">{textoFaltaColumna}</p>
+                    </div>
+                  )}
                 </div>
-                {/* § COMPRA-FIDELIDAD-4 — EL BLOQUE OSCURO DEL TOTAL (§ el spec, punto 2; medido en
-                    `onix-entrega.png`/`cham-1440-pago.png`): "Total $X" grande + "envío… incluido"
-                    + el botón ADENTRO + "Falta: …"/"Todo listo para pagar" debajo. Reusa
-                    `accionBarraFija`/`verboBarraFija`/`loading` de la barra fija de celular —NUNCA
-                    una segunda copia de esa lógica—; en escritorio ESTE botón es el real, la barra
-                    de abajo no se renderiza (`min-[820px]:hidden`). Cuando `accionBarraFija` es
-                    `null` (el widget de Wompi o `SelectorMetodoPasarela` ya tienen su propio botón
-                    en pantalla) este bloque tampoco ofrece uno — mismo criterio que la barra. */}
+                {/* § COMPRA-FIDELIDAD-4/5 — EL BLOQUE OSCURO DEL TOTAL, SÓLO PARA `ficha`/`comun`
+                    (§ el spec, punto 2: "El bloque oscuro queda sólo para Onix" — `comun` no tiene
+                    maqueta propia, § `pasada-2/README.md`, así que se deja con el tratamiento que ya
+                    tenía). "Total $X" grande + "envío… incluido" + el botón ADENTRO + "Falta: …"/"Todo
+                    listo para pagar" debajo. Reusa `accionBarraFija`/`verboBarraFija`/`loading` de la
+                    barra fija de celular —NUNCA una segunda copia de esa lógica—; en escritorio ESTE
+                    botón es el real, la barra de abajo no se renderiza (`min-[820px]:hidden`). Cuando
+                    `accionBarraFija` es `null` (el widget de Wompi o `SelectorMetodoPasarela` ya
+                    tienen su propio botón en pantalla) este bloque tampoco ofrece uno — mismo criterio
+                    que la barra. */}
+                {pasos !== 'tejido' && (
                 <div className={pasos === 'ficha' ? 'rounded-none bg-[var(--sf-tinta)] p-5 text-[var(--sf-fondo)]' : 'rounded-2xl bg-[var(--sf-tinta)] p-5 text-[var(--sf-fondo)]'}>
-                  <p className={pasos === 'tejido' ? 'font-playfair text-2xl font-bold' : 'text-2xl font-bold'}>
+                  <p className="text-2xl font-bold">
                     Total {formatCOP(montoAPagar)}
                   </p>
                   <p className="mt-0.5 text-xs opacity-70">{envioLineaColumna}</p>
@@ -1704,13 +1765,14 @@ export default function Checkout() {
                     <button
                       onClick={accionBarraFija}
                       disabled={loading}
-                      className="mt-4 w-full rounded-xl bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none py-3.5 text-sm font-bold text-[var(--sf-acento-txt)] transition-colors"
+                      className={`mt-4 w-full rounded-xl bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none py-3.5 text-sm font-bold text-[var(--sf-acento-txt)] transition-colors ${botonCTAClaseExtra}`}
                     >
                       {loading ? 'Procesando…' : verboBarraFija}
                     </button>
                   )}
                   <p className="mt-2.5 text-center text-[11px] opacity-70">{textoFaltaColumna}</p>
                 </div>
+                )}
               </div>
             </div>
           </div>
@@ -1746,7 +1808,7 @@ export default function Checkout() {
               <button
                 onClick={accionBarraFija}
                 disabled={loading}
-                className="shrink-0 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors"
+                className={`shrink-0 bg-[var(--sf-acento)] hover:bg-[var(--sf-accion-hover,var(--sf-tostado-4))] active:bg-[var(--sf-accion-active,var(--sf-tostado-3))] disabled:opacity-60 disabled:pointer-events-none text-[var(--sf-acento-txt)] font-bold px-5 py-3 rounded-xl text-sm transition-colors ${botonCTAClaseExtra}`}
               >
                 {loading ? 'Procesando…' : verboBarraFija}
               </button>

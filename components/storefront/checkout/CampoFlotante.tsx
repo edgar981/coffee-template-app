@@ -149,7 +149,11 @@ export default function CampoFlotante({
           // que sólo las otras dos bajan el prefijo a la altura del VALOR cuando flota.
           <span
             aria-hidden="true"
-            className={`absolute text-base text-[var(--sf-texto-suave)] transition-opacity duration-150 ${arriba ? 'opacity-100' : 'opacity-0'} ${esFicha ? 'left-0 top-1/2 -translate-y-1/2' : `left-4 ${arriba ? 'bottom-2' : 'top-1/2 -translate-y-1/2'}`}`}
+            // § COMPRA-FIDELIDAD-5 — `--sf-texto-suave` deriva del ACENTO (§ el docstring de
+            // `--chk-tinta-suave` en `page.tsx`), así que el «+57» salía casi del mismo rojo que
+            // el botón (medido en `onix-1440-entrega-llena.png`). `--chk-tinta-suave` es el gris/
+            // tinta neutro — el mismo token que ya usa el rótulo (`labelColor`, arriba).
+            className={`absolute text-base text-[var(--chk-tinta-suave)] transition-opacity duration-150 ${arriba ? 'opacity-100' : 'opacity-0'} ${esFicha ? 'left-0 top-1/2 -translate-y-1/2' : `left-4 ${arriba ? 'bottom-2' : 'top-1/2 -translate-y-1/2'}`}`}
           >
             {prefijo}
           </span>
