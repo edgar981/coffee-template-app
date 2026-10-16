@@ -65854,3 +65854,154 @@ argumento estructural que lo reemplaza). Verificado en navegador real a 1440px y
 contra la demo pública, comparado a mano contra la maqueta aprobada y documentado en
 `.scratch/chamisas-maqueta/nosotros/README.md`. No es `GATE_RED`. Commits `40fd3e3c` (Paso 1) y
 `d847610d` (Paso 2) en `slice/editor-secciones-1`, sin mergear.
+
+## 2026-10-15 — CHAMISAS-SUSCRIPCIONES-MAQUETA-1: la demo pública de /suscripciones se ve como la maqueta «Casillas» — el grid café/bolsa y la píldora del contador, cerrados
+
+**Pedido del owner** (2026-10-15, mismo hilo que `CHAMISAS-NOSOTROS-MAQUETA-1`): *"I don't want to
+include another store that aint gonna use a client in duna tienda, how do we get to fix the page:
+coffee-template-app-las-chamisas.vercel.app?"* y *"Yes, write the specs please, then copy the fixes
+needed in duna-tienda as well"*. La aprobación autoriza la ESCRITURA, nunca el merge. Este slice
+cierra la mitad `/suscripciones` del mismo informe; `/nosotros` ya se cerró en el slice anterior.
+
+### Paso 1 — traer lo ya hecho en Duna Tienda
+
+El mismo trabajo de fidelidad (apertura/pasos/cafés/casillas/nota de pedido) ya se había hecho en el
+repo hermano Duna Tienda, commit `0832ca09` (`CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1`, sobre los MISMOS
+dos archivos que tiene este repo: `SuscripcionCasillas.tsx`, `SuscripcionPasos.tsx`). Se leyó con
+`git -C <duna-tienda> show 0832ca09` (sólo lectura de ese repo) y se aplicó A MANO — los dos archivos
+de este repo coincidían BYTE A BYTE con el estado "antes" de ese diff (verificado leyendo cada uno
+antes de tocarlo: mismo `space-y-10`, mismo avatar redondo de 56px, mismo `<label>`+`<input>` de
+ciudad, mismo punto `dashed` en las casillas), así que el puerto fue mecánico. Commit propio
+(`4c535abe`), separado del Paso 2.
+
+Lo que trajo: la apertura de centrada a alineada a la izquierda, con el sticker «sin cobro
+automático» INLINE al final del `<h1>` (antes: su propio párrafo debajo); cada paso en su tarjeta
+blanca (`--sf-tarjeta`) con el número en cuadro punteado 34×34 (antes: círculo lleno de tinta); el
+fondo de la tarjeta de café del tinte manual (`${color}26`) al LAVADO real (`lavadoLamina`); la
+miniatura de 56px redonda a 80px sin recorte circular, sin truncar el nombre, con la línea «bolsa de
+N g»; el sello de las casillas de un punto dashed a `LogoMark` (el mismo "sello" de marca de
+`EstadoPedido.tsx`) y el año bajo el mes; la nota de pedido con la franja tejida arriba, el mensaje
+sobre líneas rayadas y la ciudad EN LÍNEA (antes: `<label>`+`<input>` en caja propia) — más la fila
+vacía "Aquí se pegan los cafés que elijas."; y «Así funciona» de numerales centrados sobre una banda
+a una rejilla de tarjetas `--sf-superficie` inclinadas con número en círculo blanco.
+
+### Paso 2 — lo que el puerto dejó abierto, y el spec de ESTE slice sí nombra
+
+El propio asiento de Duna Tienda (`CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1`) declaró
+`CHAMISAS-CAFE-GRID-COMPLETO-1` como open follow-up — el grid `.cafe`/`.bag` completo (bolsa a
+sangre ocupando la columna/fila, pill blanca para los controles +/-) "no nombrada con esa fuerza" por
+ese spec. El spec de este slice SÍ la nombra: *"los cafés como bolsas recortadas grandes… y el
+contador en píldora"* + *"bolsa y molienda en tarjetas grandes con la foto de la bolsa"*. Se cierra
+acá, en `components/storefront/suscripciones/SuscripcionCasillas.tsx` (commit `7d2bc546`):
+
+- **Café (Paso 1)**: el grid `.cafe`/`.bag` de la maqueta — columna fija de 78px que abarca las DOS
+  filas en celular (foto · nombre+notas arriba · precio+contador abajo); en `sm:` una sola columna
+  con la foto GRANDE arriba (`h-44`=176px, el valor exacto de `.cafe .bag{height:176px}` de la
+  maqueta a ≥960px de contenedor). **Contador en píldora**: una sola superficie blanca
+  (`--sf-tarjeta`, `border`, `rounded-full`, `h-[46px]`) con los dos botones y el `<output>` adentro
+  — antes, dos círculos sueltos con su propio borde cada uno.
+- **DESVIACIÓN DECLARADA, escrita en el propio código**: la foto NO sangra fuera de su caja
+  (`overflow-hidden rounded-2xl`, `object-cover scale-110 -rotate-3`), a diferencia de
+  `.cafe .bag img{height:100%;width:auto}` de la maqueta (que la deja salirse de su columna/fila).
+  Esa sangre sólo se ve bien con un PNG de fondo transparente, que no existe en el modelo de datos
+  (`Product.imagen` es una foto cuadrada normal); sin ese asset, un rectángulo girado sin recortar
+  pondría un fondo visible encima del nombre/precio — se leería como un bug, no como el efecto de la
+  maqueta. Mismo límite de asset que ya nombra `CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1` (abierto desde
+  `CHAMISAS-SUSCRIPCIONES-CASILLAS-1`, sin tocar en este slice).
+- **«Bolsa y molienda» (Paso 2)**: el selector de tamaño pasa a marco-pastilla grande (`w-[74%]
+  h-[132px]`, redondeado `999px` arriba / `12px` abajo, bolsa apoyada abajo), elegido = anillo
+  interno (`shadow-[inset_0_0_0_2px_var(--sf-tinta)]`), en vez del `h-16 w-10` de antes — aunque hoy
+  NO se ve en la demo real (el catálogo sembrado/real de Las Chamisas declara un solo tamaño, 340 g;
+  `matriz.pesos.length > 1` es `false`): se cierra porque el spec la nombra y el código debe quedar
+  fiel a la maqueta para el día en que exista un segundo tamaño. El precio-rango min–max de la
+  maqueta (lee tres cafés de un mock fijo) se reemplaza por el precio representativo de ese tamaño —
+  el componente es genérico, sin ese cruce entre cafés.
+- **Molienda**: chip con check (ícono `Check` de lucide, visible sólo si elegido) + anillo interno,
+  SIN invertir fondo/tinta — antes invertía el fondo al elegir; `.opt[aria-pressed="true"]` de la
+  maqueta usa `box-shadow:inset`, nunca `background`.
+
+### Letra pequeña / cierre — ya construidos, verificado ANTES de tocar
+
+Medido antes de escribir una línea: `PreguntasFrecuentes.tsx` ya monta `LetraPequena` bajo
+`suscripcionFaq.variante==='letraPequena'` (acordeón, una abierta a la vez) y
+`SuscripcionCierre.tsx` ya monta `CierreCostura` bajo `suscripcionCierre.variante==='costura'`
+(franja de tejido arriba, marco punteado, botón relleno) — los dos de la tanda
+`ONIX-SUSCRIPCION-LETRA-CIERRE-1`, anterior a este slice. `PreguntasFrecuentes.tsx` está FUERA de
+`touches:` (vive en `components/storefront/`, no en `components/storefront/suscripciones/`) — no se
+tocó ni hacía falta. Cero cambios de código en estas dos secciones.
+
+### Verificado
+
+- `npx tsc --noEmit`: limpio (corrido tras cada paso).
+- `npm run gate` en el árbol final: **`tsc --noEmit` limpio, `npm test` 4905/4905, `npm run
+  test:integracion` 409/409** — SIN CAMBIO sobre el piso heredado (este slice no agrega ni quita un
+  solo `test()`; sólo edita JSX/clases de dos componentes de presentación).
+- **Capturado en navegador real**: la demo pública real (`--url
+  https://coffee-template-app-las-chamisas.vercel.app --ruta /suscripciones --sin-prototipo`, el
+  "antes") y el arnés local (`next build`+`next start`, Postgres efímero, `--sembrar-casillas
+  --sin-prototipo --ruta /suscripciones`, el "después" sobre ESTA rama) a 1440px y 390px. Los cuatro
+  PNG + seis capturas del owner + un README punto-por-punto viven en
+  `.scratch/chamisas-maqueta/suscripciones/` (gitignored, evidencia local). Comparado a mano contra
+  `capturas-owner/mock-{6,8,9,10,11,12}.png` (la maqueta aprobada): apertura, tarjetas de paso, grid
+  café/bolsa con la píldora, casillas con sello+año, nota de pedido con franja+rayado+ciudad en
+  línea, "Así funciona" en tarjetas inclinadas y el cierre con marco punteado coinciden
+  estructuralmente.
+- **Onix confirmado sin cambio, por DOS vías**: (a) estructural — `SuscripcionCasillas`/
+  `SuscripcionPasosCasillas` sólo montan bajo `suscripcionPlanes.variante==='casillas'`/
+  `suscripcionPasos.variante==='casillas'` (leído el `if` de `SuscripcionPlanes.tsx`/
+  `SuscripcionPasos.tsx`, ninguno tocado); grepeado `scripts/capturar-seccion.ts` completo por
+  `variante:\s*['"]casillas['"]`: las únicas 3 ocurrencias de CÓDIGO (la 4ª es prosa del `--help`)
+  viven dentro de `sembrarCasillas()`, la función del seed de Las Chamisas — ningún seed de Onix
+  (`sembrarTaquillaOnix`, `sembrarCompra('onix')`) la toca; (b) empírico — capturado
+  `--sembrar-taquilla-onix --sin-prototipo --ruta /suscripciones` en ESTA rama (misma Postgres
+  efímera, mismo build): Onix sigue sirviendo la composición «Taquilla» (tabla 2×2) y «¿Cómo
+  funciona?» en su rejilla de ÍCONOS canónica, no la de tarjetas inclinadas.
+
+### Qué grep del CLAUDE.md contra lo que cambió en ESTE slice, y qué encontró
+
+Símbolos del diff: `SuscripcionCasillas`, `SuscripcionPasosCasillas`, `PasoCabecera`, `lavadoLamina`,
+`LogoMark`, `--sf-tarjeta`, `casillasSticker`, `tituloEnfasis`, `CHAMISAS-CAFE-GRID-COMPLETO-1`,
+`CHAMISAS-SUSCRIPCIONES-CASILLAS-1`. Grepeados contra `CLAUDE.md`: **CERO** para todos salvo dos
+falsos positivos de substring — `--sf-tarjeta` (2 apariciones, las dos son el atributo DOM
+`data-sf-tarjeta` del puente de GrindChooser, símbolo distinto) y `LogoMark` (1 aparición, línea
+~4503, "el MARK… NO es portable: es un ASSET por-despliegue" — describe el componente `Logo`/su flag
+`conMark`, no contradicho por reusar el SVG crudo `LogoMark` como sello decorativo, patrón que
+`EstadoPedido.tsx`/`NosotrosFichaEtiqueta.tsx` ya establecían antes de este slice). Un grep extra de
+"casillas" (sin distinguir mayúsculas) contra todo `CLAUDE.md`: **cero** apariciones — esa doctrina
+no nombra esta composición en ningún punto. Ninguna sentencia de CLAUDE.md queda falsa por este diff.
+
+### Tier 1 / clasificación de merge policy
+
+`tier: 2` (según el spec), `writes: yes`, `approved: yes` (owner, 2026-10-15, mismo hilo citado
+arriba). El diff toca `components/storefront/suscripciones/` — bytes del visitante de cualquier
+tienda que elija la composición «casillas»/«casillas» de /suscripciones (hoy, sólo Las Chamisas).
+**`customer_bytes.changed = true`**: cambia layout que un visitante de la demo pública ve hoy (el
+deploy sigue siendo preview, no producción de un cliente real, pero el dispatch pidió explícitamente
+parar en `AWAITING_APPROVAL` sin mergear, mismo criterio que los dos slices anteriores de esta misma
+página). Sin cambio de schema/migración ni contrato cruzado de repositorio.
+
+### Open follow-ups
+
+Sin IDs nuevos. Los tres ya abiertos por `CHAMISAS-SUSCRIPCIONES-CASILLAS-1` siguen abiertos, sin
+tocar por este slice:
+
+- `CHAMISAS-NOTA-PEDIDO-STICKER-REAL-1` — stickers de bolsa recortada en vez de puntos de color
+  (casillas y fila de la Nota); el mismo límite de asset que motiva la desviación declarada del grid
+  de café, arriba.
+- `CHAMISAS-CIERRE-CTA-WHATSAPP-1` — el botón del cierre sigue sin poder apuntar a WhatsApp
+  (`ctaDestino` es un set cerrado de rutas internas).
+- `CHAMISAS-BARRA-FIJA-CTA-EDITABLE-1` — el texto "Pedir" de la barra fija móvil no es editable.
+- `CHAMISAS-CAFE-GRID-COMPLETO-1` (de Duna Tienda, `0832ca09`) — **CERRADO por este slice** en este
+  repo (layout + píldora); la sangre del PNG recortado sigue sin asset, ver la desviación declarada
+  arriba.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — mismo criterio que los dos slices anteriores de esta
+página: el dispatch pidió explícitamente parar acá sin mergear, "PARÁS EN AWAITING_APPROVAL. NO
+MERGEES."). Gate corrido en el árbol final: `npm run gate` verde — `tsc --noEmit` limpio, `npm test`
+**4905/4905**, `npm run test:integracion` **409/409**. No es `GATE_RED`. Verificado en navegador real
+a 1440px y 390px, local y contra la demo pública, comparado a mano contra la maqueta aprobada y
+documentado en `.scratch/chamisas-maqueta/suscripciones/README.md`. Onix confirmado sin cambio,
+estructural y empíricamente. Commits `4c535abe` (Paso 1) y `7d2bc546` (Paso 2) en
+`slice/editor-secciones-1`, sin mergear.
