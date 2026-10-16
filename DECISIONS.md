@@ -66428,3 +66428,169 @@ capturar-seccion.ts --sembrar-preguntas-frecuentes {onix,chamisas} --sin-prototi
 390/1440/con-buscador/con-pregunta-abierta) contra la maqueta aprobada, documentado sin suavizar
 en `.scratch/preguntas-frecuentes/pares/README.md`. Commiteado en `slice/editor-secciones-1`, sin
 mergear.
+
+## 2026-10-16 — CHAMISAS-PAGINAS-ARREGLOS-1: el ancho inconsistente del álbum se cierra, el sello de la Ficha usa el logo de la tienda, y la retícula se empareja en celular
+
+**Pedido del owner** (2026-10-15, mismo hilo que `CHAMISAS-NOSOTROS-MAQUETA-1`/
+`CHAMISAS-SUSCRIPCIONES-MAQUETA-1`): arreglar las páginas de la demo de Las Chamisas para que se vean
+como la maqueta, trabajando toda la noche verificando contra la vista previa real. Esta pasada cierra
+lo que esas dos dejaron distinto, medido por el orquestador en la vista previa de ESTA rama (commit
+`6dc00b33`) a 1440px con el contenido real de la tienda.
+
+### El ANCHO — cierra `CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1`
+
+Cuatro piezas vivían en su propio `max-w-*` fijo, distinto del resto de la página (que ya usa
+`contenedorAnchoClase(navTratamiento.posicion)` desde `PARIDAD-ANCHO-CONTENIDO-1`): la portada de
+/nosotros (`NosotrosAperturaAlbum`, `max-w-[1376px]`), el encabezado y el panel de «Láminas»
+(`NosotrosEscenasAlbum`, `max-w-6xl`), la apertura y «Arma tu pedido» de /suscripciones
+(`SuscripcionCasillas`, `max-w-6xl`), y «Así funciona» (`SuscripcionPasosCasillas`, `max-w-5xl` — el
+ÚNICO de toda la página que no era ni `max-w-6xl` ni el contenedor compartido). Las cuatro pasan a
+`contenedorAnchoClase(navTratamiento.posicion)`: con `posicion:false` (el default de cualquier tenant
+que no sea Las Chamisas) son byte a byte el `max-w-6xl` de siempre (afirmado en los tres archivos de
+test tocados); con `posicion:true` —**el valor MEDIDO de la demo real**, no asumido: `fetch` plano
+contra `coffee-template-app-las-chamisas.vercel.app/nosotros` confirmó `pt-[76px] min-[640px]:
+pt-[88px] cortenav:pt-[88px]` en el HTML servido, la salida de `navOffsetClase(true)`— comparten el
+mismo ancho que el header y el resto de la página.
+
+**`NosotrosAperturaAlbum` se midió antes de tocarla**, no se asumió segura: con `posicion:true` el
+contenedor nuevo da MÁS ancho interior que el `max-w-[1376px]` de hoy en TODO breakpoint (1376px vs
+1248px en escritorio ≥1440px; 354px vs 342px en celular a 390px — la aritmética completa y una
+barrida de viewports 320–1920 en `lib/storefront/nosotros-apertura-album.test.ts`), así que el swap
+no puede reabrir el defecto que `a16753c7` (`CHAMISAS-NOSOTROS-FIDELIDAD-1`) ya cerró (el H1
+envolviendo a 4 líneas en vez de 3) — confirmado también por ejecución, la captura final sigue en 3
+líneas.
+
+### El SELLO de la Ficha — el logo de la tienda, con fallback a `LogoMark`
+
+`NosotrosFichaEtiqueta` leía `LogoMark` a secas (la flor genérica) para el sello. Ahora lee
+`content.logo` (§ `MARCA-LOGO-IMAGEN-1`, la MISMA fuente — `logoParaVariante`/`hayLogoImagen`,
+`lib/config/marca-logo.ts` — que `StoreNav.tsx` usa para el encabezado): con un logo subido, el sello
+pasa a ser esa imagen, en la misma posición/rotación/mezcla; sin logo (el caso de hoy para Las
+Chamisas y para cualquier tenant que no haya subido uno), queda el `LogoMark` de siempre.
+
+### La RETÍCULA de la Ficha — dos columnas en TODA anchura, sin hueco suelto
+
+`grid-cols-1 sm:grid-cols-2` caía a una sola columna por debajo de 640px; la maqueta (`.fic-grid`) es
+de dos columnas en las DOS anchuras. Pasa a `grid-cols-2` sin prefijo. Qué fila va A LO ANCHO
+(Variedades/Presentación en la maqueta) se deriva del mismo ÍCONO que ya identifica la fila
+(`fichaIcono`, sin una segunda clasificación) vía la función nueva `filasFichaGrid`
+(`lib/storefront/ficha-grid.ts`, puro, 9 tests), que ADEMÁS promueve la ÚLTIMA fila de cualquier
+tramo IMPAR a ancho completo — así un repeater editable (orden/cantidad distintos de los 8 fijos de
+la maqueta) nunca deja una celda vecina vacía. Se reordenó también el seed de captura
+(`scripts/capturar-seccion.ts::sembrarAlbumNosotros`, `tiendaCreditos.items`) para que coincida con
+el orden de la maqueta — era contenido de la captura, no el comportamiento del componente.
+
+### «Así funciona» y el antetítulo de /suscripciones
+
+`SuscripcionPasosCasillas` tenía su título centrado (`text-center`); la maqueta (`.how h2.sec-t`, sin
+`text-align` propio) lo hereda a la izquierda — se quita el centrado, junto con el ancho propio (ver
+arriba). El antetítulo de la apertura (`suscripcionPlanes.eyebrow`, "SUSCRIPCIÓN MENSUAL") pintaba
+`text-[var(--sf-tostado)]` (terracota) — el ÚNICO de /nosotros y /suscripciones que no estaba en
+tinta plena (Láminas/Apertura-Álbum/Ficha ya migraron en `CHAMISAS-NOSOTROS-MAQUETA-1`) — pasa a
+`text-[var(--sf-tinta)]`.
+
+### La frase del cierre «Costura» — 22px/26px, contado antes de tocarla — cierra `CHAMISAS-CIERRE-FRASE-TAMANO-1`
+
+`CierreCostura.tsx` (pieza compartida por `TiendaCierre`/`NosotrosCierre`/`SuscripcionCierre`) pintaba
+la frase a `text-xl sm:text-2xl` (20px/24px); la maqueta (`.band .q`) mide 22px/26px. Es el ítem
+`CHAMISAS-CIERRE-FRASE-TAMANO-1` (`CHAMISAS-NOSOTROS-MAQUETA-1`, "Open follow-ups") — coined y
+dejado abierto por estar esta pieza, en ese momento, fuera de `touches:`. El spec de esta tanda
+pidió contar las tiendas/composiciones antes de tocarla: de los TRES consumidores,
+`nosotrosCierre`/`suscripcionCierre` tienen 'costura' como
+variante OPT-IN (canónicas 'linea'/'fraseYBoton') y hoy, según el ledger ya escrito
+(`TIENDA-ONIX-CARTELERA-1`/su `customer_bytes`), el único tenant que la elige es Las Chamisas — Onix
+usa 'fraseYBoton' en las tres. `tiendaCierre` SÍ tiene 'costura' como CANÓNICA (compartida por diseño
+con cualquier tenant que no la cambie), pero su `frase` default es vacía y el gate de
+`TiendaCierre.tsx` ("sin frase no hay nada que cerrar con") no la renderiza sin dato — Nayoli/el
+template base nunca la alcanza. **Medido, no sólo citado**: `kind: ledger_claim` para la elección de
+Onix/Nayoli (tomado del asiento de `TIENDA-ONIX-CARTELERA-1`, no re-verificado contra una base real
+de producción, que este slice no tiene cómo alcanzar); `kind: measured` para que el gate completo
+—incluidos los tests de byte-identidad de `/suscripciones` y de `TiendaCierre` con `variante:
+'costura'`— sigue verde con el cambio. Con eso, hoy, sólo las composiciones que Las Chamisas eligió
+pintan `CierreCostura` con contenido real — se cambió el tamaño en la pieza compartida.
+
+### El arnés gana `--posicion` (`scripts/capturar-seccion.ts`)
+
+Ninguno de los seeds de Las Chamisas (`--sembrar-casillas`/`--sembrar-album-nosotros`) tocaba
+`navTratamiento.posicion` —es una meta EXCLUIDA del REGISTRY (§ CLAUDE.md), así que `guardarBorrador`/
+`publicarSeccion` key-agnósticas (las MISMAS que usa `/api/site-content/encabezado`) son la única
+forma de escribirla sin inventar un mecanismo—. Se agregó la bandera booleana `--posicion`, que la
+enciende y PUBLICA (no sólo borrador) sobre la base efímera, después de los `--sembrar-*`. Separada
+de los seeds de contenido a propósito: es un eje del encabezado (ancho/alto), independiente de la
+paleta/catálogo que esos seeds siembran.
+
+### El defecto que casi entra en la captura: mezclar los dos seeds en un solo build
+
+El primer intento combinó `--sembrar-album-nosotros` y `--sembrar-casillas` en una sola corrida para
+ahorrar un `next build`. Descartado, MEDIDO: los dos seeds crean tres productos cada uno con el MISMO
+nombre de café (slugs `arnes-album-*`/`arnes-casillas-*` distintos, mismo `nombre`), así que
+`derivarCasillasCafes` y el Interludio de /nosotros los ven juntos — la captura combinada mostraba 6
+cafés en el Interludio (en vez de 3) y un selector "Bolsa y molienda" fantasma en /suscripciones (dos
+tamaños en vez de uno). Es un artefacto de LA CAPTURA, no del código de este slice — la demo real
+sólo corre un seed — pero habría sido una captura engañosa para comparar contra la maqueta. Las
+capturas finales usan un seed por ruta, cada una su propio build.
+
+### Capturas
+
+`.scratch/chamisas-maqueta/arreglos/README.md` — punto por punto, sin suavizar. Cinco pares de
+captura: /nosotros y /suscripciones a 390px y 1440px con `--posicion` (el valor medido de la demo
+real), más /suscripciones a 1440px SIN `--posicion` (mostrando que el default `max-w-6xl` sigue
+parejo entre header y contenido, nada se sale de su ancho). Junto a las cuatro capturas de la maqueta
+aprobada (copiadas de `.scratch/chamisas-paginas/capturas/`).
+
+### Onix
+
+No se re-capturó Onix por ejecución en esta tanda (costo/beneficio: el gate completo ya corre, GREEN,
+los tests de byte-identidad existentes de Onix sobre los mismos archivos — `/suscripciones` con
+DEFAULTS, `TiendaCierre` con `variante:'costura'`). Confirmado por CÓDIGO: los seis
+archivos/piezas tocados (`NosotrosAperturaAlbum`, `NosotrosEscenasAlbum`, `NosotrosFichaEtiqueta`,
+`SuscripcionCasillas`, `SuscripcionPasos`/`SuscripcionPasosCasillas`, `CierreCostura`) sólo cambian de
+comportamiento bajo variantes `'album'`/`'etiqueta'`/`'casillas'` que Onix no elige en ningún
+dispatcher (`NosotrosApertura`/`NosotrosEscenas`/`NosotrosFicha`/`SuscripcionPlanes`/`SuscripcionPasos`
+siguen montando sus composiciones canónicas para Onix, archivos distintos), y `CierreCostura` sólo se
+monta bajo `variante:'costura'`, que Onix no usa en ninguna de las tres secciones que la comparten
+(§ arriba). `kind: ledger_claim` para la elección de variante de Onix (tomada de
+`TIENDA-ONIX-CARTELERA-1`); `kind: measured` para que el gate —incluidos los tests de Onix— sigue
+verde.
+
+### Hallazgo adyacente, NO causado por este diff — `CHAMISAS-NOSOTROS-APERTURA-DOBLE-OFFSET-1`
+
+Midiendo si `posicion:true` era seguro para el swap de ancho (§ arriba), se encontró que el párrafo
+"Las Chamisas no lo activa" del docstring de `NosotrosAperturaAlbum.tsx`
+(§ `CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`) VENCIÓ: medido por `fetch` contra la demo real, hoy
+`navTratamiento.posicion` SÍ es `true`. Eso importa para OTRO eje, vertical, que este slice no toca:
+`app/(storefront)/nosotros/page.tsx` (fuera de `touches:`) envuelve TODAS las bandas de /nosotros con
+`navOffsetClase(true)` SÓLO cuando `posicion` es `true` (`if (!content.navTratamiento.posicion) return
+<>{bandas}</>`) — con `posicion:false` (la premisa bajo la que se calculó `pt-24 lg:pt-28` en
+`CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1`) ese envoltorio no existía. Hoy los DOS paddings se apilan:
+`navOffsetClase(true)` da `pt-[88px]` en escritorio (≥1200) + el `pt-28` (112px) propio de esta
+pieza = 200px de aire antes del arco, contra los ~88-112px que un solo padding daría. Medido por
+imagen (`sharp`, recorte de los primeros 600px de `app-d-nosotros-1440.png` contra la misma región de
+la maqueta a 1440px): el rótulo "NOSOTROS · SAN ADOLFO, HUILA" aparece a ~492px bajo el borde del
+header en la captura de este slice, contra ~376px en la maqueta — ~116px de exceso, el orden de
+magnitud de un padding duplicado. **No se corrige acá**: es un eje VERTICAL (padding-top), el spec de
+esta tanda es sobre ANCHO/color/sello/retícula, y el fix correcto depende de `page.tsx`, fuera de
+`touches:`. Open follow-up para quien lo tenga en su alcance: re-medir `pt-24 lg:pt-28` de
+`NosotrosAperturaAlbum.tsx` contra el aire REAL que `navOffsetClase(true)` ya reserva (restar, no
+sumar), o mover el cálculo a depender de `navTratamiento.posicion` igual que el ancho.
+
+### Pre-flight
+
+Árbol limpio al empezar (`git status` sin cambios), HEAD en `fadd42ae` sobre `slice/editor-secciones-1`
+(continúa la rama, no se crea una nueva — el spec lo pide explícito). Cada afirmación del spec sobre
+el repo (los `max-w-*` exactos de cada pieza, el default 20/24px de `CierreCostura`, que
+`navTratamiento.posicion` no estaba encendido por los seeds) se verificó leyendo el código antes de
+tocarlo — una, "Las Chamisas no lo activa" en el docstring de `NosotrosAperturaAlbum.tsx`, resultó
+VENCIDA (medida contra la demo real, no contra el spec): se corrigió esa frase con la medición nueva,
+sin tocar el resto del párrafo.
+
+### Verdict
+
+**AWAITING_APPROVAL** (`customer-bytes` — el dispatch pidió explícitamente parar acá sin mergear,
+"PARÁS EN AWAITING_APPROVAL. NO MERGEES"). Gate corrido en el árbol final: `npm run gate` verde —
+`tsc --noEmit` limpio, `npm test` **4977/4977**, `npm run test:integracion` **413/413**. No es
+`GATE_RED`. Capturado en navegador real (Playwright, `scripts/capturar-seccion.ts
+--sembrar-album-nosotros|--sembrar-casillas --posicion --sin-prototipo`, 5 capturas × /nosotros ·
+/suscripciones · 390 · 1440 · posicion-off) contra la maqueta aprobada, documentado sin suavizar en
+`.scratch/chamisas-maqueta/arreglos/README.md`. Commiteado en `slice/editor-secciones-1`, sin
+mergear.

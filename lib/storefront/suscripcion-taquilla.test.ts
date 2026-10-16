@@ -394,6 +394,66 @@ test('SuscripcionCasillas: con un catálogo válido, renderiza la apertura, el s
   assert.ok(html.includes('elige al menos un café'), 'sin selección, el placeholder de la nota debe aparecer');
 });
 
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — cierra CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1 del lado de
+// /suscripciones, más el antetítulo en tinta (no terracota).
+test('SuscripcionCasillas: con posicion:false (el default) usa max-w-6xl, y el antetítulo va en tinta, no en --sf-tostado', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: DEFAULTS,
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: chamisas(), whatsapp: '573000000000', negocio: 'Café Las Chamisas',
+        suscripcionPlanes: { ...PLANES_CASILLAS, eyebrow: 'Recíbelo cada mes' },
+      }),
+    }),
+  );
+  assert.ok(html.includes('max-w-6xl'), 'sin posicion, el contenedor debe ser el de siempre (max-w-6xl)');
+  assert.ok(!html.includes('max-w-[1440px]'), 'sin posicion, no debe aparecer el contenedor de CORTE');
+  assert.ok(!html.includes('text-[var(--sf-tostado)]'), 'el antetítulo ya no debe ir en tostado (terracota)');
+  assert.ok(html.includes('text-[var(--sf-tinta)]'), 'el antetítulo debe ir en tinta, como los demás de la página');
+});
+
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — «Así funciona» (SuscripcionPasosCasillas): título a la izquierda
+// (la maqueta nunca lo centra) y el mismo contenedor que el resto de la página, en vez de su propio
+// `max-w-5xl` + `text-center`.
+test('SuscripcionPasos (variante "casillas"): el título va a la izquierda, sin max-w-5xl propio', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: { ...DEFAULTS, suscripcionPasos: { ...DEFAULTS.suscripcionPasos, variante: 'casillas' } },
+      children: React.createElement(SuscripcionPasos),
+    }),
+  );
+  assert.ok(!html.includes('text-center'), 'el título de "Así funciona" ya no debe ir centrado');
+  assert.ok(!html.includes('max-w-5xl'), 'ya no debe quedar el ancho propio de esta sección');
+  assert.ok(html.includes('max-w-6xl'), 'con posicion:false (el default), debe usar el mismo contenedor que el resto de la página');
+});
+
+test('SuscripcionPasos (variante "casillas"): con posicion:true usa el contenedor de CORTE', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: {
+        ...DEFAULTS,
+        suscripcionPasos: { ...DEFAULTS.suscripcionPasos, variante: 'casillas' },
+        navTratamiento: { ...DEFAULTS.navTratamiento, posicion: true },
+      },
+      children: React.createElement(SuscripcionPasos),
+    }),
+  );
+  assert.ok(html.includes('max-w-[1440px]'), 'con posicion:true, "Así funciona" debe usar el contenedor de CORTE');
+});
+
+test('SuscripcionCasillas: con posicion:true (el valor medido de Las Chamisas) usa el contenedor de CORTE en las DOS secciones', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, {
+      value: { ...DEFAULTS, navTratamiento: { ...DEFAULTS.navTratamiento, posicion: true } },
+      children: React.createElement(SuscripcionCasillas, {
+        catalog: chamisas(), whatsapp: '573000000000', negocio: 'Café Las Chamisas', suscripcionPlanes: PLANES_CASILLAS,
+      }),
+    }),
+  );
+  assert.ok(html.includes('max-w-[1440px]'), 'con posicion:true, la apertura y «Arma tu pedido» deben usar el contenedor de CORTE');
+  assert.ok(!html.includes('max-w-6xl'), 'con posicion:true, no debe quedar ningún max-w-6xl propio de esta composición');
+});
+
 // EL CATÁLOGO REAL DE LAS CHAMISAS (§ CHAMISAS-CASILLAS-POR-CAFE-1, medido el 2026-10-14): a
 // diferencia de `chamisas()` arriba (dos bolsas, para ejercer el sparse), el catálogo real tiene
 // UN SOLO tamaño y los TRES productos bajo la MISMA categoría — exactamente lo que hacía caer la
@@ -504,6 +564,24 @@ test('SuscripcionCierre: variante "costura" monta el marco punteado (CierreCostu
   assert.ok(html.includes('¿Prefieres hablarlo primero?'));
   assert.ok(html.includes('Ver el catálogo'));
   assert.ok(!html.includes('--sf-papel'), 'Costura no lleva la banda --sf-papel de Frase y botón');
+});
+
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — la frase de Costura pasa de 20/24px a 22/26px (`.band .q` de la
+// maqueta). Afirmado contra los TRES consumidores a la vez (NosotrosCierre/SuscripcionCierre/
+// TiendaCierre comparten `CierreCostura.tsx`), para que ninguno quede con el tamaño viejo.
+test('CierreCostura: la frase va en 22px/26px (text-[22px] sm:text-[26px]), no en el text-xl/sm:text-2xl (20/24px) de antes — en los TRES consumidores', () => {
+  const content = contentConCierre({ variante: 'costura' });
+  const htmlSuscripcion = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: content, children: React.createElement(SuscripcionCierre) }),
+  );
+  assert.ok(htmlSuscripcion.includes('text-[22px]') && htmlSuscripcion.includes('sm:text-[26px]'));
+  assert.ok(!htmlSuscripcion.includes('text-xl') && !htmlSuscripcion.includes('sm:text-2xl'));
+
+  const tiendaContent: SiteContentData = { ...DEFAULTS, tiendaCierre: { ...DEFAULTS.tiendaCierre, frase: 'Tres cafés, una finca.', boton: 'Ver los tres cafés' } };
+  const htmlTienda = renderToStaticMarkup(
+    React.createElement(SiteContentProvider, { value: tiendaContent, children: React.createElement(TiendaCierre) }),
+  );
+  assert.ok(htmlTienda.includes('text-[22px]') && htmlTienda.includes('sm:text-[26px]'));
 });
 
 test('SuscripcionCierre: variante "fraseYBoton" (con frase) sigue montando la banda --sf-papel, byte-idéntica a antes de este slice', () => {

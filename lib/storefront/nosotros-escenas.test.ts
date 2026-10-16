@@ -110,3 +110,22 @@ describe('NosotrosEscenas (variante "album") — el ajuste 2: estructura de dobl
     assert.equal(html, '');
   });
 });
+
+describe('NosotrosEscenas (variante "album") — § CHAMISAS-PAGINAS-ARREGLOS-1: cierra CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1', () => {
+  test('con posicion:false (el default) el encabezado y el panel de escritorio usan max-w-6xl — byte a byte lo de siempre', () => {
+    const content = contenidoAlbum(CINCO_LAMINAS, { eyebrow: 'Álbum de finca', titulo: 'Cinco láminas' });
+    const html = render(content, React.createElement(NosotrosEscenas));
+    assert.ok(html.includes('max-w-6xl'), 'sin posicion, el contenedor debe seguir siendo max-w-6xl');
+    assert.ok(!html.includes('max-w-[1440px]'), 'sin posicion, no debe aparecer el contenedor de CORTE');
+  });
+
+  test('con posicion:true (el valor medido de Las Chamisas) el encabezado y el panel usan el contenedor de CORTE', () => {
+    const content: SiteContentData = {
+      ...contenidoAlbum(CINCO_LAMINAS, { eyebrow: 'Álbum de finca', titulo: 'Cinco láminas' }),
+      navTratamiento: { ...DEFAULTS.navTratamiento, posicion: true },
+    };
+    const html = render(content, React.createElement(NosotrosEscenas));
+    assert.ok(html.includes('max-w-[1440px]'), 'con posicion:true, el contenedor debe ser el de CORTE en las dos piezas (encabezado y panel)');
+    assert.ok(!html.includes('max-w-6xl'), 'con posicion:true, no debe quedar ningún max-w-6xl propio de esta composición');
+  });
+});

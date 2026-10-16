@@ -4,6 +4,7 @@ import { Star, Coffee, Zap, CheckCircle, type LucideIcon } from 'lucide-react';
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { REGISTRY, seccionEsVisible } from '@/lib/config/site-content-defaults';
 import { pasosDeSuscripcion } from '@/lib/storefront/planes-suscripcion';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable from '@/components/storefront/CampoEditable';
 
 // Los pasos "¿Cómo funciona?" de /suscripciones, desde SiteContent (§ Backlog #49 · e). El TEXTO
@@ -14,7 +15,7 @@ import CampoEditable from '@/components/storefront/CampoEditable';
 const ICONOS: LucideIcon[] = [Star, Coffee, Zap, CheckCircle];
 
 export default function SuscripcionPasos() {
-  const { suscripcionPasos } = useSiteContent();
+  const { suscripcionPasos, navTratamiento } = useSiteContent();
   if (!seccionEsVisible(REGISTRY.suscripcionPasos, suscripcionPasos)) return null;
   const c = suscripcionPasos;
   const pasos = pasosDeSuscripcion(c);
@@ -25,7 +26,7 @@ export default function SuscripcionPasos() {
   // círculo, en vez de numerales centrados sobre una banda a lo ancho — el lenguaje de álbum de Las
   // Chamisas, ver el docstring de `SuscripcionPasosCasillas` abajo).
   if (c.variante === 'casillas') {
-    return <SuscripcionPasosCasillas titulo={c.titulo} pasos={pasos} />;
+    return <SuscripcionPasosCasillas titulo={c.titulo} pasos={pasos} posicion={navTratamiento.posicion} />;
   }
 
   return (
@@ -69,13 +70,27 @@ export default function SuscripcionPasos() {
 // leve FIJA por índice (el mismo tratamiento de "casilla de álbum" de las Láminas de /tienda,
 // § TIENDA-CHAMISAS-ALBUM-1) aplicada a la TARJETA entera —antes sólo al número—, y un número en
 // un círculo BLANCO (`--sf-tarjeta`) sobre la tarjeta, no un divisor punteado entre pasos.
+//
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — DOS AJUSTES medidos contra la maqueta (`.how.wrap{max-width:
+// 1376px}`, `h2.sec-t` sin `text-align`, así que hereda el default IZQUIERDA — ninguna regla la
+// centra):
+//
+// 1. EL ANCHO: vivía en su PROPIO `max-w-5xl`, el único de la página que no era ni el de siempre
+//    (`max-w-6xl`) ni `contenedorAnchoClase`. Pasa a `contenedorAnchoClase(posicion)`, el MISMO
+//    contenedor que la apertura y «Arma tu pedido» (`SuscripcionCasillas.tsx`) — con `posicion:false`
+//    (el default) es un ancho ligeramente MAYOR que el `max-w-5xl` (1024px) de antes, `max-w-6xl`
+//    (1152px); no hay ningún tenant hoy que dependa del valor viejo (§ el docstring de
+//    `SuscripcionCasillas.tsx`: esta variante es exclusiva de Las Chamisas).
+// 2. EL TÍTULO estaba CENTRADO (`text-center`) — la maqueta nunca lo centra; pasa a alineado a la
+//    izquierda, como el resto de los títulos de sección de estas páginas.
 const ROTACIONES = ['-1deg', '0.8deg', '-0.6deg', '0.6deg'];
 
-function SuscripcionPasosCasillas({ titulo, pasos }: { titulo: string; pasos: { label: string; descripcion: string }[] }) {
+function SuscripcionPasosCasillas({ titulo, pasos, posicion }: { titulo: string; pasos: { label: string; descripcion: string }[]; posicion: boolean }) {
+  const contenedorClase = contenedorAnchoClase(posicion);
   return (
     <section className="bg-[var(--sf-fondo)] py-16">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <h2 className="mb-10 text-center font-playfair text-2xl text-[var(--sf-tinta)]">
+      <div className={`${contenedorClase} mx-auto`}>
+        <h2 className="mb-10 font-playfair text-2xl text-[var(--sf-tinta)]">
           <CampoEditable campo="suscripcionPasos.titulo">{titulo}</CampoEditable>
         </h2>
         <ol className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-4">

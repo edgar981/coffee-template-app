@@ -103,9 +103,30 @@
 // 32px, el mismo criterio aplicado al breakpoint chico. NO es un `min-h`: sigue siendo SÓLO
 // padding-top sobre el contenido (§ el ajuste 1, arriba, que esta tanda no reabre) — más alto que
 // antes, nunca una altura mínima forzada que vuelva a dejar una banda vacía.
+//
+// "Las Chamisas no lo activa" (el párrafo de arriba) VENCIÓ: medido ahora contra
+// `coffee-template-app-las-chamisas.vercel.app/nosotros` (`fetch` plano), `content.navTratamiento.
+// posicion` es `true` — el dato vive en la base, no en el código, y cambió desde que ese párrafo se
+// escribió. No se corrige acá (el padding-top de esta sección es otro eje, fuera de este slice); se
+// anota porque el AJUSTE DE ABAJO depende del valor real, no del que este párrafo seguía afirmando.
+//
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — cierra CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1: el grid de esta
+// portada vivía en su PROPIO `max-w-[1376px] px-6 sm:px-10 lg:px-16`, un ancho de columna distinto
+// del resto de /nosotros (que ya usa `contenedorAnchoClase(navTratamiento.posicion)` — sinopsis,
+// láminas, ficha, cierre). Antes del swap se midió si reabre el defecto que `a16753c7` ya cerró (el
+// H1 envolviendo a 4 líneas en vez de 3, § arriba): con `posicion` en `true` —el valor medido arriba—
+// `contenedorAnchoClase(true)` da un ancho INTERIOR MAYOR o igual al de hoy en TODO breakpoint
+// (1376px vs 1248px en escritorio ≥1440px; 354px vs 342px en celular a 390px — la aritmética
+// completa en `lib/storefront/nosotros-apertura-album.test.ts`, "el ancho del contenedor nunca
+// encoge"), así que más espacio nunca puede producir MÁS líneas de las que ya entraban. El swap usa
+// `posicion` tal como llega del contexto —no se fija a `true`— para que un tenant con
+// `posicion:false` que algún día active esta composición quede en el mismo contenedor que el resto
+// de su página, no en uno propio que puede divergir.
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { useIsPreview } from '@/components/storefront/PreviewMode';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable, { HuecoImagenOpcional } from '@/components/storefront/CampoEditable';
 
 export interface NosotrosAperturaAlbumProps {
@@ -118,18 +139,22 @@ export interface NosotrosAperturaAlbumProps {
 }
 
 export default function NosotrosAperturaAlbum({ eyebrow, titulo, bajada, imagen, sticker, franjaTejido }: NosotrosAperturaAlbumProps) {
+  const { navTratamiento } = useSiteContent();
   const preview = useIsPreview();
   const tieneImagen = imagen.trim() !== '';
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="bg-[var(--sf-fondo)] pt-24 lg:pt-28">
       {/* SIN `min-h`/`py` extra acá (§ el ajuste 1, arriba) — sólo el padding SUPERIOR de la sección.
           El VALOR (`pt-24 lg:pt-28`) ya NO es el `.cov{padding:28px 0 0}` literal de la maqueta —
           § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1, arriba, lo sube para despejar el `<header>` fijo,
-          que la maqueta (estática, sin header `fixed` propio) no tenía que descontar. El padding
-          horizontal vive en ESTA fila, no repetido por columna, para que `gap` sea la única fuente
-          de separación vertical/horizontal. */}
-      <div className="mx-auto grid max-w-[1376px] grid-cols-1 gap-[22px] px-6 sm:px-10 lg:grid-cols-2 lg:items-end lg:gap-12 lg:px-16">
+          que la maqueta (estática, sin header `fixed` propio) no tenía que descontar. El ANCHO/
+          RELLENO horizontal es `contenedorAnchoClase(navTratamiento.posicion)` (§ CHAMISAS-PAGINAS-
+          ARREGLOS-1, arriba) — el MISMO contenedor que el resto de /nosotros, en vez de un
+          `max-w-[1376px]` propio; vive en ESTA fila, no repetido por columna, para que `gap` sea la
+          única fuente de separación vertical/horizontal. */}
+      <div className={`${contenedorClase} mx-auto grid grid-cols-1 gap-[22px] lg:grid-cols-2 lg:items-end lg:gap-12`}>
         {/* TEXTO — primero en celular Y en escritorio-izquierda (§ el ajuste 3, arriba). */}
         <div className="order-1 flex flex-col gap-4 lg:pb-7">
           {eyebrow.trim() !== '' && (

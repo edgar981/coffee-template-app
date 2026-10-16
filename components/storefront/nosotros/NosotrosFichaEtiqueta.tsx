@@ -82,11 +82,31 @@
 //    `v-d-nosotros.jpg`), esa sección es CREMA, no oscura; sólo la franja de tejido (delgada, a
 //    sangre) cruza detrás de las tarjetas. El punto 3 de arriba (margen vs. padding) sigue siendo
 //    correcto y no se tocó; sólo el color del fondo que describía estaba mal.
+//
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — DOS AJUSTES medidos contra la vista previa con el contenido real
+// de Las Chamisas (no contra la maqueta, que ya coincidía en esto):
+//
+// 1. EL SELLO ERA `LogoMark` A SECAS (la flor genérica) — el punto de swap por-despliegue, pero
+//    sin preferir el logo que el dueño YA subió. Si hay logo subido (`content.logo`, § MARCA-LOGO-
+//    IMAGEN-1 — la MISMA fuente que `StoreNav.tsx` lee para el encabezado), el sello pasa a ser ESE
+//    logo (`logoParaVariante(logo, 'light')`, preferencia 'oscuro' por ir sobre la tarjeta clara
+//    `--sf-papel`): con logo real, el sello deja de ser una flor ajena a la marca. Sin logo (el caso
+//    de Nayoli/Onix, y de Las Chamisas hasta que suba uno), queda el `LogoMark` de siempre — byte a
+//    byte, ninguna rama nueva para quien no tiene logo.
+// 2. LA RETÍCULA SÓLO ERA DE DOS COLUMNAS DESDE `sm:` (`grid-cols-1 sm:grid-cols-2`) — en celular
+//    (390px, la captura de referencia) las 8 filas apilaban en una sola columna; la maqueta
+//    (`.fic-grid{grid-template-columns:1fr 1fr}`, SIN media query que la cambie) es de dos columnas
+//    en las DOS anchuras. `filasFichaGrid` (lib/storefront/ficha-grid.ts, puro) deriva qué fila va a
+//    lo ancho (Variedades/Presentación, por su ÍCONO — no una segunda clasificación de la etiqueta)
+//    y promueve la ÚLTIMA fila de cualquier tramo IMPAR para que un repeater con otra cantidad/orden
+//    nunca deje una celda vecina vacía (el "hueco suelto" del spec).
 import { useSiteContent } from '@/components/storefront/SiteContentProvider';
 import { MapPin, Mountain, Sprout, Droplet, Calendar, Users, Coffee, Package, Minus, type LucideIcon } from 'lucide-react';
 import { filasCompletas } from '@/lib/tienda/creditos';
 import { fichaIcono } from '@/lib/storefront/ficha-iconos';
+import { filasFichaGrid } from '@/lib/storefront/ficha-grid';
 import { contenedorAnchoClase } from '@/lib/config/themes';
+import { hayLogoImagen, logoParaVariante } from '@/lib/config/marca-logo';
 import CampoEditable from '@/components/storefront/CampoEditable';
 import { LogoMark } from '@/components/storefront/Logo';
 
@@ -103,10 +123,11 @@ const ICONOS_FICHA: Record<ReturnType<typeof fichaIcono>, LucideIcon> = {
 };
 
 export default function NosotrosFichaEtiqueta() {
-  const { nosotrosFicha, tiendaCreditos, navTratamiento } = useSiteContent();
-  const filas = filasCompletas(tiendaCreditos.items);
+  const { nosotrosFicha, tiendaCreditos, navTratamiento, logo } = useSiteContent();
+  const filas = filasFichaGrid(filasCompletas(tiendaCreditos.items));
   const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const { eyebrow, titulo, bajada, tituloTarjeta, notaPie } = nosotrosFicha;
+  const selloLogoSrc = hayLogoImagen(logo) ? logoParaVariante(logo, 'light') : '';
 
   return (
     <section className="bg-[var(--sf-fondo)] pt-[72px] lg:pt-[104px]">
@@ -144,13 +165,18 @@ export default function NosotrosFichaEtiqueta() {
               <CampoEditable campo="nosotrosFicha.tituloTarjeta">{tituloTarjeta}</CampoEditable>
             </h3>
           )}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-2">
             {filas.map((fila, i) => {
               const Icono = ICONOS_FICHA[fichaIcono(fila.etiqueta)];
+              const claseColumna = fila.anchoCompleto
+                ? 'col-span-2'
+                : fila.columna === 0
+                  ? 'border-r pr-5'
+                  : 'pl-5';
               return (
               <div
                 key={`${fila.etiqueta}-${i}`}
-                className="flex items-start gap-2.5 border-t border-dashed border-[var(--sf-tinta)]/25 py-3 sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(odd)]:pr-5 sm:[&:nth-child(even)]:pl-5"
+                className={`flex items-start gap-2.5 border-t border-dashed border-[var(--sf-tinta)]/25 py-3 ${claseColumna}`}
               >
                 <Icono aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-[var(--sf-tinta)]" />
                 <div>
@@ -167,13 +193,19 @@ export default function NosotrosFichaEtiqueta() {
             </p>
           )}
           {/* EL SELLO — IMAGEN, no texto (§ el ajuste 1, arriba). SIEMPRE visible, sin gate de
-              contenido: es el mark de marca (punto de swap por-despliegue), no un dato que el
-              dueño pueda vaciar — mismo criterio que `EstadoPedido.tsx` ya aplica a este rol. */}
+              contenido: con logo subido (§ CHAMISAS-PAGINAS-ARREGLOS-1, la MISMA fuente que el
+              encabezado) es ESE logo; sin logo, el `LogoMark` de marca (punto de swap
+              por-despliegue) — mismo criterio que `EstadoPedido.tsx` ya aplica a este rol. */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -top-[30px] right-3 z-10 h-24 w-24 -rotate-12 opacity-[0.92] mix-blend-multiply lg:-top-10 lg:right-6 lg:h-[124px] lg:w-[124px]"
           >
-            <LogoMark className="h-full w-full" stroke="var(--sf-acento)" cherry="var(--sf-tinta)" />
+            {selloLogoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- aspecto desconocido (SVG/PNG subido), el sello sigue a `h-full w-full`
+              <img src={selloLogoSrc} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <LogoMark className="h-full w-full" stroke="var(--sf-acento)" cherry="var(--sf-tinta)" />
+            )}
           </div>
         </div>
       </div>

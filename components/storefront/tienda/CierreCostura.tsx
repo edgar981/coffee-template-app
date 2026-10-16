@@ -10,6 +10,24 @@
 // PRESENTACIONAL: recibe TODO por props, nunca `useSiteContent`/`useIsPreview` adentro — mismo
 // contrato que `CierreFraseYBoton`. `TiendaCierre.tsx` sigue siendo DUEÑO de su lógica (`botonCierre()`,
 // el gate `tiendaCierreVisible`); esta pieza sólo la pinta, y ahora la comparte con `SuscripcionCierre`.
+//
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — LA FRASE PASA DE 20/24px A 22/26px (`.band .q{font-size:22px}`
+// mobile / `26px` desde `@container shop (min-width:960px)`, `.scratch/chamisas-paginas/
+// nosotros-suscripciones.html`), el GAP que `CHAMISAS-NOSOTROS-MAQUETA-1` ya había medido y dejado
+// SIN cerrar por estar esta pieza, en ese momento, fuera de `touches:` (compartida con /tienda Y
+// /suscripciones). Contado ANTES de tocarla, los TRES consumidores (`NosotrosCierre`,
+// `SuscripcionCierre`, `TiendaCierre`) y su variante CANÓNICA/opt-in:
+//   - `nosotrosCierre.variante` canónica es 'linea' (NosotrosCierre.tsx) — 'costura' es opt-in.
+//   - `suscripcionCierre.variante` canónica es 'fraseYBoton' (SuscripcionCierre.tsx) — 'costura' es
+//     opt-in.
+//   - `tiendaCierre.variante` canónica ES 'costura' (site-content-defaults.ts, `DEFAULTS.
+//     tiendaCierre.variante`) — comparte 'costura' con CUALQUIER tenant que no la cambie — PERO su
+//     `frase` default es `''`, y el gate de `TiendaCierre.tsx` ("sin frase no hay nada que cerrar
+//     con") la deja SIN RENDERIZAR sin dato. De los tenants con contenido documentado
+//     (DECISIONS.md, § TIENDA-ONIX-CARTELERA-1/`customer_bytes`): Onix activa 'fraseYBoton' —no
+//     'costura'— en LAS TRES secciones; Nayoli/el template base se queda en el default vacío. Hoy,
+//     medido contra el ledger, las TRES secciones que SÍ pintan `CierreCostura` con contenido real
+//     son las que eligió Las Chamisas — el cambio de tamaño no toca ningún otro tenant conocido.
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import CampoEditable from '@/components/storefront/CampoEditable';
@@ -70,7 +88,7 @@ export default function CierreCostura({ franjaTejido, frase, cta, preview, ancho
             </CampoEditable>
           )}
           <div className="flex flex-col items-start gap-6 p-8 sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-playfair text-xl text-[var(--sf-tinta)] sm:text-2xl">
+            <p className="font-playfair text-[22px] text-[var(--sf-tinta)] sm:text-[26px]">
               <CampoEditable campo={campoFrase} multilinea>{frase}</CampoEditable>
             </p>
             <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">

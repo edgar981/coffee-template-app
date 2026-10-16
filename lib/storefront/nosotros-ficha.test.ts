@@ -163,6 +163,65 @@ describe('NosotrosFichaEtiqueta — § CHAMISAS-NOSOTROS-ARCO-Y-FICHA-1: cada fi
   });
 });
 
+describe('NosotrosFichaEtiqueta — § CHAMISAS-PAGINAS-ARREGLOS-1: el sello usa el logo de la tienda, si hay uno', () => {
+  test('sin logo subido (el default) el sello sigue siendo LogoMark (el SVG de marca)', () => {
+    const content = contenidoEtiqueta();
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('mix-blend-multiply'), 'el sello debe seguir presente');
+    assert.ok(!html.match(/<img[^>]*alt=""/), 'sin logo, no debe haber un <img> de sello');
+  });
+
+  test('con logo subido (content.logo.oscuro), el sello pasa a ser ESE logo — un <img>, no el LogoMark', () => {
+    const content: SiteContentData = {
+      ...contenidoEtiqueta(),
+      logo: { ...DEFAULTS.logo, visible: true, oscuro: '/images/logo-chamisas.svg' },
+    };
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('/images/logo-chamisas.svg'), 'el sello debe usar la URL del logo subido');
+    assert.ok(html.includes('mix-blend-multiply'), 'el sello sigue con la mezcla de color, aunque sea imagen subida');
+  });
+
+  test('con logo subido SÓLO en `claro` (sin `oscuro`), el sello usa esa versión — "si falta una, usa la otra"', () => {
+    const content: SiteContentData = {
+      ...contenidoEtiqueta(),
+      logo: { ...DEFAULTS.logo, visible: true, claro: '/images/logo-chamisas-claro.svg' },
+    };
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('/images/logo-chamisas-claro.svg'));
+  });
+});
+
+describe('NosotrosFichaEtiqueta — § CHAMISAS-PAGINAS-ARREGLOS-1: la retícula es de DOS columnas en TODA anchura', () => {
+  test('la retícula ya no cae a UNA columna por debajo de `sm:` — `grid-cols-2` sin prefijo', () => {
+    const content = contenidoEtiqueta();
+    const html = render(content, React.createElement(NosotrosFicha));
+    assert.ok(html.includes('grid grid-cols-2'), 'la retícula debe ser de 2 columnas en TODO ancho');
+    assert.ok(!html.includes('grid-cols-1 sm:grid-cols-2'), 'el fallback de una sola columna en celular ya no debe existir');
+  });
+
+  test('con las 8 filas de la maqueta, Variedades y Presentación van a lo ancho (col-span-2); el resto se empareja', () => {
+    const content: SiteContentData = {
+      ...contenidoEtiqueta(),
+      tiendaCreditos: {
+        visible: true,
+        items: [
+          { etiqueta: 'Origen', valor: 'San Adolfo, Huila' },
+          { etiqueta: 'Altitud', valor: '1.600–2.000 m s.n.m.' },
+          { etiqueta: 'Variedades', valor: 'Bourbon Rosado, Pacamara y Papayo' },
+          { etiqueta: 'Proceso', valor: 'Lavado' },
+          { etiqueta: 'Cosecha principal', valor: 'Octubre a diciembre' },
+          { etiqueta: 'Familias', valor: '12 familias' },
+          { etiqueta: 'Tostión', valor: 'Media' },
+          { etiqueta: 'Presentación', valor: '340 g y 500 g' },
+        ],
+      },
+    };
+    const html = render(content, React.createElement(NosotrosFicha));
+    const anchas = html.split('col-span-2').length - 1;
+    assert.equal(anchas, 2, 'Variedades y Presentación deben ser las dos únicas filas a lo ancho');
+  });
+});
+
 describe('NosotrosFichaEtiqueta — sigue gateada por el piso de tiendaCreditos (sin cambio de regla)', () => {
   test('con menos de 3 filas completas, toda la pieza —incluidos los campos nuevos— sigue oculta', () => {
     const content: SiteContentData = {

@@ -27,6 +27,18 @@
 // FIDELIDAD-1) — no la "del medio" que muestra la maqueta (su `S.freq` arranca en 'm1', la segunda
 // de tres): se alinea a la convención YA establecida de esta sección en vez de introducir una
 // segunda regla de default para el mismo concepto.
+//
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — DOS AJUSTES medidos contra la vista previa con el contenido real:
+//
+// 1. EL ANCHO: la apertura y «Arma tu pedido» vivían en SU PROPIO `max-w-6xl`, distinto del resto
+//    del storefront (que ya usa `contenedorAnchoClase(navTratamiento.posicion)`). Reemplazado en las
+//    DOS secciones — con `posicion:false` (el default) es BYTE A BYTE el mismo `max-w-6xl` de antes.
+// 2. EL ANTETÍTULO ("cada mes…") salía en `--sf-tostado` (terracota) — el ÚNICO eyebrow de
+//    /suscripciones y /nosotros que no estaba en tinta plena (`NosotrosEscenasAlbum`/
+//    `NosotrosAperturaAlbum`/`NosotrosFichaEtiqueta` ya usan `--sf-tinta`, sin opacidad, desde
+//    § CHAMISAS-NOSOTROS-MAQUETA-1). La maqueta (`.eyb{color:var(--ink)}`) lo pinta en tinta, como
+//    los demás; se corrige acá para que las tres páginas de Las Chamisas tengan un solo criterio de
+//    antetítulo.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Minus, Plus, MessageCircle, Check } from 'lucide-react';
@@ -56,6 +68,7 @@ import {
   DURACION_BARRA_FIJA_S,
   VAR_ALTO_BARRA_FIJA,
 } from '@/lib/storefront/barra-fija';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 import type { Product } from '@/types/product';
 import type { SuscripcionPlanesContent } from '@/lib/config/site-content-defaults';
 
@@ -75,8 +88,9 @@ interface MarcaCafe {
 }
 
 export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscripcionPlanes: c }: SuscripcionCasillasProps) {
-  const { tiendaCatalogo } = useSiteContent();
+  const { tiendaCatalogo, navTratamiento } = useSiteContent();
   const preview = useIsPreview();
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
   const matriz = useMemo(() => derivarCasillasCafes(catalog), [catalog]);
   const [cantidades, setCantidades] = useState<CantidadesCasillas>({});
   const [peso, setPeso] = useState<number | null>(null);
@@ -203,15 +217,16 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
       {/* APERTURA (§ CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 1 — medido contra `.so`/`.so h1
           .stk` de la maqueta): ALINEADA A LA IZQUIERDA, no centrada — la maqueta nunca centra `.so`,
           y el centrado era el único defecto de alineación. Va dentro del MISMO ancho que «Arma tu
-          pedido» (`max-w-6xl`), para que las dos secciones compartan el mismo margen izquierdo.
+          pedido» (`contenedorAnchoClase`, § CHAMISAS-PAGINAS-ARREGLOS-1), para que las dos secciones
+          compartan el mismo margen izquierdo.
           `tituloEnfasis` ("cada mes") DEJA de llevar su píldora propia: la maqueta lo imprime como
           texto PLANO dentro del `<h1>` — sólo el STICKER ("sin cobro automático") es un chip, y ahora
           va INLINE al final de esa misma frase (antes: su propio párrafo debajo, "en su propia
           línea"). Reusa eyebrow/titulo/tituloEnfasis/subtitulo — ver el docstring de cabecera. */}
-      <section className="relative bg-[var(--sf-fondo)] px-4 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl">
+      <section className="relative bg-[var(--sf-fondo)] py-16 sm:py-20">
+        <div className={`${contenedorClase} mx-auto`}>
           {c.eyebrow && (
-            <p className="mb-3 text-xs uppercase tracking-widest text-[var(--sf-tostado)]">
+            <p className="mb-3 text-xs uppercase tracking-widest text-[var(--sf-tinta)]">
               <CampoEditable campo="suscripcionPlanes.eyebrow">{c.eyebrow}</CampoEditable>
             </p>
           )}
@@ -239,8 +254,8 @@ export default function SuscripcionCasillas({ catalog, whatsapp, negocio, suscri
 
       {/* ARMA TU PEDIDO (§ el spec, item 2): 7/5, los pasos a la izquierda, la nota fija a la
           derecha (en escritorio) — § el spec, item 3: "Escritorio: 7/5". */}
-      <section className="bg-[var(--sf-fondo)] px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12">
+      <section className="bg-[var(--sf-fondo)] pb-16">
+        <div className={`${contenedorClase} mx-auto grid grid-cols-1 gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12`}>
           {/* ESPACIADO 12PX (§ CHAMISAS-SUSCRIPCIONES-FIDELIDAD-1, el spec item 2 — `.steps{gap:
               12px}` de la maqueta): antes `space-y-10` (40px), un resto de cuando los pasos no eran
               tarjetas propias — con cada Paso en su tarjeta blanca, 40px de aire entre tarjetas se

@@ -242,6 +242,8 @@ interface Opciones {
   sembrarTaquillaOnix: boolean;
   // PREGUNTAS-FRECUENTES-1 — ver el docstring de `sembrarPreguntasFrecuentes`, abajo.
   sembrarPreguntasFrecuentes: "onix" | "chamisas" | undefined;
+  // CHAMISAS-PAGINAS-ARREGLOS-1 — ver el docstring de `encenderPosicion`, abajo.
+  posicion: boolean;
 }
 
 function ayuda(): string {
@@ -384,6 +386,15 @@ grupo (Envíos/Pagos/El café/Tu pedido) de la maqueta aprobada
 (.scratch/preguntas-frecuentes/maqueta.html) y variante:'creditos' (onix) o
 'libreta' (chamisas). SÓLO válido en modo base fresca (mismo motivo que
 --sembrar-spotlight).
+--posicion (§ CHAMISAS-PAGINAS-ARREGLOS-1) enciende, sobre la base efímera y
+DESPUÉS de --preset/los --sembrar-* (si se pasaron), content.navTratamiento.
+posicion = true, publicado (no sólo en borrador). Ninguno de los seeds de Las
+Chamisas (--sembrar-casillas/--sembrar-album-nosotros) lo enciende por su cuenta;
+esta bandera es la forma de capturar con el mismo valor medido en la demo real
+(coffee-template-app-las-chamisas.vercel.app, confirmado por fetch: el HTML
+servido trae pt-[76px] min-[640px]:pt-[88px] cortenav:pt-[88px]) sin tocar ningún
+preset. SÓLO válido en modo base fresca (mutuamente excluyente con --url, mismo
+motivo que --sembrar-spotlight).
 
 Ejemplo (base fresca):
   node --import tsx scripts/capturar-seccion.ts --preset CORTE \\
@@ -464,6 +475,7 @@ function parseCli(argv: string[]): Opciones {
       "sembrar-album-nosotros": { type: "boolean" },
       "sembrar-taquilla-onix": { type: "boolean" },
       "sembrar-preguntas-frecuentes": { type: "string" },
+      posicion: { type: "boolean" },
       ayuda: { type: "boolean" },
       help: { type: "boolean" },
     },
@@ -548,6 +560,13 @@ function parseCli(argv: string[]): Opciones {
         `sembrar contra una URL ya desplegada (§ PREGUNTAS-FRECUENTES-1).\n\n${ayuda()}`,
     );
   }
+  const posicion = values.posicion === true;
+  if (posicion && url) {
+    throw new Error(
+      `--posicion y --url son mutuamente excluyentes: no hay base local que escribir contra una URL ` +
+        `ya desplegada (§ CHAMISAS-PAGINAS-ARREGLOS-1, el docstring de encenderPosicion).\n\n${ayuda()}`,
+    );
+  }
 
   // En modo --url, sin --ruta se asume una única ruta implícita ("/") — la URL ya trae el
   // destino (§ ARNES-CAPTURA-MUESTRARIO-REAL-1, el ejemplo canónico del modo no repite --ruta /).
@@ -621,6 +640,7 @@ function parseCli(argv: string[]): Opciones {
     sembrarAlbumNosotros,
     sembrarTaquillaOnix,
     sembrarPreguntasFrecuentes,
+    posicion,
   };
 }
 
@@ -1442,12 +1462,20 @@ async function sembrarAlbumNosotros(): Promise<void> {
     // REAL que `FICHA` declara en `.scratch/chamisas-paginas/nosotros-suscripciones.html` — el
     // modelo (`CreditoItem[]`, sin tope — § `lib/tienda/creditos.ts`) ya las admitía; lo que
     // faltaba era sembrar las dos que el fixture no traía.
+    // § CHAMISAS-PAGINAS-ARREGLOS-1 — ORDEN re-alineado al de la maqueta (Origen/Altitud ·
+    // Proceso/Cosecha/Familias/Tostión · Variedades/Presentación a lo ancho, § `FICHA` en
+    // `.scratch/chamisas-paginas/nosotros-suscripciones.html`): antes "Variedades" venía
+    // SEGUNDA (entre Finca y Altitud), así que la retícula de `filasFichaGrid`
+    // (lib/storefront/ficha-grid.ts) — correcta de todos modos, promueve la fila sin pareja a
+    // ancho completo para no dejar un hueco — pareaba Altitud con Proceso en vez de con Finca.
+    // El ORDEN es contenido de la captura, no el comportamiento del componente; se reordena para
+    // que la captura de este slice se lea exactamente como la maqueta.
     tiendaCreditos: {
       visible: true,
       items: [
         { etiqueta: "Finca", valor: "San Adolfo, Huila" },
-        { etiqueta: "Variedades", valor: "Bourbon Rosado, Pacamara y Papayo" },
         { etiqueta: "Altitud", valor: "1.600 – 2.000 m s.n.m." },
+        { etiqueta: "Variedades", valor: "Bourbon Rosado, Pacamara y Papayo" },
         { etiqueta: "Proceso", valor: "Lavado [ejemplo]" },
         { etiqueta: "Cosecha principal", valor: "Marzo – junio [ejemplo]" },
         { etiqueta: "Familias", valor: "12 familias [ejemplo]" },
@@ -1470,6 +1498,30 @@ async function sembrarAlbumNosotros(): Promise<void> {
   });
 
   console.log("✔ Álbum de /nosotros sembrado: paleta/tipografía/forma de Las Chamisas + 3 cafés + las 6 secciones publicadas.");
+}
+
+// ─── ENCENDER navTratamiento.posicion (§ CHAMISAS-PAGINAS-ARREGLOS-1) ────────────────────────────
+//
+// NINGÚN `--sembrar-*` de Las Chamisas toca `navTratamiento.posicion` — es una meta EXCLUIDA del
+// REGISTRY de secciones (§ CLAUDE.md, "navTratamiento… dominio CERRADO propio"), así que
+// `guardarBorrador`/`publicarSeccion` key-agnósticas (las MISMAS que usa `/api/site-content/
+// encabezado`, § ese route) son la única forma de escribirla sin inventar un mecanismo nuevo.
+//
+// VA DIRECTO A PUBLICADO (`publicarSeccion`), no se queda en borrador: una captura lee lo que el
+// storefront RENDERIZA (`force-dynamic`, § cabecera del archivo), y lo que renderiza es `content`,
+// nunca `borrador`.
+//
+// POR QUÉ ESTA BANDERA EXISTE, EN VEZ DE QUE `--sembrar-casillas`/`--sembrar-album-nosotros` LO
+// ENCIENDAN SOLAS: `posicion` es un eje del ENCABEZADO (ancho del contenedor, altura del header),
+// independiente de la paleta/tipografía/catálogo que esos dos seeds siembran — mezclarlo ahí
+// obligaría a todo consumidor futuro de esos seeds a heredar `posicion:true` aunque sólo quisiera
+// la paleta. Separado, cualquier combinación (con o sin `--posicion`) queda disponible.
+async function encenderPosicion(): Promise<void> {
+  console.log("▸ --posicion: encendiendo content.navTratamiento.posicion…");
+  const { guardarBorrador, publicarSeccion } = await import("../lib/config/site-content-write");
+  await guardarBorrador({ navTratamiento: { posicion: true } });
+  await publicarSeccion("navTratamiento");
+  console.log("✔ navTratamiento.posicion = true, publicado.");
 }
 
 // ─── ACCIONES PREVIAS A LA CAPTURA (§ COMPRA-LINEAS-FIDELIDAD-1) ─────────────────────────────────
@@ -1883,6 +1935,10 @@ async function main(): Promise<void> {
 
     if (opciones.sembrarPreguntasFrecuentes) {
       await sembrarPreguntasFrecuentes(opciones.sembrarPreguntasFrecuentes);
+    }
+
+    if (opciones.posicion) {
+      await encenderPosicion();
     }
 
     if (!(await puertoLibre(opciones.puertoApp))) {

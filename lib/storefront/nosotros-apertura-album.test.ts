@@ -117,6 +117,64 @@ describe('NosotrosAperturaAlbum — § CHAMISAS-NOSOTROS-ARCO-E-INTERLUDIO-1: la
   });
 });
 
+// § CHAMISAS-PAGINAS-ARREGLOS-1 — el swap a `contenedorAnchoClase(navTratamiento.posicion)` (§ el
+// docstring de cabecera del componente) SE JUSTIFICA con esta aritmética, no con una suposición: el
+// ancho INTERIOR disponible para el grid texto+arco nunca encoge frente al `max-w-[1376px] px-6
+// sm:px-10 lg:px-16` que esta pieza tenía antes de este slice — con `posicion:true` (el valor MEDIDO
+// de Las Chamisas, § el docstring de cabecera) en TODO breakpoint. Los números son los MISMOS
+// literales que `lib/config/themes.ts` ya documenta para `contenedorAnchoClase` — no una segunda
+// medición: si esa función cambiara sus literales, este test seguiría afirmando la relación (NUEVO
+// ≥ VIEJO), no un número fijo.
+describe('NosotrosAperturaAlbum — el ancho del contenedor nunca encoge al pasar a contenedorAnchoClase(true)', () => {
+  // ANCHO INTERIOR = min(viewport, maxWidth) − 2×padding, en el breakpoint dado.
+  function anchoInteriorViejo(viewportPx: number): number {
+    // `max-w-[1376px] px-6 sm:px-10 lg:px-16` — a 390px (<640=sm) el padding es `px-6`=24px; a
+    // 1440px (≥1024=lg) es `lg:px-16`=64px.
+    const padding = viewportPx < 640 ? 24 : 64;
+    return Math.min(viewportPx, 1376) - 2 * padding;
+  }
+  function anchoInteriorNuevo(viewportPx: number): number {
+    // `contenedorAnchoClase(true)` = `max-w-[1440px] px-[18px] min-[640px]:px-6 cortenav:px-8` — a
+    // 390px (<640) el padding es `px-[18px]`=18px; a 1440px (≥1200=cortenav) es `cortenav:px-8`=32px.
+    const padding = viewportPx < 640 ? 18 : 32;
+    return Math.min(viewportPx, 1440) - 2 * padding;
+  }
+
+  test('a 390px (celular, la captura de referencia): 354px ≥ 342px', () => {
+    assert.equal(anchoInteriorViejo(390), 342);
+    assert.equal(anchoInteriorNuevo(390), 354);
+    assert.ok(anchoInteriorNuevo(390) >= anchoInteriorViejo(390));
+  });
+
+  test('a 1440px (escritorio, la captura de referencia): 1376px ≥ 1248px', () => {
+    assert.equal(anchoInteriorViejo(1440), 1248);
+    assert.equal(anchoInteriorNuevo(1440), 1376);
+    assert.ok(anchoInteriorNuevo(1440) >= anchoInteriorViejo(1440));
+  });
+
+  test('la relación NUEVO ≥ VIEJO se sostiene en una barrida de viewports, no sólo en los dos medidos', () => {
+    for (let v = 320; v <= 1920; v += 10) {
+      assert.ok(anchoInteriorNuevo(v) >= anchoInteriorViejo(v), `viewport ${v}px: nuevo(${anchoInteriorNuevo(v)}) < viejo(${anchoInteriorViejo(v)})`);
+    }
+  });
+});
+
+describe('NosotrosAperturaAlbum — § CHAMISAS-PAGINAS-ARREGLOS-1: el ancho sigue a navTratamiento.posicion', () => {
+  test('con posicion:false (el default, sin fila) usa el contenedor de SIEMPRE (max-w-6xl), no el de CORTE', () => {
+    const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('max-w-6xl'), 'sin posicion, el contenedor debe ser el de siempre (max-w-6xl px-4 sm:px-6 lg:px-8)');
+    assert.ok(!html.includes('max-w-[1376px]'), 'el ancho propio de esta pieza ya no debe sobrevivir en el árbol');
+    assert.ok(!html.includes('max-w-[1440px]'), 'sin posicion, no debe aparecer el contenedor de CORTE');
+  });
+
+  test('con posicion:true (el valor medido de Las Chamisas) usa el contenedor de CORTE (max-w-[1440px])', () => {
+    const content: SiteContentData = { ...DEFAULTS, navTratamiento: { ...DEFAULTS.navTratamiento, posicion: true } };
+    const html = render(content, React.createElement(NosotrosAperturaAlbum, PROPS_BASE));
+    assert.ok(html.includes('max-w-[1440px]'), 'con posicion:true, el contenedor debe ser el de CORTE');
+    assert.ok(!html.includes('max-w-6xl'), 'con posicion:true, no debe quedar el contenedor de siempre');
+  });
+});
+
 describe('NosotrosAperturaAlbum — sin sticker, sin imagen: no revienta, no deja residuos', () => {
   test('sticker vacío → no se monta ningún nodo con el texto del sticker', () => {
     const html = render(DEFAULTS, React.createElement(NosotrosAperturaAlbum, { ...PROPS_BASE, sticker: '' }));

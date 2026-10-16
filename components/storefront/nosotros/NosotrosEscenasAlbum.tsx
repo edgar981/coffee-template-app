@@ -39,6 +39,8 @@
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { laminasVisibles, contadorLamina, repartoPaginasLaminas, esLaminaAncha, tituloLamina } from '@/lib/storefront/laminas';
+import { useSiteContent } from '@/components/storefront/SiteContentProvider';
+import { contenedorAnchoClase } from '@/lib/config/themes';
 import CampoEditable from '@/components/storefront/CampoEditable';
 import type { NosotrosEscenaItem } from '@/lib/config/site-content-defaults';
 
@@ -55,6 +57,7 @@ export interface NosotrosEscenasAlbumProps {
 }
 
 export default function NosotrosEscenasAlbum({ items, esquineros, eyebrow, titulo }: NosotrosEscenasAlbumProps) {
+  const { navTratamiento } = useSiteContent();
   const conIdx = items.map((it, idx) => ({ ...it, idx }));
   const visibles = laminasVisibles(conIdx);
   // `actual` vive ACÁ (el padre), no dentro de `Carrusel`: el ENCABEZADO (§ el ajuste 1, arriba)
@@ -66,6 +69,12 @@ export default function NosotrosEscenasAlbum({ items, esquineros, eyebrow, titul
   const laminas: LaminaConPosicion[] = visibles.map((it, i) => ({ ...it, numero: i + 1 }));
   const { izquierda, derecha } = repartoPaginasLaminas(laminas);
   const hayEncabezado = eyebrow.trim() !== '' || titulo.trim() !== '';
+  // § CHAMISAS-PAGINAS-ARREGLOS-1 — cierra CHAMISAS-ALBUM-ANCHO-INCONSISTENTE-1: el encabezado y el
+  // panel de escritorio vivían en SU PROPIO `max-w-6xl`, distinto del resto de /nosotros (que ya usa
+  // este mismo contenedor). `contenedorAnchoClase(navTratamiento.posicion)` reemplaza los dos
+  // `max-w-6xl px-* lg:px-16` propios — con `posicion:false` (el default) es BYTE A BYTE el mismo
+  // `max-w-6xl px-4 sm:px-6 lg:px-8` de siempre.
+  const contenedorClase = contenedorAnchoClase(navTratamiento.posicion);
 
   return (
     <section className="bg-[var(--sf-fondo)] py-20">
@@ -76,7 +85,7 @@ export default function NosotrosEscenasAlbum({ items, esquineros, eyebrow, titul
           entera, contador incluido: un número solo flotando sin su encabezado no es el diseño de la
           maqueta, es un residuo. */}
       {hayEncabezado && (
-        <div className="mx-auto mb-4 flex max-w-6xl items-end justify-between gap-3 px-6 sm:px-10 lg:px-16">
+        <div className={`${contenedorClase} mx-auto mb-4 flex items-end justify-between gap-3`}>
           <div>
             {eyebrow.trim() !== '' && (
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--sf-tinta)]">
@@ -104,8 +113,10 @@ export default function NosotrosEscenasAlbum({ items, esquineros, eyebrow, titul
           mostrarContadorPropio={!hayEncabezado}
         />
       </div>
-      {/* ESCRITORIO: panel recesado con doble página y lomo punteado (§ el ajuste 2, arriba). */}
-      <div className="hidden sm:mx-auto sm:block sm:max-w-6xl sm:px-10 lg:px-16">
+      {/* ESCRITORIO: panel recesado con doble página y lomo punteado (§ el ajuste 2, arriba). Está
+          `hidden` bajo `sm:`, así que el ancho/relleno de `contenedorClase` se aplica sin prefijo —
+          no hay viewport en el que este `<div>` sea visible por debajo de ese breakpoint. */}
+      <div className={`hidden sm:block ${contenedorClase} mx-auto`}>
         <div className="relative grid grid-cols-2 gap-0 rounded-[24px] bg-[var(--sf-superficie)] p-7">
           <div className="pointer-events-none absolute inset-y-7 left-1/2 border-l-2 border-dashed border-[var(--sf-tinta)]/30" aria-hidden="true" />
           <Pagina laminas={izquierda} esquineros={esquineros} className="pr-7" />
